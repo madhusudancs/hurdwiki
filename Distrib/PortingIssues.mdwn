@@ -1,50 +1,60 @@
-This is a recopilation of common porting problems and their solutions. It takes information from:
+## <a name="Table_of_Contents"> Table of Contents </a>
 
-<http://www.debian.org/ports/hurd/hurd-devel-debian/>
+%TOC%
 
-<http://hurd.dyndns.org/> (not yet, because it's down atm)
+## <a name="Overview"> Overview </a>
 
-and other misc sources.
+This is a recompilation of common porting problems and their solutions. Information is gathered from the following sources:
+
+[Debian Hurd port guidelines](http://www.debian.org/ports/hurd/hurd-devel-debian/)
+
+[James Morrison's Hurd pages](http://hurd.dyndns.org/)
+
+as well as other misc. sources.
 
 First of all, see [BtsFiling](http://www.vmlinux.org/twikihttp://LOCATIONHurd/BtsFiling) if you need instructions on manipulating [Debian](http://www.debian.org/) source packages and submitting patches to their [Bug Tracking System](http://bugs.debian.org/).
 
-\* Missing pthreads
+## <a name="Missing_pthreads"> Missing pthreads </a>
 
 Nothing. We don't have pthreads yet (It's being worked on).
 
-\* Undefined PIPE\_BUF
+## <a name="Undefined_PIPE_BUF"> </a> Undefined PIPE\_BUF
 
-Change it to use sysconf(\_SC\_PIPE\_BUF) #ifndef PIPE\_BUF. (from a Roland [[McGrath]] message in debian-hurd)
+Change it to use sysconf(\_SC\_PIPE\_BUF) #ifndef PIPE\_BUF. (from a Roland McGrath message in debian-hurd)
 
-\* Bad File Descriptor
+## <a name="Bad_File_Descriptor"> Bad File Descriptor </a>
 
 If you get Bad File Descriptor error when trying to read from a file (or accessing it at all), check the open() invocation. The second argument is the access method. If it is a hard coded number instead of a symbol defined in the standard header files, the code is screwed and should be fixed to either use O\_RDONLY, O\_WRONLY or O\_RDWR. This bug was observed in the fortunes and mtools packages for example.
 
-\* PATH\_MAX
+## <a name="PATH_MAX"> </a> PATH\_MAX
 
 Every unconditionalized use of PATH\_MAX is a POSIX incompatibility. If there is no upper limit on the length of a path, this symbol is not defined in any header file. Instead, you need to either use a different implementation that does not rely on the length of a string or use sysconf() to query the length at runtime. If sysconf() returns -1, you have to use realloc() to allocate the needed memory dynamically.
 
-\* MAXHOSTNAMELEN
+## <a name="MAXHOSTNAMELEN"> </a> MAXHOSTNAMELEN
 
 see PATH\_MAX
 
-\* MAXPATHLEN
+## <a name="MAXPATHLEN"> </a> MAXPATHLEN
 
 see PATH\_MAX
 
-\* NOFILE
+## <a name="NOFILE"> </a> NOFILE
 
 Replace with RLIMIT\_NOFILE
 
-\* GNU specific #define
+## <a name="GNU_specific_define"> </a> GNU specific #define
 
 If you need to include specific code for the Hurd using #if...#endif, then you can use the **_GNU_** symbol to do so. But think (at least) thrice! before doing so. In most situations, this is completely unnecessary and will create more problems than it may solve. Better ask on the mailing list how to do it right if you can't think of a better solution.
 
-\* sys\_errlist[] vs. strerror()
+## <a name="sys_errlist_vs_strerror_"> sys\_errlist[] vs. strerror() </a>
 
 If a program has only support for sys\_errlist[] you will have to do some work to make it compile on the Hurd, which has dropped support for it and does only provide strerror(). Steinar Hamre writes about strerror():
 
-strerror() should be used because: o It is the modern, POSIX way. o It is localized. o It handles invalid signals/numbers out of range. (better errorhandling and not a buffer-overflow-candidate/security risk)
+strerror() should be used because:
+
+* It is the modern, POSIX way.
+* It is localized.
+* It handles invalid signals/numbers out of range. (better errorhandling and not a buffer-overflow-candidate/security risk)
 
 strerror() should always be used if it is available. Unfortunaly there are still some old non-POSIX systems that do not have strerror(), only sys\_errlist[].
 
@@ -58,9 +68,20 @@ To config.h.in, you need to add:
 
 Then something like:
 
-#ifndef HAVE\_STRERROR static char \* private\_strerror (errnum) int errnum; \{ extern char \*sys\_errlist[]; extern int sys\_nerr;
+            #ifndef HAVE_STRERROR
+            static char *
+            private_strerror (errnum)
+                 int errnum;
+            {
+              extern char *sys_errlist[];
+              extern int sys_nerr;
 
-if (errnum &gt; 0 &amp;&amp; errnum &lt;= sys\_nerr) return sys\_errlist[errnum]; return "Unknown system error"; \} #define strerror private\_strerror #endif /\* HAVE\_STRERROR \*/
+              if (errnum > 0 && errnum <= sys_nerr)
+                return sys_errlist[errnum];
+              return "Unknown system error";
+            }
+            #define strerror private_strerror
+            #endif /* HAVE_STRERROR */
 
 You can for example look in the latest fileutils (the above is a simplified version of what I found there.) Patches should of course be sent to upstream maintainers, this is very useful even for systems with a working sys\_errlist[].
 
@@ -71,3 +92,7 @@ Of course, if you don't care about broken systems (like MS-DOG) not supporting s
 Those are evil if they don't exist and you want to name a directory this way. For example, mkdir foobar/ will not work on the Hurd. This is POSIX compatible. POSIX says that the path of a directory may have slashes appended to it. But the directory does not exist yet, so the path does not refer to a directory, and hence trailing slashes are not guaranteed to work. Just drop the slashes, and you're fine.
 
 -- [[Main/RobertMillan]] - 22 Jul 2002
+
+Formatting and minor grammatical fixes.
+
+-- [[Main/JoachimNilsson]] - 09 Sep 2002
