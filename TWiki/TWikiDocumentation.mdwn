@@ -30,7 +30,7 @@ TWiki can map the Intranet username to the Wiki username automatically, provided
 
 **(2) Wiki Variables**
 
-%INCLUDE:"TWikiVariables.txt"%
+%INCLUDE\{"TWikiVariables.txt"\}%
 
 <a name="notification"> </a>
 
@@ -174,7 +174,7 @@ Above template files will result in the following table when **\_editing\_** a t
 
 Example (edit this page to see the source) :
 
-* <form action="../../edit/Know/" name="main"> New <span style="background:"><font color="">Public FAQ</font></span><a href="http://LOCATIONKnow/PublicFAQ">?</a> topic: <input name="topic" size="32" type="text" /> <input name="TopicClassification" type="hidden" value="PublicFAQ" /> <input name="OperatingSystem" type="hidden" value="OsSolaris,OsSunOS" /> <input name="OsVersion" type="hidden" value="Just testing..." /> <input type="submit" value="Create" /></form>
+* <form action="%SCRIPTURLPATH%/edit%SCRIPTSUFFIX%/Know/"> New <span style="background:"><font color="">Public FAQ</font></span><a href="http://LOCATIONKnow/PublicFAQ">?</a> topic: <input name="topic" size="32" type="text" /> <input name="TopicClassification" type="hidden" value="PublicFAQ" /> <input name="OperatingSystem" type="hidden" value="OsSolaris,OsSunOS" /> <input name="OsVersion" type="hidden" value="Just testing..." /> <input name="onlywikiname" type="hidden" value="on" /> <input type="submit" value="Create Topic" /></form>
 
 <a name="implementation"> </a>
 
@@ -304,7 +304,9 @@ These installation steps use Apache web server on Linux as an example. TWiki sho
 * The `twiki/pub` directory of TWiki must be set so that it is visible as a URL. Add `/home/httpd/twiki/pub` to `/etc/httpd/conf/access.conf` with normal access options (copy from /home/httpd/html).
 * Now add `Alias` for `/twiki/pub` and `ScriptAlias` for `/twiki/bin` to `/etc/httpd/conf/srm-conf` .
 * Restart Apache by `/etc/rc.d/rc5.d/S85httpd restart` .
-* Test if the `twiki/bin` directory is cgi-enabled: Enter the URL of that directory into your browser (http://your.domain.com/twiki/bin). It is not set correctly as cgi-bin in case you get something like `"Index of /twiki/bin"` . It is OK if you get a message like `"Forbidden. You don't have permission to access /twiki/bin/ on this server."` .
+* Test if the `twiki/bin` directory is cgi-enabled:
+  * Enter the URL of that directory into your browser ( `http://your.domain.com/twiki/bin` ). It is not set correctly as cgi-bin in case you get something like `"Index of /twiki/bin"` . It is OK if you get a message like `"Forbidden. You don't have permission to access /twiki/bin/ on this server."`
+  * Execute the `testenv` script from your browser ( `http://your.domain.com/twiki/bin/testenv` ). It should show a table of all CGI environment variables.
 * Make sure PERL and the PERL CGI library is installed on your system. Default location of PERL executable is `/usr/bin/perl` . In case PERL is installed in a different location, the first line of all perl scripts in the `twiki/bin` directory need to be changed (alternatively you can create a symbolic link from `/usr/bin/perl` ).
 * To be able to edit the perl scripts and .tmpl files it is necessary to `chown` and `chgrp -R twiki` so all the files have the owner you want.
 * The scripts execute as `nobody` . Set the file permission of all Perl scripts in the `twiki/bin` directory as executable to `-rw-r-xr-x` .
@@ -316,20 +318,34 @@ These installation steps use Apache web server on Linux as an example. TWiki sho
 * Point your browser at <http://your.domain.com/twiki/bin/view> and start wiki-ing away!
 * Note in case cgi user is **_not_** `nobody` : The `*,v` RCS repository files delivered with the installation package are locked by user `nobody` . In case the user is different (e.g. `www-data` ), it is not possible to check in files, this has the effect that the topic version number does not increase when saving a topic. In this case you need to unlock all repository files and lock them as user `www-data` , or simply delete all the repository files.
 * Security issue: Directories `twiki/data` , `twiki/templates` and all its subdirectories should be set so that they are **not** visible as a URL. (Alternatively, move the directries to a place where they are not visible, and change the variables in `twiki/bin/wikicfg.pm` accordingly)
+
 * Optional: You can add new rendering rules or new %variables%. To insure an easy upgrade of TWiki it is recommended to do this customization in `twiki/bin/wikicfg.pm` , not `twiki/bin/wiki.pm` .
-* Optional: If you are on a public server and you would like to authenticate users you need to rename file `.htaccess.txt` in the `twiki/bin` directory to `.htaccess` and change it to your needs. Consult the HTTP server documentation for details, an example site for Apache is at [http://info.mcs.kent.edu/system/web\_help/htaccess/](http://info.mcs.kent.edu/system/web_help/htaccess/) . **_Note:_** In case `.htaccess` does not have any effect you need to enable it: Add "AllowOverride All" to the Directory section of `access.conf` for your `twiki/bin` directory.
+
+* Optional: If you are on a public server and you would like to authenticate users you need to rename file `.htaccess.txt` in the `twiki/bin` directory to `.htaccess` and change it to your needs. For details consult the HTTP server documentation (for Apache server: [[1]](http://www.scs.nevada.edu/cs/documents/web/htaccess.html), [[2]](http://www.mcs.kent.edu/system/web_help/htaccess/introduction.html), [[3]](http://www.apache.org/docs/mod/directives.html)). **_Note:_** In case `.htaccess` does not have any effect you need to enable it: Add "AllowOverride All" to the Directory section of `access.conf` for your `twiki/bin` directory.
+
+* Optional: You can automatically generate usage statistics for all webs. To enable this:
+  * Make sure variable `$doLogTopicView, $doLogTopicSave and $doLogTopicUpload` in `wikicfg.pm` are set. This will generate log entries in file `twiki/data/log<date>.txt` .
+  * Topic [[WebStatistics]] must be present in all webs where you want to have statistics. You can use the topic in the Main web as a template.
+  * Call the `twiki/bin/statistics` script from a cron job, once a day is recommended. This will update the [[WebStatistics]] topics in all webs.
+  * **_Attention:_** The script must run as the same user as the CGI scripts are running, which is user `nobody` on most systems. Example crontab entry: <br />`0 0 * * * (cd /path/to/TWiki/bin; ./statistics >/dev/null 2>&1)`
+  * There is a workaround in case you can't run the script as user `nobody` : Run the utility `twiki/bin/geturl` in your cron job and specify the URL of the `twiki/bin/statistics` script as a parameter. Example: <br />`0 0 * * * (cd /path/to/TWiki/bin; ./geturl mydomain.com /urlpath/to/TWiki/bin/statistics >/dev/null 2>&1)`
+  * The `twiki/bin/statistics` script can also be executed as a CGI script, just enter the URL in your browser. Examples:
+    * Update current month for all webs: <br />`%SCRIPTURL%/statistics`
+    * Update current month for Main web only: <br />`%SCRIPTURL%/statistics/Main`
+    * Update January 2000 for Main web: <br />`%SCRIPTURL%/statistics/Main?logdate=200001`
 
 * To create a new web:
   * Use a name for the web consisting of characters `A..Z` , `a..z` but **not** in [[WikiNotation]].
   * Create a new template directory under `twiki/templates` .
   * Create a new data directory under `twiki/data` and check the file permission of the directory.
-  * Copy the files `WebHome.txt` , `WebNotify.txt` , `WebSearch.txt` , `webcolor.inc` and `weblist.inc` from the `twiki/data/Main` directory to the new data directory.
+  * Copy the files `WebHome.txt` , `WebNotify.txt` , `WebSearch.txt` , `WebStatistics.txt` , `webcolor.inc` and `weblist.inc` from the `twiki/data/Main` directory to the new data directory, preserving the original files' owner, group and permissions ( on Unix use `cp -p` ). The data files must be writable by the owner the CGI scripts are running on ( usually `nobody` ). Hint: You can set permissions of `.txt` and `.txt,v` files to `-rw-rw-rw-` and then edit the topic using your browser, RCS will restore the file permission correctly when saving the topic.
   * Change `webcolor.inc` to a color of your taste. The number represents the unique color for the web (consult an HTML book for colors.) **_Note:_** The file must not have a new line, just the number without a return.
   * Customize `weblist.inc` (web specific links on top) if needed.
-  * Add the new web in `twiki/data/wikiwebs.inc` (web specific links on top) and `twiki/data/wikiwebtable.inc` (table of all webs at the end of the [[WbHome]] topics).
+  * Add the new web in `twiki/data/wikiwebs.inc` (web specific links on top) and `twiki/data/wikiwebtable.inc` (table of all webs at the end of the [[WebHome]] topics).
   * In case you need a web specific copyright notice (at the bottom), copy file `webcopyright.inc` from the `twiki/data` directory to the new data directory, and customize it.
   * If needed, create customized templates in the new templates directory. (Non existing templates are inherited from `twiki/templates` )
   * If you want to use a category table, copy the three files `twikicatitems.tmpl` , `twikicatedit.tmpl` and `twikicatview.tmpl` from the `twiki/templates/Know` directory to the new templates directory, and customize it. The TWiki Category Table section has more.
+  * In case you want usage statistics for this web: Copy file `WebStatistics.txt` from the `twiki/data/Main` directory to the new data directory. Edit topic [[WebStatistics]] and delete old usage entries.
 
 Here are contents of directories with file permissions. Please note that this is for debugging reasons only and does not exactly reflect the distribution:
 
@@ -342,6 +358,7 @@ directory `twiki/bin` :
     -rw-r-xr-x   1 twiki    t5           2810 Oct 21 18:51 changes
     -rw-r-xr-x   1 twiki    t5           1244 Mar 27 02:21 delete
     -rw-r-xr-x   1 twiki    t5           2589 Nov  6 03:05 edit
+    -rwxr--r--   1 twiki    t5           1811 Feb  4 12:15 geturl
     -rwxr-xr-x   1 twiki    t5           4614 Oct 21 18:52 mailnotify
     -rw-r-xr-x   1 twiki    t5           1353 Oct 23 20:19 oops
     -rw-r-xr-x   1 twiki    t5           2043 Nov  6 03:05 preview
@@ -349,11 +366,14 @@ directory `twiki/bin` :
     -rw-r-xr-x   1 twiki    t5           6890 Nov 11 03:06 rdiff
     -rw-r-xr-x   1 twiki    t5           1819 Nov  6 03:06 save
     -rw-r-xr-x   1 twiki    t5           3174 Oct 21 18:51 search
+    -rw-r-xr-x   1 twiki    t5           9774 Feb  4 12:26 statistics
+    -rwxr-xr-x   1 twiki    t5            509 Feb  7 18:55 testenv
     -rw-r-xr-x   1 twiki    t5           6696 Mar 27 02:22 upload
     -rw-r-xr-x   1 twiki    t5           3878 Nov 11 03:06 view
     -rw-r-xr-x   1 twiki    t5           1538 Mar 27 02:22 viewfile
     -rw-r-xr-x   1 twiki    t5          16169 Nov  7 01:43 wiki.pm
     -rw-r-xr-x   1 twiki    t5           3945 Jun 23 01:24 wikicfg.pm
+    -rw-r-xr-x   1 twiki    t5           5127 Feb  4 11:37 wikisearch.pm
 
 directory `twiki/templates/` :
 
@@ -431,6 +451,8 @@ part of directory `twiki/data/Main` :
     -r--r--r--   1 nobody   65535         638 Oct 27 02:45 WebNotify.txt,v
     -rw-r--r--   1 nobody   65535        3653 Oct 21 18:52 WebSearch.txt
     -r--r--r--   1 nobody   65535        3835 Oct 27 02:45 WebSearch.txt,v
+    -rw-r--r--   1 nobody   65535        4282 Feb  4 15:08 WebStatistics.txt
+    -r--r--r--   1 nobody   65535        4471 Feb  4 15:08 WebStatistics.txt,v
     -rw-r--r--   1 twiki    t5              7 Oct 21 18:52 webcolor.inc
     -rw-r--r--   1 twiki    t5            278 May 20 17:42 webcopyright.inc
     -rw-r--r--   1 twiki    t5            402 Oct 26 07:45 weblist.inc
@@ -477,4 +499,4 @@ directory `twiki/pub/icn/` :
     -rw-r--r--   1 twiki    t5            152 Mar 27 03:17 xls.gif
     -rw-r--r--   1 twiki    t5            144 Mar 27 03:17 zip.gif
 
--- [[Main/PeterThoeny]] - 22 Oct 1998 <br /> -- [[Main/PeterThoeny]] - 18 Nov 1998 <br /> -- [[Main/PeterThoeny]] - 11 Jan 1999 <br /> -- [[Main/PeterThoeny]] - 20 Jan 1999 <br /> -- [[Main/PeterThoeny]] - 06 Mar 1999 <br /> -- [[Main/PeterThoeny]] - 27 Mar 1999 <br /> -- [[Main/PeterThoeny]] - 02 Jun 1999 <br /> -- [[Main/PeterThoeny]] - 14 Jun 1999 <br /> -- [[Main/PeterThoeny]] - 23 Jun 1999 <br /> -- [[Main/PeterThoeny]] - 01 Sep 1999 <br /> -- [[Main/PeterThoeny]] - 29 Sep 1999 <br /> -- [[Main/PeterThoeny]] - 14 Jan 2000 <br /> -- [[Main/PeterThoeny]] - 02 Feb 2000 <br />
+-- [[Main/PeterThoeny]] - 22 Oct 1998 <br /> -- [[Main/PeterThoeny]] - 18 Nov 1998 <br /> -- [[Main/PeterThoeny]] - 11 Jan 1999 <br /> -- [[Main/PeterThoeny]] - 20 Jan 1999 <br /> -- [[Main/PeterThoeny]] - 06 Mar 1999 <br /> -- [[Main/PeterThoeny]] - 27 Mar 1999 <br /> -- [[Main/PeterThoeny]] - 02 Jun 1999 <br /> -- [[Main/PeterThoeny]] - 14 Jun 1999 <br /> -- [[Main/PeterThoeny]] - 23 Jun 1999 <br /> -- [[Main/PeterThoeny]] - 01 Sep 1999 <br /> -- [[Main/PeterThoeny]] - 29 Sep 1999 <br /> -- [[Main/PeterThoeny]] - 14 Jan 2000 <br /> -- [[Main/PeterThoeny]] - 02 Feb 2000 <br /> -- [[Main/PeterThoeny]] - 04 Feb 2000 <br />
