@@ -1,0 +1,34 @@
+## <a name="Hurd_on_QEMU"> </a> Hurd on QEMU
+
+I will assume you have already installed [QEMU](http://fabrice.bellard.free.fr/qemu/).
+
+You may need the [floppy.img](http://24.109.97.177:57777/floppy.img) that I use. It is from the debian grub boot disk package.
+
+The version of [lomount](http://24.109.97.177:57777/lomount.tar.gz) that I use.
+
+First off use qemu-img to create a disk image. I set mine to 2 gigabytes.
+
+    # qemu-img create hd0.img 2G
+
+Now you will need a cdrom image or an install cd. I will use debian/hurd k8 in this example. I use a floppy image with grub on it to boot the system, after im done installing. The first time you run it you'll want to use -boot d to boot off the cdrom.
+
+    # qemu -hda hd0.img -cdrom debian-K8-hurd-i386-CD1.iso -fda floppy.img  -boot d
+
+Now at his point do the regular install using hd0 as your harddrive. Partition it and install the base system. Instead of rebooting, just stop QEMU (it'll keep booting off the cdrom).
+
+**Important:** Debian K8's gnumach will not boot in QEMU so you'll have to use a different version. I use the one supplied with ams's [snapshot](http://www.update.uu.se/~ams/gnu/gnu-2004-12-04.tar.bz2) and it works well.
+
+You'll have to mount your disk image, I use a program called lomount to do this. Then copy the new kernel onto the partition.
+
+    # lomount -diskimage hd0.img -partition 1 /mnt/iso
+    # rm /mnt/iso/boot/gnumach.gz
+    # cp gnumach.gz /mnt/iso/boot
+    # umount /mnt/iso
+
+Now run your image with floppy booting and finish the install (./native-install .. etc)
+
+    # qemu -hda hd0.img -cdrom debian-K8-hurd-i386-CD1.iso -fda floppy.img -boot a
+
+So far I haven't been able to get networking going, it seems as if gnumach is not finding the ethernet device, although I haven't really looked into it that far.
+
+-- [[Main/AndrewResch]] - 23 Feb 2005
