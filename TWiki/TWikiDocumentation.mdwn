@@ -1,0 +1,366 @@
+### <a name="Documentation_of_the_TWiki_Imple"> Documentation of the TWiki Implementation </a>
+
+* [(1)](#login) Login Username vs. Wiki Username
+* [(2)](#variables) Wiki Variables
+* [(3)](#notification) Notification of Changes by Email
+* [(4)](#category) TWiki Category Table
+* [(5)](#implementation) Implementation Notes
+* [(6)](#installation) Installation Notes
+
+Related Topics: [[TWikiHistory]], [[TWikiPlannedFeatures]], [[TWikiEnhancementRequests]].
+
+<a name="login"> </a>
+
+----
+
+**(1) Login Username vs. Wiki Username**
+
+TWiki manages internally two usernames: Login username and Wiki username.
+
+* **Login username:** When you login to the Intranet you use your login username, e.g. `thoeny`. TWiki uses this name internally to log who changed topics.
+* **Wiki username:** Is your name in [[WikiNotation]], e.g. `PeterThoeny`. When you create your own home page topic, you should use your [[WikiName]] for the topic name. Like that, your name will be linked automatically where ever it is used. Please create your home page in TWiki.Main, not any other TWiki web.
+
+**Note:** When you write a [[WikiName]] of a user (your own or somebody else's) be sure to specify the Main web in front of the Wiki user name, e.g. write it as Main.wikiUsername. This assures that the name will be linked automatically to the TWiki.Main web, even if the text is written in a different Wiki web.
+
+TWiki can map the Intranet username to the Wiki username automatically, provided that the Login username and Wiki username pair has been entered in the [[Main/TWikiUsers]] topic.
+
+<a name="variables"> </a>
+
+----
+
+**(2) Wiki Variables**
+
+%INCLUDE:"TWikiVariables.txt"%
+
+<a name="notification"> </a>
+
+----
+
+**(3) Notification of Changes by Email**
+
+Each TWiki web does an automatic email notification of recent changes. Users can subscribe / unsubscribe themselves in [[WebNotify]] of each TWiki web. The Perl script ` mailnotify ` is called by a deamon once every 60 minutes. For each Twiki web ` mailnotify ` is sending an automated email to subscribed users in case some topics changed within these 60 minutes.
+
+Implementation note: Edit the cron table so that ` mailnotify ` is called every 60 minutes. Please consult ` man crontab ` of how to modify the table that schedules program execution at certain intervals. Example:
+
+    % crontab -e
+    15,45 * * * * (cd ~twiki/public_html/bin; ./mailnotify)
+
+The above line will call mailnotify at 15 minutes and 45 minutes passed every hour.
+
+<a name="category"> </a>
+
+----
+
+**(4) TWiki Category Table**
+
+It is possible to add a category table to a TWiki web. This permits storing and searching for more structured information. Editing a topic shows a HTML form with the usual text area and a table with selectors, checkboxes, radio buttons and text fields. The category table is shown at the end of a topic. The format of the category table can be defined per TWiki web.
+
+If you want to use a Category Table in a TWiki web you need to have the following three files in the wiki/bin/templates/\{Yourweb\} directory:
+
+* twikicatitems.tmpl : Defines the items in the table
+* twikicatedit.tmpl : Defines the look of the table when editing a topic
+* twikicatview.tmpl : Defines the look of the table when viewing a topic
+
+**\_Format of category definition template twikicatitems.tmpl\_**
+
+Valid lines:
+
+    select|{name}|{selSize}|{val1}|{val2}|{val3}...
+    checkbox|{name}|{checkFlag}|{itemsPerLine}|{val1}|{val2}|{val3}...
+    radio|{name}|{itemsPerLine}|{val1}|{val2}|{val3}...
+    text|{name}|{charSize}
+    # comments start with a # character
+
+Explanation:
+
+      {name}             name of tag
+      {selSize}          vertical size of SELECT tag
+      {val1}|{val2}...   values
+      {checkFlag}        set to true for [Set] [Clear] buttons, else set to false
+      {itemsPerLine}     input items per line before wrap around, 0 if no wrap around
+      {charSize}         number of characters for text fields
+
+**\_Remark:\_** Line ` radio|UseCategory|0|Yes|No ` has a special meaning. If present, it is possible to choose in "edit" if the category table is included in the topic or not
+
+Example file:
+
+    radio|UseCategory|0|Yes|No, delete this category table
+    select|TopicClassification|1|Select one...|NoDisclosure|PublicSupported|PublicFAQ
+    checkbox|OperatingSystem|true|5|OsSolaris|OsSunOS|OsHPUX|OsWin
+    text|OsVersion|16
+
+**\_Format of twikicatedit.tmpl and twikicatview.tmpl\_**
+
+Use the example below and customize if needed. twikicatedit.tmpl and twikicatview.tmpl can be identical, but they do not have to be.
+
+**\_Attention:\_** ` <!--TWikiCat--> ` is needed at the beginning and end as markers. Do not delete them!
+
+Example:
+
+    <!--TWikiCat--> <h4> TWikiCategory </h4>
+    <table border="2" cellspacing="1" cellpadding="1">
+    %REPEAT%<tr>
+    <td valign="top" align="right"> %CATNAME%:  <br>%CATMODIFIER%</td><td>  %CATVALUE% </td>
+    </tr>%REPEAT%
+    </table><!--TWikiCat-->
+
+Above template files will result in the following category table when **\_viewing\_** a topic:
+
+#### <a name="TWikiCategory_a_"> </a> [TWikiCategory]()
+
+<table border="2" cellpadding="1" cellspacing="1">
+  <tr>
+    <td align="right" valign="top"><a href="">TopicClassification</a>: <br />
+    </td>
+    <td><a href="">PublicFAQ</a></td>
+  </tr>
+  <tr>
+    <td align="right" valign="top"><a href="">OperatingSystem</a>: <br />
+    </td>
+    <td><a href="">OsSolaris</a></td>
+  </tr>
+  <tr>
+    <td align="right" valign="top"><a href="">OsVersion</a>: <br />
+    </td>
+    <td>2.5  </td>
+  </tr>
+</table>
+
+Above template files will result in the following table when **\_editing\_** a topic:
+
+<form><nop><h4><a name="TWikiCategory_a_"> </a> <a href="">TWikiCategory</a></h4>
+    <table border="2" cellpadding="1" cellspacing="1">
+      <tr>
+        <td align="right" valign="top"><a href="">UseCategory</a> : <br />
+        </td>
+        <td>
+          <table cellpadding="0" cellspacing="0">
+            <tr>
+              <td><input checked name="UseCategory" type="radio" value="Yes" />Yes   </td>
+              <td><input name="UseCategory" type="radio" value="Nodeletethiscategorytable" />No, delete this category table   </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td align="right" valign="top"><a href="">TopicClassification</a> : <br />
+        </td>
+        <td><select name="TopicClassification" size="1"><option value="Selectone">Select one... </option>
+            <option value="NoDisclosure">NoDisclosure </option>
+            <option value="PublicSupported">PublicSupported </option>
+            <option selected value="PublicFAQ">PublicFAQ </option></select></td>
+      </tr>
+      <tr>
+        <td align="right" valign="top"><a href="">OperatingSystem</a> : <br /><input onclick="" type="button" value=" Set " />  <input onclick="" type="button" value="Clear" /> </td>
+        <td>
+          <table cellpadding="0" cellspacing="0">
+            <tr>
+              <td><input checked name="OperatingSystemOsSolaris" type="checkbox" />OsSolaris   </td>
+              <td><input name="OperatingSystemOsSunOS" type="checkbox" />OsSunOS   </td>
+              <td><input name="OperatingSystemOsHPUX" type="checkbox" />OsHPUX   </td>
+              <td><input name="OperatingSystemOsWin" type="checkbox" />OsWin   </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td align="right" valign="top"><a href="">OsVersion</a> : <br />
+        </td>
+        <td><input name="OsVersion" size="16" type="text" value="2.5" /></td>
+      </tr>
+    </table></nop></form>
+
+<a name="implementation"> </a>
+
+----
+
+**(5) Implementation Notes**
+
+(under construction)
+
+**\_Platform\_**
+
+TWiki is written in PERL, but it uses many shell command. The current implementation runs only on a Unix machine. RCS for revision control must be installed on the system.
+
+**\_Files\_**
+
+    .htaccess
+    changes
+    debug.txt
+    edit
+    error401.html
+    mailnotify      automatic email notification, called by a cron job
+    preview         preview topic, Perl script
+    save
+    search
+    view
+    wiki.pm
+
+<a name="installation"> </a>
+
+----
+
+**(6) Installation Notes**
+
+These installation steps use Apache web server on Linux as an example. TWiki should run on other web servers and Unix systems as well.
+
+* Request the TWiki distribution (in Unix ZIP format) from <http://www.mindspring.net/~peterthoeny/twiki/index.html> .
+* Create directory `/home/httpd/twiki` and unzip the TWiki distribution to this directory.
+* The `twiki/bin` directory of TWiki must be set as a cgi-bin directory. Add `/home/httpd/twiki/bin` to `/etc/httpd/conf/access.conf` with only `ExecCGI` option.
+* The `twiki/pub` directory of TWiki must be set so that it is visible as a URL. Add `/home/httpd/twiki/pub` to `/etc/httpd/conf/access.conf` with normal access options (copy from /home/httpd/html).
+* Now add `Alias` for `/twiki/pub` and `ScriptAlias` for `/twiki/bin` to `/etc/httpd/conf/srm-conf` .
+* Restart Apache by `/etc/rc.d/rc5.d/S85httpd restart` .
+* Test if the `twiki/bin` directory is cgi-enabled: Enter the URL of that directory into your browser (http://your.domain.com/twiki/bin). It is not set correctly as cgi-bin in case you get something like `"Index of /twiki/bin"` . It is OK if you get a message like `"Forbidden. You don't have permission to access /twiki/bin/ on this server."` .
+* Make sure PERL and the PERL CGI library is installed on your system. Default location of PERL executable is `/usr/bin/perl` . In case PERL is installed in a different location, the first line of all perl scripts in the `twiki/bin` directory need to be changed (alternatively you can create a symbolic link from `/usr/bin/perl` ).
+* To be able to edit the perl scripts and .tmpl files it is necessary to `chown` and `chgrp -R twiki` so all the files have the owner you want.
+* The scripts execute as `nobody` . Set the file permission of all Perl scripts in the `twiki/bin` directory as executable to `-rw-r-xr-x` .
+* Set the file permission of all files below `twiki/bin/data` to 666 ( `-rw-rw-rw-` ).
+* Set the file permission of the `twiki/bin/data` directory and all its subdirectories to 777 ( `drwxrwxrwx` ).
+* Set the file permission of the `twiki/pub` directory to 777 ( `drwxrwxrwx` ).
+* Edit the file wiki.pm and set the variables at the beginning of the file to your needs.
+* Make sure RCS is installed. In case RCS is not in the `path` environment variable, add it to `path` . Alternatively, add the full path name to the `rcs, ci, co, rlog, rcsdiff` commands in the wiki.pm variables.
+* Point your browser at <http://your.domain.com/twiki/bin/view> and start wiki-ing away!
+
+* To create a new web:
+  * Use a topic name consisting of characters `A..Z` , `a..z` but **not** in [[WikiNotation]].
+  * Create a new template directory and copy all files from the `twiki/bin/templates/Main` directory to the new directory.
+  * Create a new data directory and copy the files .changes, .mailnotify, [[TWikiUsers]].txt, [[WebHome]].txt, [[WebNotify]].txt, [[WebSearch]].txt, webcolor.inc, webcopyright.inc and weblist.inc from the `twiki/bin/data/Main` directory to the new directory.
+  * Make changes to webcolor.inc (unique color for web), possibly also webcopyright.inc (copyright at the bottom) and weblist.inc (web specific links on top).
+  * If you want to use a category table, create the three files twikicatitems.tmpl, twikicatedit.tmpl and twikicatview.tmpl described in the TWiki Category Table section.
+
+For debugging reasons, here are contents of directories with file permissions:
+
+directory `twiki/bin` :
+
+    drwxr-xr-x   5 twiki    t5            512 Nov 11 02:52 .
+    drwxr-xr-x   5 twiki    t5            512 Nov  6 02:57 ..
+    drwxr-xr-x   6 twiki    t5            512 Nov  6 03:13 data
+    drwxr-xr-x   6 twiki    t5            512 Nov  4 20:34 templates
+    -rw-r--r--   1 twiki    t5            430 Oct 21 18:51 .htaccess
+    -rwxrwxrwx   1 twiki    t5           3752 Mar 27 02:21 attach
+    -rwxr-xr-x   1 twiki    t5           2810 Oct 21 18:51 changes
+    -rw-rw-rw-   1 twiki    t5           1091 Nov  6 04:15 debug.txt
+    -rwxrwxrwx   1 twiki    t5           1244 Mar 27 02:21 delete
+    -rw-r-xr-x   1 twiki    t5           2589 Nov  6 03:05 edit
+    -rw-r--r--   1 twiki    t5           1097 Oct 21 18:51 error401.html
+    -rwxr-xr-x   1 twiki    t5           4614 Oct 21 18:52 mailnotify
+    -rw-r-xr-x   1 twiki    t5           1353 Oct 23 20:19 oops
+    -rw-r-xr-x   1 twiki    t5           2043 Nov  6 03:05 preview
+    -rw-r-xr-x   1 twiki    t5           6890 Nov 11 03:06 rdiff
+    -rw-r-xr-x   1 twiki    t5           1819 Nov  6 03:06 save
+    -rwxr-xr-x   1 twiki    t5           3174 Oct 21 18:51 search
+    -rwxrwxrwx   1 twiki    t5           6696 Mar 27 02:22 upload
+    -rw-r-xr-x   1 twiki    t5           3878 Nov 11 03:06 view
+    -rwxrwxrwx   1 twiki    t5           1538 Mar 27 02:22 viewfile
+    -rw-r-xr-x   1 twiki    t5          16169 Nov  7 01:43 wiki.pm
+
+directory `twiki/bin/templates/` :
+
+    drwxr-xr-x   6 twiki    t5            512 Nov  4 20:34 .
+    drwxr-xr-x   5 twiki    t5            512 Nov 11 02:52 ..
+    drwxr-xr-x   2 twiki    t5            512 Oct 23 20:57 Know
+    drwxr-xr-x   2 twiki    t5            512 Nov  4 20:35 Main
+    -rw-r--r--   1 twiki    t5           2232 Mar 27 02:03 attach.tmpl
+    -rw-r--r--   1 twiki    t5           1200 Mar 27 02:03 attachtable.tmpl
+    -rw-r--r--   1 twiki    t5           1751 Nov 11 02:41 changes.tmpl
+    -rw-r--r--   1 twiki    t5           1711 Nov  6 03:01 edit.tmpl
+    -rw-r--r--   1 twiki    t5            896 Oct 21 18:51 mailnotify.tmpl
+    -rw-r--r--   1 twiki    t5             25 Oct 21 18:51 notedited.tmpl
+    -rw-r--r--   1 twiki    t5             21 Oct 21 18:51 notext.tmpl
+    -rw-r--r--   1 twiki    t5            157 Oct 23 21:05 notwiki.tmpl
+    -rw-r--r--   1 twiki    t5            218 Oct 23 20:06 noweb.tmpl
+    -rw-r--r--   1 twiki    t5            279 Oct 23 20:29 oops.tmpl
+    -rw-r--r--   1 twiki    t5            833 Mar 27 02:03 oopsdel.tmpl
+    -rw-r--r--   1 twiki    t5            868 Mar 27 02:03 oopsupload.tmpl
+    -rw-r--r--   1 twiki    t5           2010 Nov  6 03:01 preview.tmpl
+    -rw-r--r--   1 twiki    t5           1501 Nov 12 22:56 rdiff.tmpl
+    -rw-r--r--   1 twiki    t5           1548 Oct 23 21:10 search.tmpl
+    -rw-r--r--   1 twiki    t5           1541 Oct 26 21:07 view.tmpl
+
+directory `twiki/bin/templates/Main` :
+
+    drwxr-xr-x   2 twiki    t5            512 Nov  4 20:35 .
+    drwxr-xr-x   6 twiki    t5            512 Nov  4 20:34 ..
+    -rw-r--r--   1 twiki    t5           2328 Nov  6 03:03 edit.tmpl
+
+directory `twiki/bin/templates/Know` (has a TWiki Category Table) :
+
+    drwxr-xr-x   2 twiki    t5            512 Nov  4 20:35 .
+    drwxr-xr-x   6 twiki    t5            512 Nov  4 20:34 ..
+    -rw-r--r--   1 twiki    t5            611 Dec  7 20:59 notedited.tmpl
+    -rw-r--r--   1 twiki    t5            210 Dec 24 23:22 twikicatedit.tmpl
+    -rw-r--r--   1 twiki    t5           1887 Jan  6 20:54 twikicatitems.tmpl
+    -rw-r--r--   1 twiki    t5            245 Dec 24 23:27 twikicatview.tmpl
+
+directory `twiki/bin/data/` :
+
+    drwxrwxrwx   6 twiki    t5            512 Nov 19 01:01 .
+    drwxr-xr-x   5 twiki    t5            512 Nov 11 02:52 ..
+    drwxrwxrwx   2 twiki    t5           9216 Nov 13 13:55 Know
+    drwxrwxrwx   2 twiki    t5           4608 Nov 15 21:42 Main
+    -rw-r--r--   1 nobody   65535        4153 Nov 19 01:01 log199810.txt
+    -rw-r--r--   1 nobody   65535        7189 Nov 19 01:01 log199811.txt
+    -rw-r--r--   1 twiki    t5            276 Oct 22 00:28 wikiwebs.inc
+    -rw-r--r--   1 twiki    t5           1484 Oct 22 01:11 wikiwebtable.inc
+
+part of directory `twiki/bin/data/Main` :
+
+    drwxrwxrwx   2 twiki    t5           4608 Nov 19 00:56 .
+    drwxrwxrwx   6 twiki    t5            512 Nov 19 01:01 ..
+    -rw-rw-rw-   1 twiki    t5           5974 Nov 15 21:42 .changes
+    -rw-rw-rw-   1 twiki    t5              9 Nov 15 23:00 .mailnotify
+    -rw-r--r--   1 nobody   65535        1990 Nov  6 18:25 TWikiUsers.txt
+    -r--r--r--   1 nobody   65535        3045 Nov  6 18:25 TWikiUsers.txt,v
+    -rw-r--r--   1 nobody   65535        1181 Oct 29 20:54 WebHome.txt
+    -r--r--r--   1 nobody   65535        1537 Oct 29 20:54 WebHome.txt,v
+    -rw-r--r--   1 nobody   65535         454 Oct 21 18:52 WebNotify.txt
+    -r--r--r--   1 nobody   65535         638 Oct 27 02:45 WebNotify.txt,v
+    -rw-r--r--   1 nobody   65535        3653 Oct 21 18:52 WebSearch.txt
+    -r--r--r--   1 nobody   65535        3835 Oct 27 02:45 WebSearch.txt,v
+    -rw-rw-rw-   1 twiki    t5              7 Oct 21 18:52 webcolor.inc
+    -rw-rw-rw-   1 twiki    t5            278 May 20 17:42 webcopyright.inc
+    -rw-rw-rw-   1 twiki    t5            402 Oct 26 07:45 weblist.inc
+
+directory `twiki/pub/` :
+
+    drwxrwxrwx   4 twiki    t5           1024 Mar 27 02:58 .
+    drwxr-xr-x   4 twiki    t5           1024 Mar 27 02:08 ..
+    drwxrwxrwx   4 nobody   nobody       1024 Mar 27 03:54 Main
+    -rw-r--r--   1 twiki    t5           2877 Mar 27 02:27 wikiHome.gif
+    drwxr-xr-x   2 twiki    t5           1024 Mar 27 03:17 icn
+
+directory `twiki/pub/icn/` :
+
+    drwxr-xr-x   2 twiki    t5           1024 Mar 27 03:17 .
+    drwxrwxrwx   4 twiki    t5           1024 Mar 27 02:58 ..
+    -rw-r--r--   1 twiki    t5            801 Mar 27 03:02 _filetypes.txt
+    -rw-r--r--   1 twiki    t5            143 Mar 27 03:16 bat.gif
+    -rw-r--r--   1 twiki    t5            926 Mar 27 03:16 bmp.gif
+    -rw-r--r--   1 twiki    t5            141 Mar 27 03:16 c.gif
+    -rw-r--r--   1 twiki    t5            144 Mar 27 03:16 dll.gif
+    -rw-r--r--   1 twiki    t5            152 Mar 27 03:16 doc.gif
+    -rw-r--r--   1 twiki    t5            130 Mar 27 03:16 else.gif
+    -rw-r--r--   1 twiki    t5            876 Mar 27 03:16 exe.gif
+    -rw-r--r--   1 twiki    t5            147 Mar 27 03:16 fon.gif
+    -rw-r--r--   1 twiki    t5            142 Mar 27 03:16 h.gif
+    -rw-r--r--   1 twiki    t5            156 Mar 27 03:16 hlp.gif
+    -rw-r--r--   1 twiki    t5            186 Mar 27 03:16 html.gif
+    -rw-r--r--   1 twiki    t5            144 Mar 27 03:16 java.gif
+    -rw-r--r--   1 twiki    t5            148 Mar 27 03:16 mov.gif
+    -rw-r--r--   1 twiki    t5            150 Mar 27 03:16 pdf.gif
+    -rw-r--r--   1 twiki    t5            146 Mar 27 03:16 pl.gif
+    -rw-r--r--   1 twiki    t5            150 Mar 27 03:16 ppt.gif
+    -rw-r--r--   1 twiki    t5            148 Mar 27 03:16 ps.gif
+    -rw-r--r--   1 twiki    t5            148 Mar 27 03:16 py.gif
+    -rw-r--r--   1 twiki    t5            130 Mar 27 03:17 ram.gif
+    -rw-r--r--   1 twiki    t5            154 Mar 27 03:17 reg.gif
+    -rw-r--r--   1 twiki    t5            147 Mar 27 03:17 sh.gif
+    -rw-r--r--   1 twiki    t5            155 Mar 27 03:17 sniff.gif
+    -rw-r--r--   1 twiki    t5            149 Mar 27 03:17 ttf.gif
+    -rw-r--r--   1 twiki    t5            134 Mar 27 03:17 txt.gif
+    -rw-r--r--   1 twiki    t5            154 Mar 27 03:17 wav.gif
+    -rw-r--r--   1 twiki    t5            152 Mar 27 03:17 wri.gif
+    -rw-r--r--   1 twiki    t5            152 Mar 27 03:17 xls.gif
+    -rw-r--r--   1 twiki    t5            144 Mar 27 03:17 zip.gif
+
+-- [[Main/PeterThoeny]] - 22 Oct 1998 <br /> -- [[Main/PeterThoeny]] - 18 Nov 1998 <br /> -- [[Main/PeterThoeny]] - 11 Jan 1999 <br /> -- [[Main/PeterThoeny]] - 20 Jan 1999 <br /> -- [[Main/PeterThoeny]] - 06 Mar 1999 <br /> -- [[Main/PeterThoeny]] - 27 Mar 1999 <br /> -- [[Main/PeterThoeny]] - 02 Jun 1999 <br /> -- [[Main/PeterThoeny]] - 14 Jun 1999 <br />
