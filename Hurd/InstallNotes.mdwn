@@ -1,65 +1,75 @@
-There are two methods to install the Hurd: [CD-ROM iso images](http://www.debian.org/ports/hurd/hurd-cd) &amp; network sources.
+Items of interest during install not mentioned elsewhere include the following. They have been re-arranged to match the same order as Neal Walfield's [install guide](http://web.walfield.org/papers/hurd-installation-guide/english/hurd-install-guide.html).
 
-Neal Walfield's [guide](http://web.walfield.org/papers/hurd-installation-guide/english/hurd-install-guide.html) is excellent and is available in several formats. This is the guide that the Hurd community always references first. To install under the Bochs x86 emulator, Alfred M Szmidt wrote a [great guide](http://ftp.walfield.org/pub/people/ams/hurd/creating_bochs_image_for_gnu.txt). Oliver also created a GNU/Hurd [bochs image](http://mail.gnu.org/pipermail/bug-hurd/2002-October/010604.html). The GNU official [installation page](http://www.gnu.org/software/hurd/install.html) is the canonical reference.
+%TOC%
 
-On Sept 20, 2002 [[Main/DeepakGoel]] (a self-proclaimed newbie) posted a link to his personal [step-by-step installation](http://24.197.159.102/~deego/pub/hurd/install-guide/install.txt). The parent directory has additional material.
+## <a name="1_Overview_Where_we_are_going"> 1. Overview - Where we are going </a>
 
-Ohers who wish to post summaries of their installation experiences are encouraged to do so. The installer methods, package dependencies and file locations frequently do change without warning.
+There are three methods to install the Hurd: tarball (network), and bochs virtual machine.
 
-Items of interest during install not mentioned elsewhere include:
+* Neal Walfield's [guide](http://web.walfield.org/papers/hurd-installation-guide/english/hurd-install-guide.html) is excellent and is available in several formats. This is the guide that the Hurd community always references first. The GNU official [installation page](http://www.gnu.org/software/hurd/install.html) is the canonical reference. [[TarballNotes20020816]]
+* [CD-ROM iso images](http://www.debian.org/ports/hurd/hurd-cd) CD-ROM installs are becoming more and more popular. [[CDNotesJ2]]
+* Bochs is an x86 emulator similar to the commercial VMware (which is not supported). Alfred M Szmidt wrote a [great guide](http://ftp.walfield.org/pub/people/ams/hurd/creating_bochs_image_for_gnu.txt). Oliver also created a GNU/Hurd [bochs image](http://mail.gnu.org/pipermail/bug-hurd/2002-October/010604.html).
+
+## <a name="2_Real_Estate_or_Finding_A_Home"> 2. Real Estate or Finding A Home </a>
 
 * When preparing the hurd partition, you may wish to add a -b 4096 option to mkfs.ext2 (the default is chosen depending on the size of the partition, and the support for block size 1024 is buggy). (the command to check the block size is tune2fs -l /dev/hda9 under Linux)
-
 * fdisk is most commonly used under Debian GNU/Linux for creating partitions. fdisk/cfdisk will work just fine. Neal's guide chooses to recommend [GNU parted](http://www.gnu.org/software/parted) instead.
 
+## <a name="3_The_Boot_Loader_Getting_Grub"> 3. The Boot Loader - Getting Grub </a>
+
+* [[GrubNotes]] - quick reference
+
+## <a name="4_Cross_Install_Cross_Installing"> 4. Cross Install - Cross Installing the Hurd </a>
+
+## <a name="5_Booting_the_Hurd"> 5. Booting the Hurd </a>
+
 * **IMPORTANT!** Remember when first booting into your freshly un-tarred distribution, you must pass the `-s` option to `/boot/gnumach.gz`. Failure to do so means that you won't get single-user mode.
+* **IMPORTANT2!** Add the --readonly flag to the file system server in your Grub menu.lst file. This is a work-around to get fsck working properly. Don't forget, everything must be on ONE line! <br />
 
-* **IMPORTANT2!** Add the --readonly flag to the file system server in your Grub menu.lst file. This is a work-around to get fsck working properly. Don't forget, everything must be on ONE line! Like this
-  * module /hurd/ext2fs.static --readonly --multiboot-command-line=$\{kernel-command-line\} --host-priv-port=$\{host-port\} --device-master-port=$\{device-port\} --exec-server-task=$\{exec-task\} -T typed $\{root\} $(task-create) $(task-resume)
+module /hurd/ext2fs.static --readonly --multiboot-command-line=$\{kernel-command-line\} --host-priv-port=$\{host-port\} --device-master-port=$\{device-port\} --exec-server-task=$\{exec-task\} -T typed $\{root\} $(task-create) $(task-resume)
 
-* a recommended `/etc/apt/sources.list`: <br /><code>deb <ftp://alpha.gnu.org/gnu/hurd/debian> unstable main <br /> deb <ftp:/ftp.debian.org/debian> unstable main <br /> deb-src <ftp://ftp.debian.org/debian> unstable main</code>
+## <a name="6_Native_Install_Finishing_the_I"> 6. Native Install - Finishing the Installation </a>
 
+* remember to `export TERM==mach` each time.
 * The default editor is now `nano`, not `ae`.
+* If you are following Neal's installation guide, he presents a sample `/etc/fstab`. When you first boot, your `/home` directory will _not_ be auto-mounted. You must set a passive translator on that node to access that partition. The correct syntax for this is: <br />`settrans -p /home /hurd/ext2fs /dev/hd2s2`
 
-* Some packages like `libc6-dev` are old yet depended on by other packages not yet updated. In this particular case, I believe the new dependency is `libc0.3-dev`. However these dependencies may cause problems for apt. To circumvent these problems there are two general solutions.
-  * The first is to change the dependencies that apt looks at in the `/var/lib/apt/lists/` directory. For example, you could modify libc0.3 to provide the missing `libc6-dev` package.
-  * Installing the `equivs` package and creating a dummy package is the second alternative. This will satisfy the apt dependency in a cleaner manner.
+> # <file system>  <mount point>    <type>   <options>  <dump> <pass>
+>      /dev/hd2s1        /               ext2       rw         0      1
+>      /dev/hd2s2        /home           ext2       rw         0      2
+>      /dev/hd2s3        none            swap       sw         0      0
 
-* If you are following Neal's installation guide, he presents a sample `/etc/fstab`:
-
-> # <file system> <mount point>   <type>  <options>  <dump>  <pass>
->     /dev/hd2s1      /               ext2    rw         0       1
->     /dev/hd2s2      /home           ext2    rw         0       2
->     /dev/hd2s3      none            swap    sw         0       0
->
-> When you first boot, your
->
-> `/home`
->
-> directory will
->
-> _not_
->
-> be auto-mounted. You must set a passive translator on that node to access that partition. The correct syntax for this is:
->
-> <br />
->
-> `settrans -p /home /hurd/ext2fs /dev/hd2s2`
+## <a name="7_Configuration_Making_the_Syste"> 7. Configuration - Making the System Usable </a>
 
 * After you install, you'll want to do several _important_ things:
   * Run `passwd` to give the root user a password. By default, root does not have one.
   * Run `adduser` to give yourself a user account. _Do not_ use root indiscriminately.
   * Since the Hurd does not use `ld.so.conf`, you will want to specify where the X Window System keeps its libraries. Do this by adding the following line to your `/etc/profile`: <br />`export LD_LIBRARY_PATH='/lib:/usr/X11R6/lib'`
   * Bring your system up to par by running: `apt-get update && apt-get dist-upgrade`
-
 * Install these extremely useful packages
   * `libstdc++4` -- Some packages require version 4 and assume that it will be installed as part of the standard configuration.
   * `dialog` -- Debconf uses this for pretty text display.
   * `libterm-readline-gnu-perl` -- _Ibid_.
   * `screen` -- A terminal multiplexer that is important because the Hurd does not yet have virtual consoles.
+* a recommended `/etc/apt/sources.list`: <br /><code>deb <ftp://alpha.gnu.org/gnu/hurd/debian> unstable main <br /> deb <ftp:/ftp.debian.org/debian> unstable main <br /> deb-src <ftp://ftp.debian.org/debian> unstable main</code>
+* There are some extremely useful cross-platform 'apt' tricks that can be used to get packages when using Debian GNU/Linux (possibly others) for installation on the Hurd. The steps are covered in the file /usr/share/doc/apt/offline\* which has been used by several Hurd developers successfully. This is especially useful if your Hurd doesn't recognize your network card.
+* Some packages like `libc6-dev` are old yet depended on by other packages not yet updated. In this particular case, I believe the new dependency is `libc0.3-dev`. However these dependencies may cause problems for apt. To circumvent these problems there are two possible solutions.
+  * The first is to change the dependencies that apt looks at in the `/var/lib/apt/lists/` directory. For example, you could modify libc0.3 to provide the missing `libc6-dev` package.
+  * Installing the `equivs` package and creating a dummy package is the second alternative. This will satisfy the apt dependency in a cleaner manner.
+* Edit your `/etc/inetd.conf` and comment out all the services you don't need. Services that probably don't need to be running are
 
-* There are some extremely useful 'apt' tricks that can be used to get packages when using Debian GNU/Linux (possibly others) for installation on the Hurd. The steps are covered in the file /usr/share/doc/apt/offline\* which has been used by several Hurd developers successfully.
+`ftp`, `telnet`, `shell`, `login`, and `exec`.
 
-* Edit your `/etc/inetd.conf` and comment out all the services you don't need. Services that probably don't need to be running are `ftp`, `telnet`, `shell`, `login`, and `exec`.
+## <a name="8_Final_Words_The_FAQ"> </a> 8. Final Words - The FAQ
 
--- [[Main/SimonLaw]] - 29 May 2002
+* [[NewbieQuestions]] - More than frequently asked questions
+* [Hurd FAQ](http://web.walfield.org/papers/hurd-faq/)
+* [[KnownHurdLimits]] - Limitations of the GNU operating system
+
+## <a name="9_Works_Cited_Referenced_Materia"> 9. Works Cited - Referenced Materials </a>
+
+ On Sept 20, 2002 [[Main/DeepakGoel]] (a self-proclaimed newbie) posted a link to his personal [step-by-step installation](http://24.197.159.102/~deego/pub/hurd/install-guide/install.txt). The parent directory has additional material.
+
+Others who wish to post summaries of their installation experiences are encouraged to do so. The installer methods, package dependencies and file locations frequently do change without warning.
+
+-- [[Main/SimonLaw]] - 29 May 2002 <br /> -- [[Main/GrantBow]] - 13 Oct 2002
