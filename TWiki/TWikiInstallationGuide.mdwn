@@ -6,7 +6,7 @@ These installation steps use the Apache web server on Linux as an example. TWiki
 
 **_Note:_** Below installation steps assume user `nobody` for all files manupulated by the cgi scripts (executed by the web server), and user `twiki` for all other files. You need to replace user `nobody` with an other user in case the web server executes the script with a different user ( default for Debian is `www-data` ). Also, you can substitute user `twiki` with your own user name.
 
-**_Note:_** Below installation steps assume that you have control over the web server configuraton files. In case you don't (i.e. if you are installing it on a hosted server) follow the steps but use these directories instead:
+**_Note:_** Below installation steps assume that you have control over the web server configuraton files. In case you don't - you may be installing on an ISP-hosted server - follow the steps but use these directories instead:
 
 <table border="1" cellpadding="1" cellspacing="0">
   <tr>
@@ -43,80 +43,75 @@ These installation steps use the Apache web server on Linux as an example. TWiki
 
 Read <http://TWiki.org/cgi-bin/view/Codev/SourceForgeHowTo> in case you want to install TWiki on SourceForge.
 
-### <a name="Standard_Installation_Steps"> Standard Installation Steps </a>
+### <a name="Standard_Installation"> Standard Installation </a>
 
-* Request the TWiki distribution (in Unix ZIP format) from <http://TWiki.org/download.html> .
+Request and download the TWiki %VERSION% distribution in Unix ZIP format from <http://TWiki.org/download.html>.
+
+#### <a name="Step_1_Create_amp_Configure_the_"> Step 1: Create &amp; Configure the Directories </a>
+
 * Create directory `/home/httpd/twiki` and unzip the TWiki distribution into this directory.
 * The `twiki/bin` directory of TWiki must be set as a cgi-bin directory. Add `/home/httpd/twiki/bin` to file `/etc/httpd/httpd.conf` with only `ExecCGI` option.
 * The `twiki/pub` directory of TWiki must be set so that it is visible as a URL. Add `/home/httpd/twiki` to file `httpd.conf` with normal access options (copy from `/home/httpd/html` ).
 * Now add `ScriptAlias` for `/twiki/bin` and `Alias` for `/twiki` to file `httpd.conf` . <br />**_Note:_** The `ScriptAlias` **must** come before the `Alias` in Apache, otherwise it will fail to correctly set up `/twiki/bin/` , due to the fact that it sees that as being just another subdirectory of the `/twiki/` alias. <br />
-* Here are example `httpd.conf` entries:
 
-<pre> Script<nop>Alias /twiki/bin/ "/home/httpd/twiki/bin/"
- Alias /twiki/ "/home/httpd/twiki/"
- &amp;lt;Directory "/home/httpd/twiki/bin"&amp;gt;
-    Options +ExecCGI
-    Set<nop>Handler cgi-script
-    Allow from all
- &amp;lt;/Directory&amp;gt;
- &amp;lt;Directory "/home/httpd/twiki/pub"&amp;gt;
-    Options Follow<nop>Sym<nop>Links +Includes
-    Allow<nop>Override None
-    Allow from all
- &amp;lt;/Directory&amp;gt;</nop></nop></nop></nop></nop></pre>
+> **Example `httpd.conf` entries:**
+>
+> <pre> Script<nop>Alias /twiki/bin/ "/home/httpd/twiki/bin/"
+>  Alias /twiki/ "/home/httpd/twiki/"
+>  &amp;lt;Directory "/home/httpd/twiki/bin"&amp;gt;
+>     Options +ExecCGI
+>     Set<nop>Handler cgi-script
+>     Allow from all
+>  &amp;lt;/Directory&amp;gt;
+>  &amp;lt;Directory "/home/httpd/twiki/pub"&amp;gt;
+>     Options Follow<nop>Sym<nop>Links +Includes
+>     Allow<nop>Override None
+>     Allow from all
+>  &amp;lt;/Directory&amp;gt;</nop></nop></nop></nop></nop></pre>
+
+#### <a name="Step_2_Check_the_Server_Director"> Step 2: Check the Server Directory Settings </a>
 
 * Restart Apache by `/etc/rc.d/rc5.d/S85httpd restart` .
 * Test if the `twiki/bin` directory is cgi-enabled:
   * Enter the URL of that directory into your browser ( `http://your.domain.com/twiki/bin` ). It is not set correctly as cgi-bin in case you get something like `"Index of /twiki/bin"` . It is OK if you get a message like `"Forbidden. You don't have permission to access /twiki/bin/ on this server."`
-  * Execute the `testenv` script from your browser ( `http://your.domain.com/twiki/bin/testenv` ). It shows a table with all CGI environment variables and tests the settings in your `twiki/bin/wikicfg.pm` configuration file.
-* Make sure PERL 5 and the PERL CGI library is installed on your system. Default location of PERL executable is `/usr/bin/perl` . In case PERL is installed in a different location, the first line of all perl scripts in the `twiki/bin` directory need to be changed (alternatively you can create a symbolic link from `/usr/bin/perl` ).
-* To be able to edit the perl scripts and .tmpl files it is necessary to `chown` and `chgrp -R twiki` so all the files have the owner you want.
-* The scripts execute as `nobody` . Set the file permission of all Perl scripts in the `twiki/bin` directory as executable to `-rwxr-xr-x` .
-* Set the permission of all files below `twiki/data` so that they are writable by user `nobody`. A simple way is to chmod them to 666 ( `-rw-rw-rw-` ).
-* Set the permission of the `twiki/data` directory and all its subdirectories so that files in there are writable by user `nobody`. A simple way is to chmod them to 777 ( `drwxrwxrwx` ).
-* Set the permission of the `twiki/pub` directory and all its subdirectories so that files in there are writable by user `nobody`. A simple way is to chmod them to 777 ( `drwxrwxrwx` ).
-* Edit the file `twiki/bin/wikicfg.pm` and set the variables at the beginning of the file to your needs.
-* Make sure RCS is installed. Set `$rcsDir` in `twiki/bin/wikicfg.pm` to mach the location of your RCS binaries.
-* Point your browser at <http://your.domain.com/twiki/bin/view> and start TWiki-ing away!
-* Using your browser, edit the [[TWikiPreferences]] topic in the TWiki.%TWIKIWEB% web to set the WIKIWEBMASTER email address, the WEBCOPYRIGHT message and other preferences.
-* Note in case the cgi scripts must have a file extension like `.pl` or `.cgi`:
-  * Add the extension to all the scripts (except for the `.pm` ones) in `twiki/bin`
-  * Edit `wikicfg.pm` and set the file extension in the `$scriptSuffix` variable.
-  * If you use `.htaccess`, edit the file and add the file extension to `edit`, `view`, `preview`, etc.
+  * Execute the `testenv` script from your browser ( `http://your.domain.com/twiki/bin/testenv` ). It shows a table with all CGI environment variables and tests the settings in your <code>**twiki/bin/wikicfg.pm**</code> configuration file.
+
+#### <a name="Step_3_Enable_Perl_File_Permissi"> Step 3: Enable Perl File Permissions </a>
+
+* Make sure Perl 5 and the Perl CGI library is installed on your system. Default location of Perl executable is `/usr/bin/perl` . In case Perl is installed in a different location, the first line of all perl scripts in the <code>**twiki/bin**</code> directory need to be changed (alternatively you can create a symbolic link from <code>**/usr/bin/perl**</code> ).
+  * **IMPORTANT:** On most ISP virtual domain accounts, Perl CGI scripts require a <code>**.cgi**</code> extension to run. Some systems need <code>**.pl**</code>, the regular Perl extension. Change all <code>**twiki/bin**</code> scripts appropriately if necssary.
+* To be able to edit the Perl scripts and <code>**.tmpl**</code> files it is necessary to <code>**chown**</code> and <code>**chgrp -R twiki**</code> so all the files have the owner you want.
+* The scripts execute as <code>**nobody**</code>. Set the file permission of all Perl scripts in the <code>**twiki/bin**</code> directory as executable to <code>**-rwxr-xr-x**</code> (755).
+* Set the permission of all files below `twiki/data` so that they are writable by user `nobody`. A simple way is to <code>**chmod**</code> them to <code>**-rw-rw-rw-**</code> (666).
+* Set the permission of the <code>**twiki/data**</code> directory and its subdirectories so that files in there are writable by user <code>**nobody**</code>. A simple way is to chmod them to <code>**drwxrwxrwx**</code> (777).
+* Set the permission of the `twiki/pub` directory and all its subdirectories so that files in there are writable by user `nobody`. A simple way is to chmod them to <code>**drwxrwxrwx**</code> (777).
+
+#### <a name="Step_4_Set_the_Main_Configuratio"> Step 4: Set the Main Configuration File </a>
+
+* Edit the file <code>**twiki/bin/wikicfg.pm**</code> and set the variables at the beginning of the file to your needs.
+  * Set the file extension in the `$scriptSuffix` variable to <code>**cgi**</code> or <code>**pl**</code> if required.
+  * Make sure RCS is installed. Set `$rcsDir` in `twiki/bin/wikicfg.pm` to mach the location of your RCS binaries.
 * Note in case the cgi scripts are **_not_** running as user `nobody`: The `*,v` RCS repository files delivered with the installation package are locked by user `nobody` . In case the user is different (e.g. `www-data` ), it is not possible to check in files, this has the effect that the topic version number does not increase when saving a topic. In this case you need to unlock all repository files and lock them as user `www-data` (check the rcs man pages), or simply delete all the repository files. A simple way to switch the locker of the RCS files is to use sed: <br />`for f in *,v; do sed 's/nobody\:/www-data\:/' $f > x; mv x $f; done`
-* Security issue: Directories `twiki/data` , `twiki/templates` and all its subdirectories should be set so that they are **not** visible as a URL. (Alternatively, move the directries to a place where they are not visible, and change the variables in `twiki/bin/wikicfg.pm` accordingly)
-* Enable email notification of topic changes, [[TWikiDocumentation]] has more. Using your browser, edit also the [[WebNotify]] topic in all webs and set the users you want to notify.
+* **Security issue:** Directories `twiki/data` , `twiki/templates` and all its subdirectories should be set so that they are **not** visible as a URL. (Alternatively, move the directries to a place where they are not visible, and change the variables in `twiki/bin/wikicfg.pm` accordingly)
+* Enable email notification of topic changes, [[TWikiDocumentation]] has more.
 * Add the [TWiki:Main.PoweredByTWikiLogo](http://TWiki.org/cgi-bin/view/Main/PoweredByTWikiLogo) to your %MAINWEB%.WebHome topic.
 
-### <a name="Adding_Variables_amp_Rendering_R"> Adding Variables &amp; Rendering Rules </a>
+#### <a name="Step_5_Finish_Up_from_Your_Brows"> Step 5: Finish Up from Your Browser </a>
 
-* Optional: You can add new rendering rules or new %VARIABLES%. To insure an easy upgrade of TWiki it is recommended to do this customization in `twiki/bin/wikicfg.pm` , not `twiki/bin/wiki.pm` .
+* Point your Web browser at <code>**http://your.domain.com/twiki/bin/view**</code> and start TWiki-ing away!
+* Edit the [[TWikiPreferences]] topic in the TWiki:%TWIKIWEB% web to set the WIKIWEBMASTER email address, the WEBCOPYRIGHT message and other preferences.
+* If you use `.htaccess`, edit the file and add the file extension to `edit`, `view`, `preview`, etc.
+* Edit the [[WebNotify]] topic in all webs and set the users you want to notify.
 
-### <a name="Enabling_Basic_Authentication_ht"> Enabling Basic Authentication (.htaccess) </a>
+That's it for the standard virgin installation of TWiki. Read on to learn how to customize TWiki.
 
-* Optional: If you are on a non authenticated server (i.e. not using SSL) and you would like to authenticate users:
-  * Rename file `.htaccess.txt` in the `twiki/bin` directory to `.htaccess` and change it to your needs. For details consult the HTTP server documentation (for Apache server: [[1]](http://www.apache.org/docs/mod/directives.html), [[2]](http://www.mcs.kent.edu/system/web_help/htaccess/introduction.html)). In particular, the following <font>red</font> part needs to be configured correctly: <br /><code>Redirect <font>/urlpath/to/TWiki/index.html</font> http://<font>your.domain.com/urlpath/to/TWiki/bin/</font>view</code><br /><code>AuthUserFile <font>/filepath/to/TWiki/data/</font>.htpasswd</code><br /><code>ErrorDocument 401 <font>/urlpath/to/TWiki/bin/</font>oops/TWiki/TWikiRegistration?template=oopsauth</code>
-    * **_Note:_** The browser should ask for login name and password when you click on the <u>Edit</u> link. In case `.htaccess` does not have the desired effect you need to enable it: Add "AllowOverride All" to the Directory section of `access.conf` for your `twiki/bin` directory.
-  * Copy the [[TWikiRegistrationPub]] topic to [[TWikiRegistration]]. Do that by either editing the topics in the%TWIKIWEB% web, or by renaming the `.txt` and `.txt,v` files in the `twiki/data/%TWIKIWEB%` directory.
-    * **_Note:_** You can customize the registration form if needed, like deleting or adding input tags. The `name=""` parameter of the input tags must start with: `"Twk0..."` (if this is an optional entry), or `"Twk1..."` (if this is a required entry). This will ensure that the fields are processed correctly.
-  * A new line containing user name and encrypted password gets added to the `data/.htpasswd` file when a users registers. The file that comes with the TWiki installation contains a few user accounts of TWiki core team members (needed for testing). You can edit the file and delete those lines.
+### <a name="Extra_Server_Level_Options"> Extra Server-Level Options </a>
 
-### <a name="Generating_Site_Usage_Statistics"> Generating Site Usage Statistics </a>
-
-* Optional: You can automatically generate usage statistics for all webs. To enable this:
-  * Make sure variable `$doLogTopicView, $doLogTopicSave and $doLogTopicUpload` in `wikicfg.pm` are set. This will generate log entries in file `twiki/data/log<date>.txt` .
-  * Topic [[WebStatistics]] must be present in all webs where you want to have statistics. You can use the topic in the Main web as a template.
-  * Call the `twiki/bin/statistics` script from a cron job, once a day is recommended. This will update the [[WebStatistics]] topics in all webs.
-  * **_Attention:_** The script must run as the same user as the CGI scripts are running, which is user `nobody` on most systems. Example crontab entry: <br />`0 0 * * * (cd /path/to/TWiki/bin; ./statistics >/dev/null 2>&1)`
-  * There is a workaround in case you can't run the script as user `nobody` : Run the utility `twiki/bin/geturl` in your cron job and specify the URL of the `twiki/bin/statistics` script as a parameter. Example: <br />`0 0 * * * (cd /path/to/TWiki/bin; ./geturl mydomain.com /urlpath/to/TWiki/bin/statistics >/dev/null 2>&1)`
-  * The `twiki/bin/statistics` script can also be executed as a CGI script, just enter the URL in your browser. Examples:
-    * Update current month for all webs: <br />`http://mydomain.com/twiki/bin/statistics`
-    * Update current month for Main web only: <br />`http://mydomain.com/twiki/bin/statistics/Main`
-    * Update January 2000 for Main web: <br />`http://mydomain.com/twiki/bin/statistics/Main?logdate=200001`
+Complete a Standard Installation and your new TWiki site should be up and running. You can develop and manage most aspects of your site from the browser interface. Core set-up functions require direct access to the server file system, via Telnet or FTP. You can make server-level site changes during installation, or at any time afterwards.
 
 <a name="CreateWeb"></a>
 
-### <a name="Creating_a_New_Web"> Creating a New Web </a>
+#### <a name="Creating_a_New_Web"> Creating a New Web </a>
 
 * To create a new web:
   * Use a name for the web consisting of characters `A..Z` , `a..z` but **not** in [[WikiNotation]].
@@ -134,6 +129,19 @@ Read <http://TWiki.org/cgi-bin/view/Codev/SourceForgeHowTo> in case you want to 
   * If you want to use form templates - see [[FormTemplateSystem]]
   * In case you want usage statistics for this web: Copy file `WebStatistics.txt` from the `twiki/data/Main` directory to the new data directory. Edit topic WebStatistics in the new web and delete old usage entries.
   * Note that user home topics are only located in the %WIKITOOLNAME%.%MAINWEB% web, so don't try to move them or create them in other webs. From any web you can refer to users located in the %WIKITOOLNAME%.%MAINWEB% web like <code>%MAINWEB%.UserName</code> or <code>%MAINWEB%.UserName</code>.
+
+#### <a name="Adding_Variables_amp_Rendering_R"> Adding Variables &amp; Rendering Rules </a>
+
+* You can add new rendering rules or new %VARIABLES%. To insure an easy upgrade of TWiki it is recommended to do this customization in `twiki/bin/wikicfg.pm` , not `twiki/bin/wiki.pm` .
+
+#### <a name="Enabling_Basic_Authentication_ht"> Enabling Basic Authentication (.htaccess) </a>
+
+* If you are on a non authenticated server (i.e. not using SSL) and you would like to authenticate users:
+  * Rename file `.htaccess.txt` in the `twiki/bin` directory to `.htaccess` and change it to your needs. For details consult the HTTP server documentation (for Apache server: [[1]](http://www.apache.org/docs/mod/directives.html), [[2]](http://www.mcs.kent.edu/system/web_help/htaccess/introduction.html)). In particular, the following <font>red</font> part needs to be configured correctly: <br /><code>Redirect <font>/urlpath/to/TWiki/index.html</font> http://<font>your.domain.com/urlpath/to/TWiki/bin/</font>view</code><br /><code>AuthUserFile <font>/filepath/to/TWiki/data/</font>.htpasswd</code><br /><code>ErrorDocument 401 <font>/urlpath/to/TWiki/bin/</font>oops/TWiki/TWikiRegistration?template=oopsauth</code>
+    * **_Note:_** The browser should ask for login name and password when you click on the <u>Edit</u> link. In case `.htaccess` does not have the desired effect you need to enable it: Add "AllowOverride All" to the Directory section of `access.conf` for your `twiki/bin` directory.
+  * Copy the [[TWikiRegistrationPub]] topic to [[TWikiRegistration]]. Do that by either editing the topics in the%TWIKIWEB% web, or by renaming the `.txt` and `.txt,v` files in the `twiki/data/%TWIKIWEB%` directory.
+    * **_Note:_** You can customize the registration form if needed, like deleting or adding input tags. The `name=""` parameter of the input tags must start with: `"Twk0..."` (if this is an optional entry), or `"Twk1..."` (if this is a required entry). This will ensure that the fields are processed correctly.
+  * A new line containing user name and encrypted password gets added to the `data/.htpasswd` file when a users registers. The file that comes with the TWiki installation contains a few user accounts of TWiki core team members (needed for testing). You can edit the file and delete those lines.
 
 ### <a name="TWiki_File_System_Snapshot"> TWiki File System Snapshot </a>
 
