@@ -2,107 +2,92 @@
 
 ## <a name="TWiki_Upgrade_Guide"> TWiki Upgrade Guide </a>
 
-Upgrade application and content from last official release 01-Dec-2000 to current 01-Sep-2001
+_Upgrading from the TWiki 01-Dec-2000 to the new 01-Sep-2001 release_
 
 ### <a name="Overview"> Overview </a>
 
-Major changes, numerous enhancements, basic structure similar.... Beta on their own...easy. Upgrade involves a changing and merging of files and configs...
+The latest version of TWiki (01-Sep-2001) involves several major new features and numerous enhancements from the last full version (01-Dec-2001). The file system set-up is almost identical, but much of the underlying data structure and procedures are new. With all the changes, the upgrade procedure is straightforward, and your existing page data is imported directly.
 
 ### <a name="Upgrade_Requirements_for_TWiki_0"> Upgrade Requirements for TWiki 01-Sep-2001 </a>
 
-Upgrade from your 01-Dec-2000 edition to the new, next generation **01-Sep-2001** TWiki Production Release in a few straightforward steps.
+* To upgrade from a 01-Dec-2000 standard installation to the new, next generation 01-Sep-2001 TWiki Production Release, follow the instructions below.
 
-* To upgrade from a pre-01-Dec-2000 TWiki, make this your first stop: %TWIKIWEB%.TWikiUpgradeTo01Dec2000.
+* **_NOTE:_** To upgrade from a _pre-01-Dec-2000_ TWiki, start with %TWIKIWEB%.TWikiUpgradeTo01Dec2000.
+
+* To upgrade from a Beta of the new release, or if you've made custom modifications, read through the documentation and use the procedure below as a guideline.
 
 ### <a name="Major_Changes_from_TWiki_01_Dec_"> Major Changes from TWiki 01-Dec-2000 </a>
 
-The 01 Sep 2001 release includes several new areas of functionality, and existing features have been significantly revised and enhanced. These changes affect the upgrade of the 01 Dec 2000 version:
+The 01 Sep 2001 release includes the following new features and enhancements:
 
-* **TWikiPlugins** major enhancement, allows easy installation and removal of program enhancements using external plug-in modules, standardized creation of Plugins with the Plugins API
-  * **InterWikisPlugin** - preinstalled
-* **AttachmentsUnderRevisionControl** In the previous version, changes to topics were tracked under revision control (RCS); now, topic Attachments are also tracked.
-* **ManagingTopics/Move/Delete Topic** In the previous version, managing topics required access to the TWiki file system (Telnet or FTP); now, moving, renaming, deleting can be done through the browser. Deleted topics are act move and stored in a common Trash web.
-* **TOC (Table of Contents)** Automatically generates a hierarchical Table of Contents from topic headings: &lt;HI&gt;...&lt;H6&gt;. Set depth...
-* **ArbitraryTextForWikiWordLinks**
-* **ChangingPasswords** done by Web form
-* **TWikiFormTemplate**
-* **TWikiTemplateSystem** all new template set-up
-* **TWikiSkins**
-* **SuperAdminCanEdit**
-* **TWikiMetaData**
-* **ConvertToXHTML10**
+* **[[TWikiPlugins]]** - Easily install program enhancements using external plug-in modules. Developers can create plug-ins in Perl, with the [[TWikiPlugins]].
+  * **[[InterwikiPlugin]]** (preinstalled) - Link to external sites with text aliases, `SiteAlias:Page`; rules are defined in [[InterWikis]]. (Get more Plugins from the TWiki:Plugins web.)
+* **[[TWikiTemplateSystem]]** - New, more flexible template system.
+* **[[TWikiSkins]]** - Overwrite template headers and footers; page content is unaffected.
+* **[[TWikiMetaData]]** - New data format
+* **[[TWikiFormTemplate]]** - Create multiple input forms per web; data is rendered in HTML tables.
+* **[[ManagingTopics]]** Individual pages can be managed through the browser. Deleted topics are stored in a common Trash web.
+* **[[TWikiUserAuthentication]]** Change and reset passwords using forms
+* **TOC (Table of Contents)** - <code>%TOC%</code> variable generates a hierarchical table of contents from topic headings: &lt;HI&gt;...&lt;H6&gt;. Set depth.
+* **ArbitraryTextForWikiWordLinks** - Text formatting rules to form links from any combination of words and spaces.
+* **AttachmentsUnderRevisionControl** Changes to files attached to topics - [[FileAttachments]] - are now tracked under revision control (RCS).
+* **ConvertToXHTML10** - Templates and HTML page rendering are in XHTML 1.0 as far as possible without breaking HTML 3.2 compliance.
 * **HierarchicalNavigation**
 
-The TWiki directory structure remains the same, with one exception, the new <code>**lib/TWiki/Plugins**</code> directory tree to for the main configuration file, library, internal modules and the new Plugin modules. Pre-existing files were formerly in <code>**bin**</code>.
+The TWiki directory structure remains the same, with one exception, the new `lib/TWiki/Plugins` directory tree to for the main configuration file, library, internal modules and the new Plugin modules. Pre-existing files were formerly in `bin`.
 
 ### <a name="Six_Step_Standard_Upgrade"> Six-Step Standard Upgrade </a>
 
-Follow this step-by-step guide to upgrade the 01 Dec 2000 version to the 01 Sep 2001 release, and transfer all of your original data: [ We assume `export TWIKIROOT=/some/dir/` ]
+Follow this step-by-step guide to upgrade the 01 Dec 2000 version to the 01 Sep 2001 release, and import your original page data:
 
-> #### <a name="Step_1_Backup_amp_Unpack"> Step 1: Backup &amp; Unpack </a>
->
-> 1. **_Backup_** all existing TWiki directories ( `bin`, `pub`, `data`, `templates` )
->
-> * **_Unpack the zip file_** into some working directory: <br />`mkdir -p ~/tmp/`<br />`cd ~/tmp`<br />`unzip ~/TWiki20001201.zip`
->
-> #### <a name="Step_2_Upgrade_TWiki_document_fi"> Step 2: Upgrade TWiki document files </a>
->
-> * * Move the document files to your TWiki root: ( `twiki` ) <br />`mv ~/tmp/TWiki*.html $TWIKIROOT`<br />`mv ~/tmp/readme.txt $TWIKIROOT`
->
-> #### <a name="Step_3_Upgrade_cgi_bin_scripts"> Step 3: Upgrade cgi-bin scripts </a>
->
-> * * Rename your original `twiki/bin` directory: ( `twiki/bin` ) <br />`mv $TWIKIROOT/bin $TWIKIROOT/bin.old`
->   * Move the new scripts to your original `twiki/bin` location, i.e. <br />`mv ~/tmp/bin $TWIKIROOT/bin`
->   * Merge the changes in your current `wikicfg.pm` into the new `wikicfg.pm`. We suggest using `diff -c` to compare the two files if you have made heavy changes to the file, i.e. <br />`diff -c $TWIKIROOT/bin.old/wikicfg.pm $TWIKIROOT/bin/wikicfg.pm | less`
->   * Restore any additional scripts you might have from the old directory, i.e. <br />`mv $TWIKIROOT/bin.old/somescript $TWIKIROOT/bin/`<br /> (Note that the `changes` script is obsolete.)
->   * In case you have basic authentication:
->     * The `TWikiRegistration` topic moved from the TWiki.Main web to the TWiki.TWiki web. Change `.htaccess` to reflect the new location, i.e. <br />`ErrorDocument 401 /cgi-bin/view/TWiki/TWikiRegistration`
->   * Pay attention to the file and directory permissions (security issue)
->   * Test your TWiki installation if you can view topics. (Ignore the <code>%HTTP\_EQUIV\_ON\_VIEW%</code> you see on top of the topic; this will disappear after upgrading the template files.
->
-> #### <a name="Step_4_Upgrade_template_files"> Step 4: Upgrade template files </a>
->
-> * * Rename your original `twiki/templates` directory: ( `twiki/templates` ) <br />`mv $TWIKIROOT/templates $TWIKIROOT/templates.old`
->   * Move the new templates to your original `twiki/templates` location, i.e. <br />`mv ~/tmp/templates $TWIKIROOT/templates`
->   * Merge the changes in your current template files into the new template files. To compare two files use <br />`diff -c $TWIKIROOT/templates.old/view.tmpl $TWIKIROOT/templates/view.tmpl | less`
->   * Restore any additional template subdirectories of your TWiki webs you might have and merge the changes.
->   * Test your TWiki installation if you can view topics.
->
-> #### <a name="Step_5_Upgrade_public_files"> Step 5: Upgrade public files </a>
->
-> * * Move the new `twiki/pub/TWiki` directory to your installation: ( `twiki/pub` ) <br />`mv ~/tmp/pub/TWiki $TWIKIROOT/pub/`
->   * Pay attention to the file permissions of the `TWiki` directory and its subdirectory and files. The files must be writable by the cgi-scripts (usually user "nobody")
->   * Move the new `twiki/pub/twikilogo*` image files to your installation, i.e. <br />`mv ~/tmp/pub/twikilogo* $TWIKIROOT/pub/`
->
-> #### <a name="Step_6_Upgrade_data_files"> Step 6: Upgrade data files </a>
->
-> * * Move the new `twiki/data/TWiki` directory to your installation: ( `twiki/data` ) <br />`mv ~/tmp/data/TWiki $TWIKIROOT/data/`<br /> Pay attention to the file permissions of the `TWiki` directory and its files. The files must be writable by the cgi-scripts (usually user "nobody")
->   * Optionally move the new `twiki/data/Test` directory to your installation, i.e. <br />`mv ~/tmp/data/Test $TWIKIROOT/data/`<br /> (Pay attention to the file permissions)
->   * Move these new TWiki.Main web topics to your TWiki.Main web: `TWikiGroups`, `TWikiAdminGroup`, and if needed also `OfficeLocations` , i.e. <br />`mv ~/tmp/data/Main/TWikiGroups.* $TWIKIROOT/data/Main`<br /> (Pay attention to the file permissions)
->   * **_The following topics in the TWiki.Main web are obsolete and can be deleted: `BillClinton`, `GoodStyle`, `RegularExpression`, `TextFormattingFAQ`, `TextFormattingRules`, `ManagingWebs`, `TWikiCategoryTable`, `TWikiEnhancementRequests`, `TWikiImplementationNotes`, `TWikiInstallationGuide`, `WebNotification`, `TWikiPlannedFeatures`, `TWikiUpgradeTo01May2000`, `TWikiUsernameVsLoginUsername`, `TWikiSite`, `WelcomeGuest`, `WelcomeVisitor`, `WikiName`, `WikiNotation`, `WikiTopic`, `WikiWikiClones`. Sample delete command:+_**<br />`rm -f $TWIKIROOT/data/Main/BillClinton.*`
->   * The following topics are new and most be copied to all of your TWiki webs: `WebChanges`, `WebIndex`. <br />`cp -p $TWIKIROOT/data/TWiki/WebChanges.txt* $TWIKIROOT/data/Main`<br />`cp -p $TWIKIROOT/data/TWiki/WebIndex.txt* $TWIKIROOT/data/Main`<br /> Repeat this for all your webs. Pay attention to the file permissions.
->   * `TWikiRegistration` moved from TWiki.Main to TWiki.TWiki. In case you customized `TWikiRegistration` , merge your changes back into `TWiki.TWikiRegistration` , then delete `$TWIKIROOT/data/Main/TWikiRegistration*`.
->   * `TWikiPreferences` moved from TWiki.Main to TWiki.TWiki. Merge your changes to `TWikiPreferences` into `TWiki.TWikiPreferences`.
->   * Modify the `WebPreferences` topics in all your webs to reflect the following:
->     * `WEBTOPICLIST` should use `WebChanges` for `"Changes"`, and `WebIndex` for `"Index"`, i.e. <br />`| <a href="WebChanges">Changes</a>`<br />`| <a href="WebIndex">Index</a>`
->     * In case you want to exclude a web from a `web="all"` search: Set this new preference <br />`Set NOSEARCHALL = on`
->   * The `WebSearch` topic has considerable changes. Copy the one from `TWiki.TWiki` into all webs, or merge them if you made changes. To copy, do an edit-copy-edit-paste operation.
->   * Change the `WebHome` topics in all your webs to reflect these changes:
->     1. The "Changes" link should point to `WebChanges`.
->     2. The "Topic index" link should point to `WebIndex`.
->     3. Change the include of the web table to <code>%INCLUDE\{"%TWIKIWEB%.TWikiWebsTable"\}%</code>
->   * Merge your `TWikiWebsTable` topic in TWiki.Main with the `TWikiWebsTable` topic in TWiki.TWiki. Note the new variable to query the color of a web. Delete the old `TWikiWebsTable` topic in TWiki.Main after merge is complete.
->   * The following topics in the TWiki.Main web are deprecated (because they moved to TWiki.TWiki), but still need to be present in TWiki.Main because of existing links to them: `FileAttachment`, `TWikiDocumentation`, `TWikiHistory`, `TWikiPreferences`, `TWikiVariables`. <br /> It is recommended that you edit these topics in TWiki.Main and replace the content with this line: <br /><code>This topic moved to %TWIKIWEB%.%TOPIC% in the %WIKITOOLNAME%.%TWIKIWEB% web.</code>
->   * In all your webs, change references to topics that moved to the TWiki.TWiki web:
->     * Change topics: `TWikiUsers` , `WebNotify` , `WebHome`
->     * With links to: `TWikiPreferences` , `TWikiVariables` , `TWikiUsers` , `TWikiWebsTable` and `WelcomeGuest`
->
-> ### <a name="Setting_Access_Control"> Setting Access Control </a>
->
-> * * Read [[TWikiAccessControl]], in case you want to use the new authorization feature based on groups.
->
-> ### <a name="Known_Upgrade_Issues"> Known Upgrade Issues </a>
->
-> * * Check <http://TWiki.org/cgi-bin/view/Codev/KnownIssuesOfTWiki01Sep2001> for known issues of TWiki 01 Sep 2001 (production release)
+#### <a name="Step_1_Backup_amp_Unpack"> Step 1: Backup &amp; Unpack </a>
 
--- [[MikeMannix]] - 26 Aug 2001 <br />
+1. 1. Backup all existing TWiki directories ( `bin`, `pub`, `data`, `templates` )
+
+1. 1. Unpack the zip file into some working directory: <br />`mkdir -p ~/tmp/`<br />`cd ~/tmp`<br />`unzip ~/TWiki20001201.zip`
+
+#### <a name="Step_2_Upgrade_TWiki_document_fi"> Step 2: Upgrade TWiki document files </a>
+
+1. 1. Move the document files to your TWiki root ( `twiki` ): <br />`mv ~/tmp/TWiki*.html $TWIKIROOT`<br />`mv ~/tmp/index.html $TWIKIROOT`<br />`mv ~/tmp/readme.txt $TWIKIROOT`<br />`mv ~/tmp/license.txt $TWIKIROOT`
+
+#### <a name="Step_3_Upgrade_CGI_scripts"> </a> Step 3: Upgrade CGI scripts
+
+1. 1. Rename your original `twiki/bin` directory: ( `twiki/bin` ) <br />`mv $TWIKIROOT/bin $TWIKIROOT/bin.old`
+  2. Move the new scripts to your original `twiki/bin` location, i.e. <br />`mv ~/tmp/bin $TWIKIROOT/bin`
+  3. Merge the changes in your current `wikicfg.pm` into the new `wikicfg.pm`. We suggest using `diff -c` to compare the two files if you have made heavy changes to the file: <br />`diff -c $TWIKIROOT/bin.old/wikicfg.pm $TWIKIROOT/bin/wikicfg.pm | less`
+  4. Restore any additional scripts you might have from the old directory, ex: <br />`mv $TWIKIROOT/bin.old/somescript $TWIKIROOT/bin/`
+  5. Test your TWiki installation if you can view topics.
+
+* * Pay attention to the file and directory permissions (security issue)
+
+#### <a name="Step_4_Upgrade_template_files"> Step 4: Upgrade template files </a>
+
+1. 1. Rename your original `twiki/templates` directory: ( `twiki/templates` ) <br />`mv $TWIKIROOT/templates $TWIKIROOT/templates.old`
+  2. Move the new templates to your original `twiki/templates` location: <br />`mv ~/tmp/templates $TWIKIROOT/templates`
+  3. \_\_Merge the changes in your current template files into the new template files. To compare two files use <br /> =diff -c $TWIKIROOT/templates.old/view.tmpl $TWIKIROOT/templates/view.tmpl | less=\_\_
+  4. Restore any additional template subdirectories of your TWiki webs you might have and merge the changes.
+  5. Test your TWiki installation to see if you can view topics.
+
+#### <a name="Step_5_Upgrade_public_files"> Step 5: Upgrade public files </a>
+
+1. 1. Move the new `twiki/pub/TWiki` directory to your installation: ( `twiki/pub` ) <br />`mv ~/tmp/pub/TWiki $TWIKIROOT/pub/`
+  2. Move the new `twiki/pub/twikilogo*` image files to your installation: <br />`mv ~/tmp/pub/twikilogo* $TWIKIROOT/pub`
+
+* * Pay attention to the file permissions of the `TWiki` directory and its subdirectory and files. The files must be writable by the CGI scripts (usually user "nobody").
+
+#### <a name="Step_6_Upgrade_data_files"> Step 6: Upgrade data files </a>
+
+1. 1. Move the new `twiki/data/TWiki` directory to your installation: ( `twiki/data` ) <br />`mv ~/tmp/data/TWiki $TWIKIROOT/data/`<br /> Pay attention to the file permissions of the `TWiki` directory and its files. The files must be writable by the cgi-scripts (usually user "nobody")
+  2. Optionally move the new `twiki/data/Test` directory to your installation, <br />`mv ~/tmp/data/Test $TWIKIROOT/data/`<br /> (Pay attention to the file permissions)
+  3. `TWikiRegistration` moved from TWiki.Main to TWiki.TWiki. In case you customized `TWikiRegistration` , merge your changes back into `TWiki.TWikiRegistration` , then delete `$TWIKIROOT/data/Main/TWikiRegistration*`.
+  4. `TWikiPreferences` into `TWiki.TWikiPreferences`.
+  5. Merge your changes to the `WebPreferences` topics in all your webs into `WebPreferences`
+  6. Modify the `WebPreferences` topics in all your webs to reflect the following:
+    * `WEBTOPICLIST` should use `WebChanges` for `"Changes"`, and `WebIndex` for `"Index"`: <br />`| <a href="WebChanges">Changes</a>`<br />`| <a href="WebIndex">Index</a>`
+    * In case you want to exclude a web from a `web="all"` search: Set this new preference <br />`Set NOSEARCHALL = on`
+  7. The `WebSearch` topic has considerable changes. Copy the one from `TWiki.TWiki` into all webs, or merge them if you made changes. To copy, do an edit-copy-edit-paste operation.
+  8. **_Change the `WebHome` topics in all your webs to reflect these changes:_**
+
+### <a name="Known_Upgrade_Issues"> Known Upgrade Issues </a>
+
+* * Check <http://TWiki.org/cgi-bin/view/Codev/KnownIssuesOfTWiki01Sep2001> for known issues of TWiki 01 Sep 2001 (production release)
