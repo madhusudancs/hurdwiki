@@ -1,4 +1,4 @@
-### <a name="Documentation_of_the_TWiki_Imple"> Documentation of the TWiki Implementation </a>
+### <a name="Documentation_of_the_TWiki_Imple"> Documentation of the TWiki Implementation (version %WIKIVERSION%) </a>
 
 * [(1)](#login) Login Username vs. Wiki Username
 * [(2)](#variables) Wiki Variables
@@ -239,6 +239,10 @@ TWiki is written in PERL 5, but it uses also many shell command. The current imp
     <td> Script to edit a topic </td>
   </tr>
   <tr>
+    <td> geturl </td>
+    <td> Script to fetch URL data </td>
+  </tr>
+  <tr>
     <td> mailnotify </td>
     <td> Script called by cron job to notify users of changes </td>
   </tr>
@@ -267,6 +271,14 @@ TWiki is written in PERL 5, but it uses also many shell command. The current imp
     <td> Script that displays search results </td>
   </tr>
   <tr>
+    <td> statistics </td>
+    <td> Script to create statistics topic </td>
+  </tr>
+  <tr>
+    <td> testenv </td>
+    <td> Script to test CGI environment variables </td>
+  </tr>
+  <tr>
     <td> upload </td>
     <td> Script that does file upload (<span style="background:"><font color="">File Attachment</font></span><a href="http://LOCATION/FileAttachment">?</a>) </td>
   </tr>
@@ -286,6 +298,10 @@ TWiki is written in PERL 5, but it uses also many shell command. The current imp
     <td> wikicfg.pm </td>
     <td> for initialization and configuration, used by wiki.pm </td>
   </tr>
+  <tr>
+    <td> wikisearch.pm </td>
+    <td> search engine, used by wiki.pm </td>
+  </tr>
 </table>
 
 <a name="installation"> </a>
@@ -298,19 +314,16 @@ These installation steps use Apache web server on Linux as an example. TWiki sho
 
 **_Note:_** These installation notes assume user `nobody` for all files manupulated by the cgi scripts (executed by the web server), and user `twiki` for all other files. You need to replace user `nobody` with an other user in case the web server executes the script with a different user ( default for Debian is `www-data` ). Also, you can substitute user `twiki` with your own user name.
 
-* Request the TWiki distribution (in Unix ZIP format) from <http://www.mindspring.com/~peterthoeny/twiki/> .
+* Request the TWiki distribution (in Unix ZIP format) from <http://TWiki.SourceForge.net/download.html> .
 * Create directory `/home/httpd/twiki` and unzip the TWiki distribution to this directory.
 * The `twiki/bin` directory of TWiki must be set as a cgi-bin directory. Add `/home/httpd/twiki/bin` to `/etc/httpd/conf/access.conf` with only `ExecCGI` option.
 * The `twiki/pub` directory of TWiki must be set so that it is visible as a URL. Add `/home/httpd/twiki/pub` to `/etc/httpd/conf/access.conf` with normal access options (copy from /home/httpd/html).
 * Now add `Alias` for `/twiki/pub` and `ScriptAlias` for `/twiki/bin` to `/etc/httpd/conf/srm-conf` .
 * Restart Apache by `/etc/rc.d/rc5.d/S85httpd restart` .
-* Make sure PERL and the PERL CGI library is installed on your system. Default location of PERL executable is `/usr/bin/perl` . In case PERL is installed in a different location, the first line of all perl scripts in the `twiki/bin` directory need to be changed (alternatively you can create a symbolic link from `/usr/bin/perl` ).
 * Test if the `twiki/bin` directory is cgi-enabled:
   * Enter the URL of that directory into your browser ( `http://your.domain.com/twiki/bin` ). It is not set correctly as cgi-bin in case you get something like `"Index of /twiki/bin"` . It is OK if you get a message like `"Forbidden. You don't have permission to access /twiki/bin/ on this server."`
   * Execute the `testenv` script from your browser ( `http://your.domain.com/twiki/bin/testenv` ). It should show a table of all CGI environment variables.
-* On systems where the Perl scripts require a file extension you need to:
-  * Rename all scripts in the `twiki/bin` directory to have a file extension, i.e. rename `view` to `view.cgi` .
-  * Specify this file extension in the `$scriptSuffix` variable in `twiki/bin/wikicfg.pm` .
+* Make sure PERL and the PERL CGI library is installed on your system. Default location of PERL executable is `/usr/bin/perl` . In case PERL is installed in a different location, the first line of all perl scripts in the `twiki/bin` directory need to be changed (alternatively you can create a symbolic link from `/usr/bin/perl` ).
 * To be able to edit the perl scripts and .tmpl files it is necessary to `chown` and `chgrp -R twiki` so all the files have the owner you want.
 * The scripts execute as `nobody` . Set the file permission of all Perl scripts in the `twiki/bin` directory as executable to `-rw-r-xr-x` .
 * Set the file permission of all files below `twiki/data` to 666 ( `-rw-rw-rw-` ).
@@ -318,9 +331,10 @@ These installation steps use Apache web server on Linux as an example. TWiki sho
 * Set the file permission of the `twiki/pub` directory to 777 ( `drwxrwxrwx` ).
 * Edit the file `twiki/bin/wikicfg.pm` and set the variables at the beginning of the file to your needs.
 * Make sure RCS is installed. In case RCS is not in the `path` environment variable, add it to `path` . Alternatively, add the full path name to the `rcs, ci, co, rlog, rcsdiff` commands in the variables of `twiki/bin/wikicfg.pm` .
-* Point your browser at `http://your.domain.com/twiki/bin/view` and start wiki-ing away!
-* Note in case cgi user is **_not_** `nobody` : The `*,v` RCS repository files delivered with the installation package are locked by user `nobody` . In case the user is different (e.g. `www-data` ), it is not possible to check in files, this has the effect that the topic version number does not increase when saving a topic. In this case you need to unlock all repository files and lock them as user `www-data` , or simply delete all the repository files.
+* Point your browser at <http://your.domain.com/twiki/bin/view> and start wiki-ing away!
+* Note in case cgi user is **_not_** `nobody` : The `*,v` RCS repository files delivered with the installation package are locked by user `nobody` . In case the user is different (e.g. `www-data` ), it is not possible to check in files, this has the effect that the topic version number does not increase when saving a topic. In this case you need to unlock all repository files and lock them as user `www-data` (check the rcs man pages), or simply delete all the repository files.
 * Security issue: Directories `twiki/data` , `twiki/templates` and all its subdirectories should be set so that they are **not** visible as a URL. (Alternatively, move the directries to a place where they are not visible, and change the variables in `twiki/bin/wikicfg.pm` accordingly)
+* Enable email notification of topic changes, [(3)](#notification) has more.
 
 * Optional: You can add new rendering rules or new %variables%. To insure an easy upgrade of TWiki it is recommended to do this customization in `twiki/bin/wikicfg.pm` , not `twiki/bin/wiki.pm` .
 
@@ -333,173 +347,192 @@ These installation steps use Apache web server on Linux as an example. TWiki sho
   * **_Attention:_** The script must run as the same user as the CGI scripts are running, which is user `nobody` on most systems. Example crontab entry: <br />`0 0 * * * (cd /path/to/TWiki/bin; ./statistics >/dev/null 2>&1)`
   * There is a workaround in case you can't run the script as user `nobody` : Run the utility `twiki/bin/geturl` in your cron job and specify the URL of the `twiki/bin/statistics` script as a parameter. Example: <br />`0 0 * * * (cd /path/to/TWiki/bin; ./geturl mydomain.com /urlpath/to/TWiki/bin/statistics >/dev/null 2>&1)`
   * The `twiki/bin/statistics` script can also be executed as a CGI script, just enter the URL in your browser. Examples:
-    * Update current month for all webs: <br />`%SCRIPTURL%/statistics`
-    * Update current month for Main web only: <br />`%SCRIPTURL%/statistics/Main`
-    * Update January 2000 for Main web: <br />`%SCRIPTURL%/statistics/Main?logdate=200001`
+    * Update current month for all webs: <br />`http://mydomain.com/twiki/bin/statistics`
+    * Update current month for Main web only: <br />`http://mydomain.com/twiki/bin/statistics/Main`
+    * Update January 2000 for Main web: <br />`http://mydomain.com/twiki/bin/statistics/Main?logdate=200001`
 
 * To create a new web:
   * Use a name for the web consisting of characters `A..Z` , `a..z` but **not** in [[WikiNotation]].
   * Create a new template directory under `twiki/templates` .
   * Create a new data directory under `twiki/data` and check the file permission of the directory.
-  * Copy the files `WebHome.txt` , `WebNotify.txt` , `WebSearch.txt` , `WebStatistics.txt` , `webcolor.inc` and `weblist.inc` from the `twiki/data/Main` directory to the new data directory, preserving the original files' owner, group and permissions ( on Unix use `cp -p` ). The data files must be writable by the owner the CGI scripts are running on ( usually `nobody` ). Hint: You can set permissions of `.txt` and `.txt,v` files to `-rw-rw-rw-` and then edit the topic using your browser, RCS will restore the file permission correctly when saving the topic.
-  * Change `webcolor.inc` to a color of your taste. The number represents the unique color for the web (consult an HTML book for colors.) **_Note:_** The file must not have a new line, just the number without a return.
-  * Customize `weblist.inc` (web specific links on top) if needed.
-  * Add the new web in `twiki/data/wikiwebs.inc` (web specific links on top) and `twiki/data/wikiwebtable.inc` (table of all webs at the end of the [[WebHome]] topics).
-  * In case you need a web specific copyright notice (at the bottom), copy file `webcopyright.inc` from the `twiki/data` directory to the new data directory, and customize it.
+  * Copy the files `WebHome.txt` , `WebPreferences.txt` , `WebNotify.txt` , `WebSearch.txt` and `WebStatistics.txt` from the `twiki/data/Main` directory to the new data directory, preserving the original files' owner, group and permissions ( on Unix use `cp -p` ). The data files must be writable by the owner the CGI scripts are running on ( usually `nobody` ). Hint: You can set permissions of `.txt` and `.txt,v` files to `-rw-rw-rw-` and then edit the topic using your browser, RCS will restore the file permission correctly when saving the topic.
+  * Add the new web to the web list (on top of each topic) by editing the site-level preferences %MAINWEB%.%WIKIPREFSTOPIC%:
+    * Add the new web to the WIKIWEBLIST variable.
+  * Add the new web to the web table (at the bottom of each [[WebHome]] topic) by editing the %MAINWEB%.TWikiWebsTable topic.
+  * Change the web preferences by editing the WebPreferences topic of the new web:
+    * Set the WEBBGCOLOR variable to a color of your taste. The number represents the unique color for the web (consult an HTML book for colors.)
+    * Customize the WEBTOPICLIST variable to contain the web specific links you prefer.
+    * Optional: Set the WEBCOPYRIGHT variable to have a web-specific copyright text (at the bottom of each topic).
   * If needed, create customized templates in the new templates directory. (Non existing templates are inherited from `twiki/templates` )
   * If you want to use a category table, copy the three files `twikicatitems.tmpl` , `twikicatedit.tmpl` and `twikicatview.tmpl` from the `twiki/templates/Know` directory to the new templates directory, and customize it. The TWiki Category Table section has more.
-  * In case you want usage statistics for this web: Copy file `WebStatistics.txt` from the `twiki/data/Main` directory to the new data directory. Edit topic [[WebStatistics]] and delete old usage entries.
+  * In case you want usage statistics for this web: Copy file `WebStatistics.txt` from the `twiki/data/Main` directory to the new data directory. Edit topic WebStatistics in the new web and delete old usage entries.
 
 Here are contents of directories with file permissions. Please note that this is for debugging reasons only and does not exactly reflect the distribution:
 
 directory `twiki/bin` :
 
-    drwxr-xr-x   5 twiki    t5            512 Nov 11 02:52 .
-    drwxr-xr-x   5 twiki    t5            512 Nov  6 02:57 ..
-    -rw-r--r--   1 twiki    t5            430 Oct 21 18:51 .htaccess
-    -rw-r-xr-x   1 twiki    t5           3752 Mar 27 02:21 attach
-    -rw-r-xr-x   1 twiki    t5           2810 Oct 21 18:51 changes
-    -rw-r-xr-x   1 twiki    t5           1244 Mar 27 02:21 delete
-    -rw-r-xr-x   1 twiki    t5           2589 Nov  6 03:05 edit
-    -rwxr--r--   1 twiki    t5           1811 Feb  4 12:15 geturl
-    -rwxr-xr-x   1 twiki    t5           4614 Oct 21 18:52 mailnotify
-    -rw-r-xr-x   1 twiki    t5           1353 Oct 23 20:19 oops
-    -rw-r-xr-x   1 twiki    t5           2043 Nov  6 03:05 preview
-    -rw-r-xr-x   1 twiki    t5           6249 Aug  3 04:34 register
-    -rw-r-xr-x   1 twiki    t5           6890 Nov 11 03:06 rdiff
-    -rw-r-xr-x   1 twiki    t5           1819 Nov  6 03:06 save
-    -rw-r-xr-x   1 twiki    t5           3174 Oct 21 18:51 search
-    -rw-r-xr-x   1 twiki    t5           9774 Feb  4 12:26 statistics
-    -rwxr-xr-x   1 twiki    t5            509 Feb  7 18:55 testenv
-    -rw-r-xr-x   1 twiki    t5           6696 Mar 27 02:22 upload
-    -rw-r-xr-x   1 twiki    t5           3878 Nov 11 03:06 view
-    -rw-r-xr-x   1 twiki    t5           1538 Mar 27 02:22 viewfile
-    -rw-r-xr-x   1 twiki    t5          16169 Nov  7 01:43 wiki.pm
-    -rw-r-xr-x   1 twiki    t5           3945 Jun 23 01:24 wikicfg.pm
-    -rw-r-xr-x   1 twiki    t5           5127 Feb  4 11:37 wikisearch.pm
+    drwxr-xr-x   2 twiki   twiki       1024 Feb 18 18:31 .
+    drwxr-xr-x   8 twiki   twiki       1024 Feb 26 04:20 ..
+    -rw-rw-r--   1 twiki   twiki        770 Feb 10 12:10 .htaccess
+    -rw-r-xr-x   1 twiki   twiki       3968 Feb 18 00:26 attach
+    -rwxr-xr-x   1 twiki   twiki       3033 Feb 17 23:57 changes
+    -rw-r-xr-x   1 twiki   twiki       1377 Feb  8 18:18 delete
+    -rw-r-xr-x   1 twiki   twiki       8785 Feb 17 23:58 edit
+    -rwxr--r--   1 twiki   twiki       1811 Feb  4 14:31 geturl
+    -rwxr-xr-x   1 twiki   twiki       5047 Feb  8 20:33 mailnotify
+    -rw-r-xr-x   1 twiki   twiki       1825 Feb  8 18:29 oops
+    -rw-r-xr-x   1 twiki   twiki       6932 Feb 11 02:06 preview
+    -rw-r-xr-x   1 twiki   twiki       7804 Feb 17 23:59 rdiff
+    -rw-r-xr-x   1 twiki   twiki       7010 Feb 18 00:03 register
+    -rw-r-xr-x   1 twiki   twiki       2501 Jan 25 19:39 save
+    -rwxr-xr-x   1 twiki   twiki       1778 Feb 18 00:04 search
+    -rw-r-xr-x   1 twiki   twiki       9810 Feb  8 18:43 statistics
+    -rwxr-xr-x   1 twiki   twiki        509 Feb  7 18:55 testenv
+    -rw-r-xr-x   1 twiki   twiki       6856 Feb 18 00:11 upload
+    -rw-r-xr-x   1 twiki   twiki       4922 Feb 17 23:54 view
+    -rw-r-xr-x   1 twiki   twiki       1606 May 21  1999 viewfile
+    -rw-r-xr-x   1 twiki   twiki      27794 Feb 26 06:03 wiki.pm
+    -rw-r-xr-x   1 twiki   twiki      10143 Feb 27 04:03 wikicfg.pm
+    -rw-r-xr-x   1 twiki   twiki       5440 Feb  7 04:36 wikisearch.pm
 
 directory `twiki/templates/` :
 
-    drwxr-xr-x   6 twiki    t5            512 Nov  4 20:34 .
-    drwxr-xr-x   5 twiki    t5            512 Nov 11 02:52 ..
-    drwxr-xr-x   2 twiki    t5            512 Oct 23 20:57 Know
-    drwxr-xr-x   2 twiki    t5            512 Nov  4 20:35 Main
-    -rw-r--r--   1 twiki    t5           2232 Mar 27 02:03 attach.tmpl
-    -rw-r--r--   1 twiki    t5           1200 Mar 27 02:03 attachtable.tmpl
-    -rw-r--r--   1 twiki    t5           1751 Nov 11 02:41 changes.tmpl
-    -rw-r--r--   1 twiki    t5           1711 Nov  6 03:01 edit.tmpl
-    -rw-r--r--   1 twiki    t5            896 Oct 21 18:51 mailnotify.tmpl
-    -rw-r--r--   1 twiki    t5             25 Oct 21 18:51 notedited.tmpl
-    -rw-r--r--   1 twiki    t5             21 Oct 21 18:51 notext.tmpl
-    -rw-r--r--   1 twiki    t5            157 Oct 23 21:05 notwiki.tmpl
-    -rw-r--r--   1 twiki    t5            218 Oct 23 20:06 noweb.tmpl
-    -rw-r--r--   1 twiki    t5            279 Oct 23 20:29 oops.tmpl
-    -rw-r--r--   1 twiki    t5            833 Mar 27 02:03 oopsdel.tmpl
-    -rw-r--r--   1 twiki    t5           1331 Oct 23 20:29 oopslocked.tmpl
-    -rw-r--r--   1 twiki    t5           1026 Aug 03 08:21 oopsregexist.tmpl
-    -rw-r--r--   1 twiki    t5            935 Aug 03 08:23 oopsregpasswd.tmpl
-    -rw-r--r--   1 twiki    t5            924 Aug 03 08:26 oopsregrequ.tmpl
-    -rw-r--r--   1 twiki    t5            931 Aug 03 08:29 oopsregwiki.tmpl
-    -rw-r--r--   1 twiki    t5            868 Mar 27 02:03 oopsupload.tmpl
-    -rw-r--r--   1 twiki    t5           2010 Nov  6 03:01 preview.tmpl
-    -rw-r--r--   1 twiki    t5           1501 Nov 12 22:56 rdiff.tmpl
-    -rw-r--r--   1 twiki    t5            263 Aug  3 02:44 register.tmpl
-    -rw-r--r--   1 twiki    t5           1548 Oct 23 21:10 search.tmpl
-    -rw-r--r--   1 twiki    t5           1541 Oct 26 21:07 view.tmpl
+    drwxr-xr-x   7 twiki   twiki       1024 Jan 16 19:39 .
+    drwxr-xr-x   8 twiki   twiki       1024 Feb 26 04:20 ..
+    drwxr-xr-x   2 twiki   twiki       1024 Jun  8  1999 Know
+    drwxr-xr-x   2 twiki   twiki       1024 Dec  9  1998 Main
+    -rw-r--r--   1 twiki   twiki       2286 Feb 24 21:50 attach.tmpl
+    -rw-r--r--   1 twiki   twiki       1272 Feb  8 16:07 attachtable.tmpl
+    -rw-r--r--   1 twiki   twiki       1884 Feb 24 21:54 changes.tmpl
+    -rw-r--r--   1 twiki   twiki       2242 Feb 24 21:33 edit.tmpl
+    -rw-r--r--   1 twiki   twiki        965 Feb  8 16:07 mailnotify.tmpl
+    -rw-r--r--   1 twiki   twiki         30 Jan 14  1999 notedited.tmpl
+    -rw-r--r--   1 twiki   twiki        934 Feb  8 16:07 notext.tmpl
+    -rw-r--r--   1 twiki   twiki        899 Feb  8 16:07 notwiki.tmpl
+    -rw-r--r--   1 twiki   twiki        299 Feb 24 21:58 noweb.tmpl
+    -rw-r--r--   1 twiki   twiki        957 Feb 24 22:17 oops.tmpl
+    -rw-r--r--   1 twiki   twiki        871 Feb 24 22:17 oopsdel.tmpl
+    -rw-r--r--   1 twiki   twiki       1330 Feb 24 22:17 oopslocked.tmpl
+    -rw-r--r--   1 twiki   twiki       1024 Feb 24 22:17 oopsregexist.tmpl
+    -rw-r--r--   1 twiki   twiki        912 Feb 24 22:17 oopsregpasswd.tmpl
+    -rw-r--r--   1 twiki   twiki        923 Feb 24 22:17 oopsregrequ.tmpl
+    -rw-r--r--   1 twiki   twiki       1125 Feb 24 22:17 oopsregthanks.tmpl
+    -rw-r--r--   1 twiki   twiki        942 Feb 24 22:17 oopsregwiki.tmpl
+    -rw-r--r--   1 twiki   twiki       1564 Feb 24 22:17 oopsrev.tmpl
+    -rw-r--r--   1 twiki   twiki        906 Feb 24 22:17 oopsupload.tmpl
+    -rw-r--r--   1 twiki   twiki       1535 Feb 24 22:02 preview.tmpl
+    -rw-r--r--   1 twiki   twiki       1661 Feb 24 22:04 rdiff.tmpl
+    -rw-r--r--   1 twiki   twiki        263 Aug  3  1999 register.tmpl
+    -rw-r--r--   1 twiki   twiki        936 Feb  8 16:08 registernotify.tmpl
+    -rw-r--r--   1 twiki   twiki       1779 Feb 24 22:06 search.tmpl
+    -rw-r--r--   1 twiki   twiki       1533 Feb 24 21:43 view.tmpl
 
 directory `twiki/templates/Main` :
 
-    drwxr-xr-x   2 twiki    t5            512 Nov  4 20:35 .
-    drwxr-xr-x   6 twiki    t5            512 Nov  4 20:34 ..
-    -rw-r--r--   1 twiki    t5           2328 Nov  6 03:03 edit.tmpl
+    drwxr-xr-x   2 twiki   twiki       1024 Dec  9  1998 .
+    drwxr-xr-x   7 twiki   twiki       1024 Jan 16 19:39 ..
+    -rw-r--r--   1 twiki   twiki       2732 Feb 24 21:34 edit.tmpl
 
 directory `twiki/templates/Know` (has a TWiki Category Table) :
 
-    drwxr-xr-x   2 twiki    t5            512 Nov  4 20:35 .
-    drwxr-xr-x   6 twiki    t5            512 Nov  4 20:34 ..
-    -rw-r--r--   1 twiki    t5            611 Dec  7 20:59 notedited.tmpl
-    -rw-r--r--   1 twiki    t5            210 Dec 24 23:22 twikicatedit.tmpl
-    -rw-r--r--   1 twiki    t5           1887 Jan  6 20:54 twikicatitems.tmpl
-    -rw-r--r--   1 twiki    t5            245 Dec 24 23:27 twikicatview.tmpl
+    drwxr-xr-x   2 twiki   twiki       1024 Jun  8  1999 .
+    drwxr-xr-x   7 twiki   twiki       1024 Jan 16 19:39 ..
+    -rw-rw-r--   1 twiki   twiki        446 Jun  8  1999 notedited.tmpl
+    -rw-rw-r--   1 twiki   twiki        206 Jun  8  1999 twikicatedit.tmpl
+    -rw-rw-r--   1 twiki   twiki       1060 Jul 16  1999 twikicatitems.tmpl
+    -rw-rw-r--   1 twiki   twiki        231 Jun  8  1999 twikicatview.tmpl
 
 directory `twiki/data/` :
 
-    drwxrwxrwx   6 twiki    t5            512 Nov 19 01:01 .
-    drwxr-xr-x   5 twiki    t5            512 Nov 11 02:52 ..
-    drwxrwxrwx   2 twiki    t5           9216 Nov 13 13:55 Know
-    drwxrwxrwx   2 twiki    t5           4608 Nov 15 21:42 Main
-    -rw-r--r--   1 nobody   65535          53 Aug 03 08:31 .htpasswd
-    -rw-rw-rw-   1 twiki    t5           1091 Nov  6 04:15 debug.txt
-    -rw-r--r--   1 nobody   65535        4153 Nov 19 01:01 log199810.txt
-    -rw-r--r--   1 nobody   65535        7189 Nov 19 01:01 log199811.txt
-    -rw-r--r--   1 twiki    t5           2356 Oct 22 00:56 webcopyright.inc
-    -rw-r--r--   1 twiki    t5            276 Oct 22 00:28 wikiwebs.inc
-    -rw-r--r--   1 twiki    t5           1484 Oct 22 01:11 wikiwebtable.inc
+    drwxrwxrwx   8 twiki   twiki       1024 Feb 26 04:17 .
+    drwxr-xr-x   8 twiki   twiki       1024 Feb 26 04:20 ..
+    -rw-r--r--   1 nobody  nobody      2241 Feb 25 20:18 .htpasswd
+    drwxrwxrwx   2 twiki   twiki       3072 Feb 27 01:15 Know
+    drwxrwxrwx   2 twiki   twiki       9216 Feb 27 18:16 Main
+    -rw-rw-rw-   1 twiki   twiki          1 Feb 26 06:01 debug.txt
+    -rw-r--r--   1 nobody  nobody   1263064 Jan 31 23:13 log200001.txt
+    -rw-r--r--   1 nobody  nobody   1063398 Feb 27 18:33 log200002.txt
 
 part of directory `twiki/data/Main` :
 
-    drwxrwxrwx   2 twiki    t5           4608 Nov 19 00:56 .
-    drwxrwxrwx   6 twiki    t5            512 Nov 19 01:01 ..
-    -rw-rw-rw-   1 twiki    t5           5974 Nov 15 21:42 .changes
-    -rw-rw-rw-   1 twiki    t5              9 Nov 15 23:00 .mailnotify
-    -rw-r--r--   1 nobody   65535        3991 Jul 22 04:33 FileAttachment.txt
-    -r--r--r--   1 nobody   65535        4173 Jul 22 04:33 FileAttachment.txt,v
-    -rw-r--r--   1 nobody   65535        6773 Aug  5 16:18 TWikiRegistration.txt
-    -r--r--r--   1 nobody   65535        6960 Aug  5 16:18 TWikiRegistration.txt,v
-    -rw-r--r--   1 nobody   65535        1990 Nov  6 18:25 TWikiUsers.txt
-    -r--r--r--   1 nobody   65535        3045 Nov  6 18:25 TWikiUsers.txt,v
-    -rw-r--r--   1 nobody   65535        1181 Oct 29 20:54 WebHome.txt
-    -r--r--r--   1 nobody   65535        1537 Oct 29 20:54 WebHome.txt,v
-    -rw-r--r--   1 nobody   65535         454 Oct 21 18:52 WebNotify.txt
-    -r--r--r--   1 nobody   65535         638 Oct 27 02:45 WebNotify.txt,v
-    -rw-r--r--   1 nobody   65535        3653 Oct 21 18:52 WebSearch.txt
-    -r--r--r--   1 nobody   65535        3835 Oct 27 02:45 WebSearch.txt,v
-    -rw-r--r--   1 nobody   65535        4282 Feb  4 15:08 WebStatistics.txt
-    -r--r--r--   1 nobody   65535        4471 Feb  4 15:08 WebStatistics.txt,v
-    -rw-r--r--   1 twiki    t5              7 Oct 21 18:52 webcolor.inc
-    -rw-r--r--   1 twiki    t5            278 May 20 17:42 webcopyright.inc
-    -rw-r--r--   1 twiki    t5            402 Oct 26 07:45 weblist.inc
+    drwxrwxrwx   2 twiki   twiki       9216 Feb 27 18:16 .
+    drwxrwxrwx   8 twiki   twiki       1024 Feb 26 04:17 ..
+    -rw-rw-rw-   1 twiki   twiki       5722 Feb 27 18:13 .changes
+    -rw-rw-rw-   1 twiki   twiki          9 Feb 27 18:15 .mailnotify
+    -rw-r--r--   1 nobody  nobody     26163 Feb 24 12:22 TWikiDocumentation.txt
+    -r--r--r--   1 nobody  nobody     44133 Feb 24 12:22 TWikiDocumentation.txt,v
+    -rw-r--r--   1 nobody  nobody     11661 Feb 27 18:13 TWikiHistory.txt
+    -r--r--r--   1 nobody  nobody     18877 Feb 27 18:13 TWikiHistory.txt,v
+    -rw-r--r--   1 nobody  nobody      3029 Feb 26 04:46 TWikiPreferences.txt
+    -r--r--r--   1 nobody  nobody      3219 Feb 26 04:46 TWikiPreferences.txt,v
+    -rw-r--r--   1 nobody  nobody      7188 Feb 11 21:39 TWikiRegistration.txt
+    -r--r--r--   1 nobody  nobody      7375 Feb 11 21:39 TWikiRegistration.txt,v
+    -rw-r--r--   1 nobody  nobody      3180 Feb 25 20:19 TWikiUsers.txt
+    -r--r--r--   1 nobody  nobody     16537 Feb 25 20:19 TWikiUsers.txt,v
+    -rw-r--r--   1 nobody  nobody      2613 Feb  7 04:47 TWikiVariables.txt
+    -r--r--r--   1 nobody  nobody      3125 Feb  7 04:47 TWikiVariables.txt,v
+    -rw-r--r--   1 nobody  nobody      2068 Feb 10 11:34 TWikiWeb.txt
+    -r--r--r--   1 nobody  nobody      3610 Feb 10 11:34 TWikiWeb.txt,v
+    -rw-r--r--   1 nobody  nobody      1677 Feb 26 05:11 TWikiWebsTable.txt
+    -r--r--r--   1 nobody  nobody      1866 Feb 26 05:11 TWikiWebsTable.txt,v
+    -rw-r--r--   1 nobody  nobody      2294 Feb 27 17:54 WebHome.txt
+    -r--r--r--   1 nobody  nobody      5282 Feb 27 17:54 WebHome.txt,v
+    -rw-r--r--   1 nobody  nobody       586 Jan 17 01:05 WebNotify.txt
+    -r--r--r--   1 nobody  nobody      1629 Jan 17 01:05 WebNotify.txt,v
+    -rw-r--r--   1 nobody  nobody      1834 Feb 25 14:13 WebPreferences.txt
+    -r--r--r--   1 nobody  nobody      2023 Feb 25 14:13 WebPreferences.txt,v
+    -rw-r--r--   1 nobody  nobody      4407 Feb 11 21:08 WebSearch.txt
+    -r--r--r--   1 nobody  nobody     10822 Feb 11 21:08 WebSearch.txt,v
+    -rw-r--r--   1 nobody  nobody      4416 Feb 27 00:00 WebStatistics.txt
+    -r--r--r--   1 nobody  nobody     27759 Feb 27 00:00 WebStatistics.txt,v
 
 directory `twiki/pub/` :
 
-    drwxrwxrwx   4 twiki    t5           1024 Mar 27 02:58 .
-    drwxr-xr-x   4 twiki    t5           1024 Mar 27 02:08 ..
-    drwxrwxrwx   4 nobody   nobody       1024 Mar 27 03:54 Main
-    -rw-r--r--   1 twiki    t5           2877 Mar 27 02:27 wikiHome.gif
-    drwxr-xr-x   2 twiki    t5           1024 Mar 27 03:17 icn
+    drwxrwxrwx  11 twiki   twiki       1024 Feb  8 18:10 .
+    drwxr-xr-x   8 twiki   twiki       1024 Feb 26 04:20 ..
+    drwxrwxrwx   4 nobody  nobody      1024 Aug 28  1999 Know
+    drwxrwxrwx  19 nobody  nobody      1024 Feb 27 09:56 Main
+    -rw-r--r--   1 twiki   twiki       1078 Jan 14 20:24 favicon.ico
+    drwxr-xr-x   2 twiki   twiki       1024 Mar 27  1999 icn
+    -rw-r--r--   1 twiki   twiki       3016 Sep 10 04:27 twikilogo.gif
+    -rw-r--r--   1 twiki   twiki       5320 Sep 10 04:27 twikilogo1.gif
+    -rw-r--r--   1 twiki   twiki       6125 Sep 10 04:27 twikilogo2.gif
+    -rw-r--r--   1 twiki   twiki       7218 Sep 10 04:27 twikilogo3.gif
+    -rw-r--r--   1 twiki   twiki       6710 Sep 11 02:21 twikilogo4.gif
+    -rw-r--r--   1 twiki   twiki       2877 Jun 15  1999 wikiHome.gif
 
 directory `twiki/pub/icn/` :
 
-    drwxr-xr-x   2 twiki    t5           1024 Mar 27 03:17 .
-    drwxrwxrwx   4 twiki    t5           1024 Mar 27 02:58 ..
-    -rw-r--r--   1 twiki    t5            801 Mar 27 03:02 _filetypes.txt
-    -rw-r--r--   1 twiki    t5            143 Mar 27 03:16 bat.gif
-    -rw-r--r--   1 twiki    t5            926 Mar 27 03:16 bmp.gif
-    -rw-r--r--   1 twiki    t5            141 Mar 27 03:16 c.gif
-    -rw-r--r--   1 twiki    t5            144 Mar 27 03:16 dll.gif
-    -rw-r--r--   1 twiki    t5            152 Mar 27 03:16 doc.gif
-    -rw-r--r--   1 twiki    t5            130 Mar 27 03:16 else.gif
-    -rw-r--r--   1 twiki    t5            876 Mar 27 03:16 exe.gif
-    -rw-r--r--   1 twiki    t5            147 Mar 27 03:16 fon.gif
-    -rw-r--r--   1 twiki    t5            142 Mar 27 03:16 h.gif
-    -rw-r--r--   1 twiki    t5            156 Mar 27 03:16 hlp.gif
-    -rw-r--r--   1 twiki    t5            186 Mar 27 03:16 html.gif
-    -rw-r--r--   1 twiki    t5            144 Mar 27 03:16 java.gif
-    -rw-r--r--   1 twiki    t5            148 Mar 27 03:16 mov.gif
-    -rw-r--r--   1 twiki    t5            150 Mar 27 03:16 pdf.gif
-    -rw-r--r--   1 twiki    t5            146 Mar 27 03:16 pl.gif
-    -rw-r--r--   1 twiki    t5            150 Mar 27 03:16 ppt.gif
-    -rw-r--r--   1 twiki    t5            148 Mar 27 03:16 ps.gif
-    -rw-r--r--   1 twiki    t5            148 Mar 27 03:16 py.gif
-    -rw-r--r--   1 twiki    t5            130 Mar 27 03:17 ram.gif
-    -rw-r--r--   1 twiki    t5            154 Mar 27 03:17 reg.gif
-    -rw-r--r--   1 twiki    t5            147 Mar 27 03:17 sh.gif
-    -rw-r--r--   1 twiki    t5            155 Mar 27 03:17 sniff.gif
-    -rw-r--r--   1 twiki    t5            149 Mar 27 03:17 ttf.gif
-    -rw-r--r--   1 twiki    t5            134 Mar 27 03:17 txt.gif
-    -rw-r--r--   1 twiki    t5            154 Mar 27 03:17 wav.gif
-    -rw-r--r--   1 twiki    t5            152 Mar 27 03:17 wri.gif
-    -rw-r--r--   1 twiki    t5            152 Mar 27 03:17 xls.gif
-    -rw-r--r--   1 twiki    t5            144 Mar 27 03:17 zip.gif
+    drwxr-xr-x   2 twiki   twiki       1024 Mar 27  1999 .
+    drwxrwxrwx  11 twiki   twiki       1024 Feb  8 18:10 ..
+    -rw-r--r--   1 twiki   twiki        801 Mar 27  1999 _filetypes.txt
+    -rw-r--r--   1 twiki   twiki        143 Mar 27  1999 bat.gif
+    -rw-r--r--   1 twiki   twiki        926 Mar 27  1999 bmp.gif
+    -rw-r--r--   1 twiki   twiki        141 Mar 27  1999 c.gif
+    -rw-r--r--   1 twiki   twiki        144 Mar 27  1999 dll.gif
+    -rw-r--r--   1 twiki   twiki        152 Mar 27  1999 doc.gif
+    -rw-r--r--   1 twiki   twiki        130 Mar 27  1999 else.gif
+    -rw-r--r--   1 twiki   twiki        876 Mar 27  1999 exe.gif
+    -rw-r--r--   1 twiki   twiki        147 Mar 27  1999 fon.gif
+    -rw-r--r--   1 twiki   twiki        142 Mar 27  1999 h.gif
+    -rw-r--r--   1 twiki   twiki        156 Mar 27  1999 hlp.gif
+    -rw-r--r--   1 twiki   twiki        186 Mar 27  1999 html.gif
+    -rw-r--r--   1 twiki   twiki        144 Mar 27  1999 java.gif
+    -rw-r--r--   1 twiki   twiki        148 Mar 27  1999 mov.gif
+    -rw-r--r--   1 twiki   twiki        150 Mar 27  1999 pdf.gif
+    -rw-r--r--   1 twiki   twiki        146 Mar 27  1999 pl.gif
+    -rw-r--r--   1 twiki   twiki        150 Mar 27  1999 ppt.gif
+    -rw-r--r--   1 twiki   twiki        148 Mar 27  1999 ps.gif
+    -rw-r--r--   1 twiki   twiki        148 Mar 27  1999 py.gif
+    -rw-r--r--   1 twiki   twiki        130 Mar 27  1999 ram.gif
+    -rw-r--r--   1 twiki   twiki        154 Mar 27  1999 reg.gif
+    -rw-r--r--   1 twiki   twiki        147 Mar 27  1999 sh.gif
+    -rw-r--r--   1 twiki   twiki        155 Mar 27  1999 sniff.gif
+    -rw-r--r--   1 twiki   twiki        149 Mar 27  1999 ttf.gif
+    -rw-r--r--   1 twiki   twiki        134 Mar 27  1999 txt.gif
+    -rw-r--r--   1 twiki   twiki        154 Mar 27  1999 wav.gif
+    -rw-r--r--   1 twiki   twiki        152 Mar 27  1999 wri.gif
+    -rw-r--r--   1 twiki   twiki        152 Mar 27  1999 xls.gif
+    -rw-r--r--   1 twiki   twiki        144 Mar 27  1999 zip.gif
 
--- [[Main/PeterThoeny]] - 11 Feb 2000 <br />
+-- [[Main/PeterThoeny]] - 05 Apr 2000 <br />
