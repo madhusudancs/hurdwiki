@@ -8,21 +8,16 @@ This is a brief helper on how to setup X-Window on GNU.
 
 ### <a name="Mouse_amp_Keyboard"> Mouse &amp; Keyboard </a>
 
-First, set up the keyboard translator. Using `/hurd/kbd` is unsupported. You should instruct Hurd console to repeat keyboard events to `/dev/kbd`:
+See [[HurdConsole]] for more details.
 
-    $ console -d vga -d pc_kbd --repeat=/dev/kbd -d pc_speaker /dev/vcs
+First, set up the keyboard translator. Using `/hurd/kbd` and `/hurd/mouse` are not supported. You should instruct Hurd console to repeat keyboard events to `/dev/cons/kbd`, and mouse events to `/dev/cons/mouse`:
 
-Then the mouse translator. For a serial port mouse this is along the lines of:
+    # console -d vga -d pc_kbd --repeat=kbd -d generic_speaker \
+      -d pc_mouse --repeat=mouse --protocol=ps/2 -c /dev/cons /dev/vcs
 
-    # settrans -c /dev/mouse /hurd/mouse --device=com0 --protocol=microsoft
+Symbolic link needed for `kbd` should be created too:
 
-Make sure that `/dev/com0` actually exists. If it does not, create it using `MAKEDEV` in the usual fashion.
-
-PS/2 mice do not require a device. It is simple a matter of:
-
-    # settrans -c /dev/mouse /hurd/mouse --protocol=ps/2
-
-For other mice, run `/hurd/mouse --help` to get a listing of supported types.
+    # ln -s /dev/cons/kbd /dev
 
 ### <a name="Selecting_amp_Configuring_Packag"> Selecting &amp; Configuring Packages </a>
 
@@ -58,7 +53,7 @@ Now you have to edit the file manually to ensure that the mouse sections look li
             Identifier      "Configured Mouse"
             Driver          "mouse"
             Option          "CorePointer"
-            Option          "Device"                "/dev/mouse"
+            Option          "Device"                "/dev/cons/mouse"
             Option          "Protocol"              "osmouse"
     EndSection
 
@@ -66,7 +61,7 @@ Now you have to edit the file manually to ensure that the mouse sections look li
             Identifier      "Generic Mouse"
             Driver          "mouse"
             Option          "SendCoreEvents"        "true"
-            Option          "Device"                "/dev/mouse"
+            Option          "Device"                "/dev/cons/mouse"
             Option          "Protocol"              "osmouse"
     EndSection
 
@@ -101,3 +96,5 @@ Some text formatting. -- [[Main/OgnyanKulev]] - 05 Dec 2002
 Dito. -- [[Main/JoachimNilsson]] - 12 Jan 2003
 
 `/hurd/kbd` is no longer supported. -- [[Main/OgnyanKulev]] - 11 Aug 2004
+
+`/hurd/mouse` is deprecated. -- [[Main/OgnyanKulev]] - 21 Sep 2004
