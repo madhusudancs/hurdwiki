@@ -6,7 +6,7 @@ The below is a reworked version of Marcus Brinkmanns' [letter to the debian-hurd
 
 **_The new Hurd console features:_**
 
-**A console server\***, which provides a number of virtual consoles to term servers, with a full set of terminal capabilities.
+**A console server**, which provides a number of virtual consoles to term servers, with a full set of terminal capabilities.
 
 The console server supports any encoding supported by iconv, but uses Unicode internally. The default encoding is ISO8859-1, another useful variant is UTF-8.
 
@@ -34,22 +34,21 @@ The console client uses libcons, of course. There are a number of drivers that e
 
 * Dynamic color allocation. Because the above 512 glyph modus is only available with a reduced amount of colors, you can use only up to 8 different colors, but which of the 16 colors are available is chosen dynamically based on the colors actually used.
 
-_Note:_ There is an alternative mode with up to 256 different glyphs at the same time and full 16 colors, for those who need many colors in their applications.
+_Note:_
 
 * Support for multiple fonts at the same time. The VGA driver supports italic and real bold (not bright color) mode. This will hopefully be used in emacs font lock mode and other applications.
 
 * The pc\_kbd driver. This is a hack for a PC eyboard with an american keymap. We all want configurable keyboard layouts of course, but I had to set priorities, and extracting xkb (so we can reuse the X keymaps) is on the TODO list. For now, this driver with a fixed US keymap is available for immediate use. Although it is only considered to be a temporary solution, it provides all features you need (except changing the keymap):
-  * All keys of a standard 102(?) keys keyboard, including Ctrl, [[LeftAlt]], [[RightAlt]], [[CapsLock]], [[NumLock]], Keypad, cursor block, function keys are supported and have a sensible default value.
-  * [[LeftAlt]] + Function key N switches the virtual console N.
-  * [[LeftAlt]] + [[ArrowRight]] or [[ArrowLeft]] switches to previous or next virtual console.
-  * [[RightShift]] + [[PageUp]] or [[PageDown]] scrolls back or forward in the scrollback buffer by half pages.
-  * [[LeftAlt]] + [[ArrowUp]] or [[ArrowDown]] scroll back or forward one line.
-  * [[LeftCtrl]] + [[LeftAlt]] + Backspace terminates the console client, and reverts the VGA card etc to its original state.
-  * [[RightAlt]] + Keypad enables you to directly enter unicode characters in hexadecimal numbers. 0-9 have their standard meaning, and [[NumLock]] is 0xa, Keypad / is 0xb, \* is 0xc, - is 0xd, + is 0xe and the enter key at the lower right of the keypad is 0xf. Up to four digits are memorized, if you type more, the earlier ones are forgotten. This allows to cover up typing mistakes.
+  * All keys of a standard 102(?) keys keyboard, including Ctrl, LeftAlt, RightAlt, CapsLock, NumLock, Keypad, cursor block, function keys are supported and have a sensible default value.
+  * LeftAlt + Function key N switches the virtual console N.
+  * LeftAlt + ArrowRight or ArrowLeft switches to previous or next virtual console.
+  * RightShift + PageUp or PageDown scrolls back or forward in the scrollback buffer by half pages.
+  * LeftAlt + ArrowUp or ArrowDown scroll back or forward one line.
+  * LeftCtrl + LeftAlt + Backspace terminates the console client, and reverts the VGA card etc to its original state.
+  * RightAlt + Keypad enables you to directly enter unicode characters in hexadecimal numbers. 0-9 have their standard meaning, and NumLock is 0xa, Keypad / is 0xb, \* is 0xc, - is 0xd, + is 0xe and the enter key at the lower right of the keypad is 0xf. Up to four digits are memorized, if you type more, the earlier ones are forgotten. This allows to cover up typing mistakes.
 
-_For example:_ [[AltGr]] + (Keypad 4, Keypad 1) = 0x41 = 'A'.<br />[[AltGr]] + (Keypad 2, 6, 3, [[NumLock]]) = 0x263a = smiley.<br /><br />
-
-You can get unicode tables from www.unicode.org.
+_For example:_AltGr + (Keypad 4, Keypad 1) = 0x41 = 'A'.<br />AltGr + (Keypad 2, 6, 3, NumLock) = 0x263a = smiley.
+You can get unicode tables from <http://www.unicode.org>
 
 * The generic\_speaker driver supports the speaker commonly found in PCs and other computers. It is good enough for a simple bell tone or a small melody. I have several default bell styles implemented, but currently there is no configuration option to access them at run time, sorry! Load this module to make the console beep on ^G.
 
@@ -107,13 +106,8 @@ or similar. A list of supported locales is not easily available, but you can pok
 
 If you actually try this, you will notice two problems:
 
-1. You can not enter the letters in your locale, because the keyboard
-
-doesn't have the right layout. See above. Keyboard maps come later. For now, you have to help yourself with the direct input with [[RightAlt]]. Maybe I will put a simple compose key feature in the pc\_kbd driver, so that some western locales can be used more easily.
-
-1. If you bother to look up the unicode hex code and enter it with
-
-[[AltGr]], the font can not display it! If you are using the ncursesw driver, do you use it while you are logged in from a working UTF-8 terminal? If not, then this is your problem. An ncurses driver for non-UTF-8 terminals is on the TODO list. But if you use the VGA driver, you need to load a different font.
+1. You can not enter the letters in your locale, because the keyboard doesn't have the right layout. See above. Keyboard maps come later. For now, you have to help yourself with the direct input with RightAlt. Maybe I will put a simple compose key feature in the pc\_kbd driver, so that some western locales can be used more easily.
+2. If you bother to look up the unicode hex code and enter it with AltGr, the font can not display it! If you are using the ncursesw driver, do you use it while you are logged in from a working UTF-8 terminal? If not, then this is your problem. An ncurses driver for non-UTF-8 terminals is on the TODO list. But if you use the VGA driver, you need to load a different font.
 
 This is because by default, the vga driver just reads the VGA card memory and takes the font that is stored there. This font has a limited characterset (256 characters, many graphical symbols among that), so you won't get more than a few western characters with that.
 
@@ -139,7 +133,7 @@ or
 
 If you are satisfied, copy your default font to `/lib/hurd/fonts/vga-system.bdf`, where it will be picked up automatically in favor to the graphic card's font.
 
-## <a name="More_about_fonts"> More about fonts </a>
+### <a name="More_about_fonts"> More about fonts </a>
 
 While we are talking about fonts, try also the 8x13O font with `--font-italic` and 8x13B or 9x15B font with `--font-bold`. You can save them in `/lib/hurd/fonts/vga-system-bold.bdf` and `/lib/hurd/fonts/vga-system-italic.bdf`, too.
 
@@ -153,27 +147,27 @@ and
 
 I hope you like what you see. Imagine this in emacs font-lock mode.
 
-## <a name="Unicode_finally"> Unicode, finally </a>
+### <a name="Unicode_finally"> Unicode, finally </a>
 
 There are a few more steps necessary to make your Unicode environment ready:
 
 Install the locales package. The current version does want a newer glibc than we have in the archive, but this can be overridden with the `--force-depends` option to dpkg. The old glibc is good enough.
 
-Add a Unicode locale to /etc/locale.gen, and generate the locale information for that! For example, I am living in Germany, and normally use de\_DE with the encoding ISO8859-1. My Unicode locale is de\_DE.UTF-8, so I am adding that to /etc/locale.gen:
+Add a Unicode locale to /etc/locale.gen, and generate the locale information for that! For example, I am living in Germany, and normally use `de_DE` with the encoding ISO8859-1. My Unicode locale is `de_DE.UTF-8`, so I am adding that to `/etc/locale.gen`:
 
-de\_DE.UTF-8 UTF-8
+    de_DE.UTF-8 UTF-8
 
 and rerun locale-gen:
 
-# locale-gen
+    # locale-gen
 
 See also /share/i18n/SUPPORTED. You can also do this more conveniently with
 
-# dpkg-reconfigure locales
+    # dpkg-reconfigure locales
 
 Once you generated this, make it your default locale:
 
-# export LANG=de\_DE.UTF-8
+    # export LANG=de_DE.UTF-8
 
 If you have also loaded the unicode font above, you are set up. Try for example to view the examples/ files in the ucs-fonts package with less.
 
@@ -183,36 +177,36 @@ You should see most of that file with the 9x15 font (a bit less with the 8x13 fo
 
 You should be able to do the above process with other encodings than UTF-8. But you should _always_ use a Unicode font, because the console client uses Unicode internally fo everything.
 
-Application specific notes <code>**======================**</code>
+## <a name="Application_specific_notes"> Application specific notes </a>
 
 If you enter unicode characters at the shell, libreadline loses track of the number of characters displayed (it is not aware of multi-byte encodings like UTF-8). This is fixed in readline 4.3 (which is not yet in Debian).
 
-If you use mutt, install mutt-utf8. For lynx, edit /etc/lynx.cfg, making sure that CHARACTER\_SET is set to utf-8.
+If you use mutt, install mutt-utf8. For lynx, edit `/etc/lynx.cfg`, making sure that CHARACTER\_SET is set to utf-8.
 
 If you use other applications, try to search with google for "application-name utf8" or "application-name unicode". Often you find what you need. The issues are the same for the GNU/Hurd and GNU/Linux systems, so most of the information can be shared, except how to setup the system console to support Unicode, of course.
 
-Known problems and important missing features <code>**=========================================**</code>
+## <a name="Known_problems_and_important_mis"> Known problems and important missing features </a>
 
 Squeezed at the end so nobody sees it ;)
 
-1. console server: lacks configuration option for scrollback buffer length. Is probably too lax in permission checking. Does not implement settable tab stops. Does not allow to change encoding at run time. Does not allow any other screen size but 80x25.
+**console server:** lacks configuration option for scrollback buffer length. Is probably too lax in permission checking. Does not implement settable tab stops. Does not allow to change encoding at run time. Does not allow any other screen size but 80x25.
 
 Combining characters are not supported.
 
-2. libcons/console-client: If you have one virtual console active, and another one receives a bell character, you don't hear the bell. This is because only the active virtual console is watched for anything interesting to happen. I think that is ok, but you might be surprised if you are used to how it works on GNU/Linux.
+**libcons/console-client:** If you have one virtual console active, and another one receives a bell character, you don't hear the bell. This is because only the active virtual console is watched for anything interesting to happen. I think that is ok, but you might be surprised if you are used to how it works on GNU/Linux.
 
 Copy &amp; Paste not supported.
 
-3. vga driver: Does not have configuration option for
+**vga driver:** Does not have configuration option for
 
 1. glyphs/16colors mode. Does not recalculate the mode lines if the font height is changed. This makes font heights below 13 or over 16 infeasible.
 
 Should support other text modes (integrate svgatextmode?)
 
-4. generic\_speaker driver: No option to set bell style.
+**generic\_speaker driver:** No option to set bell style.
 
-5. pc\_kbd driver: No keyboard layout but US supported! Maybe in some cases left/right shift/ctrl/alt is allowed where both left and right should be allowed. Doesn't support keyboard LEDs.
+**pc\_kbd driver:** No keyboard layout but US supported! Maybe in some cases left/right shift/ctrl/alt is allowed where both left and right should be allowed. Doesn't support keyboard LEDs.
 
-6. ncursesw driver: Doesn't work properly on other terminals but UTF-8. Should not use C-w, this should be configurable. Does not support use of scroll back buffer.
+**ncursesw driver:** Doesn't work properly on other terminals but UTF-8. Should not use C-w, this should be configurable. Does not support use of scroll back buffer.
 
-7. Other programs: Readline doesn't support multibyte encodings (4.2 and earlier). term doesn't either (all versions).
+**Other programs:** Readline doesn't support multibyte encodings (4.2 and earlier). term doesn't either (all versions).
