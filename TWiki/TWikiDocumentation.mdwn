@@ -290,6 +290,8 @@ TWiki is written in PERL 5, but it uses also many shell command. The current imp
 
 These installation steps use Apache web server on Linux as an example. TWiki should run on other web servers and Unix systems as well.
 
+**_Note:_** These installation notes assume user `nobody` for all files manupulated by the cgi scripts (executed by the web server), and user `twiki` for all other files. You need to replace user `nobody` with an other user in case the web server executes the script with a different user ( default for Debian is `www-data` ). Also, you can substitute user `twiki` with your own user name.
+
 * Request the TWiki distribution (in Unix ZIP format) from <http://www.mindspring.net/~peterthoeny/twiki/index.html> .
 * Create directory `/home/httpd/twiki` and unzip the TWiki distribution to this directory.
 * The `twiki/bin` directory of TWiki must be set as a cgi-bin directory. Add `/home/httpd/twiki/bin` to `/etc/httpd/conf/access.conf` with only `ExecCGI` option.
@@ -306,6 +308,7 @@ These installation steps use Apache web server on Linux as an example. TWiki sho
 * Edit the file `twiki/bin/wikicfg.pm` and set the variables at the beginning of the file to your needs.
 * Make sure RCS is installed. In case RCS is not in the `path` environment variable, add it to `path` . Alternatively, add the full path name to the `rcs, ci, co, rlog, rcsdiff` commands in the variables of `twiki/bin/wikicfg.pm` .
 * Point your browser at <http://your.domain.com/twiki/bin/view> and start wiki-ing away!
+* Note in case cgi user is **_not_** `nobody` : The `*,v` RCS repository files delivered with the installation package are locked by user `nobody` . In case the user is different (e.g. `www-data` ), it is not possible to check in files, this has the effect that the topic version number does not increase when saving a topic. In this case you need to unlock all repository files and lock them as user `www-data` , or simply delete all the repository files.
 * Security issue: Directories `twiki/data` , `twiki/templates` and all its subdirectories should be set so that they are **not** visible as a URL. (Alternatively, move the directries to a place where they are not visible, and change the variables in `twiki/bin/wikicfg.pm` accordingly)
 * Optional: You can add new rendering rules or new %variables%. To insure an easy upgrade of TWiki it is recommended to do this customization in `twiki/bin/wikicfg.pm` , not `twiki/bin/wiki.pm` .
 * Optional: If you are on a public server and you would like to authenticate users you need to rename file `.htaccess.txt` in the `twiki/bin` directory to `.htaccess` and change it to your needs. Consult the HTTP server documentation for details.
@@ -320,18 +323,16 @@ These installation steps use Apache web server on Linux as an example. TWiki sho
   * If needed, create customized templates in the new templates directory. (Non existing templates are inherited from `twiki/templates` )
   * If you want to use a category table, copy the three files twikicatitems.tmpl, twikicatedit.tmpl and twikicatview.tmpl from the `twiki/templates/Know` directory to the new templates directory, and customize it. The TWiki Category Table section has more.
 
-For debugging reasons, here are contents of directories with file permissions:
+Here are contents of directories with file permissions. Please note that this is for debugging reasons only and does not exactly reflect the distribution:
 
 directory `twiki/bin` :
 
     drwxr-xr-x   5 twiki    t5            512 Nov 11 02:52 .
     drwxr-xr-x   5 twiki    t5            512 Nov  6 02:57 ..
-    drwxrwxrwx   6 twiki    t5            512 Nov  6 03:13 data
-    drwxr-xr-x   6 twiki    t5            512 Nov  4 20:34 templates
     -rw-r--r--   1 twiki    t5            430 Oct 21 18:51 .htaccess
-    -rwxrwxrwx   1 twiki    t5           3752 Mar 27 02:21 attach
-    -rwxr-xr-x   1 twiki    t5           2810 Oct 21 18:51 changes
-    -rwxrwxrwx   1 twiki    t5           1244 Mar 27 02:21 delete
+    -rw-r-xr-x   1 twiki    t5           3752 Mar 27 02:21 attach
+    -rw-r-xr-x   1 twiki    t5           2810 Oct 21 18:51 changes
+    -rw-r-xr-x   1 twiki    t5           1244 Mar 27 02:21 delete
     -rw-r-xr-x   1 twiki    t5           2589 Nov  6 03:05 edit
     -rwxr-xr-x   1 twiki    t5           4614 Oct 21 18:52 mailnotify
     -rw-r-xr-x   1 twiki    t5           1353 Oct 23 20:19 oops
@@ -339,10 +340,10 @@ directory `twiki/bin` :
     -rw-r-xr-x   1 twiki    t5           6249 Aug  3 04:34 register
     -rw-r-xr-x   1 twiki    t5           6890 Nov 11 03:06 rdiff
     -rw-r-xr-x   1 twiki    t5           1819 Nov  6 03:06 save
-    -rwxr-xr-x   1 twiki    t5           3174 Oct 21 18:51 search
-    -rwxrwxrwx   1 twiki    t5           6696 Mar 27 02:22 upload
+    -rw-r-xr-x   1 twiki    t5           3174 Oct 21 18:51 search
+    -rw-r-xr-x   1 twiki    t5           6696 Mar 27 02:22 upload
     -rw-r-xr-x   1 twiki    t5           3878 Nov 11 03:06 view
-    -rwxrwxrwx   1 twiki    t5           1538 Mar 27 02:22 viewfile
+    -rw-r-xr-x   1 twiki    t5           1538 Mar 27 02:22 viewfile
     -rw-r-xr-x   1 twiki    t5          16169 Nov  7 01:43 wiki.pm
     -rw-r-xr-x   1 twiki    t5           3945 Jun 23 01:24 wikicfg.pm
 
@@ -422,9 +423,9 @@ part of directory `twiki/data/Main` :
     -r--r--r--   1 nobody   65535         638 Oct 27 02:45 WebNotify.txt,v
     -rw-r--r--   1 nobody   65535        3653 Oct 21 18:52 WebSearch.txt
     -r--r--r--   1 nobody   65535        3835 Oct 27 02:45 WebSearch.txt,v
-    -rw-rw-rw-   1 twiki    t5              7 Oct 21 18:52 webcolor.inc
-    -rw-rw-rw-   1 twiki    t5            278 May 20 17:42 webcopyright.inc
-    -rw-rw-rw-   1 twiki    t5            402 Oct 26 07:45 weblist.inc
+    -rw-r--r--   1 twiki    t5              7 Oct 21 18:52 webcolor.inc
+    -rw-r--r--   1 twiki    t5            278 May 20 17:42 webcopyright.inc
+    -rw-r--r--   1 twiki    t5            402 Oct 26 07:45 weblist.inc
 
 directory `twiki/pub/` :
 
@@ -468,4 +469,4 @@ directory `twiki/pub/icn/` :
     -rw-r--r--   1 twiki    t5            152 Mar 27 03:17 xls.gif
     -rw-r--r--   1 twiki    t5            144 Mar 27 03:17 zip.gif
 
--- [[Main/PeterThoeny]] - 22 Oct 1998 <br /> -- [[Main/PeterThoeny]] - 18 Nov 1998 <br /> -- [[Main/PeterThoeny]] - 11 Jan 1999 <br /> -- [[Main/PeterThoeny]] - 20 Jan 1999 <br /> -- [[Main/PeterThoeny]] - 06 Mar 1999 <br /> -- [[Main/PeterThoeny]] - 27 Mar 1999 <br /> -- [[Main/PeterThoeny]] - 02 Jun 1999 <br /> -- [[Main/PeterThoeny]] - 14 Jun 1999 <br /> -- [[Main/PeterThoeny]] - 23 Jun 1999 <br /> -- [[Main/PeterThoeny]] - 01 Sep 1999 <br />
+-- [[Main/PeterThoeny]] - 22 Oct 1998 <br /> -- [[Main/PeterThoeny]] - 18 Nov 1998 <br /> -- [[Main/PeterThoeny]] - 11 Jan 1999 <br /> -- [[Main/PeterThoeny]] - 20 Jan 1999 <br /> -- [[Main/PeterThoeny]] - 06 Mar 1999 <br /> -- [[Main/PeterThoeny]] - 27 Mar 1999 <br /> -- [[Main/PeterThoeny]] - 02 Jun 1999 <br /> -- [[Main/PeterThoeny]] - 14 Jun 1999 <br /> -- [[Main/PeterThoeny]] - 23 Jun 1999 <br /> -- [[Main/PeterThoeny]] - 01 Sep 1999 <br /> -- [[Main/PeterThoeny]] - 29 Sep 1999 <br />
