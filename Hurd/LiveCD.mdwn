@@ -71,3 +71,39 @@ In my attempts to get a bootable CD for the Hurd here's the recipe I followed, y
 ...That was the recipe for using a floppy image. If you use the "-t hd" switch of mkbimage, you'll get an ext2fs El-Torito HD emulation image that can be any size (I've got one here 300+ MB). You then can use "root (hd0,0)" in grub to boot something. Also, invoking mkbimage with no parameters will give you some additional help messages.
 
 -- [[Main/GregBuchholz]] - 05 Nov 2003
+
+----
+
+My recipe for a booting GNU cd
+
+[screenshot](http://24.109.97.177:57777/Screenshot2.png)<br /> what you'll need:<br />
+
+[stage2\_eltorito](http://24.109.97.177:57777/stage2_eltorito) from [grub 0.95](http://www.gnu.org/software/grub)<br /> a [base system](http://www.update.uu.se/~ams/gnu/gnu-2004-12-04.tar.bz2)<br />[iso9660fs.static](http://24.109.97.177:57777/iso9660fs.static)<br />
+
+how-to:
+
+       # mkdir iso
+       ..(at this point untar or setup base system)
+       # mkdir -p iso/boot/grub
+       # cp iso9660fs.static iso/hurd
+       # cp stage2_eltorito iso/boot/grub
+       ..(edit iso/boot/grub/grub.conf)
+       # mkisofs -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o livecd.iso iso/
+
+note: /boot/gnumach /hurd/iso9660fs.static /hurd/exec and /lib/ld.so.1 must NOT be symlinks!
+
+contents of grub.conf:
+
+       timeout 60
+       default 0
+
+       title  GNU/Hurd CD
+       #uppermem 523648 #this may need to be set
+       root   (cd)
+       kernel /boot/gnumach root=device:hd2  #set device to your cdrom device
+       module /hurd/iso9660fs.static --multiboot-command-line=${kernel-command-line} --host-priv-port=${host-port}
+     --device-master-port=${device-port} --exec-server-task=${exec-task}
+     -T typed ${root} $(task-create) $(task-resume)
+       module /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
+
+-- [[Main/AndrewResch]] - 22 Feb 2005
