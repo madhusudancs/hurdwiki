@@ -28,7 +28,7 @@ Rumor has it that they are on the way.
 
 ## <a name="ROM"> </a> ROM
 
-How about a translator which makes it look like you can write to read only media (like CDs), or change files which I don't have permission to change. This translator would make it seem like you could copy files to places where you normally couldn't. Think about combining this translator with the ftp translator and the tar and gzip translators. (cd /ftp/gnu.org/gnome.tar.gz/writes\_allowed; make install)
+How about a translator which makes it look like you can write to read only media (like CDs), or change files which I don't have permission to change. This translator would make it seem like you could copy files to places where you normally couldn't. Think about combining this translator with the ftp translator and the tar and gzip translators. (cd /ftp/gnu.org/gnome.tar.gz/writes\_allowed; make install). It could be that unionfs does this very thing.
 
 ## <a name="Super_FIFO"> Super\_FIFO </a>
 
@@ -41,13 +41,14 @@ Perl is a wonderful language for hacking together something useful in a short am
     #!/usr/bin/perl
     use Hurd::translator;
 
-    #file named two can produce an endless supply of twos, etc. (a la /dev/zero)
-    my $i=-1;
+    #file named "two" can produce an endless supply of twos, etc. (a la /dev/zero)
+    my $i=0;
     for $filename ([zero one two three four])
     {
-       $i++;
-       $libtrivfsread_codehash{$filename}=sub{ $num_bytes=shift; return chr($i) x $num_bytes; };
+       $libtrivfsread_codehash{$filename}=
+                sub{ $num_bytes=shift; my $data=$i; return chr($data) x $num_bytes; };
        #that's a hash of references to closures
+       $i++;
     }
     translator_startup();
 
