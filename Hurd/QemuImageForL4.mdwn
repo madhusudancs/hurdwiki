@@ -6,6 +6,8 @@ This page is initially taken from <http://perso.ens-lyon.fr/alexandre.buisse/hur
 
 This is a howto on how to get a working image of Hurd/L4 with qemu, on ia32 arch.
 
+# <a name="1_Floppy_image"> 1. Floppy image </a>
+
 You will need the following :
 
 * automake 1.7 (or greater)
@@ -136,6 +138,165 @@ Congratulations, you just booted Hurd/L4 ! To start the Kernel Debugger, press `
 
     > c
     /conf> m
+
+# <a name="2_Disk_Image"> 2. Disk Image </a>
+
+Everything went fine, and Hurd/L4 should have shown you a nice boot on our floppy image. Our next step will be to make banner run and show us its nice ASCII Art on this brand new OS.
+
+However, there is one problem : banner linked with the libc weights about 6MB, and we only have a 1.44MB floppy. We will then begin with making an image of a whole hard disk instead of a simple floppy.
+
+We still will work with qemu, of course, but we'll also use Bochs to install Grub on the image (I have not yet tried with qemu).
+
+To begin with, some mathematics. We'll make a 30MB image but you can adapt this value to your need. A disk is made of heads, cylinders and sectors (we won't go in detail about what these really mean). A sector has a constant size of 512 bytes and there are at most 255 heads and 63 sectors. The total size of a disk is C \* H \* S \* 512. We'll use the maximum capacity for S and 16 sectors and that will give us how much cylinders we need : C = E(30,000,000 / (16 \* 63 \* 512)) = 58. The exact size of our image will then be : 58 \* 16 \* 63 \* 512 = 29,933,568 bytes and we will have 58 \* 16 \* 63 = 58464 pieces of 512 bytes.
+
+Let's create it : we use the magic command `dd` on the special device which contain an infinity of 0.
+
+    $ dd if=/dev/zero of=hurd_l4.img bs=512 count=58464
+      58464+0 records in
+      58464+0 records out
+
+We will mount it in loopback :
+
+    $ losetup /dev/loop0 hurd_l4.img
+
+We need now to have it recognized as a hard disk :
+
+    $ fdisk -u -C58 -S63 -H16 /dev/loop0
+      Device contains neither a valid DOS partition table, nor Sun, SGI or OSF disklabel
+      Building a new DOS disklabel. Changes will remain in memory only,
+     until you decide to write them. After that, of course, the previous
+     content won't be recoverable.
+
+      Warning: invalid flag 0x0000 of partition table 4 will be corrected by w(rite)
+
+      Command (m for help):
+
+We should create a new primary partition (press: `'n'`, `'p'`, `'1'`, default, default) and toggle it bootable (`'a'`, `'1'`). Now, if you press `'p'`, you should see something like :
+
+      Command (m for help): p
+
+      Disk /dev/loop0: 29 MB, 29933568 bytes
+      16 heads, 63 sectors/track, 58 cylinders, total 58464 sectors
+      Units = sectors of 1 * 512 = 512 bytes
+
+            Device Boot      Start         End      Blocks   Id  System
+      /dev/loop0p1   *          63       58463       29200+  83  Linux
+
+If everything is fine (especially check the `Start` and `End` fields), you can press `'w'` to write the table on the disk:
+
+      Command (m for help): w
+      The partition table has been altered!
+
+      Calling ioctl() to re-read partition table.
+
+      WARNING: Re-reading the partition table failed with error 22: Invalid argument.
+      The kernel still uses the old table.
+      The new table will be used at the next reboot.
+      Syncing disks.
+
+You will have noticed that the partition only starts at the 63rd sector. The beginning of the disk contains the MBR which is used for booting. We must then remount the disk making sure that this part is skipped before formating it. We know that a sector uses 512 bytes so we should begin at 63 \* 512 = 32256 :
+
+    $ losetup -d /dev/loop0
+    $ losetup -o32256 /dev/loop0 hurd_l4.img
+
+Now comes time to format it into a decent filesystem :
+
+    $ mke2fs /dev/loop0
+      mke2fs 1.35 (28-Feb-2004)
+      Filesystem label=
+      OS type: Linux
+      Block size=1024 (log=0)
+      Fragment size=1024 (log=0)
+      7328 inodes, 29200 blocks
+      1460 blocks (5.00%) reserved for the super user
+      First data block=1
+      4 block groups
+      8192 blocks per group, 8192 fragments per group
+      1832 inodes per group
+      Superblock backups stored on blocks:
+              8193, 24577
+
+      Writing inode tables: done
+      Writing superblocks and filesystem accounting information: done
+
+      This filesystem will be automatically checked every 22 mounts or
+     180 days, whichever comes first.  Use tune2fs -c or -i to override.
+
+We should now be able to mount it the right way :
+
+    $ mkdir mnt
+    $ losetup -d /dev/loop0
+    $ mount -o loop,offset=32256 hurd_l4.img mnt/
+
+Here comes grub time (I assume you have the grub files in `/boot/grub` and the `menu.lst` we've obtained in the previous section is in `~/`) :
+
+    $ mkdir -p mnt/boot/grub
+    $ cp /boot/grub/stage1 /boot/grub/stage2 /boot/grub/e2fs_stage1_5 mnt/boot/grub/
+    $ cp ~/menu.lst mnt/boot/grub
+
+We will make a grub bootimage and boot it with bochs :
+
+    $ cat stage1 stage2 > grubboot.img
+
+Copy the following into `.bochsrc` (replace the parts in caps by the right info) :
+
+    config_interface: textconfig
+    display_library: x
+    romimage: file=/usr/share/bochs/BIOS-bochs-latest, address=0xf0000
+    megs: 32
+    vgaromimage: /usr/share/bochs/VGABIOS-elpin-2.40
+    floppya: 1_44=PATH_TO_YOUR_GRUBBOOT_IMAGE, status=inserted
+    ata0: enabled=1, ioaddr1=0x1f0, ioaddr2=0x3f0, irq=14
+    ata1: enabled=0, ioaddr1=0x170, ioaddr2=0x370, irq=15
+    ata0-master: type=disk, path="PATH_TO_YOUR_DISK_IMAGE", cylinders=NUMBER_OF_CYLINDERS, heads=16, spt=63
+    newharddrivesupport: enabled=1
+    boot: a
+
+    log: /dev/stdout
+    panic: action=ask
+    error: action=report
+    info: action=report
+    debug: action=ignore
+    debugger_log: -
+    com1: enabled=1, dev=/dev/ttyS0
+    vga_update_interval: 300000
+    keyboard_serial_delay: 250
+    keyboard_paste_delay: 100000
+    floppy_command_delay: 500
+    ips: 1000000
+    mouse: enabled=0
+    private_colormap: enabled=0
+    fullscreen: enabled=0
+    screenmode: name="sample"
+    keyboard_mapping: enabled=0, map=/usr/share/bochs/keymaps/x11-pc-fr.map
+    i440fxsupport: enabled=0
+
+And start Bochs with this configuration :
+
+    $ bochs -qf .bochsrc
+
+When asked, choose `5. begin simulation`. It is possible that you enter first into a debuuger, answer `'c'` to make it continue. You should see a grub commandline. Tell it to install grub on the disk :
+
+    grub> root (hd0,0)
+      Filesystem type is ext2fs, partition type 0x83
+
+    grub> setup (hd0)
+      Checking if "/boot/grub/stage1" exists... yes
+      Checking if "/boot/grub/stage2" exists... yes
+      Checking if "/boot/grub/e2fs_stage1_5" exists... yes
+      Running "embed /boot/grub/e2fs_stage1_5 (hd0)"... 15 sectors are embedded. succeeded
+      Running "install /boot/grub/stage1 (hd0) (hd0)1+15 p (hd0,0)/boot/grub/stage2/boot/grub/menu.lst"... succeeded.
+      Done.
+
+Quit by pressing `^C q` in the shell from which you launched bochs. Our image is now ready. Copy all the releving files in `mnt/boot` like for the floppy and then umount it and launch qemu :
+
+    $ cp /l4/boot/* mnt/boot/
+    $ umount mnt
+    $ qemu -serial stdio -dummy-net -hda hurd_l4.img -boot c
+
+# <a name="3_Running_Banner"> 3. Running Banner </a>
+
+Still under construction but you should have no problems following `hurd-l4/libc/README` now that the hdd image works.
 
 -- [[Main/OgnyanKulev]] - 05 Feb 2005
 
