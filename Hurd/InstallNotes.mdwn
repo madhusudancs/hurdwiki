@@ -6,34 +6,102 @@ Items of interest during install not mentioned elsewhere include the following. 
 
 ## <a name="1_Overview_Where_we_are_going"> 1. Overview - Where we are going </a>
 
-There are three current methods and one depricated methods to install the Hurd: tarball (network), bochs virtual machine and the depricated "cross-install".
+There are three current methods and one depricated methods to install GNU: tarball (network), bochs virtual machine and the depricated "cross-install".
 
 * Neal Walfield's [guide](http://web.walfield.org/papers/hurd-installation-guide/english/hurd-install-guide.html) is excellent and is available in several formats. This is the guide that the Hurd community always references first. The GNU official [installation page](http://www.gnu.org/software/hurd/install.html) is the canonical reference. [[TarballNotes20020816]]
 * [CD-ROM iso images](http://www.debian.org/ports/hurd/hurd-cd) CD-ROM installs are becoming more and more popular. The CDs are based on the most current tarball at release time. [[CDNotesJ2]]
-* [[BochsEmulator]] is an x86 emulator similar to the commercial VMware (which is not supported). Alfred M Szmidt wrote a [great guide](http://ftp.walfield.org/pub/people/ams/hurd/creating_bochs_image_for_gnu.txt). Oliver also created a GNU/Hurd [bochs image](http://mail.gnu.org/pipermail/bug-hurd/2002-October/010604.html).
+* [[Bochs]] is an x86 emulator similar to the propietary [[VMware]] (which is not supported). Alfred M Szmidt wrote a [great guide](http://ftp.walfield.org/pub/people/ams/hurd/creating_bochs_image_for_gnu.txt). The Bochs project hosts a preinstalled GNU image that is periodicaly updated. You can get the latest one [here](http://sourceforge.net/project/showfiles.php?group_id=12580).
 * Once upon a time there was a `cross-install` script that did an installation while running from another system install. While there are spurious &amp; unintentional references to "cross-installs" this is almost always now intended to mean a tarball install.
 
 ## <a name="2_Real_Estate_or_Finding_A_Home"> 2. Real Estate or Finding A Home </a>
 
-* When preparing the hurd partition, you may wish to add a -b 4096 option to mkfs.ext2 (the default is chosen depending on the size of the partition, and the support for block size 1024 is buggy). (the command to check the block size is `tune2fs -l /dev/hda9` under Linux)
-* fdisk is most commonly used under Debian GNU/Linux for creating partitions. fdisk/cfdisk will work just fine. Neal's guide chooses to recommend [GNU parted](http://www.gnu.org/software/parted) instead.
+For those who do not happen to have an available partition or an extra hard drive, this can be the longest step. In this case, we will need to repartition the hard drive. One solution is to use GNU's partition editor, Parted. It features not only basic partition editing, but also partition resizing and moving functions. It can be found at <http://www.gnu.org/software/parted>. The manual is quite complete and includes several tutorials. Also there's a frontend called [nparted](http://packages.debian.org/unstable/utils/nparted.html) to simplify usage.
 
-## <a name="3_The_Boot_Loader_Getting_Grub"> 3. The Boot Loader - Getting Grub </a>
+The Hurd can only support partition sizes of up to approximately one gigabyte; anything much larger than this will not work. This limitation is a design decision that was made several years ago in which the file system server maps the entire partition into virtual memory. As the amount of virtual memory available on an ia32 is only four gigabytes of which only two gigabytes are available to the application and, of that, a significant portion is reserved for the code, the stack and the heap, the final, maximum contiguous virtual memory area that is left is generally about one gigabyte. This limitation is scheduled to be remove. Several other items, however, currently have a slightly higher priority.
+
+Having said that, a single one gigabyte partition is more than enough for a working system. Many, however, prefer at least two partitions: one for a root partition and another for a home partition. This latter scheme is highly advised for developers interested in debugging Hurd servers.
+
+The Hurd supports several extensions to the ext2fs file system format. Foremost among these are passive translators and a fourth set of permission bits for unknown users. In order to take advantage of these features, however, the owner of the partition must be set to Hurd. mke2fs, unless specifically overridden on the command line, will set the owner to whatever system core it is running on. As the Hurd will diligently respect this setting, we must be careful to set this appropriately or the Hurd may fail in subtle ways. Be aware that even if a file system is owned by a particular system core, others may still use it; they just may not be able to use certain extensions.
+
+To create a file system, we use mke2fs and pass it \`-o hurd' to designate the Hurd as the owner of the new file system. For instance:
+
+# mke2fs -o hurd /dev/DEVICE
+
+You may wish to add a -b 4096 option to mke2fs (the default is chosen depending on the size of the partition, and the support for block size 1024 is buggy). (the command to check the block size is `tune2fs -l /dev/hda9` under GNU/Linux)
+
+## <a name="3_The_Boot_Loader_Getting_GRUB"> </a> 3. The Boot Loader - Getting GRUB
+
+GRUB is the bootloader of the GNU system, and it's currently the only one that supports the multiboot standard, necessary to boot the Hurd.
+
+A word about GRUB. Unlike traditional boot loaders on the x86, such as LILO, GRUB is very powerful. It has a command line interface, bootp, dummy terminal support and a plethora of other features. In addition, it can boot most any operating system. If you have ever booted an alpha or sparc, you will understand what GRUB can do. Therefore, do not be scared: GRUB is better. You will like it. You will not go back.
+
+To find GRUB, visit <ftp://alpha.gnu.org/gnu/grub>. Here, there is a source tarball and a floppy image. If you choose to download the tarball, it is a normal configure, make and make install. Included is a wonderfully complete manual on how GRUB works. Read it. If, on the other hand, you choose to download the floppy image, it is sufficient to dump it to a floppy disk to get a working GRUB:
+
+# dd if=grub-boot-VERSION.image of=/dev/fd0
+
+You can always install GRUB onto your hard drive at a later date.
+
+For instructions on using GRUB, see either the info documentation or the quick reference notes on this wiki:
 
 * [[GrubNotes]] - quick reference
 
-## <a name="4_Cross_Install_Cross_Installing"> 4. Cross Install - Cross Installing the Hurd </a>
+## <a name="4_Cross_Install_Cross_Installing"> </a> 4. Cross Install - Cross Installing GNU
 
-In Neal's install guide this simply refers to the `tar` run from another system install. This should NOT be confused with the depricated `cross-install` script method.
+The next step is to download the base system at: <ftp://alpha.gnu.org/gnu/hurd/contrib/marcus/gnu-latest.tar.gz>.
 
-## <a name="5_Booting_the_Hurd"> 5. Booting the Hurd </a>
+The tarball is setup to extract everything into the current directory. After mounting the partition and changing to the mount point, we just need to extract the archive. In the following example, we assume that the root partition is mounted on /gnu.
+
+# cd /gnu # tar --same-owner -xvzpf ~/gnu-latest.tar.gz
+
+NOTE: This should NOT be confused with the depricated `cross-install` script method.
+
+## <a name="5_Booting_GNU"> </a> 5. Booting GNU
+
+All is now in readiness to boot GNU for the first time. After verifying that the GRUB boot disk is in the drive, reboot. If all goes well, a GRUB menu will be displayed. Hit c for the GRUB command line.
+
+First, the root file system needs to be set. GRUB uses a partition nomenclature that is a bit different from either GNU or GNU/Linux: both IDE and SCSI drives are named (hdN). N is the drive number (zero based) as reported by the BIOS. That is, GRUB makes no distinction between IDE and SCSI disks. The partitions, like the disks, are also indexed numerically from zero: (hdN,M). If this sounds bad, relax: GRUB is also helpful.
+
+To determine on which file system a particular file resides, one method is to use the find command. When issued this command, GRUB searches on each file system for the specified file and prints where is was found. Here we search for the kernel, \`/boot/gnumach.gz'.
+
+grub&gt; find /boot/gnumach.gz (hd0,0)
+
+As we can see, GRUB is indicating that \`/boot/gnumach.gz' is on \`(hd0,0)'. Thus, we set the root respectively:
+
+grub&gt; root (hd0,0) Filesystem type is ext2fs, partition type 0x83
+
+Next, GNU Mach needs to be loaded. In addition to loading the binary, at least one option, the root partition, must be specified. This will be used by the Hurd itself. As such, it must be in terms that the Hurd can understand.
+
+GNU Mach labels disks starting at zero. IDE drives are prefixed with hd, while SCSI disks are prefixed with sd. Like GNU/Linux, drives are number by their position on the controller. For instance, the primary master is hd0 and the secondary slave is hd3. Partitions use the BSD slice naming convention, and append sM to the drive name to indicate a given partition. Note that M is a one, not zero, based index. The slice number is simple to calculate: just increment what you used for GRUB by one.
+
+Since the Hurd has not yet been configured, it must be run in single user mode. Adding a \`-s' to the kernel command line is all that is required.
+
+Thus, continuing with the above example and assuming that the first drive in the master on the secondary controller, we would have:
+
+grub&gt; kernel /boot/gnumach.gz -s root=device:hd2s1 [Multiboot-elf, ...]
+
+Next, the root file system server and the exec server must be loaded. This is done using GRUB's boot module capability. The parameters are the semantics by which the kernel passes some important values to the servers.
+
+grub&gt; module /hurd/ext2fs.static --multiboot-command-line=$\{kernel-command-line\} --host-priv-port=$\{host-port\} --device-master-port=$\{device-port\} --exec-server-task=$\{exec-task\} -T typed $\{root\} $(task-create) $(task-resume) [Multiboot-module 0x1c4000, 0x2cfe6a bytes] grub&gt; module /lib/ld.so.1 /hurd/exec $(exec-task=task-create) [Multiboot-module 0x494000, 0x27afe bytes]
+
+It is important that each module string is only a single separate line. Adding this to GRUB's \`menu.lst' file as soon as possible is advised.
+
+Finally, GNU can be booted:
+
+grub&gt; boot
+
+Sit back and watch the messages. This is actually more important than one might think as there is a bug in GNU Mach whereby hitting a key during the boot process causes the kernel to panic.
+
+If GNU fails to boot, it could be due to shared IRQs: GNU Mach does not play well with these. You can verify your situation by looking at, for instance, the \`/proc/interrupts' file under GNU/Linux. Also, as GNU Mach does not support loadable kernel modules, many of the drivers are compiled into the default kernel. If you have old peripherals, this can be a significant problem: a device may respond badly to a probe intended for a different device. Building a new kernel with only the required devices drivers will usually solve this problem. GNU Mach is easily cross compiled. If you are running Debian, try the \`gcc-i386-gnu' package.
+
+If this does not help, explore the resources listed at the end of this document. Finally, ask on the appropriate mailing list.
 
 There are some cavaets to the boot process:
 
 * **IMPORTANT!** Remember when first booting into your freshly un-tarred distribution, you must pass the `-s` option to `/boot/gnumach.gz`. Failure to do so means that you won't get single-user mode.
-* **IMPORTANT2!** Add the --readonly flag to the file system server in your Grub menu.lst file. This is a work-around to get fsck working properly. Don't forget, everything must be on ONE line, or ended with a backslash!
+* **IMPORTANT2!** Add the --readonly flag to the file system server in your GRUB menu.lst file. This is a work-around to get fsck working properly. Don't forget, everything must be on ONE line, or ended with a backslash!
+* **IMPORTANT3!** If you have created the filesystem with a later version of e2fsprogs than the one installed in the tarball, it **might** happen that fsck fails and you can't boot multiuser. The workaround is to copy /bin/true into /sbin/e2fsck and /sbin/fsck.ext2, then boot multiuser and install the latest e2fsprogs.
 
-    title The GNU/Hurd (kernel GNUmach 1.3)
+    title GNU (kernel GNUmach 1.3)
     root (hdX,Y)
     kernel /boot/gnumach.gz root=device:hdX,(Y+1)
     module /hurd/ext2fs.static --readonly --multiboot-command-line=${kernel-command-line}  --host-priv-port=${host-port} --device-master-port=${device-port} --exec-server-task=${exec-task} -T typed ${root} $(task-create) $(task-resume)
@@ -48,20 +116,44 @@ There are some cavaets to the boot process:
            --exec-server-task=${exec-task}                 \
            -T typed ${root} $(task-create) $(task-resume)
 
-Where `hdX,Y` is the appropriate hard disk and partition number, in Grub format. `hdX,(Y+1)` is the GNUmach format - because Mach partitions start at 1, unlike Grub partitions that start on 0 (zero).
+Where `hdX,Y` is the appropriate hard disk and partition number, in GRUB format. `hdX,(Y+1)` is the GNUmach format - because Mach partitions start at 1, unlike GRUB partitions that start on 0 (zero).
 
 ## <a name="6_Native_Install_Finishing_the_I"> 6. Native Install - Finishing the Installation </a>
 
-* Remember to `export TERM==mach` each time.
-* The default editor is now `nano`, not `ae` nor is it `vi`.
-* If you are following Neal's installation guide, he presents a sample `/etc/fstab`. When you first boot, your `/home` directory will _not_ be auto-mounted. You must set a passive translator on that node to access that partition. The correct syntax for this is: <br />`settrans -p /home /hurd/ext2fs /dev/hd2s2`
+Once a prompt comes up, and any time that the the Hurd is in single user mode, it is necessary to set the terminal type:
 
-**_Sample /etc/fstab:_**
+# export TERM=mach
+
+(Repeat this each time you boot in single user mode)
+
+Be warned that CONTROL-C and family will not work in single user mode.
+
+We can now run the native-install script. This will configure the packages and set up several important translators:
+
+# ./native-install
+
+Right before the script terminates, it will indicate that it needs to be run a second time. Follow its instructions and reboot using the reboot command. Again, go into single user mode and run ./native-install.
+
+Next, edit \`/etc/fstab' to add the home partition and swap space. By default, nano is the only editor installed by the the base distribution (not ae nor vi). It is very important that swap space be used: the Hurd will be an order of magnitude more stable. Note that the Hurd can transparently share a swap partition with Linux, the kernel, but will happily page to any device including a raw partition such as your home partition.
+
+Here is an example \`/etc/fstab' file:
 
 > # <file system>  <mount point>    <type>   <options>  <dump> <pass>
 >      /dev/hd2s1        /               ext2       rw         0      1
 >      /dev/hd2s2        /home           ext2       rw         0      2
 >      /dev/hd2s3        none            swap       sw         0      0
+
+Remember to create any devices using the MAKEDEV command.
+
+When you first boot, your `/home` directory will _not_ be auto-mounted. You must set a passive translator on that node to access that partition. The correct syntax for this is: <br />`settrans -p /home /hurd/ext2fs /dev/hd2s2`
+
+To mount an nfs partition, use the nfs translator. When run as non-root, the translator will connect, for obvious reasons, to the nfs server on a port above 1024. For this to succeed under GNU/Linux, the insecure option must be added to the export line. Here is an example \`/etc/exports' file:
+
+/home 192.168.1.2(rw,insecure)
+
+To mount this from a GNU box:
+
+# settrans -cgap /home /hurd/nfs 192.168.1.1:/home
 
 ## <a name="7_Configuration_Making_the_Syste"> 7. Configuration - Making the System Usable </a>
 
@@ -76,11 +168,12 @@ Where `hdX,Y` is the appropriate hard disk and partition number, in Grub format.
   * copy over your `/etc/resolv.conf` from GNU/Linux to allow your DNS to resolve correctly.
 * Prepare system for new packages.
   * a recommended `/etc/apt/sources.list`: <br /><code>deb <ftp://alpha.gnu.org/gnu/hurd/debian> unstable main <br /> deb <ftp:/ftp.debian.org/debian> unstable main <br /> deb-src <ftp://ftp.debian.org/debian> unstable main</code>
-  * There are some extremely useful cross-platform 'apt' tricks that can be used to get packages when using Debian GNU/Linux (possibly others) for installation on the Hurd. This is especially useful if your Hurd doesn't recognize your network card. The steps are covered in the file =/usr/share/doc/apt/offline=\* which has been used by several Hurd developers successfully.
+  * There are some extremely useful cross-platform 'apt' tricks that can be used to get packages when using Debian GNU/Linux (possibly others) for installation on GNU. This is especially useful if your GNUMach doesn't recognize your network card. The steps are covered in the file =/usr/share/doc/apt/offline=\* which has been used by several Hurd developers successfully.
     * create an `/etc/apt/apt.conf.offline` like [[AptConfOffline]].
     * consider setting up a few [[CrossPlatformAliases]] for use under Debian GNU/Linux while the Debian GNU/Hurd partitions are mounted.
   * select the `apt` method from within dselect.
-* New packages - Hopefully you are able to get your network working but since the default Hurd is only configured for a few ethernet cards you may need to recompile your Hurd to get it working with your network hardward.
+* [[Xfree86]]
+* New packages - Hopefully you are able to get your network working but since the default GNUMach is only configured for a few ethernet cards you may need to recompile your GNUMach to get it working with your network hardward.
   * Install these extremely useful packages
     * `dialog` -- Debconf uses this for interactivity. You should install this first to allow you to configure other packages as they are installed.
   * It's a very good idea to bring your packages up to date by running: `apt-get update && apt-get dist-upgrade`
@@ -92,9 +185,7 @@ Where `hdX,Y` is the appropriate hard disk and partition number, in Grub format.
     * `bzip2, zip, unzip` -- compression tools.
     * `build-essential` -- preparing to build software.
     * `gnu-standards` -- GNU coding and package standards.
-* Some packages like `libc6-dev` are old yet depended on by other packages not yet updated. In this particular case, I believe the new dependency is `libc0.3-dev`. However these dependencies may cause problems for apt. To circumvent these problems there are two possible solutions.
-  * The first is to change the dependencies that apt looks at in the `/var/lib/apt/lists/` directory. For example, you could modify libc0.3 to provide the missing `libc6-dev` package.
-  * Installing the `equivs` package and creating a dummy package is the second alternative. This will satisfy the apt dependency in a cleaner manner.
+* Some packages use an erroneous dependency on `libc6-dev`. This is incorrect because libc6 is specific to GNU/Linux. The corresponding package for GNU is `libc0.3-dev`. If you find a package that is uninstallable due to a libc6[-dev] dependency, please send a bug report with a patch that fixes it. It is important that you don't hack your package system to workaround such problems, because that way you won't be able to spot them when they arrive. See the [[PortingIssues]] for details about the problem and [[BtsFiling]] for details on sending bug reports.
 * Edit your `/etc/inetd.conf` and comment out all the services you don't need. Services that probably don't need to be running are
 
 `ftp`, `telnet`, `shell`, `login`, and `exec`.
@@ -115,4 +206,4 @@ CD-ROM Notes: [[CDNotesJ2]]
 
 Others who wish to post summaries of their installation experiences are encouraged to do so. The installer methods, package dependencies and file locations frequently do change without warning.
 
--- [[Main/SimonLaw]] - 29 May 2002 <br /> -- [[Main/GrantBow]] - 13 Oct 2002 <br /> -- [[Main/JoachimNilsson]] - 14 Nov 2002
+-- [[Main/SimonLaw]] - 29 May 2002 <br /> -- [[Main/GrantBow]] - 13 Oct 2002 <br /> -- [[Main/JoachimNilsson]] - 14 Nov 2002 -- [[Main/RobertMillan]] - 21 Nov 2002
