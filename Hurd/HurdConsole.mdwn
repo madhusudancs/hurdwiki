@@ -1,0 +1,218 @@
+The below is a reworked version of Marcus Brinkmanns' [letter to the debian-hurd list](http://lists.debian.org/debian-hurd/2002/debian-hurd-200209/msg00054.html). It describes how to setup the new console server for the Hurd. I am testing this right now, so this document is a work in progress.
+
+-- [[Main/JoachimNilsson]] - 21 Jan 2003
+
+## <a name="What_is_the_new_console_"> What is the new console? </a>
+
+**_The new Hurd console features:_**
+
+**A console server\***, which provides a number of virtual consoles to term servers, with a full set of terminal capabilities.
+
+The console server supports any encoding supported by iconv, but uses Unicode internally. The default encoding is ISO8859-1, another useful variant is UTF-8.
+
+The console server provides an arbitrary number of virtual consoles (numbered starting from 1, but the numbers don't need to be consecutive), which are created dynamically. A virtual console is not automatically displayed, for this you need a console client program which attaches to the virtual console you want to use.
+
+You can attach any number of console clients to the same virtual console, and detach them at any time.
+
+The console server provides a scrollback buffer for each virtual console. Currently, this is about one and a half screen full in addition to the screen. This should be configurable, of course, but isn't right now.
+
+**libcons**, a library that makes it easy to write console clients that attach to the console server.
+
+The client interface of the server is quite complicated, because it is based on shared memory and broadcasts the data to potentially many clients without blocking. It also includes a notification scheme so that clients remain idle when there is no console activity. This saves cpu power (compared to the alternative which would be polling).
+
+**The default console client**, which you will normally use to use a virtual console in a console server. Rather than writing many similar console client programs, I decided to write only one initially and make it extensible via dynamically loaded modules called "drivers".
+
+The console client uses libcons, of course. There are a number of drivers that exists already:
+
+* The ncursesw driver. You can use this if you log in from a remote unicode-capable console to attach to the local console server and use virtual console over the telnet/ssh session or similar. The ncursesw driver contains an output, input and bell driver components, so it is the only driver you need to get full access.
+
+* The vga driver. The VGA driver can be used locally to display a virtual console on a VGA card device. This driver provides a number of exciting features, and all of them are available in the fast text mode, and do not require a graphical framebuffer:
+
+* BDF font support. Load any BDF font with a Unicode encoding and a size from 8x13 up to 9x15 (recommended).
+
+* Dynamic glyph allocation. You can use up to 512 glyphs at any time. This means you can display cyrillic, greek, english runes, thai, etc. often at the same time, up to 512 different glyphs on the screen in parallel. The 512 is not a fixed set, they are chosen automatically out of the font you have loaded. This means that we only need one font for all users, regardless of the locale.
+
+* Dynamic color allocation. Because the above 512 glyph modus is only available with a reduced amount of colors, you can use only up to 8 different colors, but which of the 16 colors are available is chosen dynamically based on the colors actually used.
+
+_Note:_ There is an alternative mode with up to 256 different glyphs at the same time and full 16 colors, for those who need many colors in their applications.
+
+* Support for multiple fonts at the same time. The VGA driver supports italic and real bold (not bright color) mode. This will hopefully be used in emacs font lock mode and other applications.
+
+* The pc\_kbd driver. This is a hack for a PC eyboard with an american keymap. We all want configurable keyboard layouts of course, but I had to set priorities, and extracting xkb (so we can reuse the X keymaps) is on the TODO list. For now, this driver with a fixed US keymap is available for immediate use. Although it is only considered to be a temporary solution, it provides all features you need (except changing the keymap):
+  * All keys of a standard 102(?) keys keyboard, including Ctrl, [[LeftAlt]], [[RightAlt]], [[CapsLock]], [[NumLock]], Keypad, cursor block, function keys are supported and have a sensible default value.
+  * [[LeftAlt]] + Function key N switches the virtual console N.
+  * [[LeftAlt]] + [[ArrowRight]] or [[ArrowLeft]] switches to previous or next virtual console.
+  * [[RightShift]] + [[PageUp]] or [[PageDown]] scrolls back or forward in the scrollback buffer by half pages.
+  * [[LeftAlt]] + [[ArrowUp]] or [[ArrowDown]] scroll back or forward one line.
+  * [[LeftCtrl]] + [[LeftAlt]] + Backspace terminates the console client, and reverts the VGA card etc to its original state.
+  * [[RightAlt]] + Keypad enables you to directly enter unicode characters in hexadecimal numbers. 0-9 have their standard meaning, and [[NumLock]] is 0xa, Keypad / is 0xb, \* is 0xc, - is 0xd, + is 0xe and the enter key at the lower right of the keypad is 0xf. Up to four digits are memorized, if you type more, the earlier ones are forgotten. This allows to cover up typing mistakes.
+
+_For example:_ [[AltGr]] + (Keypad 4, Keypad 1) = 0x41 = 'A'.<br />[[AltGr]] + (Keypad 2, 6, 3, [[NumLock]]) = 0x263a = smiley.<br /><br />
+
+You can get unicode tables from www.unicode.org.
+
+* The generic\_speaker driver supports the speaker commonly found in PCs and other computers. It is good enough for a simple bell tone or a small melody. I have several default bell styles implemented, but currently there is no configuration option to access them at run time, sorry! Load this module to make the console beep on ^G.
+
+## <a name="How_do_I_install_the_new_Hurd_co"> How do I install the new Hurd console? </a>
+
+You either need the latest .deb of the Hurd, version 20020918-1 or later, or you need current CVS sources and compile them yourself.
+
+Then, the console server is in `/hurd/console`, the client in `/bin/console`. The installation is painless.
+
+First, make some device files:
+
+    # cd /dev
+    # ./MAKEDEV vcs tty1 tty2 tty3 tty4 tty5 tty6
+
+The above six ttys are only suggestions. You might want to give or take a few, depending on your needs.
+
+You need the terminal description. This is not yet in the ncurses package, because I am not finished yet. But you can download it from
+
+[http://savannah.gnu.org/cgi-bin/viewcvs/\*checkout\*/hurd/hurd/console/hurd.ti](http://savannah.gnu.org/cgi-bin/viewcvs/*checkout*/hurd/hurd/console/hurd.ti)
+
+Please add it with
+
+    # tic -x hurd.ti
+
+Then you should add the terminals to ttys, so you get a login session on them at boot time. Edit the file `/etc/ttys`, and add the following lines (or similar if you made more/less ttys):
+
+    tty1    "/libexec/getty 38400"          hurd            on      secure trusted console
+    tty2    "/libexec/getty 38400"          hurd            on      secure trusted console
+    tty3    "/libexec/getty 38400"          hurd            on      secure trusted console
+    tty4    "/libexec/getty 38400"          hurd            on      secure trusted console
+    tty5    "/libexec/getty 38400"          hurd            on      secure trusted console
+    tty6    "/libexec/getty 38400"          hurd            on      secure trusted console
+
+This is all. If you now reboot, you will get six virtual consoles with a login prompt on each. But of course, the console client is not started automatically yet, so you don't see them. Login at the normal system console, and try to attach to the console server, either with the ncurses driver or with the vga/pc\_kbd driver:
+
+    # console -d ncursesw /dev/vts
+
+or
+
+    # console -d vga -d pc_kbd -d generic_speaker /dev/vts
+
+That should work. The ncursesw driver supports console switching via C-w C-1 (or 2, 3, ...) and you can exit it with C-w x. But I recommend the use of the vga client on the local console.
+
+The virtual consoles you are now running on are providing an ISO8859-1 environment (also known as latin1), which is good enough for the USA and some countries in Europe. If you require a different encoding for your locale (like, let's say, ISO8859-2), you can specify this as an argument to the console server. I am sorry to say that fsysopts doesn't do the trick yet, so you have to set the option with =settrans -fg=, which will \_terminate all your login sessions and restart the console server\_.
+
+To do this, _first_ exit the client. It will get disconnected anyway (and doesn't attempt to reconnnect yet in such a case). Then do a
+
+    # settrans -fg /dev/vcs /hurd/console --encoding=ISO8859-2
+
+or
+
+    # settrans -fg /dev/vcs /hurd/console --encoding=UTF-8
+
+or similar. A list of supported locales is not easily available, but you can poke into `/share/i18n/SUPPORTED` to get an idea what is expected for your locale, and you can also check out `/share/i18n/charmaps`. Theoretically all of these encodings are "supported". In the file SUPPORTED, you see the locale (what you should export in the LANG environment variable, and enable in `/etc/locale.gen`) and the corresponding encoding.
+
+If you actually try this, you will notice two problems:
+
+1. You can not enter the letters in your locale, because the keyboard
+
+doesn't have the right layout. See above. Keyboard maps come later. For now, you have to help yourself with the direct input with [[RightAlt]]. Maybe I will put a simple compose key feature in the pc\_kbd driver, so that some western locales can be used more easily.
+
+1. If you bother to look up the unicode hex code and enter it with
+
+[[AltGr]], the font can not display it! If you are using the ncursesw driver, do you use it while you are logged in from a working UTF-8 terminal? If not, then this is your problem. An ncurses driver for non-UTF-8 terminals is on the TODO list. But if you use the VGA driver, you need to load a different font.
+
+This is because by default, the vga driver just reads the VGA card memory and takes the font that is stored there. This font has a limited characterset (256 characters, many graphical symbols among that), so you won't get more than a few western characters with that.
+
+## <a name="Unicode_support"> Unicode support </a>
+
+But you want it all. You want to read Middle Old English. You want to read Thai. Your Korean spam. Georgian script. Hebrew. And you can have it.
+
+You need a Unicode font. There are good ones providd by Markus Kuhn, the UCS fonts. Get them here:
+
+<http://www.cl.cam.ac.uk/~mgk25/download/ucs-fonts.tar.gz>
+
+See also the web page at <http://www.cl.cam.ac.uk/~mgk25/ucs-fonts.html>
+
+Now, load the font by providing it with the #--font# option to the vga driver. I suggest only the 8x13 and the 9x15 fonts, but feel free to try others, too. Note that the VGA text mode can not really display 9 pixel wide characters. But as most characters have the ninth column empty, and the VGA text mode can display an empty column between two adjacant character cells, this trick allows us to display most of the 9x15 font correctly. So you won't notice a difference until you come to very broad characters or special symbols, where you will see that the last column is cut off. (BTW, I wrote the dynafont code carefully to still support horizontal line graphic characters properly in 9 pixel wide fonts. This is done by exploiting some special modes in the VGA hardware. This is why in 512 (256) glyph mode and 9 pixel wide fonts, you are limited to 448 (224) normal characters: 64 (32) slots are reserved for the horizontal line graphic characters so they are drawn continuously.)
+
+So, try the following:
+
+    # console -d vga --font 8x13.bdf -d pc_kbd -d generic_speaker /dev/vts
+
+or
+
+    # console -d vga --font 9x15.bdf -d pc_kbd -d generic_speaker /dev/vts
+
+If you are satisfied, copy your default font to `/lib/hurd/fonts/vga-system.bdf`, where it will be picked up automatically in favor to the graphic card's font.
+
+## <a name="More_about_fonts"> More about fonts </a>
+
+While we are talking about fonts, try also the 8x13O font with `--font-italic` and 8x13B or 9x15B font with `--font-bold`. You can save them in `/lib/hurd/fonts/vga-system-bold.bdf` and `/lib/hurd/fonts/vga-system-italic.bdf`, too.
+
+To activate those fonts on your virtual console, try the following:
+
+    # echo `tput sitm`Hello slanted world.`tput ritm`
+
+and
+
+    # echo `tput gsbom`Hello bold world.`tput grbom`
+
+I hope you like what you see. Imagine this in emacs font-lock mode.
+
+## <a name="Unicode_finally"> Unicode, finally </a>
+
+There are a few more steps necessary to make your Unicode environment ready:
+
+Install the locales package. The current version does want a newer glibc than we have in the archive, but this can be overridden with the `--force-depends` option to dpkg. The old glibc is good enough.
+
+Add a Unicode locale to /etc/locale.gen, and generate the locale information for that! For example, I am living in Germany, and normally use de\_DE with the encoding ISO8859-1. My Unicode locale is de\_DE.UTF-8, so I am adding that to /etc/locale.gen:
+
+de\_DE.UTF-8 UTF-8
+
+and rerun locale-gen:
+
+# locale-gen
+
+See also /share/i18n/SUPPORTED. You can also do this more conveniently with
+
+# dpkg-reconfigure locales
+
+Once you generated this, make it your default locale:
+
+# export LANG=de\_DE.UTF-8
+
+If you have also loaded the unicode font above, you are set up. Try for example to view the examples/ files in the ucs-fonts package with less.
+
+# less fonts/examples/UTF\_8-demo.txt
+
+You should see most of that file with the 9x15 font (a bit less with the 8x13 font).
+
+You should be able to do the above process with other encodings than UTF-8. But you should _always_ use a Unicode font, because the console client uses Unicode internally fo everything.
+
+Application specific notes <code>**======================**</code>
+
+If you enter unicode characters at the shell, libreadline loses track of the number of characters displayed (it is not aware of multi-byte encodings like UTF-8). This is fixed in readline 4.3 (which is not yet in Debian).
+
+If you use mutt, install mutt-utf8. For lynx, edit /etc/lynx.cfg, making sure that CHARACTER\_SET is set to utf-8.
+
+If you use other applications, try to search with google for "application-name utf8" or "application-name unicode". Often you find what you need. The issues are the same for the GNU/Hurd and GNU/Linux systems, so most of the information can be shared, except how to setup the system console to support Unicode, of course.
+
+Known problems and important missing features <code>**=========================================**</code>
+
+Squeezed at the end so nobody sees it ;)
+
+1. console server: lacks configuration option for scrollback buffer length. Is probably too lax in permission checking. Does not implement settable tab stops. Does not allow to change encoding at run time. Does not allow any other screen size but 80x25.
+
+Combining characters are not supported.
+
+2. libcons/console-client: If you have one virtual console active, and another one receives a bell character, you don't hear the bell. This is because only the active virtual console is watched for anything interesting to happen. I think that is ok, but you might be surprised if you are used to how it works on GNU/Linux.
+
+Copy &amp; Paste not supported.
+
+3. vga driver: Does not have configuration option for
+
+1. glyphs/16colors mode. Does not recalculate the mode lines if the font height is changed. This makes font heights below 13 or over 16 infeasible.
+
+Should support other text modes (integrate svgatextmode?)
+
+4. generic\_speaker driver: No option to set bell style.
+
+5. pc\_kbd driver: No keyboard layout but US supported! Maybe in some cases left/right shift/ctrl/alt is allowed where both left and right should be allowed. Doesn't support keyboard LEDs.
+
+6. ncursesw driver: Doesn't work properly on other terminals but UTF-8. Should not use C-w, this should be configurable. Does not support use of scroll back buffer.
+
+7. Other programs: Readline doesn't support multibyte encodings (4.2 and earlier). term doesn't either (all versions).
