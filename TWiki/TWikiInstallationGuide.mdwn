@@ -14,10 +14,6 @@ These installation steps are based on the Apache Web server on Linux. TWiki runs
 
 Request and download the TWiki 01-Sep-2001 distribution in Unix ZIP format from <http://TWiki.org/download.html>. _(To install TWiki on SourceForge, for use on a software development project, read TWiki:Codev/SourceForgeHowTo.)_
 
-* **_NOTE:_** This Guide assumes user `nobody` ownership for all files manipulated by the CGI scripts (executed by the Web server), and user `twiki` for all other files. You can:
-  * replace `nobody` with another user if your server executes scripts under a different name (ex: default for Debian is `www-data`).
-  * replace user `twiki` with your own username
-
 ### <a name="Step_1_Create_amp_Configure_the_"> Step 1: Create &amp; Configure the Directories </a>
 
 **_NOTE:_** _If you don't have access to your Web server configuration files - for example, if you're installing on an ISP-hosted account - use the alternative Step 1 instead._
@@ -41,6 +37,12 @@ Request and download the TWiki 01-Sep-2001 distribution in Unix ZIP format from 
 >     Allow<nop>Override None
 >     Allow from all
 >  &amp;lt;/Directory&amp;gt;</nop></nop></nop></nop></nop></pre>
+
+* Restart Apache by `/etc/rc.d/rc5.d/S85httpd restart` .
+* Test that the `twiki/bin` directory is CGI-enabled by trying visiting it in your browser:
+  * Enter the URL for the `bin` directory, `http://yourdomain.com/twiki/bin/`.
+  * Your settings are OK if you get a message like `"Forbidden. You don't have permission to access /twiki/bin/ on this server"`.
+  * Settings are NOT correct if you get something like `"Index of /twiki/bin"` - recheck your `httpd.conf` file.
 
 * _Go directly to Step 2..._
 
@@ -95,34 +97,31 @@ To install TWiki on a system where you don't have server administrator privilege
 
 <a name="StepTwo"></a>
 
-### <a name="Step_2_Check_the_Server_Director"> Step 2: Check the Server Directory Settings </a>
+### <a name="Step_2_Set_File_Permissions"> Step 2: Set File Permissions </a>
 
-* Restart Apache by `/etc/rc.d/rc5.d/S85httpd restart` .
-* Test if the `twiki/bin` directory is CGI-enabled:
-  * Enter the URL of that directory into your browser ( `http://your.domain.com/twiki/bin` ). It is not set correctly as cgi-bin in case you get something like `"Index of /twiki/bin"` . It is OK if you get a message like `"Forbidden. You don't have permission to access /twiki/bin/ on this server."`
-  * Execute the `testenv` script from your browser ( `http://your.domain.com/twiki/bin/testenv` ). It shows a table with all CGI environment variables. It also tests the settings in your `twiki/lib/TWiki.cfg` configuration file, which you will set later on.
-
-### <a name="Step_3_Enable_Perl_File_Permissi"> Step 3: Enable Perl File Permissions </a>
-
-* Make sure Perl 5 and the Perl CGI library are installed on your system. The default location of Perl is `/usr/bin/perl`. If Perl is installed elsewhere, change the first line of all scripts in the `twiki/bin` directory (or create a symbolic link from `/usr/bin/perl`).
-  * **IMPORTANT:** On most ISP virtual domain accounts, Perl CGI scripts require a `.cgi` extension to run. Some systems need `.pl`, the regular Perl extension. Change all `twiki/bin` scripts appropriately if necessary.
+* Make sure Perl 5 and the Perl CGI library are installed on your system. The default location of Perl is `/usr/bin/perl`. If it's elsewhere, change the path to Perl in the first line of each script in the `twiki/bin` directory, or create a symbolic link from `/usr/bin/perl`.
+  * **IMPORTANT:** On ISP-hosted accounts, Perl CGI scripts usually require a `.cgi` extension to run. Some systems need `.pl`, the regular Perl extension. Modify all `twiki/bin` script filenames if necessary.
 * To be able to edit the Perl scripts and `.tmpl` files it is necessary to `chown` and `chgrp -R twiki` so all the files have the owner you want.
+* **_NOTE:_** This Guide assumes user `nobody` ownership for all files manipulated by the CGI scripts (executed by the Web server), and user `twiki` for all other files. You can:
+  * replace `nobody` with another user if your server executes scripts under a different name (ex: default for Debian is `www-data`).
+  * replace user `twiki` with your own username
 * The CGI scripts execute as `nobody`. Set the file permission of all Perl scripts in the `twiki/bin` directory as executable to `-rwxr-xr-x` (755).
+* Test your settings by running the `testenv` script from your browser: `http://yourdomain.com/twiki/bin/testenv`. You should get a table listing all CGI environment variables, and a test of your `twiki/lib/TWiki.cfg` configuration file (you'll configure that in a minute).
 * Set the permission of all files below `twiki/data` so that they are writable by user `nobody`. A simple way is to `chmod` them to `-rw-rw-r--` (664) and to `chown` them to `nobody`.
 * Set the permission of the `twiki/data` directory and its subdirectories so that files in there are writable by user `nobody`. A simple way is to chmod them to `drwxrwxr-x` (775) and to `chown` them to `nobody`.
 * Set the permission of the `twiki/pub` directory and all its subdirectories so that files in there are writable by user `nobody`. A simple way is to `chmod` them to `drwxrwxr-x` (775) and to `chown` them to `nobody`.
 
-### <a name="Step_4_Set_the_Main_Configuratio"> Step 4: Set the Main Configuration File </a>
+### <a name="Step_3_Set_the_Main_Configuratio"> Step 3: Set the Main Configuration File </a>
 
-* Edit the file `twiki/lib/TWiki.cfg` and set the variables to your needs.
+* Edit the file `twiki/lib/TWiki.cfg`, setting the variables to your needs.
   * Set the file extension in the `$scriptSuffix` variable to `cgi` or `pl` if required.
   * Make sure RCS is installed. Set `$rcsDir` in `twiki/lib/TWiki.cfg` to mach the location of your RCS binaries.
-* Note in case the CGI scripts are **_not_** running as user `nobody`: The `*,v` RCS repository files delivered with the installation package are locked by user `nobody` . In case the user is different (ex: `www-data` ), it is not possible to check in files, this has the effect that the topic version number does not increase when saving a topic. In this case you need to unlock all repository files and lock them as user `www-data` (check the rcs man pages), or simply delete all the repository files. A simple way to switch the locker of the RCS files is to use sed: <br />`for f in *,v; do sed 's/nobody\:/www-data\:/' $f > x; mv x $f; done`
+* **_NOTE:_** The `*,v` RCS repository files in the installation package are locked by user `nobody`. If your CGI scripts are **_not_** running as user `nobody`, it's not possible to check in files (you'll see that the revision number won't increase after saving a topic). In this case, you need to unlock all repository files and lock them as user `www-data` (check the RCS man pages), or delete them all - new files will be automatically created the first time each topic is edited. A simple way to change ownership is with a search-and-replace in all files; for example, using sed: <br />`for f in *,v; do sed 's/nobody\:/www-data\:/' $f > x; mv x $f; done`
 * **Security issue:** Directories `twiki/data` , `twiki/templates` and all its subdirectories should be set so that they are **_not_** visible as a URL. (Alternatively, move the directories to a place where they are not visible, and change the variables in `twiki/lib/TWiki.cfg` accordingly)
 * Enable email notification of topic changes, [[MonitoringSiteActivity]] has more.
 * Add the TWiki:Main/PoweredByTWikiLogo to your %MAINWEB%.WebHome topic.
 
-### <a name="Step_5_Finish_Up_from_Your_Brows"> Step 5: Finish Up from Your Browser </a>
+### <a name="Step_4_Finish_Up_from_Your_Brows"> Step 4: Finish Up from Your Browser </a>
 
 * Point your Web browser at `http://yourdomain.com/twiki/bin/view` and start TWiki-ing away!
 * Edit the TWikiAdminGroup topic to include users with system administrator status.
