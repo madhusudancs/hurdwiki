@@ -1,0 +1,77 @@
+Date:    Tue, 05 Jul 1994 20:15:09 -0400
+From:    mib@gnu.ai.mit.edu (Michael I Bushnell)
+To:      hurd-ann@gnu.ai.mit.edu
+Subject: New Hurd snapshot
+
+
+A new Hurd snapshot has been released.  You can get it from
+alpha.gnu.ai.mit.edu in the file /gnu/hurd-snap.tar.gz.  You will need
+the most recent version of the GNU C library; version 1.08.3 or later.
+(Version 1.08.3 is an alpha release; you can get it from
+alpha.gnu.ai.mit.edu in the same directory.)
+
+This snapshot of the Hurd has a limping terminal driver.  It can run
+emacs, bash, a whole slew of utilities, and (most importantly) GNU
+Hello.
+
+	-mib
+
+
+Here is the new part of the NEWS file:
+
+The Hurd now runs all the programs in the GNU fileutils, textutils,
+and shellutils distributions, with the exception of who.  Most
+importantly it runs GNU Hello.  Also, emacs works (with the kludgy
+`boot' terminal driver) and bash works.
+
+The simple pipes server works; it will be replaced eventually by the
+pflocal server (which isn't done yet).  The terminal driver is limping
+but working.  It doesn't support terminal ioctls yet.  A minor bug in
+auth has been fixed.  boot interprets more Hurd protocols; this was
+done to get emacs functioning.  Some more-or-less serious bugs in exec
+were fixed; they were found by running emacs (a quite large executable
+indeed).  At bootstrap time, init starts pipes and term itself;
+eventually these will be passive translators, but we don't want to
+write the new disk format until we're self-hosting or fsck and UX will
+get confused.  The file proc/primes.c has been documented; thanks go
+to Jim Blandy.  Some bugs in proc dealing with pgrp and wait were
+fixed; a nasty hash table bug was also fixed.  The simple shell can do
+pipes.  Several serious bugs in ufs were fixed dealing with extension
+of large files and writes of data not aligned on block boundaries.
+The ufs pager was over-serialized; that's been fixed.  Directory
+lookups and modifications now use mapped I/O directly; this is an
+important speed-up.  The structure of the pager lockes has been
+changed significantly.  UFS now supports Mach copying mode
+MEMORY_OBJECT_COPY_DELAY; this significantly improves process startup
+time.  
+
+Some minor changes have been made to several interfaces.  The
+interface for fs.defs:dir_readdir has been totally changed.  There are
+some new fs.defs interfaces: file_check_access, file_notice_changes,
+dir_notice_changes.  The fsys.defs:fsys_getroot interface was changed
+to work correctly.  process.defs:proc_setprocargs is renamed, and a
+fetch function proc_get_arg_locations is added.  The ifsock.defs
+interface was simplified.  
+
+Several bugs were fixed in libdiskfs.  The new dir_readdir interface
+requires new support from format-specific code.  Some race conditions
+have been fixed.  dir-pathtrans.c now deals correctly with multiple
+slashes in a row.  A new concept called "light references" allows
+pagers to remain active without preventing truncate-on-nolinks from
+working right.  New interfaces in fs.defs are implemented (except
+file_notice_changes).  Active translator usage has been fixed to work
+correctly, but passive translators are still untested.  libdiskfs now
+thinks it supports S_IFSOCK nodes, but that's untested (of course)
+because pflocal isn't done yet.
+
+The passive translator startup interface in libfshelp has been
+radically simplified.  The pager library now lets other code set and
+changee the attributes on objects, synchronously if desired.  An
+init/terminate race condition was fixed.   The ports library now
+allows single-threaded users to work right (they didn't before).  The
+trivfs library works; see the ifsock server for a simple example of
+its use.  See term or pipes for more complex examples.  
+
+There is a task list in the file `tasks'; let me know if you are
+interested in working on one of these.
+
