@@ -4,15 +4,16 @@ Items of interest during install not mentioned elsewhere include the following. 
 
 ## <a name="1_Overview_Where_we_are_going"> 1. Overview - Where we are going </a>
 
-There are three methods to install the Hurd: tarball (network), and bochs virtual machine.
+There are three current methods and one depricated methods to install the Hurd: tarball (network), bochs virtual machine and the depricated "cross-install".
 
 * Neal Walfield's [guide](http://web.walfield.org/papers/hurd-installation-guide/english/hurd-install-guide.html) is excellent and is available in several formats. This is the guide that the Hurd community always references first. The GNU official [installation page](http://www.gnu.org/software/hurd/install.html) is the canonical reference. [[TarballNotes20020816]]
 * [CD-ROM iso images](http://www.debian.org/ports/hurd/hurd-cd) CD-ROM installs are becoming more and more popular. [[CDNotesJ2]]
 * Bochs is an x86 emulator similar to the commercial VMware (which is not supported). Alfred M Szmidt wrote a [great guide](http://ftp.walfield.org/pub/people/ams/hurd/creating_bochs_image_for_gnu.txt). Oliver also created a GNU/Hurd [bochs image](http://mail.gnu.org/pipermail/bug-hurd/2002-October/010604.html).
+* Once upon a time there was a `cross-install` script that did an installation while running from another system install. While there are spurious &amp; unintentional references to "cross-installs" this is almost always now intended to mean a tarball install.
 
 ## <a name="2_Real_Estate_or_Finding_A_Home"> 2. Real Estate or Finding A Home </a>
 
-* When preparing the hurd partition, you may wish to add a -b 4096 option to mkfs.ext2 (the default is chosen depending on the size of the partition, and the support for block size 1024 is buggy). (the command to check the block size is tune2fs -l /dev/hda9 under Linux)
+* When preparing the hurd partition, you may wish to add a -b 4096 option to mkfs.ext2 (the default is chosen depending on the size of the partition, and the support for block size 1024 is buggy). (the command to check the block size is `tune2fs -l /dev/hda9` under Linux)
 * fdisk is most commonly used under Debian GNU/Linux for creating partitions. fdisk/cfdisk will work just fine. Neal's guide chooses to recommend [GNU parted](http://www.gnu.org/software/parted) instead.
 
 ## <a name="3_The_Boot_Loader_Getting_Grub"> 3. The Boot Loader - Getting Grub </a>
@@ -20,6 +21,8 @@ There are three methods to install the Hurd: tarball (network), and bochs virtua
 * [[GrubNotes]] - quick reference
 
 ## <a name="4_Cross_Install_Cross_Installing"> 4. Cross Install - Cross Installing the Hurd </a>
+
+ In Neal's install guide this simply refers to the `tar` run from another system install. This should NOT be confused with the depricated `cross-install` script method.
 
 ## <a name="5_Booting_the_Hurd"> 5. Booting the Hurd </a>
 
@@ -44,20 +47,30 @@ module /hurd/ext2fs.static --readonly --multiboot-command-line=$\{kernel-command
 * After you install, you'll want to do several _important_ things:
   * Run `passwd` to give the root user a password. By default, root does not have one.
   * Run `adduser` to give yourself a user account. _Do not_ use root indiscriminately.
+  * Run `MAKEDEV` to create devices in `/dev` for your hard disk and other required devices.
   * Since the Hurd does not use `ld.so.conf`, you will want to specify where the X Window System keeps its libraries. Do this by adding the following line to your `/etc/profile`: <br />`export LD_LIBRARY_PATH='/lib:/usr/X11R6/lib'`
-* New packages - Hopefully you are able to get your network working but since the default Hurd is only configured for a few ethernet cards you may need to recompile your Hurd to get it working with your network hardward.
-  * Bring your system up to par by running: `apt-get update && apt-get dist-upgrade`
+  * `/etc/cron.daily/find` to allow `locate` to function.
+* Prepare system for new packages.
   * a recommended `/etc/apt/sources.list`: <br /><code>deb <ftp://alpha.gnu.org/gnu/hurd/debian> unstable main <br /> deb <ftp:/ftp.debian.org/debian> unstable main <br /> deb-src <ftp://ftp.debian.org/debian> unstable main</code>
-  * Install these extremely useful packages
-    * `libstdc++4` -- Some packages require version 4 and assume that it will be installed as part of the standard configuration.
-    * `dialog` -- Debconf uses this for interactivity.
-    * `libterm-readline-gnu-perl` -- _Ibid_.
-    * `screen` -- A terminal multiplexer that is important because the Hurd does not yet have virtual consoles.
-  * There are some extremely useful cross-platform 'apt' tricks that can be used to get packages when using Debian GNU/Linux (possibly others) for installation on the Hurd. The steps are covered in the file /usr/share/doc/apt/offline\* which has been used by several Hurd developers successfully. This is especially useful if your Hurd doesn't recognize your network card.
+  * There are some extremely useful cross-platform 'apt' tricks that can be used to get packages when using Debian GNU/Linux (possibly others) for installation on the Hurd. This is especially useful if your Hurd doesn't recognize your network card. The steps are covered in the file =/usr/share/doc/apt/offline=\* which has been used by several Hurd developers successfully.
+    * create an `/etc/apt/apt.conf.offline` like [[AptConfOffline]].
+    * consider setting up a few [[CrossPlatformAliases]] for use under Debian GNU/Linux while the Debian GNU/Hurd partitions are mounted.
   * select the `apt` method from within dselect.
-  * Some packages like `libc6-dev` are old yet depended on by other packages not yet updated. In this particular case, I believe the new dependency is `libc0.3-dev`. However these dependencies may cause problems for apt. To circumvent these problems there are two possible solutions.
-    * The first is to change the dependencies that apt looks at in the `/var/lib/apt/lists/` directory. For example, you could modify libc0.3 to provide the missing `libc6-dev` package.
-    * Installing the `equivs` package and creating a dummy package is the second alternative. This will satisfy the apt dependency in a cleaner manner.
+* New packages - Hopefully you are able to get your network working but since the default Hurd is only configured for a few ethernet cards you may need to recompile your Hurd to get it working with your network hardward.
+  * Install these extremely useful packages
+    * `dialog` -- Debconf uses this for interactivity. You should install this first to allow you to configure other packages as they are installed.
+  * It's a very good idea to bring your packages up to date by running: `apt-get update && apt-get dist-upgrade`
+  * Some recommended packages
+    * `screen` -- A terminal multiplexer is important because the Hurd does not yet have virtual consoles. Runs with GNU/Linux too.
+    * `anacron` -- good to run cron jobs for a machine that is not on all the time.
+    * `emacs21` -- a powerful editor.
+    * `cvs` -- Concurrent Version System, you'll probably need this soon.
+    * `bzip2, zip, unzip` -- compression tools.
+    * `build-essential` -- preparing to build software.
+    * `gnu-standards` -- GNU coding and package standards.
+* Some packages like `libc6-dev` are old yet depended on by other packages not yet updated. In this particular case, I believe the new dependency is `libc0.3-dev`. However these dependencies may cause problems for apt. To circumvent these problems there are two possible solutions.
+  * The first is to change the dependencies that apt looks at in the `/var/lib/apt/lists/` directory. For example, you could modify libc0.3 to provide the missing `libc6-dev` package.
+  * Installing the `equivs` package and creating a dummy package is the second alternative. This will satisfy the apt dependency in a cleaner manner.
 * Edit your `/etc/inetd.conf` and comment out all the services you don't need. Services that probably don't need to be running are
 
 `ftp`, `telnet`, `shell`, `login`, and `exec`.
