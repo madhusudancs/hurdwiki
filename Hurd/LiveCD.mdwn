@@ -5,7 +5,7 @@ It would be nice if we had a bootable Hurd Live-CD like Knoppix. This could be u
 Here's an outline of the things that need to be done.
 
 * We need to be able get a bootloader for CDs
-  * This isn't much of a problem. I've already been successful in using grub and El-torito HD emulation to boot gnumach off of a CD. There may be some minor tweaking of grub code necessary to detect which device to use for booting (instead of having the user select which device (hd0,hd1,etc.) from the grub menu).
+  * This isn't much of a problem. I've already been successful (see below) in using grub and El-torito HD emulation to boot gnumach off of a CD. There may be some minor tweaking of grub code necessary to detect which device to use for booting (instead of having the user select which device (hd0,hd1,etc.) from the grub menu).
 
 * We need a bootstrap filesystem translator
   * This would be something like a statically linked iso9660fs translator. Compiling a statically linked iso9660fs translator is easy enough, though it doesn't boot. I don't currently know whether this is because the translator was never meant to be a bootstrap filesystem, or if there is a simple bug which has never been flushed out because the translator has never been used at boot time before. I've had trouble debugging this problem because I haven't yet figured out a way to use a remote gdb with gnumach. Theoretically you could use the "boot" command to overcome this problem, but "boot" for me mangles the terminal and exits in different manner than an actual boot.
@@ -24,3 +24,33 @@ Those are the essentials. Here is a list of the things which would be nice to ha
 Here's a mailing-list [thread](http://lists.debian.org/debian-hurd/2003/debian-hurd-200308/msg00172.html) discussing some of these issues.
 
 -- [[Main/GregBuchholz]] - 21 Oct 2003
+
+----
+
+<a name="gnumachcd">Recipe for bootable gnumach CD</a>
+
+In my attempts to get a bootable CD for the Hurd here's the recipe I followed, your's will be similar. I needed a grub-0.92 with a patch from...
+
+<http://alpha.polynum.org/misc/>
+
+...and I needed the version 1.16 of mkbimage (I don't exactly remember where I got that from). You can grab a copy of...
+
+<http://sleepingsquirrel.org/hurd/hurdcd.iso.gz>
+
+...which is a gzipped bootable \*.iso with the copy of the patched grub and the version of mkbimage I used. Here's the recipe I followed (under linux).
+
+    mkdir ./2.88floppy
+    mkdir ./isodir
+    cp grub/* 2.88floppy/boot/grub/
+    cp grub/* isodir/boot/grub/
+    cd 2.88floppy
+    tar -cf ../floppyimg.tar *
+    cd ..
+    mkbimage -f floppyimg.tar -t 2.88
+    cp 2.88.image isodir/
+    mkisofs -r -b 2.88.image -c boot.catalog -o hurdcd.iso isodir/
+    cdrecord -v speed=4 dev=0,0,0 -data hurdcd.iso
+
+...That was the recipe for using a floppy image. If you use the "-t hd" switch of mkbimage, you'll get an ext2fs El-Torito HD emulation image that can be any size (I've got one here 300+ MB). You then can use "root (hd0,0)" in grub to boot something. Also, invoking mkbimage with no parameters will give you some additional help messages.
+
+-- [[Main/GregBuchholz]] - 05 Nov 2003
