@@ -162,31 +162,6 @@ and pass its address to `ioctl`:
 
 See [a simple fix for TIOCFLUSH in telnet](http://mail.gnu.org/archive/html/bug-inetutils/2001-08/msg00015.html).
 
-## <a name="Uncompliant_use_of_sockaddr_un_t"> Uncompliant use of `sockaddr_un` </a>
-
-The following declaration:
-
-    sockaddr_un sun = { AF_UNIX, "/path/to/socket" };
-
-won't work on GNU/Hurd. The Glibc API requires that the second parameter of a `sockaddr_un` struct is array of chars, but NOT pointer to array of chars. So we have to copy them directly into the `sun_path` address. Glibc wants string of chars there that doesn't need to end in NUL character _and_ correct size of `sockaddr_un` passed to socket functions. When calling socket functions one should always use `SUN_LEN (su)` for the sockaddr length argument.
-
-When you use _literal string_ as value for `sun_path` and you are absolutely sure its length is less than 100, _and only then_, use the following code:
-
-    struct sockaddr_un sun;
-    sun.sun_family = AF_LOCAL;
-    strcpy (sun.sun_path, "/path/to/socket");
-    /* ... bind (sock, (struct sockaddr *)&sun, SUN_LEN (&sun)) ... */
-
-When one of the conditions for using the above code is not satisfied, you should use the following code. It expects glibc environment. You can check this by the presence of the `__GLIBC__` macro definition.
-
-    struct sockaddr_un *sun =
-      alloca (offsetof (struct sockaddr_un, sun_path) + strlen (filename) + 1);
-    sun->sun_family = AF_LOCAL;
-    strcpy (sun->sun_path, filename);
-    /* ... bind (sock, (struct sockaddr *)sun, SUN_LEN (sun)) ... */
-
-NOTE: the current API is subject to change, see the notes in Glibc's docs ("info libc" and search for `sockaddr_un`) and [Debian bug #187391](http://bugs.debian.org/187391).
-
 ----
 
 ## <a name="ChangeLog"> ChangeLog </a>
