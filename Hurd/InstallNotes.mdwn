@@ -23,13 +23,13 @@ The Hurd can only support partition sizes of up to approximately one gigabyte; a
 
 Having said that, a single one gigabyte partition is more than enough for a working system. Many, however, prefer at least two partitions: one for a root partition and another for a home partition. This latter scheme is highly advised for developers interested in debugging Hurd servers.
 
-The Hurd supports several extensions to the ext2fs file system format. Foremost among these are passive translators and a fourth set of permission bits for unknown users. In order to take advantage of these features, however, the owner of the partition must be set to Hurd. mke2fs, unless specifically overridden on the command line, will set the owner to whatever system core it is running on. As the Hurd will diligently respect this setting, we must be careful to set this appropriately or the Hurd may fail in subtle ways. Be aware that even if a file system is owned by a particular system core, others may still use it; they just may not be able to use certain extensions.
+The Hurd supports several extensions to the ext2fs file system format. Foremost among these are passive translators and a fourth set of permission bits for unknown users. In order to take advantage of these features, however, the owner of the partition must be set to Hurd. `mke2fs`, unless specifically overridden on the command line, will set the owner to whatever system core it is running on. As the Hurd will diligently respect this setting, we must be careful to set this appropriately or the Hurd may fail in subtle ways. Be aware that even if a file system is owned by a particular system core, others may still use it; they just may not be able to use certain extensions.
 
-To create a file system, we use mke2fs and pass it \`-o hurd' to designate the Hurd as the owner of the new file system. For instance:
+To create a file system, we use `mke2fs` and pass it `-o hurd` to designate the Hurd as the owner of the new file system. For instance:
 
      # mke2fs -o hurd /dev/DEVICE
 
-You may wish to add a -b 4096 option to mke2fs (the default is chosen depending on the size of the partition, and the support for block size 1024 is buggy). (the command to check the block size is `tune2fs -l /dev/hda9` under GNU/Linux)
+You may wish to add a `-b 4096` option to `mke2fs` (the default is chosen depending on the size of the partition, and the support for block size 1024 is buggy). (the command to check the block size is `tune2fs -l /dev/hda9` under GNU/Linux)
 
 ## <a name="3_The_Boot_Loader_Getting_GRUB"> </a> 3. The Boot Loader - Getting GRUB
 
@@ -62,23 +62,23 @@ NOTE: This should NOT be confused with the depricated `cross-install` script met
 
 All is now in readiness to boot GNU for the first time. After verifying that the GRUB boot disk is in the drive, reboot. If all goes well, a GRUB menu will be displayed. Hit c for the GRUB command line.
 
-First, the root file system needs to be set. GRUB uses a partition nomenclature that is a bit different from either GNU or GNU/Linux: both IDE and SCSI drives are named (hdN). N is the drive number (zero based) as reported by the BIOS. That is, GRUB makes no distinction between IDE and SCSI disks. The partitions, like the disks, are also indexed numerically from zero: (hdN,M). If this sounds bad, relax: GRUB is also helpful.
+First, the root file system needs to be set. GRUB uses a partition nomenclature that is a bit different from either GNU or GNU/Linux: both IDE and SCSI drives are named `(hdN)`. `N` is the drive number (zero based) as reported by the BIOS. That is, GRUB makes no distinction between IDE and SCSI disks. The partitions, like the disks, are also indexed numerically from zero: `(hdN,M)`. If this sounds bad, relax: GRUB is also helpful.
 
-To determine on which file system a particular file resides, one method is to use the find command. When issued this command, GRUB searches on each file system for the specified file and prints where is was found. Here we search for the kernel, \`/boot/gnumach.gz'.
+To determine on which file system a particular file resides, one method is to use the find command. When issued this command, GRUB searches on each file system for the specified file and prints where is was found. Here we search for the kernel, `/boot/gnumach.gz`.
 
       grub> find /boot/gnumach.gz
        (hd0,0)
 
-As we can see, GRUB is indicating that \`/boot/gnumach.gz' is on \`(hd0,0)'. Thus, we set the root respectively:
+As we can see, GRUB is indicating that `/boot/gnumach.gz` is on `(hd0,0)`. Thus, we set the root respectively:
 
       grub> root (hd0,0)
        Filesystem type is ext2fs, partition type 0x83
 
 Next, GNU Mach needs to be loaded. In addition to loading the binary, at least one option, the root partition, must be specified. This will be used by the Hurd itself. As such, it must be in terms that the Hurd can understand.
 
-GNU Mach labels disks starting at zero. IDE drives are prefixed with hd, while SCSI disks are prefixed with sd. Like GNU/Linux, drives are number by their position on the controller. For instance, the primary master is hd0 and the secondary slave is hd3. Partitions use the BSD slice naming convention, and append sM to the drive name to indicate a given partition. Note that M is a one, not zero, based index. The slice number is simple to calculate: just increment what you used for GRUB by one.
+GNU Mach labels disks starting at zero. IDE drives are prefixed with hd, while SCSI disks are prefixed with sd. Like GNU/Linux, drives are number by their position on the controller. For instance, the primary master is `hd0` and the secondary slave is `hd3`. Partitions use the BSD slice naming convention, and append `sM` to the drive name to indicate a given partition. Note that `M` is a one, not zero, based index. The slice number is simple to calculate: just increment what you used for GRUB by one.
 
-Since the Hurd has not yet been configured, it must be run in single user mode. Adding a \`-s' to the kernel command line is all that is required.
+Since the Hurd has not yet been configured, it must be run in single user mode. Adding a `-s` to the kernel command line is all that is required.
 
 Thus, continuing with the above example and assuming that the first drive in the master on the secondary controller, we would have:
 
@@ -87,14 +87,17 @@ Thus, continuing with the above example and assuming that the first drive in the
 
 Next, the root file system server and the exec server must be loaded. This is done using GRUB's boot module capability. The parameters are the semantics by which the kernel passes some important values to the servers.
 
-      grub> module /hurd/ext2fs.static --multiboot-command-line=${kernel-command-line}  \
-                   --host-priv-port=${host-port} --device-master-port=${device-port}    \
-                   --exec-server-task=${exec-task} -T typed ${root} $(task-create) $(task-resume)
+      grub> module /hurd/ext2fs.static \
+                   --multiboot-command-line=${kernel-command-line} \
+                   --host-priv-port=${host-port} \
+                   --device-master-port=${device-port} \
+                   --exec-server-task=${exec-task} -T typed ${root} \
+                   $(task-create) $(task-resume)
          [Multiboot-module  0x1c4000, 0x2cfe6a bytes]
       grub> module /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
          [Multiboot-module  0x494000, 0x27afe bytes]
 
-It is important that each module string is only a single separate line, or by escaping the EOL (end of line) with a back slash. Remember though to make sure there are **_no trailing spaces!_** Adding this to GRUB's \`menu.lst' file as soon as possible is advised.
+It is important that each module string is only a single separate line, or by escaping the EOL (end of line) with a back slash. Remember though to make sure there are **_no trailing spaces!_** Adding this to GRUB's `menu.lst` file as soon as possible is advised.
 
 Finally, GNU can be booted:
 
@@ -102,32 +105,26 @@ Finally, GNU can be booted:
 
 Sit back and watch the messages. This is actually more important than one might think as there is a bug in GNU Mach whereby hitting a key during the boot process causes the kernel to panic.
 
-If GNU fails to boot, it could be due to shared IRQs: GNU Mach does not play well with these. You can verify your situation by looking at, for instance, the \`/proc/interrupts' file under GNU/Linux. Also, as GNU Mach does not support loadable kernel modules, many of the drivers are compiled into the default kernel. If you have old peripherals, this can be a significant problem: a device may respond badly to a probe intended for a different device. Building a new kernel with only the required devices drivers will usually solve this problem. GNU Mach is easily cross compiled. If you are running Debian, try the \`gcc-i386-gnu' package.
+If GNU fails to boot, it could be due to shared IRQs: GNU Mach does not play well with these. You can verify your situation by looking at, for instance, the `/proc/interrupts` file under GNU/Linux. Also, as GNU Mach does not support loadable kernel modules, many of the drivers are compiled into the default kernel. If you have old peripherals, this can be a significant problem: a device may respond badly to a probe intended for a different device. Building a new kernel with only the required devices drivers will usually solve this problem. GNU Mach is easily cross compiled. If you are running Debian, try the `gcc-i386-gnu` package.
 
 If this does not help, explore the resources listed at the end of this document. Finally, ask on the appropriate mailing list.
 
 There are some cavaets to the boot process:
 
 * **IMPORTANT!** Remember when first booting into your freshly un-tarred distribution, you must pass the `-s` option to `/boot/gnumach.gz`. Failure to do so means that you won't get single-user mode.
-* **IMPORTANT2!** Add the --readonly flag to the file system server in your GRUB menu.lst file. This is a work-around to get fsck working properly. Don't forget, everything must be on ONE line, or ended with a backslash!
-* **IMPORTANT3!** If you have created the filesystem with a later version of e2fsprogs than the one installed in the tarball, it **might** happen that fsck fails and you can't boot multiuser. The workaround is to copy /bin/true into /sbin/e2fsck and /sbin/fsck.ext2, then boot multiuser and install the latest e2fsprogs.
+* **IMPORTANT2!** Add the `--readonly` flag to the file system server in your GRUB `menu.lst` file. This is a work-around to get `fsck` working properly. Don't forget, everything must be on ONE line, or ended with a backslash!
+* **IMPORTANT3!** If you have created the filesystem with a later version of e2fsprogs than the one installed in the tarball, it **might** happen that fsck fails and you can't boot multiuser. The workaround is to copy `/bin/true` into `/sbin/e2fsck` and `/sbin/fsck.ext2`, then boot multiuser and install the latest e2fsprogs.
 
     title GNU (kernel GNUmach 1.3)
       root (hdX,Y)
       kernel /boot/gnumach.gz root=device:hdX,(Y+1)
-      module /hurd/ext2fs.static --readonly --multiboot-command-line=${kernel-command-line} \
-             --host-priv-port=${host-port} --device-master-port=${device-port}              \
-             --exec-server-task=${exec-task} -T typed ${root} $(task-create) $(task-resume)
-      module /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
-
-    OR
-
-    module /hurd/ext2fs.static --readonly                  \
+      module /hurd/ext2fs.static --readonly                \
            --multiboot-command-line=${kernel-command-line} \
            --host-priv-port=${host-port}                   \
            --device-master-port=${device-port}             \
            --exec-server-task=${exec-task}                 \
            -T typed ${root} $(task-create) $(task-resume)
+      module /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
 
 Where `hdX,Y` is the appropriate hard disk and partition number, in GRUB format. `hdX,(Y+1)` is the GNUmach format - because Mach partitions start at 1, unlike GRUB partitions that start on 0 (zero).
 
@@ -147,22 +144,22 @@ We can now run the native-install script. This will configure the packages and s
 
      # ./native-install
 
-Right before the script terminates, it will indicate that it needs to be run a second time. Follow its instructions and reboot using the reboot command. Again, go into single user mode and run ./native-install.
+Right before the script terminates, it will indicate that it needs to be run a second time. Follow its instructions and reboot using the reboot command. Again, go into single user mode and run `./native-install`.
 
-Next, edit \`/etc/fstab' to add the home partition and swap space. By default, nano is the only editor installed by the the base distribution (not ae nor vi). It is very important that swap space be used: the Hurd will be an order of magnitude more stable. Note that the Hurd can transparently share a swap partition with Linux, the kernel, but will happily page to any device including a raw partition such as your home partition.
+Next, edit `/etc/fstab` to add the home partition and swap space. By default, `nano` is the only editor installed by the the base distribution (not `ae` nor `vi`). It is very important that swap space be used: the Hurd will be an order of magnitude more stable. Note that the Hurd can transparently share a swap partition with Linux, the kernel, but will happily page to any device including a raw partition such as your home partition.
 
-Here is an example \`/etc/fstab' file:
+Here is an example `/etc/fstab` file:
 
-> # <file system>  <mount point>    <type>   <options>  <dump> <pass>
->      /dev/hd2s1        /               ext2       rw         0      1
->      /dev/hd2s2        /home           ext2       rw         0      2
->      /dev/hd2s3        none            swap       sw         0      0
+     # <file system>  <mount point>    <type>   <options>  <dump> <pass>
+     /dev/hd2s1        /               ext2       rw         0      1
+     /dev/hd2s2        /home           ext2       rw         0      2
+     /dev/hd2s3        none            swap       sw         0      0
 
-Remember to create any devices using the MAKEDEV command.
+Remember to create any devices using the `MAKEDEV` command.
 
 When you first boot, your `/home` directory will _not_ be auto-mounted. You must set a passive translator on that node to access that partition. The correct syntax for this is: <br />`settrans -p /home /hurd/ext2fs /dev/hd2s2`
 
-To mount an nfs partition, use the nfs translator. When run as non-root, the translator will connect, for obvious reasons, to the nfs server on a port above 1024. For this to succeed under GNU/Linux, the insecure option must be added to the export line. Here is an example \`/etc/exports' file:
+To mount an nfs partition, use the nfs translator. When run as non-root, the translator will connect, for obvious reasons, to the nfs server on a port above 1024. For this to succeed under GNU/Linux, the insecure option must be added to the export line. Here is an example `/etc/exports` file:
 
     /home   192.168.1.2(rw,insecure)
 
@@ -186,7 +183,8 @@ To mount this from a GNU box:
 * Prepare system for new packages.
   * a recommended `/etc/apt/sources.list`: <br /><code>deb <ftp://alpha.gnu.org/gnu/hurd/debian> unstable main <br /> deb <ftp:/ftp.debian.org/debian> unstable main <br /> deb-src <ftp://ftp.debian.org/debian> unstable main</code>
   * There are some extremely useful cross-platform 'apt' tricks that can be used to get packages when using Debian GNU/Linux (possibly others) for installation on GNU. This is especially useful if your GNUMach doesn't recognize your network card. The steps are covered in the file =/usr/share/doc/apt/offline=\* which has been used by several Hurd developers successfully.
-    * create an `/etc/apt/apt.conf.offline` like [[AptConfOffline]].
+
+* * * create an `/etc/apt/apt.conf.offline` like [[AptConfOffline]].
     * consider setting up a few [[CrossPlatformAliases]] for use under Debian GNU/Linux while the Debian GNU/Hurd partitions are mounted.
   * select the `apt` method from within dselect.
 
@@ -205,10 +203,8 @@ To mount this from a GNU box:
     * `build-essential` -- preparing to build software.
     * `gnu-standards` -- GNU coding and package standards.
 
-* Some packages use an erroneous dependency on `libc6-dev`. This is incorrect because libc6 is specific to GNU/Linux. The corresponding package for GNU is `libc0.3-dev`. If you find a package that is uninstallable due to a libc6[-dev] dependency, please send a bug report with a patch that fixes it. It is important that you don't hack your package system to workaround such problems, because that way you won't be able to spot them when they arrive. See the [[Distrib/PortingIssues]] for details about the problem and [[Distrib/BtsFiling]] for details on sending bug reports.
-* Edit your `/etc/inetd.conf` and comment out all the services you don't need. Services that probably don't need to be running are
-
-`ftp`, `telnet`, `shell`, `login`, and `exec`.
+* Some packages use an erroneous dependency on `libc6-dev`. This is incorrect because libc6 is specific to GNU/Linux. The corresponding package for GNU is `libc0.3-dev`. If you find a package that is uninstallable due to a `libc6[-dev]` dependency, please send a bug report with a patch that fixes it. It is important that you don't hack your package system to workaround such problems, because that way you won't be able to spot them when they arrive. See the [[Distrib/PortingIssues]] for details about the problem and [[Distrib/BtsFiling]] for details on sending bug reports.
+* Edit your `/etc/inetd.conf` and comment out all the services you don't need. Services that probably don't need to be running are `ftp`, `telnet`, `shell`, `login`, and `exec`.
 
 ## <a name="8_Final_Words_The_FAQ"> </a> 8. Final Words - The FAQ
 
