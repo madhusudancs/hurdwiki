@@ -1,0 +1,41 @@
+Building the Hurd requires `gcc`, `libc-dev` and `mig` packages:
+
+    # apt-get install gcc libc-dev mig
+
+`libc-dev` will install `libc0.3-dev`, which depends on `gnumach-dev` and `hurd-dev`.
+
+The Hurd can be compiled in its directory, like this:
+
+    $ ./configure
+    $ make
+
+but it's recommended to build it in separate directory because there are too many generated files and it becomes too crowdy in the source directories:
+
+    $ mkdir build
+    $ cd build
+    $ ../configure --disable-profile
+    $ make
+    $ make install
+
+Notice that `make install` will install the Hurd in `/`, not in `/usr/local` or `/local`, so your current Hurd servers will be replaced. This is generally a good idea because Hurd's development is concetrated on fixing bugs right now, not on introducing ground-breaking features (but it has a lot of them).
+
+By default profiling versions of all the libraries and code are generated but this is useless in most of the cases, so we disable them.
+
+If you just want to build a specific server or library, you can pass its name to `make`:
+
+    $ make ext2fs
+    $ make libtrivfs
+
+This will automatically build all libraries that are required to build the requested server or library.
+
+If you want to trace the RPC calls made by some process by using `rpctrace` command, you will also want some more human-readable output of this command. This is achieved by generating `hurd.msgids` file that includes the mapping between the number of the RPC call and its name:
+
+    $ cd build/hurd
+    $ make hurd.msgids
+    $ cp hurd.msgids ~
+
+Now you can use this file by the following way:
+
+    $ rcptrace -I ~/hurd.msgids ls
+
+-- [[Main/OgnyanKulev]] - 08 Apr 2003
