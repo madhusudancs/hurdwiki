@@ -468,6 +468,13 @@ Additionally, the biggest problem is passing relative paths to passive
 translators.  You cannot predict what the current working directory of a
 translator will be when it is setup as a passive translator.
 
+??	Why can I `read()' a directory?
+
+{MB} It is important to understand that there is nothing special about a
+directory under the Hurd, it is just another file.  This fits in with
+the translator concept where a translator can appear as a directory but
+provide also as a file.
+
 ? Trouble shooting
 
 ??	When the APM support in the BIOS spins down my disk drives, the
@@ -595,13 +602,6 @@ at:
 
 ? Development
 
-??	Why can I `read()' a directory?
-
-{MB} It is important to understand that there is nothing special about a
-directory under the Hurd, it is just another file.  This fits in with
-the translator concept where a translator can appear as a directory but
-provide also as a file.
-
 ??	What is OSKit-Mach?
 
 {NHW} There are two versions of Mach: GNU Mach and OSKit-Mach.  The
@@ -641,13 +641,56 @@ for free on the Internet.  Try:
 
 ??	Who do I submit patches to?
 
-{NHW} If they are against the Hurd, Mach or MiG, send a patch in unidiff
-format to the bug-hurd mailing list.  For instance:
-
-	# diff -urN hurd-orig hurd
+{NHW} If they are against the Hurd, Mach or MiG, send a patch to the
+bug-hurd mailing list.
 
 If they are against other packages, the Debian BTS is a good place.  In
 this case, be sure to advise the debian-hurd mailing list of the bug.
+
+??	In what format should patches for the Hurd and GNU Mach be?
+
+{MB} All patches should be sent in unified context diff format (option
+`-u' to GNU diff).  It is helpful for us if you also use the `-p'
+option which includes information about the function changed by a
+patch.  Changes that are similar can be grouped together in one file,
+but unrelated changes should be sent in seperate files.  The patches
+can be included in the message or as a MIME attachement.  They should
+not be compressed and/or archived unless they are very large, and if
+they are very large it is probably better to store them on-line at
+some place and only sent an URL.
+
+Write a ChangeLog entry for each change, following the format of the
+existing files.  Here is an example:
+
+	2000-12-02  Marcus Brinkmann  <marcus@gnu.org>
+
+		* ops.c (op_readlink): Before returning, check if the buffer
+	        pointed to by transp is ours.  If not, munmap it.
+	        (op_read): Likewise for bp.
+	        (op_readdir): Don't alloca a buffer here.  Instead initialize
+	        BUF and BUFSIZE to 0 and let the server (eh, MiG) do it.
+	        munmap BUF before returning.
+
+The file name and the name of the function changed should always be
+spelled out completely, and not abbreviated or otherwise mangled (like
+foo.{c,h}), because that would make searching for all changes to a
+file or function impossible.  Local variable names are all
+capitalized.  There are two spaces between sentences.  You can use
+``C-x 4 a'' in Emacs to add a new ChangeLog entry.  If you do that
+with the mark being in a function, Emacs will automatically fill in
+the file and function name for you.
+
+Do not send in a patch for the ChangeLog file.  Rather include the
+ChangeLog entries in the message that contains the patch.  Patches for
+ChangeLog files often conflict.
+
+If you have the original source tree in the directory `hurd-orig', and
+the modified source tree in the directory `hurd', the following
+command will produce a good patch (please make sure there are no extra
+files like backups in the modified tree, or leave away the option
+`-N').  You will need to collect the ChangeLog entries seperately.
+
+	# diff -x ChangeLog -Nurp hurd-orig hurd
 
 
 Answers were given by:
