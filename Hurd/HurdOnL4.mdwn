@@ -30,7 +30,7 @@ Some readers may be familiar with GNU/Linux systems. When GNU/L4 is complete it 
 
 There are no precompiled binaries for Hurd on L4 that I am aware of, so you will need to be able to compile the source code packages in order to experiment with it. While L4Ka will likely build on a variety of compilers and systems, the Hurd may prove troublesome unless it is built using recent GNU compilers and tools.
 
-I recently used [Debian Unstable](http://www.debian.org) (Sarge) with GNU gcc version 3.3, autoconf version 2.50, and automake version 1.8 to build the system with good results, although there is no reason why some other similarly equipped system with a good development suite, such as [Gentoo](http://www.gentoo.org) or [Slackware](http://www.slackware.com) shouldn't work just as well.
+I recently used [Debian Unstable](http://www.debian.org) (Sarge) with GNU gcc version 3.3, autoconf version 2.50, and automake version 1.8 to build the system with good results, although other similarly equipped systems with a good development environment, such as [Gentoo](http://www.gentoo.org) or [Slackware](http://www.slackware.com) are reported to work fine also.
 
 Generally, I would recommend building the packages using any very up-to-date GNU development system. I'm not going to say that you can't compile them using more exotic platforms, but I wouldn't be overly hopefull about it. I have no idea if Pistachio can be compiled under current gnuMach/Hurd systems it might be interesting to try it.
 
@@ -38,13 +38,13 @@ Generally, I would recommend building the packages using any very up-to-date GNU
 
 Obviously you want to have a home for this little embryonic operating system. Currently, mine is using about 5M for the binaries and headers. If you want the source to reside with the binaries, then allow perhaps another 50M or so, but this is purely optional.
 
-At the moment, Hurd on L4 can't even see your hard drive, so all you need is a directory on some partition which is visible to the GRUB bootloader. A /l4hurd directory on your existing GNU/Linux system is probably fine for now.
+At the moment, Hurd on L4 can't even see your hard drive, so all you need is a directory on some partition which is visible to the GRUB bootloader. A `/l4hurd` directory on your existing GNU/Linux system is probably fine for now.
 
-Howevever, if you have lots of spare disk space and some unpartitioned space you could also make a classic 1G Hurd-style partition and mount that on /l4hurd (which is what I did). This will give your system some room to grow and this will eventually most likely be required. Assuming that you have made some partition **X** with linux _fdisk_, set it to type 83 - Linux and use the following command to initialize it with the proper Hurd extensions:
+Howevever, if you have some spare disk space or an unused partition, you could optionally create a small partition for the system. This is totally unnecessary at the moment because L4/Hurd lacks hard disk drivers right now, but it is an option. Assuming that you have made some partition **X** with linux _fdisk_, set it to type 83 - Linux and use the following command to initialize it with the classic Hurd extensions:
 
 
 
-I would recommend a partition of any size from maybe 100M up to 1G,if you're going to take this route. Keep in mind that this is totally unnecessary and a regular old direcory on your existing Linux (or Hurd) filesystem will serve just as well for now, especially if drive space is tight.
+As noted, this is purely optional, in fact right now you can use any filesystem that GRUB can understand. You can even use TFTP to netboot the system. My current setup takes about 5M for the full install so obviously you don't need much space for this.
 
 ### <a name="Boot_Loader"> Boot Loader </a>
 
@@ -52,7 +52,18 @@ Just like regular GNU/Hurd, you need to use [GNU GRUB](http://www.gnu.org/softwa
 
 If you don't have GRUB installed, then you should probably take some time to get it set up. A good place to look for help is on the regular [Debian GNU/Hurd Installation Page](http://www.debian.org/ports/hurd/hurd-install) at the **3\. The Boot Loader** section.
 
---todo: add a page with good instructions for installing GRUB
+This is probably a bit superfluous, but you can even display a snazzy little graphic of some type on your GRUB boot menu. Here's a snip from the header of my `menu.lst` which demonstrates how to do this.
+
+    # menu for grub
+    splashimage (hd0,0)/boot/grub/debian.xpm
+    foreground bfbfe7
+    background 3f3f7f
+
+In the above example, my `debian.xpm` is just a 640x480 graphic in xpm format (which you can easily create with GIMP). It does add a bit of pizazz to your boot screen :-)
+
+In fact, I will attach a sample copy of my `menu.lst` here. It has lots of examples for booting a variety of operating systems in it. Remember that my hard drive partitions are unique to my system.
+
+* [[ATTACHURLmenulst]]: Sample GRUB boot menu
 
 ## <a name="Building_Hurd_on_L4"> Building Hurd on L4 </a>
 
@@ -97,6 +108,7 @@ Take a look at the README, compiling should be quite simple on any state of the 
     $ ./configure --enable-maintainer-mode --prefix=/l4hurd
     $ make
     $ make install
+
     $ mkdir /l4hurd/boot
     $ cp laden/laden /l4hurd/boot
     $ cp wortel/wortel /l4hurd/boot
