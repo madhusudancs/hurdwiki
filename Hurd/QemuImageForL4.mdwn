@@ -1,0 +1,132 @@
+This page is initially taken from <http://perso.ens-lyon.fr/alexandre.buisse/hurd/qemu-howto> with the following signature:
+
+> 04-02-2005 Alexandre Buisse
+>
+> Send any comments or ameliorations to <Nattfodd@ens-lyonNOSPAM.fr>
+
+This is a howto on how to get a working image of Hurd/L4 with qemu, on ia32 arch.
+
+You will need the following :
+
+* automake 1.7 (or greater)
+* autoconf 2.53 (or greater)
+* grub
+* the CVS version of hurd-l4, which you can retrieve from the savannah server: `cvs -z3 -d:ext:anoncvs@savannah.gnu.org:/CVSROOT/hurd co hurd-l4`
+* two flavours of Pistachio, the L4 kernel, which can be found at <http://www.l4ka.org/projects/pistachio/download.php>. Take both the source (`pistachio-0.4.tar.bz2`) and the demodisk for ia32 (`pistachio-ia32-0.4-demodisk.bin.bz2`)
+
+We will begin with the hurd itself (these steps are taken from the `README`).
+
+    $ cd hurd-l4
+    $ autoreconf -f -i -s
+
+You shouldn't have any warnings with this autoreconf. If that is not the case, it probably hasn't used the good version of automake or autoconf. For instance, on Gentoo Linux, you must set WANT\_AUTOCONF to 2.5 and WANT\_AUTOMAKE to 1.7.
+
+    $ ./configure --enable-maintainer-mode --prefix=/l4
+    $ make
+    $ make install
+    $ mkdir /l4/boot
+    $ install -s laden/laden /l4/boot
+    $ install -s wortel/wortel /l4/boot
+    $ install -s physmem/physmem /l4/boot
+    $ install -s task/task /l4/boot
+    $ install -s deva/deva /l4/boot
+    $ install -s ruth/ruth /l4/boot
+
+Now we'll prepare the Pistachio kernel :
+
+    $ tar xjvf pistachio-0.4.tar.bz2
+    $ cd pistachio-0.4
+
+We must apply some patchs for it to work properly with The Hurd. They are located in `hurd-l4/README`:
+
+    $ patch -p1 < ../hurd-l4/README
+
+We will first compile sigma0 (and some other tools) :
+
+    $ cd user
+    $ mkdir BUILDDIR
+    $ cd BUILDDIR
+
+We need to change the linkbase of sigma0 :
+
+    $ ../configure --with-s0-linkbase=0x40000 --prefix=/l4
+    $ make
+    $ make install
+
+And now the kernel itself :
+
+    $ cd ../../kernel
+
+You can use any builddir as long as the directory doesn't yet exist.
+
+    $ make BUILDDIR=/tmp/pistachio-build
+    $ cd /tmp/pistachio-build
+    $ vi Makeconf.local
+
+You should modify the first three lines to :
+
+    ARCH=ia32
+    CPU=i586
+    PLATFORM=pc99
+
+now run:
+
+    $ make menuconfig
+
+Set the options as they fit you but for qemu to work, you must have the following hardware :
+
+    IA32       Basic Architecture
+    Pentium1    Processor Type
+
+You can now:
+
+    $ make
+
+You should obtain a file named ia32-kernel into your build directory.
+
+    $ cp ia32-kernel /l4/boot
+    $ cp /l4/libexec/l4/sigma0 /l4/boot
+
+We now have to modify a little bit the demodisk to use the kernel and servers we just obtained :
+
+    $ mkdir qemu
+    $ mkdir qemu/image
+    $ cd qemu
+    $ cp ~/pistachio-ia32-0.4-demodisk.bin.bz2 .
+    $ bunzip2 pistachio-ia32-0.4-demodisk.bin.bz2
+    $ mount -o loop pistachio-ia32-0.4-demodisk.bin image
+    $ cd image/boot
+    $ cp /l4/boot/* .
+    $ cd grub
+    $ vi menu.lst
+
+Your `menu.lst` should look like :
+
+    title  GNU Hurd on L4
+    kernel /boot/laden -D -o serial,uart1,speed=9600
+    module /boot/ia32-kernel
+    module /boot/sigma0
+    module /boot/wortel -D -o serial,uart1,speed=9600
+    module /boot/physmem
+    module /boot/task
+    module /boot/deva
+    module /boot/task
+    module /boot/ruth
+
+The two -D are intended for debug, you can delete them if you want. It is possible that filenames are limited to 8 characters, check your image/boot directory for ia32-kernel. If it has been renamed into ia32-ker, modify the according line in menu.lst
+
+The image is now ready :
+
+    $ cd ../../../
+    $ umount image
+
+We can launch qemu:
+
+    $ qemu -dummy-net  -serial stdio -fda pistachio-ia32-0.4-demodisk.bin -boot a
+
+Congratulations, you just booted Hurd/L4 ! To switch the KDB mode from character (I find it unusable) to command line, type
+
+    > c
+    /conf> m
+
+-- [[Main/OgnyanKulev]] - 05 Feb 2005
