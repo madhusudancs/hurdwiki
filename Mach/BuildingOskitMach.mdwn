@@ -2,7 +2,7 @@
 
 %TOC%
 
-This is a brief Building OSKit Mach HowTO. It covers everything from getting the latest sources of both the [OSKit](http://www.cs.utah.edu/flux/oskit/) and the OSKit branch of the GNUmach kernel. There is also [another guide](http://www.etherhogz.org/doc/oskit-mach.html). Down to building and debugging them. On May 27 after the [[GnuMach]] 1.3 release, Roland McGrath merged OSKit Mach in the [[GnuMach]] 2.x mainline.
+This is a brief HowTO building OSKit-Mach (a.k.a GNUmach 2.0). It covers everything from getting the latest sources of both the [OSKit](http://www.cs.utah.edu/flux/oskit/) and the GNUmach kernel. Down to building and debugging them. There is also [another guide](http://www.etherhogz.org/doc/oskit-mach.html) available.
 
 To be able to actually make use of your recently checked out CVS version of the GNUMach kernel &amp; C:o you need a GNU system of [gnu-20020816.tar.gz](ftp://ftp.funet.fi/pub/gnu/alpha/gnu/hurd/contrib/marcus/gnu-20020816.tar.gz) or later.
 
@@ -10,31 +10,23 @@ To be able to actually make use of your recently checked out CVS version of the 
 
 First you need to checkout the relevant sources.
 
-### <a name="Accessing_the_FLUX_groups_CVS_or"> </a> Accessing the FLUX groups' CVS, or FTP
+### <a name="The_OSKit"> </a> The OSKit
 
-You can use either the bleeding edge OSKit from CVS, or the latest public release. The latter is preferrable!
+* St. Patricks day 2002 release: <ftp://flux.cs.utah.edu/flux/oskit/oskit-20020317.tar.gz>
 
-**_CVS:_**
-
-      CVSROOT=":pserver:anoncvs@leak.cs.utah.edu:/cvs"
-      CVS_RSH=ssh
-      cvs -z3 co oskit
-
-**_FTP:_** St. Patricks day 2002 release: <ftp://flux.cs.utah.edu/flux/oskit/oskit-20020317.tar.gz>
-
-Valentine's day 2001 release: <ftp://flux.cs.utah.edu/flux/oskit/oskit-20010214.tar.gz>
+* Valentine's day 2001 release: <ftp://flux.cs.utah.edu/flux/oskit/oskit-20010214.tar.gz>
 
 ### <a name="Accessing_the_GNU_CVS"> </a> Accessing the GNU CVS
 
-The recommended document for accessing the Hurd CVS on [Savannah](http://savannah.gnu.org) is at
+The recommended document for accessing the Hurd CVS on Savannah is at <http://savannah.gnu.org/cvs/?group=hurd>
 
-This is only a brief restatement, which may ormay not be accurate. Setup your environment with the CVSROOT variable. How you do this may differ between shells.
+This is only a brief restatement, which may be inaccurate. Setup your environment with the CVSROOT variable. How you do this may differ between shells.
 
       CVSROOT=":pserver:anoncvs@anoncvs.gnu.org:/cvsroot/hurd"
 
 **_Gnu Mach:_**
 
-All development, apart from critical bug fixes, is done on the upcoming 2.0 release. Previously the oskit-branch of gnumach.
+All development, apart from critical bug fixes, is done on the upcoming 2.0 release. Previously the oskit-branch of gnumach, now on HEAD (the default CVS tag).
 
       cvs -z3 co gnumach
 
@@ -47,7 +39,7 @@ Where &lt;YOUR MACH DIR&gt; can be gnumach, oskit-mach, or similar.
 
 **_The Hurd servers:_**
 
-In case you want to build the Hurd servers as well, you can check them out too:
+In case you want to build the Hurd servers as well, you can check them out with:
 
       cvs -z3 co hurd
 
@@ -63,48 +55,37 @@ Check it out using
 
 ### <a name="The_OSKit"> </a> The OSKit
 
-The attached [[ATTACHURLmodulesx86pc]] is an example setup, your needs may vary but this one works for standard COTS PC's. Now, how to configure and build the OSKit.
-
-**_Configuring:_**
+The attached [[ATTACHURLmodulesx86pc]], or %ATTACHURL%/modules-light.x86.pc, is an example setup, your needs may vary but this one works for standard COTS PC's. Now, how to configure and build the OSKit.
 
     # cd oskit-20020317/
     # mkdir build
     # cd build
-    # CFLAGS="-g" ../configure --prefix=/usr/local --enable-debug
-
-**_Building:_**
-
+    # CC=gcc-2.95                            \
+      CFLAGS="-g"                            \
+      ../configure --prefix=/usr/local       \
+                   --enable-debug            \
+                   --enable-indirect-osenv
     # make
     # sudo make install
 
-### <a name="OSKit_Mach"> </a> OSKit Mach
+### <a name="GNUmach_2_0_OSKit_Mach_"> </a> GNUmach 2.0 (OSKit-Mach)
 
-To build any Mach kernel you need an interface generator, a mig. If your host system is Debian based you can get the "Cheap cross-compuler for GNU/Hurd" with a simple:
+To build any Mach kernel you need an interface generator, MiG. To be on the safe side, use the CVS version. Configure and build it according to the instructions in the configure --help.
 
-    $ apt-get gcc-i386-gnu
-
-This will install the i386-gnu-mig in /usr/bin for you.
+Different to its half sister, the OSKit-Mach kernel does _not_ need a cross compiler. The regular gcc for your x86 Linux system does just fine. However, you might want to use gcc 3.2 with the latest and greatest CVS version of Mach.
 
 **_Configuring:_**
 
     # cd oskit-mach
     # mkdir build
     # cd build
-    # CFLAGS="-g" MIG=i386-gnu-mig OSKIT_LIBDIR=/usr/local/lib/oskit ../configure --prefix=/gnu --enable-debug
-
-_I think this is a bug that you have to specify $prefix/lib/oskit as OSKIT\_LIBDIR. Libdir is usually just $prefix/lib._ -- [[Main/MichalSuchanek]]
-
-_I think not. The $prefix variable in autoconf comes from the --prefix option to configure, that in turn is intended as the prefix path to the installation of the package you are configuring, i.e. oskit-mach and **NOT** the OSKit itself_ -- [[Main/JoachimNilsson]]
-
-_I refer to the $prefix value at the time oskit is built. Of course, you can choose a different prefix for oskit-mach._ -- [[Main/MichalSuchanek]]
-
-_I see, it was not that clear the context of your first comment, well anyhow when reality changes so will this page. :)\__ -- [[Main/JoachimNilsson]]
+    # MIG=/usr/local/bin/mig                   \
+      CC=gcc-3.2                               \
+      CFLAGS="-g -O1"                          \
+      OSKIT_LIBDIR=/usr/local/lib/oskit        \
+      ../configure --prefix=/gnu --enable-debug
 
 **_Building:_**
-
-    # make kernel-ide+ethernet_vortex
-    # sudo make install
-    # sudo gzip /gnu/boot/oskit-mach
 
 Instead of using \`make kernel' to build kernel, in OSKit-Mach you have to use \`make kernel-DRIVERS', where DRIVERS is \`DRIVER+DRIVER+...+DRIVER' (a list of drivers separated by \`+'). DRIVER can be one of:
 
@@ -113,9 +94,17 @@ Instead of using \`make kernel' to build kernel, in OSKit-Mach you have to use \
 * \`ethernet\_ETHDRV' where ETHDRV is taken from 'oskit/oskit/dev/linux\_ethernet.h'.
 * \`scsi\_SCSIDRV' where SCSIDRV is taken from \`oskit/oskit/dev/linux\_scsi.h'.
 
+Thus, to build a IDE capable kernel with 3Com Vortex Boomerang support you use the following:
+
+    # make kernel-ide+ethernet_vortex
+    # sudo make install
+    # sudo gzip -f /gnu/boot/oskit-mach
+
+If you want to use tftp to download the kernel from Grub and don't care about the symbols I recommend either stripping or removing the --debug and -g statements.
+
 ## <a name="Debugging"> Debugging </a>
 
-For now, see the [[RemoteDebugOskitMach]] page.
+See the [[Mach/RemoteDebugOskitMach]] page.
 
 ## <a name="Attachments"> Attachments </a>
 
@@ -123,7 +112,21 @@ For now, see the [[RemoteDebugOskitMach]] page.
 
 ----
 
-First version. -- [[Main/JoachimNilsson]] - 14 May 2002
+## <a name="Comments_"> Comments: </a>
+
+_I think this is a bug that you have to specify $prefix/lib/oskit as OSKIT\_LIBDIR when configuring oskit-mach. Libdir is usually just $prefix/lib._ -- [[Main/MichalSuchanek]]
+
+_I think not. The $prefix variable in autoconf comes from the --prefix option to configure, that in turn is intended as the prefix path to the installation of the package you are configuring, i.e. oskit-mach and **NOT** the OSKit itself_ -- [[Main/JoachimNilsson]]
+
+_I refer to the $prefix value at the time oskit is built. Of course, you can choose a different prefix for oskit-mach._ -- [[Main/MichalSuchanek]]
+
+_I see, it was not that clear the context of your first comment, well anyhow when reality changes so will this page. :)\__ -- [[Main/JoachimNilsson]]
+
+----
+
+## <a name="Blame_annotations_"> Blame annotations: </a>
+
+ First version. -- [[Main/JoachimNilsson]] - 14 May 2002
 
 Updated by: -- [[Main/LuisBustamante]] - 04 Jun 2002
 
