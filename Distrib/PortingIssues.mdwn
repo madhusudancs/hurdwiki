@@ -47,9 +47,9 @@ An example with `fpathconf`:
 
 If you get Bad File Descriptor error when trying to read from a file (or accessing it at all), check the `open()` invocation. The second argument is the access method. If it is a hard coded number instead of a symbol defined in the standard header files, the code is screwed and should be fixed to either use `O_RDONLY`, `O_WRONLY` or `O_RDWR`. This bug was observed in the `fortunes` and `mtools` packages for example.
 
-## <a name="PATH_MAX_MAX_PATH_MAXPATHLEN_tt_"> </a> `PATH_MAX / MAX_PATH / MAXPATHLEN`
+## <a name="PATH_MAX_tt_MAX_PATH_tt_MAXPATHL"> `PATH_MAX` / `MAX_PATH` / `MAXPATHLEN` </a>
 
-Every unconditionalized use of `PATH_MAX`, `MAX_PATH = or =MAXPATHLEN` is a POSIX incompatibility. If there is no upper limit on the length of a path (as its the case for GNU), this symbol is not defined in any header file. Instead, you need to either use a different implementation that does not rely on the length of a string or use `sysconf()` to query the length at runtime. If `sysconf()` returns -1, you have to use `realloc()` to allocate the needed memory dynamically.
+Every unconditionalized use of `PATH_MAX`, `MAX_PATH` or `MAXPATHLEN` is a POSIX incompatibility. If there is no upper limit on the length of a path (as its the case for GNU), this symbol is not defined in any header file. Instead, you need to either use a different implementation that does not rely on the length of a string or use `sysconf()` to query the length at runtime. If `sysconf()` returns -1, you have to use `realloc()` to allocate the needed memory dynamically.
 
 ## <a name="MAXHOSTNAMELEN_tt_"> `MAXHOSTNAMELEN` </a>
 
@@ -145,19 +145,19 @@ The autoconf check for `AC_HEADER_TERMIO` tryes to check for termios, but it's o
 
 Some packages use an erroneous dependency on `libc6-dev`. This is incorrect because `libc6` is specific to GNU/Linux. The corresponding package for GNU is `libc0.3-dev` but other OSes will have different ones. You can locate the problem in the `debian/control` file of the source tree. Typical solutions include detecting the OS using `dpkg-architecture` and hardcoding the soname, or better, use a logical OR. eg: `libc6-dev | libc0.3-dev | libc-dev`. The `libc-dev` is a virtual package that works for any soname but you have to put it only as the last option.
 
-## <a name="Third_argument_in_ioctl_TIOCFLUS"> </a> Third argument in ioctl (TIOCFLUSH, etc)
+## <a name="Third_argument_in_ioctl_tt_TIOCF"> Third argument in `ioctl` (`TIOCFLUSH`, etc) </a>
 
-Broken arguments for ioctl's which might work on other systems will cause segfault on GNU, because they are pasted to and from a Hurd server RPC.
+Broken arguments for `ioctl`'s which might work on other systems will cause segfault on GNU, because they are passed to and from a Hurd server RPC.
 
-For example, TIOCFLUSH wants an \*int, but will run on GNU/Linux if you pass it a 0. The solution in this case is to declare and assign an int, eg:
+For example, `TIOCFLUSH` wants an `(int *)`, but will run on GNU/Linux if you pass it a 0. The solution in this case is to declare and assign an `int`, eg:
 
-int out = 0;
+      int out = 0;
 
-and pass its address to ioctl:
+and pass its address to `ioctl`:
 
-ioctl (fd, TIOCFLUSH, &amp;out);
+      ioctl (fd, TIOCFLUSH, &out);
 
-see <http://mail.gnu.org/archive/html/bug-inetutils/2001-08/msg00015.html> for an example (TIOCFLUSH in telnet)
+See [a simple fix for TIOCFLUSH in telnet](http://mail.gnu.org/archive/html/bug-inetutils/2001-08/msg00015.html).
 
 ----
 
