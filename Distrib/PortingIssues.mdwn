@@ -16,7 +16,7 @@ First of all, see [BtsFiling](http://www.vmlinux.org/twikihttp://LOCATIONHurd/Bt
 
 ## <a name="Missing_pthreads"> Missing pthreads </a>
 
-You can try out Neal Walfields implementation of libpthreads. It will server as our pthreads library until "the one pthreads that will rule them all" in [[GLibC]] has native support on the Hurd. Quote is from the mailing lists by Roland [[McGrath]].
+You can try out Neal Walfield's implementation of libpthreads. It will server as our pthreads library until "the one pthreads that will rule them all" in [[GLibC]] has native support on the Hurd. Quote is from the mailing lists by Roland [[McGrath]].
 
 Neal's lastest tar balls of libpthreads is available at:
 
@@ -44,7 +44,15 @@ same as PATH\_MAX
 
 ## <a name="MAXHOSTNAMELEN"> </a> MAXHOSTNAMELEN
 
-same as PATH\_MAX. Neal's [xgethostname function](http://ftp.walfield.org/pub/people/neal/xgethostname/) can help.
+same as PATH\_MAX. When you find a gethostname() funcion, which acts on a static buffer, you can replace it with Neal's [xgethostname function](http://ftp.walfield.org/pub/people/neal/xgethostname/) which returns the hostname as a dynamic buffer. For example:
+
+Buggy code:
+
+char localhost[MAXHOSTNAMELEN]; ... gethostname(localhost, sizeof(localhost));
+
+Fixed code:
+
+#ifndef MAXHOSTNAMELEN #include "xgethostname.h" #endif ... #ifdef MAXHOSTNAMELEN char localhost[MAXHOSTNAMELEN]; #else char \*localhost; #endif ... #ifdef MAXHOSTNAMELEN gethostname(localhost, sizeof(localhost)); #else localhost = xgethostname(); #endif
 
 ## <a name="NOFILE"> </a> NOFILE
 
@@ -116,3 +124,7 @@ Formatting and minor grammatical fixes.
 Added more examples and misc semantical fixes.
 
 -- [[Main/RobertMillan]] - 05 Oct 2002
+
+Added xgethostname example.
+
+-- [[Main/RobertMillan]] - 15 Nov 2002
