@@ -1,17 +1,52 @@
-The [installation](http://www.gnu.org/software/hurd/install.html) page is the logical place to start. Neal Walfield's [guide](http://web.walfield.org/papers/hurd-installation-guide/english/hurd-install-guide.html) is excellent. Items not mentioned elsewhere include:
+The [installation](http://www.gnu.org/software/hurd/install.html) page is the logical place to start. Neal Walfield's [guide](http://web.walfield.org/papers/hurd-installation-guide/english/hurd-install-guide.html) is excellent. To install under the Bochs x86 emulator, Alfred M Szmidt wrote a [great guide](http://ftp.walfield.org/pub/people/ams/hurd/creating_bochs_image_for_gnu.txt).
 
-* The current system install image is no longer (May 24, 2002) located temporarily located <ftp://alpha.gnu.org/gnu/hurd/debian-staging/>, it is once again in the proper location [ftp://alpha.gnu.org/gnu/hurd/contrib/marcus/gnu-latest.tar.gz]()
+Items not mentioned elsewhere include:
 
-* a recommended /etc/apt/sources.list
+* **IMPORTANT!** Remember when first booting into your freshly un-tarred distribution, you must pass the `-s` option to `/boot/gnumach.gz`. Failure to do so means that you won't get single-user mode.
 
-          deb ftp://alpha.gnu.org/gnu/hurd/debian unstable main
-          deb ftp:/ftp.debian.org/debian unstable main
-          deb-src ftp://ftp.debian.org/debian unstable main
+* The current (24 May 2002) system install image is once again in its proper location <code><ftp://alpha.gnu.org/gnu/hurd/contrib/marcus/gnu-latest.tar.gz></code>. The old staging server image at <code><ftp://alpha.gnu.org/gnu/hurd/debian-staging/></code> is now deprecated.
 
-* The default editor is now 'nano', not 'ae'.
+* a recommended `/etc/apt/sources.list`: <br /><code>deb <ftp://alpha.gnu.org/gnu/hurd/debian> unstable main <br /> deb <ftp:/ftp.debian.org/debian> unstable main <br /> deb-src <ftp://ftp.debian.org/debian> unstable main</code>
 
-* Some packages like libc6-dev are old yet depended on by other packages not yet updated. In this particular case, I believe the new dependency is libc0.3-dev. However these dependencies may cause problems for apt. To circumvent these problems there are two general solutions.
-  * The first is to change the dependencies that apt looks at in the /var/lib/apt/lists/ directory. For example, you could modify libc0.3 to provide the missing libc6-dev package.
-  * Installing the "equivs" package and creating a dummy package is the second alternative. This will satisfy the apt dependency in a cleaner manner.
+* The default editor is now `nano`, not `ae`.
 
-* To install under the bochs emulator Alfred M Szmidt wrote a [great guide](http://ftp.walfield.org/pub/people/ams/hurd/creating_bochs_image_for_gnu.txt).
+* Some packages like `libc6-dev` are old yet depended on by other packages not yet updated. In this particular case, I believe the new dependency is `libc0.3-dev`. However these dependencies may cause problems for apt. To circumvent these problems there are two general solutions.
+  * The first is to change the dependencies that apt looks at in the `/var/lib/apt/lists/` directory. For example, you could modify libc0.3 to provide the missing `libc6-dev` package.
+  * Installing the `equivs` package and creating a dummy package is the second alternative. This will satisfy the apt dependency in a cleaner manner.
+
+* If you are following Neal's installation guide, he presents a sample `/etc/fstab`:
+
+> # <file system> <mount point>   <type>  <options>  <dump>  <pass>
+>     /dev/hd2s1      /               ext2    rw         0       1
+>     /dev/hd2s2      /home           ext2    rw         0       2
+>     /dev/hd2s3      none            swap    sw         0       0
+>
+> When you first boot, your
+>
+> `/home`
+>
+> directory will
+>
+> _not_
+>
+> be auto-mounted. You must set a passive translator on that node to access that partition. The correct syntax for this is:
+>
+> <br />
+>
+> `settrans -p /home /hurd/ext2fs /dev/hd2s2`
+
+* After you install, you'll want to do several _important_ things:
+  * Run `passwd` to give the root user a password. By default, root does not have one.
+  * Run `adduser` to give yourself a user account. _Do not_ use root indiscriminately.
+  * Since the Hurd does not use `ld.so.conf`, you will want to specify where the X Window System keeps its libraries. Do this by adding the following line to your `/etc/profile`: <br />`export LD_LIBRARY_PATH='/lib:/usr/X11R6/lib'`
+  * Bring your system up to par by running: `apt-get update && apt-get dist-upgrade`
+
+* Install these extremely useful packages
+  * `libstdc++4` -- Some packages require version 4 and assume that it will be installed as part of the standard configuration.
+  * `dialog` -- Debconf uses this for pretty text display.
+  * `libterm-readline-gnu-perl` -- _Ibid_.
+  * `screen` -- A terminal multiplexer that is important because the Hurd does not yet have virtual consoles.
+
+* Edit your `/etc/inetd.conf` and comment out all the services you don't need. Services that probably don't need to be running are `ftp`, `telnet`, `shell`, `login`, and `exec`.
+
+-- [[Main/SimonLaw]] - 29 May 2002
