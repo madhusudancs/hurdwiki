@@ -1,8 +1,10 @@
+## <a name="Table_of_Contents"> Table of Contents </a>
+
+%TOC%
+
 # <a name="Installation_Notes"> Installation Notes </a>
 
 Items of interest during install not mentioned elsewhere include the following. Arranged in the same order as Neal Walfield's [install guide](http://web.walfield.org/papers/hurd-installation-guide/english/hurd-install-guide.html).
-
-%TOC%
 
 ## <a name="1_Overview_Where_we_are_going"> 1. Overview - Where we are going </a>
 
@@ -25,7 +27,7 @@ The Hurd supports several extensions to the ext2fs file system format. Foremost 
 
 To create a file system, we use mke2fs and pass it \`-o hurd' to designate the Hurd as the owner of the new file system. For instance:
 
-# mke2fs -o hurd /dev/DEVICE
+     # mke2fs -o hurd /dev/DEVICE
 
 You may wish to add a -b 4096 option to mke2fs (the default is chosen depending on the size of the partition, and the support for block size 1024 is buggy). (the command to check the block size is `tune2fs -l /dev/hda9` under GNU/Linux)
 
@@ -37,7 +39,7 @@ A word about GRUB. Unlike traditional boot loaders on the x86, such as LILO, GRU
 
 To find GRUB, visit <ftp://alpha.gnu.org/gnu/grub>. Here, there is a source tarball and a floppy image. If you choose to download the tarball, it is a normal configure, make and make install. Included is a wonderfully complete manual on how GRUB works. Read it. If, on the other hand, you choose to download the floppy image, it is sufficient to dump it to a floppy disk to get a working GRUB:
 
-# dd if=grub-boot-VERSION.image of=/dev/fd0
+     # dd if=grub-boot-VERSION.image of=/dev/fd0
 
 You can always install GRUB onto your hard drive at a later date.
 
@@ -51,7 +53,8 @@ The next step is to download the base system at: <ftp://alpha.gnu.org/gnu/hurd/c
 
 The tarball is setup to extract everything into the current directory. After mounting the partition and changing to the mount point, we just need to extract the archive. In the following example, we assume that the root partition is mounted on /gnu.
 
-# cd /gnu # tar --same-owner -xvzpf ~/gnu-latest.tar.gz
+     # cd /gnu
+     # tar --same-owner -xvzpf ~/gnu-latest.tar.gz
 
 NOTE: This should NOT be confused with the depricated `cross-install` script method.
 
@@ -63,11 +66,13 @@ First, the root file system needs to be set. GRUB uses a partition nomenclature 
 
 To determine on which file system a particular file resides, one method is to use the find command. When issued this command, GRUB searches on each file system for the specified file and prints where is was found. Here we search for the kernel, \`/boot/gnumach.gz'.
 
-grub&gt; find /boot/gnumach.gz (hd0,0)
+      grub> find /boot/gnumach.gz
+       (hd0,0)
 
 As we can see, GRUB is indicating that \`/boot/gnumach.gz' is on \`(hd0,0)'. Thus, we set the root respectively:
 
-grub&gt; root (hd0,0) Filesystem type is ext2fs, partition type 0x83
+      grub> root (hd0,0)
+       Filesystem type is ext2fs, partition type 0x83
 
 Next, GNU Mach needs to be loaded. In addition to loading the binary, at least one option, the root partition, must be specified. This will be used by the Hurd itself. As such, it must be in terms that the Hurd can understand.
 
@@ -77,17 +82,23 @@ Since the Hurd has not yet been configured, it must be run in single user mode. 
 
 Thus, continuing with the above example and assuming that the first drive in the master on the secondary controller, we would have:
 
-grub&gt; kernel /boot/gnumach.gz -s root=device:hd2s1 [Multiboot-elf, ...]
+      grub> kernel /boot/gnumach.gz -s root=device:hd2s1
+       [Multiboot-elf, ...]
 
 Next, the root file system server and the exec server must be loaded. This is done using GRUB's boot module capability. The parameters are the semantics by which the kernel passes some important values to the servers.
 
-grub&gt; module /hurd/ext2fs.static --multiboot-command-line=$\{kernel-command-line\} --host-priv-port=$\{host-port\} --device-master-port=$\{device-port\} --exec-server-task=$\{exec-task\} -T typed $\{root\} $(task-create) $(task-resume) [Multiboot-module 0x1c4000, 0x2cfe6a bytes] grub&gt; module /lib/ld.so.1 /hurd/exec $(exec-task=task-create) [Multiboot-module 0x494000, 0x27afe bytes]
+      grub> module /hurd/ext2fs.static --multiboot-command-line=${kernel-command-line}  \
+                   --host-priv-port=${host-port} --device-master-port=${device-port}    \
+                   --exec-server-task=${exec-task} -T typed ${root} $(task-create) $(task-resume)
+         [Multiboot-module  0x1c4000, 0x2cfe6a bytes]
+      grub> module /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
+         [Multiboot-module  0x494000, 0x27afe bytes]
 
-It is important that each module string is only a single separate line. Adding this to GRUB's \`menu.lst' file as soon as possible is advised.
+It is important that each module string is only a single separate line, or by escaping the EOL (end of line) with a back slash. Remember though to make sure there are **_no trailing spaces!_** Adding this to GRUB's \`menu.lst' file as soon as possible is advised.
 
 Finally, GNU can be booted:
 
-grub&gt; boot
+      grub> boot
 
 Sit back and watch the messages. This is actually more important than one might think as there is a bug in GNU Mach whereby hitting a key during the boot process causes the kernel to panic.
 
@@ -102,10 +113,12 @@ There are some cavaets to the boot process:
 * **IMPORTANT3!** If you have created the filesystem with a later version of e2fsprogs than the one installed in the tarball, it **might** happen that fsck fails and you can't boot multiuser. The workaround is to copy /bin/true into /sbin/e2fsck and /sbin/fsck.ext2, then boot multiuser and install the latest e2fsprogs.
 
     title GNU (kernel GNUmach 1.3)
-    root (hdX,Y)
-    kernel /boot/gnumach.gz root=device:hdX,(Y+1)
-    module /hurd/ext2fs.static --readonly --multiboot-command-line=${kernel-command-line}  --host-priv-port=${host-port} --device-master-port=${device-port} --exec-server-task=${exec-task} -T typed ${root} $(task-create) $(task-resume)
-    module /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
+      root (hdX,Y)
+      kernel /boot/gnumach.gz root=device:hdX,(Y+1)
+      module /hurd/ext2fs.static --readonly --multiboot-command-line=${kernel-command-line} \
+             --host-priv-port=${host-port} --device-master-port=${device-port}              \
+             --exec-server-task=${exec-task} -T typed ${root} $(task-create) $(task-resume)
+      module /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
 
     OR
 
@@ -118,11 +131,13 @@ There are some cavaets to the boot process:
 
 Where `hdX,Y` is the appropriate hard disk and partition number, in GRUB format. `hdX,(Y+1)` is the GNUmach format - because Mach partitions start at 1, unlike GRUB partitions that start on 0 (zero).
 
+It is important that each module string is only a single separate line, or by escaping the EOL (end of line) with a back slash. Remember though to make sure there are **_no trailing spaces!_**
+
 ## <a name="6_Native_Install_Finishing_the_I"> 6. Native Install - Finishing the Installation </a>
 
 Once a prompt comes up, and any time that the the Hurd is in single user mode, it is necessary to set the terminal type:
 
-# export TERM=mach
+     # export TERM=mach
 
 (Repeat this each time you boot in single user mode)
 
@@ -130,7 +145,7 @@ Be warned that CONTROL-C and family will not work in single user mode.
 
 We can now run the native-install script. This will configure the packages and set up several important translators:
 
-# ./native-install
+     # ./native-install
 
 Right before the script terminates, it will indicate that it needs to be run a second time. Follow its instructions and reboot using the reboot command. Again, go into single user mode and run ./native-install.
 
@@ -149,11 +164,11 @@ When you first boot, your `/home` directory will _not_ be auto-mounted. You must
 
 To mount an nfs partition, use the nfs translator. When run as non-root, the translator will connect, for obvious reasons, to the nfs server on a port above 1024. For this to succeed under GNU/Linux, the insecure option must be added to the export line. Here is an example \`/etc/exports' file:
 
-/home 192.168.1.2(rw,insecure)
+    /home   192.168.1.2(rw,insecure)
 
 To mount this from a GNU box:
 
-# settrans -cgap /home /hurd/nfs 192.168.1.1:/home
+     # settrans -cgap /home /hurd/nfs 192.168.1.1:/home
 
 ## <a name="7_Configuration_Making_the_Syste"> 7. Configuration - Making the System Usable </a>
 
@@ -163,16 +178,20 @@ To mount this from a GNU box:
   * Run `MAKEDEV` to create devices in `/dev` for your hard disk and other required devices.
   * Since the Hurd does not use `ld.so.conf`, you will want to specify where the X Window System keeps its libraries. Do this by adding the following line to your `/etc/profile`: <br />`export LD_LIBRARY_PATH='/lib:/usr/X11R6/lib'`
   * run `/etc/cron.daily/find` to allow `locate` to function.
+
 * [[GetNetworkRunning]]
   * Hopefully Mach will recognize your hardware. If it doesn't you have to recompile in most cases.
   * copy over your `/etc/resolv.conf` from GNU/Linux to allow your DNS to resolve correctly.
+
 * Prepare system for new packages.
   * a recommended `/etc/apt/sources.list`: <br /><code>deb <ftp://alpha.gnu.org/gnu/hurd/debian> unstable main <br /> deb <ftp:/ftp.debian.org/debian> unstable main <br /> deb-src <ftp://ftp.debian.org/debian> unstable main</code>
   * There are some extremely useful cross-platform 'apt' tricks that can be used to get packages when using Debian GNU/Linux (possibly others) for installation on GNU. This is especially useful if your GNUMach doesn't recognize your network card. The steps are covered in the file =/usr/share/doc/apt/offline=\* which has been used by several Hurd developers successfully.
     * create an `/etc/apt/apt.conf.offline` like [[AptConfOffline]].
     * consider setting up a few [[CrossPlatformAliases]] for use under Debian GNU/Linux while the Debian GNU/Hurd partitions are mounted.
   * select the `apt` method from within dselect.
+
 * [[Xfree86]]
+
 * New packages - Hopefully you are able to get your network working but since the default GNUMach is only configured for a few ethernet cards you may need to recompile your GNUMach to get it working with your network hardward.
   * Install these extremely useful packages
     * `dialog` -- Debconf uses this for interactivity. You should install this first to allow you to configure other packages as they are installed.
@@ -185,6 +204,7 @@ To mount this from a GNU box:
     * `bzip2, zip, unzip` -- compression tools.
     * `build-essential` -- preparing to build software.
     * `gnu-standards` -- GNU coding and package standards.
+
 * Some packages use an erroneous dependency on `libc6-dev`. This is incorrect because libc6 is specific to GNU/Linux. The corresponding package for GNU is `libc0.3-dev`. If you find a package that is uninstallable due to a libc6[-dev] dependency, please send a bug report with a patch that fixes it. It is important that you don't hack your package system to workaround such problems, because that way you won't be able to spot them when they arrive. See the [[PortingIssues]] for details about the problem and [[BtsFiling]] for details on sending bug reports.
 * Edit your `/etc/inetd.conf` and comment out all the services you don't need. Services that probably don't need to be running are
 
@@ -193,7 +213,9 @@ To mount this from a GNU box:
 ## <a name="8_Final_Words_The_FAQ"> </a> 8. Final Words - The FAQ
 
 * [[NewbieQuestions]] - More than frequently asked questions
+
 * [Hurd FAQ](http://web.walfield.org/papers/hurd-faq/)
+
 * [[KnownHurdLimits]] - Limitations of the GNU operating system
 
 ## <a name="9_Works_Cited_Referenced_Materia"> 9. Works Cited - Referenced Materials </a>
@@ -206,4 +228,22 @@ CD-ROM Notes: [[CDNotesJ2]]
 
 Others who wish to post summaries of their installation experiences are encouraged to do so. The installer methods, package dependencies and file locations frequently do change without warning.
 
--- [[Main/SimonLaw]] - 29 May 2002 <br /> -- [[Main/GrantBow]] - 13 Oct 2002 <br /> -- [[Main/JoachimNilsson]] - 14 Nov 2002 -- [[Main/RobertMillan]] - 21 Nov 2002
+----
+
+## <a name="Licensing"> Licensing </a>
+
+ This work is based on the hard work by [countless Hurd users](http://web.walfield.org/papers/hurd-installation-guide/THANKS), documented and maintained by Neal H. Walfield. See the original for both reference and its licensing at <http://web.walfield.org/papers/hurd-installation-guide/>
+
+The license for Neals work is under the [GNU GPL](http://web.walfield.org/papers/hurd-installation-guide/COPYING). However, at the Hurd Wiki we are trying (or will be trying) to get the content licensed under the GNU FDL (unless the topic is mostly code).
+
+There are currently issues to be resolved around this matter, as far as I understand at least. Until an agreement can be reached this text, and the unclear status of this topic, will remain.
+
+-- [[Main/JoachimNilsson]]
+
+## <a name="Changes_made_by"> Changes made by </a>
+
+ -- [[Main/SimonLaw]] - 29 May 2002 <br /> -- [[Main/GrantBow]] - 13 Oct 2002 <br /> -- [[Main/JoachimNilsson]] - 14 Nov 2002 <br /> -- [[Main/RobertMillan]] - 21 Nov 2002 <br />
+
+First effort at straightening out the formatting mess ... added references to Neals' original, which this topic has become heavily based on.
+
+-- [[Main/JoachimNilsson]] - 19 Dec 2002 <br />
