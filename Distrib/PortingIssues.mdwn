@@ -20,75 +20,100 @@ You can try out Neal Walfield's implementation of libpthreads. It will serve as 
 
 The pthread library is available from [the Hurd CVS on Savannah](http://savannah.gnu.org/projects/hurd/).
 
-## <a name="Undefined_bits_confname_h_macros"> </a> Undefined bits/confname.h macros (PIPE\_BUF, ...)
+## <a name="Undefined_bits_confname_h_tt_mac"> Undefined `bits/confname.h` macros (`PIPE_BUF`, ...) </a>
 
-If macro XXX is undefined, but macro \_SC\_XXX or \_PC\_XXX is defined in bits/confname.h, you probably need to use sysconf, pathconf or fpathconf to obtain it dynamicaly.
+If macro `XXX` is undefined, but macro `_SC_XXX` or `_PC_XXX` is defined in `bits/confname.h`, you probably need to use `sysconf`, `pathconf` or `fpathconf` to obtain it dynamicaly.
 
-The following macros have been found in this offending situation (add more if you find them): PIPE\_BUF
+The following macros have been found in this offending situation (add more if you find them): `PIPE_BUF`
 
-An example with sysconf: (when you find a sysconf offending macro, put a better example)
+An example with `sysconf`: (when you find a `sysconf` offending macro, put a better example)
 
-#ifndef XXX #define XXX sysconf(\_SC\_XXX) #endif [ offending code using XXX follows ]
+    #ifndef XXX
+    #define XXX sysconf(_SC_XXX)
+    #endif
+    /* offending code using XXX follows */
 
-An example with fpathconf:
+An example with `fpathconf`:
 
-#ifdef PIPE\_BUF read(fd, buff, PIPE\_BUF - 1); #else read(fd, buff, fpathconf(fd, \_PC\_PIPE\_BUF) - 1); #endif [ note we can't #define PIPE\_BUF, because it depends on the "fd" variable ]
+    #ifdef PIPE_BUF
+       read(fd, buff, PIPE_BUF - 1);
+    #else
+       read(fd, buff, fpathconf(fd, _PC_PIPE_BUF) - 1);
+    #endif
+    /* note we can't #define PIPE_BUF, because it depends
+       on the "fd" variable */
 
 ## <a name="Bad_File_Descriptor"> Bad File Descriptor </a>
 
-If you get Bad File Descriptor error when trying to read from a file (or accessing it at all), check the open() invocation. The second argument is the access method. If it is a hard coded number instead of a symbol defined in the standard header files, the code is screwed and should be fixed to either use O\_RDONLY, O\_WRONLY or O\_RDWR. This bug was observed in the fortunes and mtools packages for example.
+If you get Bad File Descriptor error when trying to read from a file (or accessing it at all), check the `open()` invocation. The second argument is the access method. If it is a hard coded number instead of a symbol defined in the standard header files, the code is screwed and should be fixed to either use `O_RDONLY`, `O_WRONLY` or `O_RDWR`. This bug was observed in the `fortunes` and `mtools` packages for example.
 
-## <a name="PATH_MAX"> </a> PATH\_MAX
+## <a name="PATH_MAX_tt_"> `PATH_MAX` </a>
 
-Every unconditionalized use of PATH\_MAX is a POSIX incompatibility. If there is no upper limit on the length of a path, this symbol is not defined in any header file. Instead, you need to either use a different implementation that does not rely on the length of a string or use sysconf() to query the length at runtime. If sysconf() returns -1, you have to use realloc() to allocate the needed memory dynamically.
+Every unconditionalized use of `PATH_MAX` is a POSIX incompatibility. If there is no upper limit on the length of a path, this symbol is not defined in any header file. Instead, you need to either use a different implementation that does not rely on the length of a string or use `sysconf()` to query the length at runtime. If `sysconf()` returns -1, you have to use `realloc()` to allocate the needed memory dynamically.
 
-## <a name="MAX_PATH"> </a> MAX\_PATH
+## <a name="MAX_PATH_tt_"> `MAX_PATH` </a>
 
-same as PATH\_MAX
+same as `PATH_MAX`
 
-## <a name="MAXPATHLEN"> </a> MAXPATHLEN
+## <a name="MAXPATHLEN_tt_"> `MAXPATHLEN` </a>
 
-same as PATH\_MAX
+same as `PATH_MAX`
 
-## <a name="MAXHOSTNAMELEN"> </a> MAXHOSTNAMELEN
+## <a name="MAXHOSTNAMELEN_tt_"> `MAXHOSTNAMELEN` </a>
 
-same as PATH\_MAX. When you find a gethostname() funcion, which acts on a static buffer, you can replace it with Neal's [xgethostname function](http://ftp.walfield.org/pub/people/neal/xgethostname/) which returns the hostname as a dynamic buffer. For example:
+same as `PATH_MAX`. When you find a `gethostname()` funcion, which acts on a static buffer, you can replace it with Neal's [xgethostname function](http://ftp.walfield.org/pub/people/neal/xgethostname/) which returns the hostname as a dynamic buffer. For example:
 
 Buggy code:
 
-char localhost[MAXHOSTNAMELEN]; ... gethostname(localhost, sizeof(localhost));
+    char localhost[MAXHOSTNAMELEN];
+    ...
+    gethostname(localhost, sizeof(localhost));
 
 Fixed code:
 
-#ifndef MAXHOSTNAMELEN #include "xgethostname.h" #endif ... #ifdef MAXHOSTNAMELEN char localhost[MAXHOSTNAMELEN]; #else char \*localhost; #endif ... #ifdef MAXHOSTNAMELEN gethostname(localhost, sizeof(localhost)); #else localhost = xgethostname(); #endif
+    #ifndef MAXHOSTNAMELEN
+    #include "xgethostname.h"
+    #endif
+    ...
+    #ifdef MAXHOSTNAMELEN
+    char localhost[MAXHOSTNAMELEN];
+    #else
+    char *localhost;
+    #endif
+    ...
+    #ifdef MAXHOSTNAMELEN
+    gethostname(localhost, sizeof(localhost));
+    #else
+    localhost = xgethostname();
+    #endif
 
-## <a name="NOFILE"> </a> NOFILE
+## <a name="NOFILE_tt_"> `NOFILE` </a>
 
-Replace with RLIMIT\_NOFILE
+Replace with `RLIMIT_NOFILE`
 
-## <a name="GNU_specific_define"> </a> GNU specific #define
+## <a name="GNU_specific_define_tt_"> </a> GNU specific `#define`
 
-If you need to include specific code for the Hurd using #if...#endif, then you can use the \_\_GNU\_\_ symbol to do so. But think (at least) thrice! before doing so. In most situations, this is completely unnecessary and will create more problems than it may solve. Better ask on the mailing list how to do it right if you can't think of a better solution.
+If you need to include specific code for the Hurd using `#if` ... `#endif`, then you can use the `__GNU__` symbol to do so. But think (at least) thrice! before doing so. In most situations, this is completely unnecessary and will create more problems than it may solve. Better ask on the mailing list how to do it right if you can't think of a better solution.
 
-## <a name="sys_errlist_vs_strerror_"> sys\_errlist[] vs. strerror() </a>
+## <a name="sys_errlist_tt_vs_strerror_tt_"> `sys_errlist[]` vs. `strerror()` </a>
 
-If a program has only support for sys\_errlist[] you will have to do some work to make it compile on GNU, which has dropped support for it and does only provide strerror(). Steinar Hamre writes about strerror():
+If a program has only support for `sys_errlist[]` you will have to do some work to make it compile on GNU, which has dropped support for it and does only provide `strerror()`. Steinar Hamre writes about `strerror()`:
 
-strerror() should be used because:
+`strerror()` should be used because:
 
 * It is the modern, POSIX way.
 * It is localized.
 * It handles invalid signals/numbers out of range. (better errorhandling and not a buffer-overflow-candidate/security risk)
 
-strerror() should always be used if it is available. Unfortunaly there are still some old non-POSIX systems that do not have strerror(), only sys\_errlist[].
+`strerror()` should always be used if it is available. Unfortunaly there are still some old non-POSIX systems that do not have `strerror()`, only `sys_errlist[]`.
 
-Today, only supporting strerror() is far better than only supporting sys\_errlist[]. The best (from a portability viewpoint), however is supporting both. For configure.in, you will need:
+Today, only supporting `strerror()` is far better than only supporting `sys_errlist[]`. The best (from a portability viewpoint), however is supporting both. For configure.in, you will need:
 
-AC\_CHECK\_FUNCS(strerror)
+    AC_CHECK_FUNCS(strerror)
 
-To config.h.in, you need to add:
+To `config.h.in`, you need to add:
 
-#undef HAVE\_STRERROR
+    #undef HAVE_STRERROR
 
 Then something like:
 
@@ -108,25 +133,25 @@ Then something like:
             #define strerror private_strerror
             #endif /* HAVE_STRERROR */
 
-You can for example look in the latest coreutils (the above is a simplified version of what I found there.) Patches should of course be sent to upstream maintainers, this is very useful even for systems with a working sys\_errlist[].
+You can for example look in the latest coreutils (the above is a simplified version of what I found there.) Patches should of course be sent to upstream maintainers, this is very useful even for systems with a working `sys_errlist[]`.
 
-Of course, if you don't care about broken systems (like MS-DOG) not supporting strerror() you can just replace sys\_errlist[] directly (upstream might not accept your patch, but debian should have no problem)
+Of course, if you don't care about broken systems (like MS-DOG) not supporting `strerror()` you can just replace `sys_errlist[]` directly (upstream might not accept your patch, but debian should have no problem)
 
 ## <a name="Filenames_ending_in_a_slash_"> Filenames ending in a slash \`/' </a>
 
-Those are evil if they don't exist and you want to name a directory this way. For example, mkdir foobar/ will not work on GNU. This is POSIX compatible. POSIX says that the path of a directory may have slashes appended to it. But the directory does not exist yet, so the path does not refer to a directory, and hence trailing slashes are not guaranteed to work. Just drop the slashes, and you're fine.
+Those are evil if they don't exist and you want to name a directory this way. For example, `mkdir foobar/` will not work on GNU. This is POSIX compatible. POSIX says that the path of a directory may have slashes appended to it. But the directory does not exist yet, so the path does not refer to a directory, and hence trailing slashes are not guaranteed to work. Just drop the slashes, and you're fine.
 
-## <a name="Missing_termio_h"> Missing termio.h </a>
+## <a name="Missing_termio_h_tt_"> Missing `termio.h` </a>
 
-Change it to use termios.h (check for it properly with autoconf HAVE\_TERMIOS\_H or the **_GLIBC_** macro)
+Change it to use `termios.h` (check for it properly with autoconf `HAVE_TERMIOS_H` or the `__GLIBC__` macro)
 
-## <a name="AC_HEADER_TERMIO"> AC\_HEADER\_TERMIO </a>
+## <a name="AC_HEADER_TERMIO_tt_"> `AC_HEADER_TERMIO` </a>
 
-The autoconf check for AC\_HEADER\_TERMIO tryes to check tfor termios, but it's only really checking for termio in termios.h. It is better to use AC\_CHECK\_HEADERS(termio.h termios.h)
+The autoconf check for `AC_HEADER_TERMIO` tryes to check for termios, but it's only really checking for termio in `termios.h`. It is better to use `AC_CHECK_HEADERS(termio.h termios.h)`
 
 ## <a name="broken_libc6_dependency"> broken libc6 dependency </a>
 
-Some packages use an erroneous dependency on libc6-dev. This is incorrect because libc6 is specific to GNU/Linux. The corresponding package for GNU is libc0.3-dev but other OSes will have different ones. You can locate the problem in the debian/control file of the source tree. Typical solutions include detecting the OS using dpkg-architecture and hardcoding the soname, or better, use a logical OR. eg: libc6-dev | libc0.3-dev | libc-dev. The libc-dev is a virtual package that works for any soname but you have to put it only as the last option.
+Some packages use an erroneous dependency on `libc6-dev`. This is incorrect because `libc6` is specific to GNU/Linux. The corresponding package for GNU is `libc0.3-dev` but other OSes will have different ones. You can locate the problem in the `debian/control` file of the source tree. Typical solutions include detecting the OS using `dpkg-architecture` and hardcoding the soname, or better, use a logical OR. eg: `libc6-dev | libc0.3-dev | libc-dev`. The `libc-dev` is a virtual package that works for any soname but you have to put it only as the last option.
 
 ----
 
@@ -149,3 +174,7 @@ Added xgethostname example.
 Added broken libc6 dependency
 
 -- [[Main/RobertMillan]] - 21 Nov 2002
+
+Text formatting.
+
+-- Ognyan Kulev - 12 Mar 2003
