@@ -13,7 +13,25 @@ Here's an outline of the things that need to be done.
 * We need a ramdisk to enable write access
   * I think we could fake this with Farid Hajii's [memfs](http://www.fprintf.net/hurd/) translator and writing an ext2 filesystem to it. From the mem-fs README...
 > memfs-1 is a translator that provides a memory-based file of fixed size. This file can, just like bigfile, contain a regular filesystem.
-  * We could set a mem-fs translator anywhere on the CD you needed write access, including having softlinks to the contents of the root directory and chrooting to this new directory.
+
+* * We could set a mem-fs translator anywhere on the CD you needed write access, including having softlinks to the contents of the root directory and chrooting to this new directory.
+
+* * For a quick and dirty memfs, you can do it right now with the following commands:
+
+> touch ./ramdisk
+>                   touch ./tmpfs
+>                   settrans -a ./ramdisk /hurd/storeio -Tcopy zero:50M
+>                   /sbin/mke2fs ./ramdisk
+>                   settrans -a tmpfs /hurd/ext2fs ./ramdisk
+>                   fsysopts --writable ./ramdisk
+>                   cd newfs
+>                   touch somenewfile
+>
+> > > Here we use two files ramdisk, and tmpfs that are already created on a readonly file system. For illustration purposes, they are touched beforehand. We run an active storeio translator on the ramdisk file to give us 50MB of RAM to work with, and then we make an ext2 filesystem on it. A boot CD would presumably have a ready-made image to copy into the ramdisk, so we wouldn't really need to run mke2fs. After making sure the file system is writable, we mount the image with an ext2fs translator onto tmpfs. And now we're writing files on a writable file system that originated on a readonly filesystem. This idea was first posted in a
+> > >
+> > > [mail](http://lists.gnu.org/archive/html/bug-hurd/2000-12/msg00073.html)
+> > >
+> > > on bug-hurd, and it has some drawbacks.
 
 Those are the essentials. Here is a list of the things which would be nice to have for a Live-CD.
 
