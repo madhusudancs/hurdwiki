@@ -38,7 +38,7 @@ most obvious examples of these are the TCP/IP stack, the ext2 filesystem
 and NFS.  In the case of the Hurd, users now have access to
 functionality that, in a monolithic kernel, they could never use, but
 now, because the server runs in user space as the user that started it,
-they may, for instance, mount an ftp filesystem in their home directory.
+they may, for instance, mount an FTP filesystem in their home directory.
 
 For more information about the design of the Hurd, read the paper by
 Thomas Bushnell, BSG: ``Towards a new strategy on OS design'',
@@ -115,13 +115,14 @@ try it and help us get there.
 
 ??	Why is `/usr' a symbolic link to `.'?
 
-{MB} The distinction between `/' and `/usr' has historical reasons.
+{MB,FH} The distinction between `/' and `/usr' has historical reasons.
 Back when Unix systems were booted from two tapes, a small root tape
 and a big user tape.  Today, we like to use different partitions for
 these two spaces.  The Hurd throws this historical garbage away.  We
-think that we have found a more flexible solution called shadow
-filesystems.  Unfortunately, support for shadowed filesystems is not yet
-implemented.
+think that we have found a more flexible solution called union
+filesystems, which allow to create virtual filesystems which are the
+union of several other filesystems.  However, support for union
+filesystems is still in early development.
 
 ??	Why is there no information on the official website
 	about the Hurd port to L4 (Hurd/L4)?
@@ -239,7 +240,7 @@ but still doable.
 
 ??	Can I share swap space between GNU/Linux and GNU/Hurd?
 
-{NHW} Yes.  The default pager recognizes and respects Linux swap
+{NHW} Yes.  The default pager recognises and respects Linux swap
 partitions.  It will also swap to a raw partition, i.e. anything that it
 does not recognize as Linux swap.  Therefore: BE CAREFUL.
 
@@ -317,13 +318,20 @@ about translators.
 
 ??	Where is the documentation?
 
-{NHW} There are neither man pages nor info nodes for the Hurd translators
-and commands.  Documentation lives inside of the binaries and can be
-found by passing the `--help' option to a given command.  For instance:
+{NHW,MM} There are neither man pages nor info nodes for the Hurd
+translators and commands.  Documentation lives inside of the binaries
+and can be found by passing the `--help' option to a given command.
+For instance:
 
 	# /hurd/ext2fs --help
 
 will tell you what types of options the ext2fs translator accepts.
+
+The GNU/Hurd User's Guide and the GNU Hurd Reference Manual both
+provide some help about the usage of and concepts behind the GNU Hurd.
+You can find them, among others, at:
+
+	http://www.gnu.org/software/hurd/docs.html
 
 ??	What is a translator?
 
@@ -352,9 +360,18 @@ prompt.
 
 ??	How do I use non-US keyboard bindings?
 
-{NHW} Take a look at:
+{NHW,FH} Take a look at:
 
 	http://www.xs4all.nl/~mgerards/xkb8.tar.gz
+
+If you want a Debian package, you can add to your
+'etc/apt/sources.list'
+
+	deb http://debian.duckcorp.org/unstable/binary-hurd-i386/ ./
+
+and then run
+
+    	 apt-get install console-driver-xkb.
 
 ??	How do I enable color on the console?
 
@@ -394,7 +411,9 @@ filesystem.
 
 ??	Why does `ps aux' give me strange output?
 
-{MB} Try `ps Aux'.
+{MB,MM} Try `ps Aux'.  Indeed, under GNU/Hurd, `ps aux' doesn't list
+all processes: it omits the session and group leaders, and the
+processes without parent.
 
 ??	I have a hung process that I want to kill, however, `ps' is now
 	hanging too.
@@ -481,6 +500,17 @@ happens.  Thomas explains:
 	and probably something else should be chosen instead.
 
 If you can reproduce this error message, please report it.
+
+??	What does ``computer bought the farm'' mean ?
+
+{FH} This message is the text that corresponds to the errno code
+`EIEIO'.  Roland McGrath explains:
+
+	That message is not output by any particular servers at
+	particular times; rather it is the perror text for the errno
+	code EIEIO, which is returned by various RPCs and functions
+	for a variety of "hopeless" error conditions.
+
 
 ??	What does ``/dev/hd0s1: MOUNTED READ-ONLY; MUST USE `fsysopts
 	--writable''' mean?
@@ -574,13 +604,17 @@ at:
 
 ??	What is OSKit-Mach?
 
-{NHW} There are two versions of Mach: GNU Mach and OSKit-Mach.  The
-former uses the drivers from Linux 2.0.x while the latter uses the
-University of Utah's OSKit.  If all goes well, OSKit-Mach will be
-stabilized and become the official kernel.  You can find out more about
-the OSKit at:
+{NHW,FH} There are two versions of GNU Mac that are in use: GNU Mach
+1.x and GNU Mach 2.x, formerly known as OSKit-Mach.  The former uses
+the drivers from Linux 2.0.x while the latter uses the University of
+Utah's OSKit library for drivers.  You can find out more about the
+OSKit library at:
 
-	http://www.cs.utah.edu/flux/oskit
+ 	http://www.cs.utah.edu/flux/oskit
+
+GNU Mach 2.x is usable, but some things are still missing or not
+working, like the serial port and scsi drivers.  This is why GNU Mach
+2.0 hasn't released yet and the two versions coexist.
 
 ??	Where is the documentation?
 
@@ -666,7 +700,9 @@ files like backups in the modified tree, or leave away the option
 Answers were given by (in chronological order):
 * {NHW} Neal H Walfield  <neal@cs.uml.edu>
 * {MB} Marcus Brinkmann  <Marcus.Brinkmann@ruhr-uni-bochum.de>
-* {AMS} Alfred M. Szmidt <ams@kemisten.nu>
+* {AMS} Alfred M. Szmidt <ams@gnu.org>
 * {OK} Ognyan Kulev	 <ogi@fmi.uni-sofia.bg>
+* {FH} Frédéric Henry	 <neryel@reveries.info>
+* {MM} Manuel Menal	 <mmenal@hurdfr.org>
 
  vim:ts=8:sw=8:tw=72
