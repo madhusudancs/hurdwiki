@@ -1,0 +1,83 @@
+GNU pre0.3-J2 for Bochs mini-FAQ
+
+----
+
+- What do you mean "GNU", the GNU Hurd?
+
+Yes and no. See <http://www.gnu.org/software/hurd/faq.en.html#q1-2>
+
+- Where are...?
+
+Latest version of this FAQ: <http://hurd.gnufans.org/bin/view/Hurd/BochsFAQ>
+
+Latest GNU image for Bochs: [http://sourceforge.net/project/showfiles.php?group\_id=12580](http://sourceforge.net/project/showfiles.php?group_id=12580)
+
+- Disk line for .bochsrc?
+
+for Bochs 2.0 or later:
+
+ata0-master: type=disk, path="gnu.img", cylinders=1024, heads=16, spt=63
+
+for older versions:
+
+diskc: file="gnu.img", cyl=1024, heads=16, spt=63
+
+- My PATH and prompt are weird, and X clients fail
+
+the profile is not loaded properly, do it manualy with ". /etc/profile".
+
+- How can i change terminals?
+
+The Mach console doesn't have multi-terminal capability, and the usual solution is the "screen" program, but..
+
+..the new console server is installed and configured with 6 terminals. beware it hasn't been properly tested. You can launch it with the ncursesw driver:
+
+console -d ncursesw /dev/vcs
+
+and then switching via C-w 1 (or 2, 3, ...). you can exit it with C-w x
+
+see <http://lists.debian.org/debian-hurd/2002/debian-hurd-200209/msg00054.html> for more details
+
+IMPORTANT: note that X doesn't work well while running the console server.
+
+- Does X work?
+
+Somewhat:
+
+- DRI and speedo modules won't load so they're deactivated. - The VESA driver also failed so VGA is being used. - more than 8 bpp won't work. - for some weird reason the mouse server in /dev/mouse doesn't respond, so the mouse is inoperative. - GNU is still an unstable OS which makes X crash often on it.
+
+To reconfigure it:
+
+dpkg-reconfigure xserver-xfree86
+
+then apply a patch to fix the mouse section:
+
+patch /etc/X11/XF86config-4 /root/XF86Config-4.diff
+
+Installed clients are blackbox window manager and rxvt terminal emulator.
+
+- Is network configured?
+
+Yes, to change parameters use:
+
+settrans -apfg /servers/socket/2 /hurd/pfinet [options to pfinet]
+
+(see /hurd/pfinet --help for details)
+
+- How do i mount stuff?
+
+settrans -afg  /hurd/
+
+Where node is your mount point and translator is the filesystem server. Add -p to settrans if you want it to stay over reboots (fstab-like)
+
+- Anything neat to try?
+
+yes! instead of "su" use "sush", a more flexible version that manages multiple UIDs.
+
+you can also play with userspace filesystems for NFS and FTP in /hurd/\{nfs,ftpfs\} that you can run as user, debug with GDB, etc.
+
+- More questions?
+
+Read the FAQ (<http://www.gnu.org/software/hurd/faq.en.html>) for a general overview on the GNU system.
+
+-- [[Main/RobertMillan]] - 20 Nov 2002
