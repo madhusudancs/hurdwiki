@@ -20,9 +20,19 @@ You can try out Neal Walfield's implementation of libpthreads. It will serve as 
 
 The pthread library is available from [the Hurd CVS on Savannah](http://savannah.gnu.org/projects/hurd/).
 
-## <a name="Undefined_PIPE_BUF"> </a> Undefined PIPE\_BUF
+## <a name="Undefined_bits_confname_h_macros"> </a> Undefined bits/confname.h macros (PIPE\_BUF, ...)
 
-Change it to use sysconf(\_SC\_PIPE\_BUF) #ifndef PIPE\_BUF. (from a Roland McGrath message in debian-hurd)
+If macro XXX is undefined, but macro \_SC\_XXX or \_PC\_XXX is defined in bits/confname.h, you probably need to use sysconf, pathconf or fpathconf to obtain it dynamicaly.
+
+The following macros have been found in this offending situation (add more if you find them): PIPE\_BUF
+
+An example with sysconf: (when you find a sysconf offending macro, put a better example)
+
+#ifndef XXX #define XXX sysconf(\_SC\_XXX) #endif [ offending code using XXX follows ]
+
+An example with fpathconf:
+
+#ifdef PIPE\_BUF read(fd, buff, PIPE\_BUF - 1); #else read(fd, buff, fpathconf(fd, \_PC\_PIPE\_BUF) - 1); #endif [ note we can't #define PIPE\_BUF, because it depends on the "fd" variable ]
 
 ## <a name="Bad_File_Descriptor"> Bad File Descriptor </a>
 
