@@ -168,38 +168,22 @@ The following declaration:
 
     sockaddr_un sun = { AF_UNIX, "/path/to/socket" };
 
-won't work on GNU/Hurd. The Glibc API requires that the second parameter of a `sockaddr_un` struct is array of chars, but NOT pointer to array of chars. So we have to copy them directly into the `sun_path` address. Glibc wants string of chars there that doesn't need to end in nul character _and_ correct size of `sockaddr_un` passed to socket functions. When calling socket functions one should always use `SUN_LEN (su)` for the sockaddr length argument. An example:
+won't work on GNU/Hurd. The Glibc API requires that the second parameter of a `sockaddr_un` struct is array of chars, but NOT pointer to array of chars. So we have to copy them directly into the `sun_path` address. Glibc wants string of chars there that doesn't need to end in NUL character _and_ correct size of `sockaddr_un` passed to socket functions. When calling socket functions one should always use `SUN_LEN (su)` for the sockaddr length argument.
 
-    sockaddr_un su;
-    /* AF_LOCAL is the canonical flag in Glibc.
-       Use AF_UNIX if you want compatibility.  */
-    su.sun_family = AF_LOCAL;
-    /* Copy the string into sun_path. It must be
-       no longer than approximately 100 characters. */
-    strcpy (su.sun_path, "/path/to/socket");
+When you use _literal string_ as value for `sun_path` and you are absolutely sure its length is less than 100, _and only then_, use the following code:
 
-`SUN_LEN` macro is not defined in [The Single UNIX Specification Version 3](http://www.unix-systems.org/version3/online.html) (see [sys/un.h manpage](http://www.opengroup.org/onlinepubs/007904975/basedefs/sys/un.h.html)). You can use the following definition to handle this case (definition taken from NetBSD):
+    struct sockaddr_un sun;
+    sun.sun_family = AF_LOCAL;
+    strcpy (sun.sun_path, "/path/to/socket");
+    /* ... bind (sock, (struct sockaddr *)&sun, SUN_LEN (&sun)) ... */
 
-    #ifndef SUN_LEN
-    #define SUN_LEN(su) \
-       (sizeof(*(su)) - sizeof((su)->sun_path) + \
-       strlen((su)->sun_path))
-    #endif
+When one of the conditions for using the above code is not satisfied, you should use the following code. It expects glibc environment. You can check this by the presence of the `__GLIBC__` macro definition.
 
-If you have pointer to array of characters as file name, you'd better use the following code to set `sun_path`:
-
-    strncpy (su.sun_path, filename, sizeof (su.sun_path));
-    su.sun_path[sizeof (su.sun_path) - 1] = '\0';
-
-If you expect file name longer than approximately 100 characters, use the following code. This is the recommended code for GNU systems. You can include it whenever `__GLIBC__` is defined.
-
-    /* `offsetof', `alloca' and `AF_LOCAL' may not
-       be available everywhere.  */
-    socklen_t su_len = offsetof (struct sockaddr_un, sun_path)
-                       + strlen (filename) + 1;
-    struct sockaddr_un *su = alloca (su_len);
-    su->sun_family = AF_LOCAL;
-    strcpy (su->sun_path, filename);
+    struct sockaddr_un *sun =
+      alloca (offsetof (struct sockaddr_un, sun_path) + strlen (filename) + 1);
+    sun->sun_family = AF_LOCAL;
+    strcpy (sun->sun_path, filename);
+    /* ... bind (sock, (struct sockaddr *)sun, SUN_LEN (sun)) ... */
 
 NOTE: the current API is subject to change, see the notes in Glibc's docs ("info libc" and search for `sockaddr_un`) and [Debian bug #187391](http://bugs.debian.org/187391).
 
@@ -217,7 +201,7 @@ Added more examples and misc semantical fixes.
 
 -- [[Main/RobertMillan]] - 05 Oct 2002
 
-Added xgethostname example.
+Added `xgethostname` example.
 
 -- [[Main/RobertMillan]] - 15 Nov 2002
 
@@ -229,6 +213,10 @@ Text formatting.
 
 -- Ognyan Kulev - 12 Mar 2003
 
-Added ioctl entry.
+Added `ioctl` entry.
 
 -- [[Main/RobertMillan]] - 19 Mar 2003
+
+Added `sockaddr_un` entry.
+
+-- [[Main/RobertMillan]] - 05 Apr 2003<br /> -- [[Main/OgnyanKulev]] - 19 Apr 2003
