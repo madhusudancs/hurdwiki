@@ -1,4 +1,6 @@
-Items of interest during install not mentioned elsewhere include the following. They have been re-arranged to match the same order as Neal Walfield's [install guide](http://web.walfield.org/papers/hurd-installation-guide/english/hurd-install-guide.html).
+# <a name="Installation_Notes"> Installation Notes </a>
+
+Items of interest during install not mentioned elsewhere include the following. Arranged in the same order as Neal Walfield's [install guide](http://web.walfield.org/papers/hurd-installation-guide/english/hurd-install-guide.html).
 
 %TOC%
 
@@ -22,20 +24,39 @@ There are three current methods and one depricated methods to install the Hurd: 
 
 ## <a name="4_Cross_Install_Cross_Installing"> 4. Cross Install - Cross Installing the Hurd </a>
 
- In Neal's install guide this simply refers to the `tar` run from another system install. This should NOT be confused with the depricated `cross-install` script method.
+In Neal's install guide this simply refers to the `tar` run from another system install. This should NOT be confused with the depricated `cross-install` script method.
 
 ## <a name="5_Booting_the_Hurd"> 5. Booting the Hurd </a>
 
-* **IMPORTANT!** Remember when first booting into your freshly un-tarred distribution, you must pass the `-s` option to `/boot/gnumach.gz`. Failure to do so means that you won't get single-user mode.
-* **IMPORTANT2!** Add the --readonly flag to the file system server in your Grub menu.lst file. This is a work-around to get fsck working properly. Don't forget, everything must be on ONE line! <br />
+There are some cavaets to the boot process:
 
-module /hurd/ext2fs.static --readonly --multiboot-command-line=$\{kernel-command-line\} --host-priv-port=$\{host-port\} --device-master-port=$\{device-port\} --exec-server-task=$\{exec-task\} -T typed $\{root\} $(task-create) $(task-resume)
+* **IMPORTANT!** Remember when first booting into your freshly un-tarred distribution, you must pass the `-s` option to `/boot/gnumach.gz`. Failure to do so means that you won't get single-user mode.
+* **IMPORTANT2!** Add the --readonly flag to the file system server in your Grub menu.lst file. This is a work-around to get fsck working properly. Don't forget, everything must be on ONE line, or ended with a backslash!
+
+    title The GNU/Hurd (kernel GNUmach 1.3)
+    root (hdX,Y)
+    kernel /boot/gnumach.gz root=device:hdX,(Y+1)
+    module /hurd/ext2fs.static --readonly --multiboot-command-line=${kernel-command-line}  --host-priv-port=${host-port} --device-master-port=${device-port} --exec-server-task=${exec-task} -T typed ${root} $(task-create) $(task-resume)
+    module /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
+
+    OR
+
+    module /hurd/ext2fs.static --readonly                  \
+           --multiboot-command-line=${kernel-command-line} \
+           --host-priv-port=${host-port}                   \
+           --device-master-port=${device-port}             \
+           --exec-server-task=${exec-task}                 \
+           -T typed ${root} $(task-create) $(task-resume)
+
+Where `hdX,Y` is the appropriate hard disk and partition number, in Grub format. `hdX,(Y+1)` is the GNUmach format - because Mach partitions start at 1, unlike Grub partitions that start on 0 (zero).
 
 ## <a name="6_Native_Install_Finishing_the_I"> 6. Native Install - Finishing the Installation </a>
 
-* remember to `export TERM==mach` each time.
-* The default editor is now `nano`, not `ae`.
+* Remember to `export TERM==mach` each time.
+* The default editor is now `nano`, not `ae` nor is it `vi`.
 * If you are following Neal's installation guide, he presents a sample `/etc/fstab`. When you first boot, your `/home` directory will _not_ be auto-mounted. You must set a passive translator on that node to access that partition. The correct syntax for this is: <br />`settrans -p /home /hurd/ext2fs /dev/hd2s2`
+
+**_Sample /etc/fstab:_**
 
 > # <file system>  <mount point>    <type>   <options>  <dump> <pass>
 >      /dev/hd2s1        /               ext2       rw         0      1
@@ -86,12 +107,12 @@ module /hurd/ext2fs.static --readonly --multiboot-command-line=$\{kernel-command
 
 ## <a name="9_Works_Cited_Referenced_Materia"> 9. Works Cited - Referenced Materials </a>
 
- On Sept 20, 2002 [[Main/DeepakGoel]] (a self-proclaimed newbie) posted a link to his personal [step-by-step installation](http://24.197.159.102/~deego/pub/hurd/install-guide/install.txt). The parent directory has additional material.
+On Sept 20, 2002 [[Main/DeepakGoel]] (a self-proclaimed newbie) posted a link to his personal [step-by-step installation](http://24.197.159.102/~deego/pub/hurd/install-guide/install.txt). The parent directory has additional material.
 
-Tarball Notes: [[TarballNotes20020816]] [[TarballNotes20020523]]
+Tarball Notes: [[TarballNotes20020816]] [[TarballNotes20020523]]
 
-CD-ROM Notes: [[CDNotesJ2]]
+CD-ROM Notes: [[CDNotesJ2]]
 
 Others who wish to post summaries of their installation experiences are encouraged to do so. The installer methods, package dependencies and file locations frequently do change without warning.
 
--- [[Main/SimonLaw]] - 29 May 2002 <br /> -- [[Main/GrantBow]] - 13 Oct 2002
+-- [[Main/SimonLaw]] - 29 May 2002 <br /> -- [[Main/GrantBow]] - 13 Oct 2002 <br /> -- [[Main/JoachimNilsson]] - 14 Nov 2002
