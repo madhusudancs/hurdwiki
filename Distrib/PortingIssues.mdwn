@@ -160,23 +160,38 @@ and pass its address to `ioctl`:
 
 See [a simple fix for TIOCFLUSH in telnet](http://mail.gnu.org/archive/html/bug-inetutils/2001-08/msg00015.html).
 
-## <a name="Uncompliant_use_of_sockaddr_un"> Uncompliant use of sockaddr\_un </a>
+## <a name="Uncompliant_use_of_sockaddr_un_t"> Uncompliant use of `sockaddr_un` </a>
 
-The following declaration: sockaddr\_un sun = \{ AF\_UNIX, "" \}; won't work on GNU/Hurd. The Glibc API requires that the second parameter of a sockaddr\_un struct is a char (or a string of chars), but NOT a pointer to a string of chars. Glibc wants a non-nul-terminated 108 string of chars there, so we have to copy them directly into the sun\_path address. An example:
+The following declaration:
 
-    #if defined(__GLIBC__)
-       sockaddr_un sun;
-       /* AF_LOCAL is the canonical flag in Glibc */
-       sun.sun_family = AF_LOCAL;
-       /* copy the string into sun_path and fill it with nul chars
-          untill it reaches 108 bytes */
-       strncpy (sun.sun_path, "something", 108);
-    #else
-       /* AF_UNIX used for compatibility reasons */
-       sockaddr_un sun = { AF_UNIX, "something" };
-    #endif
+    sockaddr_un sun = { AF_UNIX, "" };
 
-NOTE: the current API is subject to change, see the notes in Glibc's docs ("info libc" and search for sockaddr\_un) and Debian bug #187391
+won't work on GNU/Hurd. The Glibc API requires that the second parameter of a `sockaddr_un` struct is array of chars, but NOT pointer to array of chars. Glibc wants a nul-terminated string of chars there, so we have to copy them directly into the `sun_path` address. An example:
+
+    sockaddr_un sa;
+    /* AF_LOCAL is the canonical flag in Glibc.
+       Use AF_UNIX if you want compatibility.  */
+    sa.sun_family = AF_LOCAL;
+    /* Copy the string into sun_path. It must be
+       no longer than 108 characters. */
+    strcpy (sa.sun_path, "/path/to/socket");
+
+If you have pointer to array of characters as file name, you'd better use the following code:
+
+    strncpy (sa.sun_path, filename, sizeof (sa.sun_path));
+    sa.sun_path[sizeof (sa.sun_path) - 1] = '\0';
+
+If you expect file name longer than 108 characters, use the following code:
+
+    /* `offsetof', `alloca' and `AF_LOCAL' may not
+       be available everywhere.  */
+    socklen_t sa_len = offsetof (struct sockaddr_un, sun_path)
+                       + strlen (filename) + 1;
+    struct sockaddr_un *sa = alloca (sa_len);
+    sa->sun_family = AF_LOCAL;
+    strcpy (sa->sun_path, filename);
+
+NOTE: the current API is subject to change, see the notes in Glibc's docs ("info libc" and search for `sockaddr_un`) and [Debian bug #187391](http://bugs.debian.org/187391).
 
 ----
 
