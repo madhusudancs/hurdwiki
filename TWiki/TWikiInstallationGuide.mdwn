@@ -6,11 +6,11 @@ _Clean install of the current public release (01-Sep-2001)_
 
 ## <a name="Overview"> Overview </a>
 
-These installation steps use the Apache web server on Linux as an example. TWiki should run on other web servers and Unix systems as well. (TWiki on Windows is possible, but has not been well-documented. More on that at <http://TWiki.org/cgi-bin/view/Codev/TWikiOnWindows.)>
+These installation steps use the Apache web server on Linux as an example. TWiki runs on other web servers and Unix systems as well. (TWiki on Windows is possible, but has not been well-documented. More on that at TWiki:Codev/TWikiOnWindows.)
 
 * **_NOTE:_** This Installation Guide assumes the following:
 
-* * **User `nobody=`** is used for all files manipulated by the CGI scripts (executed by the Web server), and user =twiki for all other files. Replace user `nobody` with another user if your Web server executes scripts under a different name (default for Debian is `www-data`). Also, you can substitute user `twiki` with your own username.
+* * **User `nobody` ** is used for all files manipulated by the CGI scripts (executed by the Web server), and user `twiki` for all other files. Replace user `nobody` with another user if your Web server executes scripts under a different name (default for Debian is `www-data`). Also, you can substitute user `twiki` with your own username.
 
 * * **You have control** over the Web server configuraton files. In case you don't - you may be installing on an ISP-hosted server - follow the steps but use these directories instead:
 
@@ -25,7 +25,13 @@ These installation steps use the Apache web server on Linux as an example. TWiki
     <td><code>twiki/bin</code></td>
     <td> CGI bin </td>
     <td> cgi-bin enabled dir </td>
-    <td><code>/home/smith/public_html/cgi-bin/twiki</code></td>
+    <td><code>/home/smith/public_html/cgi-bin</code></td>
+  </tr>
+  <tr>
+    <td><code>twiki/lib</code></td>
+    <td> library files </td>
+    <td> same level like <code>twiki/bin</code></td>
+    <td><code>/home/smith/public_html/lib</code></td>
   </tr>
   <tr>
     <td><code>twiki/pub</code></td>
@@ -47,7 +53,7 @@ These installation steps use the Apache web server on Linux as an example. TWiki
   </tr>
 </table>
 
-Read <http://TWiki.org/cgi-bin/view/Codev/SourceForgeHowTo> in case you want to install TWiki on SourceForge.
+Read TWiki:Codev/SourceForgeHowTo in case you want to install TWiki on SourceForge.
 
 ## <a name="Standard_Installation"> Standard Installation </a>
 
@@ -80,33 +86,32 @@ Request and download the TWiki 01-Sep-2001 distribution in Unix ZIP format from 
 * Restart Apache by `/etc/rc.d/rc5.d/S85httpd restart` .
 * Test if the `twiki/bin` directory is cgi-enabled:
   * Enter the URL of that directory into your browser ( `http://your.domain.com/twiki/bin` ). It is not set correctly as cgi-bin in case you get something like `"Index of /twiki/bin"` . It is OK if you get a message like `"Forbidden. You don't have permission to access /twiki/bin/ on this server."`
-  * Execute the `testenv` script from your browser ( `http://your.domain.com/twiki/bin/testenv` ). It shows a table with all CGI environment variables and tests the settings in your <code>**twiki/bin/wikicfg.pm**</code> configuration file.
+  * Execute the `testenv` script from your browser ( `http://your.domain.com/twiki/bin/testenv` ). It shows a table with all CGI environment variables. It also tests the settings in your <code>**twiki/lib/TWiki.cfg**</code> configuration file, which you will set later on.
 
 ### <a name="Step_3_Enable_Perl_File_Permissi"> Step 3: Enable Perl File Permissions </a>
 
 * Make sure Perl 5 and the Perl CGI library are installed on your system. Default location of Perl executable is `/usr/bin/perl`. In case Perl is installed in a different location, the first line of all Perl scripts in the <code>**twiki/bin**</code> directory must be changed (alternatively you can create a symbolic link from <code>**/usr/bin/perl**</code> ).
   * **IMPORTANT:** On most ISP virtual domain accounts, Perl CGI scripts require a <code>**.cgi**</code> extension to run. Some systems need <code>**.pl**</code>, the regular Perl extension. Change all <code>**twiki/bin**</code> scripts appropriately if necssary.
 * To be able to edit the Perl scripts and <code>**.tmpl**</code> files it is necessary to <code>**chown**</code> and <code>**chgrp -R twiki**</code> so all the files have the owner you want.
-* The scripts execute as <code>**nobody**</code>. Set the file permission of all Perl scripts in the <code>**twiki/bin**</code> directory as executable to <code>**-rwxr-xr-x**</code> (755).
-* Set the permission of all files below `twiki/data` so that they are writable by user `nobody`. A simple way is to <code>**chmod**</code> them to <code>**-rw-rw-rw-**</code> (666).
-* Set the permission of the <code>**twiki/data**</code> directory and its subdirectories so that files in there are writable by user <code>**nobody**</code>. A simple way is to chmod them to <code>**drwxrwxrwx**</code> (777).
-* Set the permission of the `twiki/pub` directory and all its subdirectories so that files in there are writable by user `nobody`. A simple way is to chmod them to <code>**drwxrwxrwx**</code> (777).
+* The CGI scripts execute as <code>**nobody**</code>. Set the file permission of all Perl scripts in the <code>**twiki/bin**</code> directory as executable to <code>**-rwxr-xr-x**</code> (755).
+* Set the permission of all files below `twiki/data` so that they are writable by user `nobody`. A simple way is to <code>**chmod**</code> them to <code>**-rw-rw-r--**</code> (664) and to <code>**chown**</code> them to <code>**nobody**</code>.
+* Set the permission of the <code>**twiki/data**</code> directory and its subdirectories so that files in there are writable by user <code>**nobody**</code>. A simple way is to chmod them to <code>**drwxrwxr-x**</code> (775) and to <code>**chown**</code> them to <code>**nobody**</code>.
+* Set the permission of the `twiki/pub` directory and all its subdirectories so that files in there are writable by user `nobody`. A simple way is to <code>**chmod**</code> them to <code>**drwxrwxr-x**</code> (775) and to <code>**chown**</code> them to <code>**nobody**</code>.
 
 ### <a name="Step_4_Set_the_Main_Configuratio"> Step 4: Set the Main Configuration File </a>
 
-* Edit the file <code>**twiki/bin/wikicfg.pm**</code> and set the variables at the beginning of the file to your needs.
+* Edit the file <code>**twiki/lib/TWiki.cfg**</code> and set the variables to your needs.
   * Set the file extension in the `$scriptSuffix` variable to <code>**cgi**</code> or <code>**pl**</code> if required.
-  * Make sure RCS is installed. Set `$rcsDir` in `twiki/bin/wikicfg.pm` to mach the location of your RCS binaries.
-* Note in case the cgi scripts are **_not_** running as user `nobody`: The `*,v` RCS repository files delivered with the installation package are locked by user `nobody` . In case the user is different (e.g. `www-data` ), it is not possible to check in files, this has the effect that the topic version number does not increase when saving a topic. In this case you need to unlock all repository files and lock them as user `www-data` (check the rcs man pages), or simply delete all the repository files. A simple way to switch the locker of the RCS files is to use sed: <br />`for f in *,v; do sed 's/nobody\:/www-data\:/' $f > x; mv x $f; done`
-* **Security issue:** Directories `twiki/data` , `twiki/templates` and all its subdirectories should be set so that they are **not** visible as a URL. (Alternatively, move the directries to a place where they are not visible, and change the variables in `twiki/bin/wikicfg.pm` accordingly)
-* Enable email notification of topic changes, [[TWikiDocumentation]] has more.
-* Add the [TWiki:Main.PoweredByTWikiLogo](http://TWiki.org/cgi-bin/view/Main/PoweredByTWikiLogo) to your %MAINWEB%.WebHome topic.
+  * Make sure RCS is installed. Set `$rcsDir` in `twiki/lib/TWiki.cfg` to mach the location of your RCS binaries.
+* Note in case the CGI scripts are **_not_** running as user `nobody`: The `*,v` RCS repository files delivered with the installation package are locked by user `nobody` . In case the user is different (e.g. `www-data` ), it is not possible to check in files, this has the effect that the topic version number does not increase when saving a topic. In this case you need to unlock all repository files and lock them as user `www-data` (check the rcs man pages), or simply delete all the repository files. A simple way to switch the locker of the RCS files is to use sed: <br />`for f in *,v; do sed 's/nobody\:/www-data\:/' $f > x; mv x $f; done`
+* **Security issue:** Directories `twiki/data` , `twiki/templates` and all its subdirectories should be set so that they are **not** visible as a URL. (Alternatively, move the directries to a place where they are not visible, and change the variables in `twiki/lib/TWiki.cfg` accordingly)
+* Enable email notification of topic changes, [[MonitoringSiteActivity]] has more.
+* Add the TWiki:Main/PoweredByTWikiLogo to your %MAINWEB%.WebHome topic.
 
 ### <a name="Step_5_Finish_Up_from_Your_Brows"> Step 5: Finish Up from Your Browser </a>
 
 * Point your Web browser at <code>**http://your.domain.com/twiki/bin/view**</code> and start TWiki-ing away!
 * Edit the [[TWikiPreferences]] topic in the TWiki:%TWIKIWEB% web to set the WIKIWEBMASTER email address, the WEBCOPYRIGHT message and other preferences.
-* If you use `.htaccess`, edit the file and add the file extension to `edit`, `view`, `preview`, etc.
 * Edit the [[WebNotify]] topic in all webs and set the users you want to notify.
 
 That's it for the standard virgin installation of TWiki. Read on to learn how to customize TWiki.
@@ -136,18 +141,20 @@ Complete a Standard Installation and your new TWiki site should be up and runnin
 * That's it for a basic new web set-up. You can also further customize the web:
   * Create customized templates in the new templates directory (otherwise, templates are inherited from `twiki/templates`).
     * **_NOTE:_** For web-specific templates in a `templates` subdirectory, ex: `twiki/templates/someweb`.
-  * Create [[TWikiDocumentation]] to add form-based page input that's stored separately from the main free-form topic text.
+  * Create [[TWikiForms]] to add form-based page input that's stored separately from the main free-form topic text.
 
 * **_NOTE:_** User home topics are located in the %WIKITOOLNAME%.%MAINWEB% web - don't try to move them or create them in other webs. From any web you can refer to users located in the %WIKITOOLNAME%.%MAINWEB% web with <code>%MAINWEB%.UserName</code> or <code>%MAINWEB%.UserName</code> - using the <code>%MAINWEB%</code> variable is preferable, particularly if you might change the %MAINWEB% web name.
 
 ### <a name="Adding_Variables_amp_Rendering_R"> Adding Variables &amp; Rendering Rules </a>
 
-* You can add new rendering rules or new <code>%VARIABLES%</code>. To insure an easy upgrade of TWiki, it is recommended to do this sort of customization with [[TWikiDocumentation]] and the Plugins API.
+* You can add new <code>%VARIABLES%</code>. Define site-level variables in the [[TWikiPreferences]] topic. See also [[TWikiVariables]].
+* You can add new rendering rules or add new functionality to TWiki. To insure an easy upgrade of TWiki, it is recommended to do this sort of customization with [[TWikiPlugins]] and the Plugins API.
 
 ### <a name="Enabling_Basic_Authentication_ht"> Enabling Basic Authentication (.htaccess) </a>
 
 * If you are on a non-authenticated server - not using SSL - and you would like to authenticate users:
   1. **Rename** file `.htaccess.txt` in the `twiki/bin` directory to `.htaccess` and change it to your needs. For details, consult the HTTP server documentation (for Apache server: [[1]](http://www.apache.org/docs/mod/directives.html), [[2]](http://www.mcs.kent.edu/system/web_help/htaccess/introduction.html)). In particular, the following <font>red</font> part needs to be configured correctly: <br /><code>Redirect <font>/urlpath/to/TWiki/index.html</font> http://<font>your.domain.com/urlpath/to/TWiki/bin/</font>view</code><br /><code>AuthUserFile <font>/filepath/to/TWiki/data/</font>.htpasswd</code><br /><code>ErrorDocument 401 <font>/urlpath/to/TWiki/bin/</font>oops/TWiki/TWikiRegistration?template=oopsauth</code>
+    * **_NOTE:_** In case you renamed the CGI script files to have a file extension you need to reflect that in the `edit`, `view`, `preview`, etc entries in `.htaccess`.
     * **_NOTE:_** The browser should ask for login name and password when you click on the <u>Edit</u> link. In case `.htaccess` does not have the desired effect you need to enable it: Add "AllowOverride All" to the Directory section of `access.conf` for your `twiki/bin` directory.
   2. **Copy** the [[TWikiRegistrationPub]] topic to [[TWikiRegistration]]. Do that by either editing the topics in the%TWIKIWEB% web, or by renaming the `.txt` and `.txt,v` files in the `twiki/data/%TWIKIWEB%` directory.
     * **_NOTE:_** You can customize the registration form if needed, like deleting or adding input tags. The `name=""` parameter of the input tags must start with: `"Twk0..."` (if this is an optional entry), or `"Twk1..."` (if this is a required entry). This will ensure that the fields are processed correctly.
@@ -158,4 +165,4 @@ Complete a Standard Installation and your new TWiki site should be up and runnin
 
 See [[TWikiDocumentation]] for an installed system snapshot and descriptions of all files in the TWiki 01-Sep-2001 distribution.
 
--- [[MikeMannix]] - 07 Sep 2001 <br />
+-- [[MikeMannix]] - 07 Sep 2001 <br /> -- [[Main/PeterThoeny]] - 13 Sep 2001 <br />
