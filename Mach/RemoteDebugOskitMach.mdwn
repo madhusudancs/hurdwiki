@@ -1,35 +1,30 @@
+# <a name="Remote_Debug_GNUmach"> </a> Remote Debug GNUmach
+
 # <a name="Table_of_Contents"> Table of Contents </a>
 
 %TOC%
 
 # <a name="Booting_oskit_mach_with_a_serial"> Booting oskit-mach with a serial console </a>
 
-<dl>
-  <dt> Author</dt>
-  <dd> Igor Khavkine  </dd>
-  <dt> Last Updated</dt>
-  <dd> Mon Jul 30 17:58:55 EDT 2001 </dd>
-</dl>
+**Original Author:** Igor Khavkine  **Last Updated:** Mon Jul 30 17:58:55 EDT 2001
 
 ----
 
 ## <a name="Introduction"> Introduction </a>
 
-This document now has a wider audience. The OSKit branch of the GNU Mach source tree has been merged with the main branch, HEAD. So all new development will go into this tree.
+This document now has a wider audience. The OSKit branch of GNUmach has been merged with the main branch, HEAD. Please note that the instructions here are not tested with the latest stable release, GNUmach 1.3.
 
-So this document should now be called "Booting GNU Mach with a serial console". Please note that the instructions here are not tested with the latest official release, GNU Mach 1.3.
-
-The document entails how to access, build, boot strap and start debugging the OSKit based version of the GNU Mach kernel. The future version 2.x series.
+Here you will find out how to access, build, bootstrap and debug the latest CVS version of the GNUmach kernel (the OSKit based 2.x series of GNUmach).
 
 ## <a name="Why_"> Why? </a>
 
-Because it's covenient. If you have a second computer, but not a second monitor or keyboard, you can connect your second box to your main one using null-modem serial cables. Once that is done, you can configure the GRUB bootloader to use the serial port when starting up and boot [oskit-mach](http://savannah.gnu.org/cgi-bin/viewcvs/hurd/gnumach/?only_with_tag=HEAD) without having to switch monitor cables or type blindly at a second keyboard.
+Because it's covenient. If you have a second computer, but not a second monitor or keyboard, you can connect your second box to your main one using null-modem serial cables. Once that is done, you can configure the GRUB bootloader to use the serial port when starting up and boot [GNUmach](http://savannah.gnu.org/cgi-bin/viewcvs/hurd/gnumach/?only_with_tag=HEAD) (a.k.a [[OskitMach]]) without having to switch monitor cables or type blindly at a second keyboard.
 
-Also, oskit-mach supports the GDB remote debugging protocol over a serial line. This way it is now possible to debug the running kernel relatively unobtrusively, because the debugger will not be running on the same machine.
+Also, [[OskitMach]] supports the GDB remote debugging protocol over a serial line. This way it is now possible to debug the running kernel relatively unobtrusively, because the debugger will not be running on the same machine.
 
 ## <a name="How_"> How? </a>
 
-First you need some equipment: two computers, each one should have at least one (two is preferable) free serial ports, as many null-modem serial cables.
+First you need some equipment: two computers, each one should have at least one (two is preferable) free serial port(s) and one (or two) null-modem serial cable(s).
 
 While developing the kernel it might also be a good idea to use grub to get the Mach kernel via tftp from the same server you do the remote debugging and building on. This way you don't need to reboot the target to copy or build a new kernel on its hard drive. See the [[BootGnuMachOverTFTP]] for more information on this.
 
@@ -48,7 +43,7 @@ Last you need to follow the instructions given below.
           cat > /dev/ttyS1 # in one terminal window
           cat /dev/ttyS1   # in a second terminal window
 4. Now you have to make sure your computer has an at least partially setup Hurd partition. You can find instructions how to do that here [4,5]. Copy the oskit-mach kernel binary compressed with gzip to /boot/oskit-mach.gz and use the following command line[1] to boot it from GRUB:
-    /boot/gnumach.test.gz -h CONS_COM=1 -d GDB_COM=2 BAUD=9600 -- root=hd0s2
+      kernel /boot/oskit-mach.gz -h CONS_COM=1 -d GDB_COM=2 BAUD=9600 root=device:hd0s2 --
     -h (use serial console) CONS\_COM=1 (COM1) CONS\_COM=2 (COM2) CONS\_COM=3 (COM3) CONS\_COM=4 (COM4)
     -d (enable serial port debugging, optional) GDB\_COM=2 (use a different port other then CONS\_COM, default is to use the same as CONS\_COM) BAUD=9600 (use this baud rate, optional, default is 9600)
     -- (delimits the arguments passed to the oskit from those to the kernel)
@@ -57,9 +52,11 @@ Last you need to follow the instructions given below.
           $ script # record the debugging session
           $ gdb # assume you're in the oskit-mach build dir.
           (gdb) file kernel
-          (gdb) target remote /dev/ttyS0
+          (gdb) set remotebaud 9600
+          (gdb) target remote /dev/ttyS1
              [...gdb attached, blah, blah, blah...]
           (gdb) break panic
+          (gdb) continue
           (gdb) continue
              [...]
           (gdb) quit
@@ -148,9 +145,9 @@ When starting an oskit-mach debug session with GDB set a break poit at \`gdb\_br
 
 ----
 
-This HowTo is (C) Copyright 2001 and written by Igor Khavkine.
+This HowTo is (C) Copyright 2001 Igor Khavkine.
 
-Minor additions and grammatical fixups by [[JoachimNilsson]], see my page for info on how material I produce are covered.
+Minor additions and grammatical fixups by [[JoachimNilsson]].
 
 -- [[Main/JoachimNilsson]] - 14 May 2002
 
