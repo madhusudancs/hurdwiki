@@ -1,0 +1,124 @@
+It is possible to add a category table to a TWiki web. This permits storing and searching for more structured information. Editing a topic shows a HTML form with the usual text area and a table with selectors, checkboxes, radio buttons and text fields. The category table is shown at the end of a topic. The format of the category table can be defined per TWiki web.
+
+If you want to use a Category Table in a TWiki web you need to have the following three files in the twiki/templates/\{Yourweb\} directory:
+
+* twikicatitems.tmpl : Defines the items in the table
+* twikicatedit.tmpl : Defines the look of the table when editing a topic
+* twikicatview.tmpl : Defines the look of the table when viewing a topic
+
+**\_Format of category definition template twikicatitems.tmpl\_**
+
+Valid lines:
+
+    select|{name}|{selSize}|{val1}|{val2}|{val3}...
+    checkbox|{name}|{checkFlag}|{itemsPerLine}|{val1}|{val2}|{val3}...
+    radio|{name}|{itemsPerLine}|{val1}|{val2}|{val3}...
+    text|{name}|{charSize}
+    # comments start with a # character
+
+Explanation:
+
+      {name}             name of tag
+      {selSize}          vertical size of SELECT tag
+      {val1}|{val2}...   values
+      {checkFlag}        set to true for [Set] [Clear] buttons, else set to false
+      {itemsPerLine}     input items per line before wrap around, 0 if no wrap around
+      {charSize}         number of characters for text fields
+
+**\_Remark:\_** Line ` radio|UseCategory|0|Yes|No ` has a special meaning. If present, it is possible to choose in "edit" if the category table is included in the topic or not
+
+Example file:
+
+    radio|UseCategory|0|Yes|No, delete this category table
+    select|TopicClassification|1|Select one...|NoDisclosure|PublicSupported|PublicFAQ
+    checkbox|OperatingSystem|true|5|OsSolaris|OsSunOS|OsHPUX|OsWin
+    text|OsVersion|16
+
+**\_Format of twikicatedit.tmpl and twikicatview.tmpl\_**
+
+Use the example below and customize if needed. twikicatedit.tmpl and twikicatview.tmpl can be identical, but they do not have to be.
+
+**\_Attention:\_** ` <!--TWikiCat--> ` is needed at the beginning and end as markers. Do not delete them!
+
+Example:
+
+    <!--TWikiCat--> <h4> TWikiCategory </h4>
+    <table border="2" cellspacing="1" cellpadding="1">
+    %REPEAT%<tr>
+    <td valign="top" align="right"> %CATNAME%:  <br>%CATMODIFIER%</td><td>  %CATVALUE% </td>
+    </tr>%REPEAT%
+    </table><!--TWikiCat-->
+
+Above template files will result in the following category table when **\_viewing\_** a topic:
+
+#### <a name="TWikiCategory_a_"> </a> [TWikiCategory]()
+
+<table border="2" cellpadding="1" cellspacing="1">
+  <tr>
+    <td align="right" valign="top"><a href="">TopicClassification</a>: <br />
+    </td>
+    <td><a href="">PublicFAQ</a></td>
+  </tr>
+  <tr>
+    <td align="right" valign="top"><a href="">OperatingSystem</a>: <br />
+    </td>
+    <td><a href="">OsSolaris</a></td>
+  </tr>
+  <tr>
+    <td align="right" valign="top"><a href="">OsVersion</a>: <br />
+    </td>
+    <td>2.5  </td>
+  </tr>
+</table>
+
+Above template files will result in the following table when **\_editing\_** a topic:
+
+<form><nop><h4><a name="TWikiCategory_a_"> </a> <a href="">TWikiCategory</a></h4>
+    <table border="2" cellpadding="1" cellspacing="1">
+      <tr>
+        <td align="right" valign="top"><a href="">UseCategory</a> : <br />
+        </td>
+        <td>
+          <table cellpadding="0" cellspacing="0">
+            <tr>
+              <td><input checked name="UseCategory" type="radio" value="Yes" />Yes   </td>
+              <td><input name="UseCategory" type="radio" value="Nodeletethiscategorytable" />No, delete this category table   </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td align="right" valign="top"><a href="">TopicClassification</a> : <br />
+        </td>
+        <td><select name="TopicClassification" size="1"><option value="Selectone">Select one... </option>
+            <option value="NoDisclosure">NoDisclosure </option>
+            <option value="PublicSupported">PublicSupported </option>
+            <option selected value="PublicFAQ">PublicFAQ </option></select></td>
+      </tr>
+      <tr>
+        <td align="right" valign="top"><a href="">OperatingSystem</a> : <br /><input onclick="" type="button" value=" Set " />  <input onclick="" type="button" value="Clear" /> </td>
+        <td>
+          <table cellpadding="0" cellspacing="0">
+            <tr>
+              <td><input checked name="OperatingSystemOsSolaris" type="checkbox" />OsSolaris   </td>
+              <td><input name="OperatingSystemOsSunOS" type="checkbox" />OsSunOS   </td>
+              <td><input name="OperatingSystemOsHPUX" type="checkbox" />OsHPUX   </td>
+              <td><input name="OperatingSystemOsWin" type="checkbox" />OsWin   </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td align="right" valign="top"><a href="">OsVersion</a> : <br />
+        </td>
+        <td><input name="OsVersion" size="16" type="text" value="2.5" /></td>
+      </tr>
+    </table></nop></form>
+
+**_Note:_** It is possible to force the values of a category table when creating a new topic. This is useful to create new topics using a form for the topic name. The default values of the category table can be specified as hidden fields if needed, i.e. `<input type="hidden" name="someCategory" value="someValue">`
+
+Example (edit this page to see the source) :
+
+* <form action="%SCRIPTURLPATH%/edit%SCRIPTSUFFIX%/Know/"> New <span style="background:"><font color="">Public FAQ</font></span><a href="http://LOCATIONKnow/PublicFAQ">?</a> topic: <input name="topic" size="32" type="text" /> <input name="TopicClassification" type="hidden" value="PublicFAQ" /> <input name="OperatingSystem" type="hidden" value="OsSolaris,OsSunOS" /> <input name="OsVersion" type="hidden" value="Just testing..." /> <input name="onlywikiname" type="hidden" value="on" /> <input type="submit" value="Create Topic" /></form>
+
+-- [[Main/PeterThoeny]] - 21 Apr 2000 <br />
