@@ -62,6 +62,8 @@ You can get unicode tables from <http://www.unicode.org>
 
 ## <a name="How_do_I_install_the_new_Hurd_co"> How do I install the new Hurd console? </a>
 
+### <a name="Setting_up_for_older_hurd_packag"> Setting up for older hurd packages </a>
+
 You either need the latest .deb of the Hurd, version 20020918-1 or later, or you need current CVS sources and compile them yourself.
 
 Then, the console server is in `/hurd/console`, the client in `/bin/console`. The installation is painless.
@@ -86,7 +88,11 @@ Then you should add the terminals to ttys, so you get a login session on them at
     tty5    "/libexec/getty 38400"   hurd   on   secure trusted console
     tty6    "/libexec/getty 38400"   hurd   on   secure trusted console
 
-This is all. If you now reboot, you will get six virtual consoles with a login prompt on each. But of course, the console client is not started automatically yet, so you don't see them. Login at the normal system console, and try to attach to the console server, either with the ncurses driver or with the vga/pc\_kbd driver:
+This is all. If you now reboot, you will get six virtual consoles with a login prompt on each. But of course, the console client is not started automatically yet, so you don't see them.
+
+### <a name="Activating_the_console"> Activating the console </a>
+
+Login at the normal system console, and try to attach to the console server, either with the `ncursesw` driver or with the vga/pc\_kbd driver:
 
     # console -d ncursesw /dev/vcs
 
@@ -94,12 +100,23 @@ or
 
     # console -d vga -d pc_kbd -d generic_speaker /dev/vcs
 
-That should work. The ncursesw driver supports console switching via _C-w C-1_ (or 2, 3, ...) and you can exit it with _C-w x_. However, the VGA client is more suitable on the local console.
+That should work. The `ncursesw` driver supports console switching via _C-w C-1_ (or 2, 3, ...) and you can exit it with _C-w x_. However, the VGA client is more suitable on the local console.
 
 If you want repeater support (needed for X):
 
     # console -d vga -d pc_kbd --repeat=kbd -d generic_speaker \
-      -d pc_mouse --repeat=mouse -c /dev/cons /dev/vcs
+      -d pc_mouse --repeat=mouse --protocol=ps/2 -c /dev/cons /dev/vcs
+
+Available mouse protocols are:
+
+* `mousesystem`
+* `microsoft`
+* `ps/2`
+* `nomouse`
+* `logitech`
+* `mouse7`
+
+### <a name="Setting_up_encoding"> Setting up encoding </a>
 
 The virtual consoles you are now running on are providing an ISO8859-1 environment (also known as latin1), which is good enough for the USA and some countries in Europe. If you require a different encoding for your locale (like, let's say, ISO8859-2), you can specify this as an argument to the console server. I am sorry to say that fsysopts doesn't do the trick yet, so you have to set the option with `settrans -fg`, which will _terminate all your login sessions and restart the console server_.
 
@@ -141,11 +158,6 @@ or
     # console -d vga --font 9x15.bdf -d pc_kbd -d generic_speaker /dev/vcs
 
 If you are satisfied, copy your default font to `/lib/hurd/fonts/vga-system.bdf`, where it will be picked up automatically in favor to the graphic card's font.
-
-If you want to use repeater (needed for X):
-
-    # console -d vga --font 9x15.bdf -d pc_kbd --repeat=kbd  -d generic_speaker \
-      -d pc_mouse --repeat=mouse -c /dev/cons /dev/vcs
 
 ### <a name="More_about_fonts"> More about fonts </a>
 
