@@ -1,0 +1,37 @@
+## <a name="Advanced_Grub"> Advanced Grub </a>
+
+[Grub](http://www.gnu.org/software/grub/) is a capable boot loader. This document is intended to capture some of its most interesting features and try to explain them a bit better than the texinfo documentation.
+
+### <a name="TFTP_Boot"> </a> TFTP Boot
+
+Using trivial ftp to load a kernel is one of the best features of Grub. Here is how it is done.
+
+1. cd /usr/src/debian
+2. apt-get source grub
+3. cd grub-
+4. Add --enable-tulip or similar for your NIC to the configure line in the debian/rules file.
+5. dpg-buildpackage
+6. cd ..
+7. dpkg -i grub\*.dpkg
+8. Edit your /boot/grub/menu.lst (see below)
+9. If your boot disk is /dev/hda ==&gt; grub-install (hd0)
+
+The menu.lst can look something like this:
+
+    ifconfig --address=192.168.1.2 --server=192.168.1.1
+    root (nd)
+    kernel /gnu/boot/oskit-mach.gz root=device:hd0s2
+    root (hd0,1)
+    module /hurd/ext2fs.static                              \
+           --multiboot-command-line=${kernel-command-line}  \
+           --host-priv-port=${host-port}                    \
+           --device-master-port=${device-port}              \
+           --exec-server-task=${exec-task}                  \
+           -T typed ${root} $(task-create) $(task-resume)
+    module /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
+
+**Note: Make sure there are NO spaces after the trailing backslases (\\)!!**
+
+For more information on GNUmach modules lines and installation setup, see [[Hurd/InstallNotes]]
+
+-- [[Main/JoachimNilsson]] - 13 Sep 2003
