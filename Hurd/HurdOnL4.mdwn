@@ -101,7 +101,7 @@ Hopefully everything worked and there were no problems. As usual, if the build f
 
 #### <a name="Getting_the_sources"> Getting the sources </a>
 
- You need to pull the L4 Hurd sources from the CVS tree on Savannah. The main page is [GNU/Hurd on L4 - Summary](http://savannah.nongnu.org/projects/l4hurd/) and the CVS access page is [GNU/Hurd on L4 - CVS](http://savannah.nongnu.org/cvs/?group=l4hurd). In a nutshell, the following commands should retrieve the sources for you:
+ You need to pull the L4 Hurd sources from the CVS tree on Savannah. The CVS access page is [The GNU/Hurd - CVS (module hurd-l4)](http://savannah.gnu.org/cvs/?group=hurd). In a nutshell, the following commands should retrieve the sources for you:
 
     $ export CVS_RSH="ssh"
     $ cvs -z3 -d:ext:anoncvs@savannah.nongnu.org:/cvsroot/hurd co hurd-l4
@@ -114,11 +114,14 @@ Take a look at the README, compiling should be quite simple on any state of the 
     $ ./configure --enable-maintainer-mode --prefix=/l4hurd
     $ make
     $ make install
+    $ strip physmem/physmem
 
     $ mkdir /l4hurd/boot
     $ cp laden/laden /l4hurd/boot
     $ cp wortel/wortel /l4hurd/boot
     $ cp physmem/physmem /l4hurd/boot
+
+Currently (2004/08/09), physmem needs to be stripped to to avoid a memory conflict with wortel; this requirement may be fixed in the future.
 
 In my case it was slightly more complicated as Debian uses a wrapper system to enable the use of multiple versions of the GNU Autotools. In this case, the trick is to utilize some environment variables on the command line as follows:
 
@@ -136,7 +139,13 @@ The binaries are now installed into `/l4hurd`. All that remains is to add an ent
     module /boot/ia32-kernel
     module /libexec/l4/sigma0
     module /boot/wortel -D
+    module /boot/physmem -D
     module /boot/physmem
+    module /boot/physmem
+    module /boot/physmem
+    module /boot/physmem
+
+It might strike you a little odd that there are five physmem modules. This is done because wortel currently (2004/08/09) expects exactly five modules and the other modules (like the task server, auth server, etc.) have not been implemented yet. Therefore the physmem module is used as a dummy module.
 
 ## <a name="Booting"> Booting </a>
 
