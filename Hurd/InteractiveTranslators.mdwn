@@ -1,0 +1,31 @@
+The following text is from mail by Hurd architect Thomas Bushnell:
+
+> Thread moved over to bug-hurd since it's about design and not Debian GNU/Hurd per se. Alfred Szmidt had pointed out that a dpkg installation translator (one where you copy a .deb into a directory to install it into the system) cannot be easily written, because Debian package installation scripts are sometimes interactive.
+>
+> I said that this was a deficiency in the design of the Hurd, and that it would be good to fix it (ultimately) by creating user interaction context widgets which can be passed to servers so that they can safely and securely interact with the user when necessary.
+>
+> Alfred M. Szmidt writes:
+>
+> > I think you mean that it is a shortcoming in the design of things that are not or cannot be interactive, filesystems being one such example. I can see it infront of me: stat() poping up a dialog asking me to do something each time it gets called...
+>
+> No, it's a shortcoming in the design of the Hurd, because many times it **can** be interactive. Of course we don't want stat prompting you ever time it's called, but that's not an excuse for preventing stat from ever prompting you at all. We use all kinds of programs that can be interactive, and needless prompts are bugs, easily fixed.
+>
+> Please, don't lecture me about the Hurd being perfect; it's not. And this is a shortcoming that can someday be fixed, so we shouldn't pretend it's not a problem. It is. A friend at the AI lab once gave the following dream as an example of a well-functioning system:
+>
+> You walk up to the workstation and start a complex memory intensive ray-tracing program. It runs out of memory and swap space on the workstation. A dialog pops up informing you of the situation and giving several options: suspend the job until later, kill it, and so forth. (Notice that Unix and the Hurd both simply kill the process or the system here, because the discovery that swap is gone happens so low down that all context has been lost.)
+>
+> You put a disk in the drive. After putting the disk in, without you doing anything in the dialog, a new option comes up, "I notice you just put a disk in; do you want to use this for additional swap?" You say yes. The process now continues, with part of the swap being on the disk. (Notice that Unix and the Hurd don't make connections like this, having one driver know that something **else** in the system might be waiting for this resource and offering it for use.)
+>
+> In the middle of the task, you hit the button on the drive and out pops the disk. A notifier pops up on the screen, saying that the necessary swap for your process has been removed from the system, and so the job has been suspended until later, and giving you the option of killing it. You say "OK" (that is, you do not say to kill it), and then you log out. (Note that Unix and the Hurd cannot carry on at all in such a case; failure to satisfy a page-in fault results in utter disaster, not clean behavior. Also, neither control carefully which data is paged to which devices, because all interaction context is gone when pageout decisions are being made, so if you have started paging on this disk, you have probably started paging all kinds of essential system services on it too.)
+>
+> A week later, you walk up to a different workstation in the cluster, and pop in your disk. The system says, "I notice you have a suspended job that was using this disk for swap space" and allows you to resume it where you left off. (Notice that this requires close interaction between the workstations in the cluster, combined with more driver-level cleverness.)
+>
+> Now that's a well-functioning system. It requires careful bookkeeping of context, knowledge about how to usefully interact with the user from deep in the bowels of the system, and so forth. The Hurd has the capacity for this kind of thing, because user servers can do arbitrary things, unlike kernel routines in Unix. But we must figure out how to give them all the necessary information about their context.
+>
+> When I designed the filesystem protocols and the structure of the system, I did not consider this kind of flexibility. I had only the simplest kinds of filesystem translators in mind, ones which were just like Unix filesystems but supporting formats like tar and ar in addition to the typical mass-storage types. It was only a little later that I realized union and shadow translators would be a nice thing (and BSD picked up the idea after I explained it at a Boulder BSD conference). Keeping track of who is using which swap space? Now **that** would be clever, and would be very very nice to have.
+>
+> The reason that filesystems do not have user context is because I was not sufficiently far-sighted at the time to realize the full flexibility of the translator concept I had created. Now that we know more about that flexibility, it would be nice to start figuring out how to improve it.
+>
+> Thomas
+
+-- [[Main/OgnyanKulev]] - 21 Mar 2005
