@@ -6,9 +6,9 @@
 
 This is a recompilation of common porting problems and their solutions. Information is gathered from the following sources:
 
-[Debian Hurd port guidelines](http://www.debian.org/ports/hurd/hurd-devel-debian/)
+[Debian GNU/Hurd port guidelines](http://www.debian.org/ports/hurd/hurd-devel-debian/)
 
-[James Morrison's Hurd pages](http://hurd.dyndns.org/)
+[James Morrison's GNU/Hurd pages](http://hurd.dyndns.org/)
 
 as well as other misc. sources.
 
@@ -16,7 +16,7 @@ First of all, see [BtsFiling](http://www.vmlinux.org/twikihttp://LOCATIONHurd/Bt
 
 ## <a name="Missing_pthreads"> Missing pthreads </a>
 
-You can try out Neal Walfields implementation of libpthreads. It will server as our pthreads library until "the one pthreads that will rule them all" in [[GLibC]] has nativ support in the Hurd. Quote is from the mailing lists by Roland [[McGrath]].
+You can try out Neal Walfields implementation of libpthreads. It will server as our pthreads library until "the one pthreads that will rule them all" in [[GLibC]] has native support on the Hurd. Quote is from the mailing lists by Roland [[McGrath]].
 
 Neal's lastest tar balls of libpthreads is available at:
 
@@ -36,15 +36,15 @@ Every unconditionalized use of PATH\_MAX is a POSIX incompatibility. If there is
 
 ## <a name="MAX_PATH"> </a> MAX\_PATH
 
-see PATH\_MAX
-
-## <a name="MAXHOSTNAMELEN"> </a> MAXHOSTNAMELEN
-
-see PATH\_MAX
+same as PATH\_MAX
 
 ## <a name="MAXPATHLEN"> </a> MAXPATHLEN
 
-see PATH\_MAX
+same as PATH\_MAX
+
+## <a name="MAXHOSTNAMELEN"> </a> MAXHOSTNAMELEN
+
+same as PATH\_MAX. Neal's [xgethostname function](http://ftp.walfield.org/pub/people/neal/xgethostname/) can help.
 
 ## <a name="NOFILE"> </a> NOFILE
 
@@ -56,7 +56,7 @@ If you need to include specific code for the Hurd using #if...#endif, then you c
 
 ## <a name="sys_errlist_vs_strerror_"> sys\_errlist[] vs. strerror() </a>
 
-If a program has only support for sys\_errlist[] you will have to do some work to make it compile on the Hurd, which has dropped support for it and does only provide strerror(). Steinar Hamre writes about strerror():
+If a program has only support for sys\_errlist[] you will have to do some work to make it compile on GNU, which has dropped support for it and does only provide strerror(). Steinar Hamre writes about strerror():
 
 strerror() should be used because:
 
@@ -95,12 +95,24 @@ You can for example look in the latest fileutils (the above is a simplified vers
 
 Of course, if you don't care about broken systems (like MS-DOG) not supporting strerror() you can just replace sys\_errlist[] directly (upstream might not accept your patch, but debian should have no problem)
 
-\* Filenames ending in a slash \`/'
+## <a name="Filenames_ending_in_a_slash_"> Filenames ending in a slash \`/' </a>
 
-Those are evil if they don't exist and you want to name a directory this way. For example, mkdir foobar/ will not work on the Hurd. This is POSIX compatible. POSIX says that the path of a directory may have slashes appended to it. But the directory does not exist yet, so the path does not refer to a directory, and hence trailing slashes are not guaranteed to work. Just drop the slashes, and you're fine.
+Those are evil if they don't exist and you want to name a directory this way. For example, mkdir foobar/ will not work on GNU. This is POSIX compatible. POSIX says that the path of a directory may have slashes appended to it. But the directory does not exist yet, so the path does not refer to a directory, and hence trailing slashes are not guaranteed to work. Just drop the slashes, and you're fine.
+
+## <a name="Missing_termio_h"> Missing termio.h </a>
+
+Change it to use termios.h (check for it properly with autoconf HAVE\_TERMIOS\_H or the **_GLIBC_** macro)
+
+## <a name="AC_HEADER_TERMIO"> AC\_HEADER\_TERMIO </a>
+
+The autoconf check for AC\_HEADER\_TERMIO tryes to check tfor termios, but it's only really checking for termio in termios.h. It is better to use AC\_CHECK\_HEADERS(termio.h termios.h)
 
 -- [[Main/RobertMillan]] - 22 Jul 2002
 
 Formatting and minor grammatical fixes.
 
 -- [[Main/JoachimNilsson]] - 09 Sep 2002
+
+Added more examples and misc semantical fixes.
+
+-- [[Main/RobertMillan]] - 05 Oct 2002
