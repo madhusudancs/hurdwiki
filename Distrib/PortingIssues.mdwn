@@ -72,6 +72,7 @@ Fixed code:
     #else
     char *localhost;
     #endif
+
     ...
     #ifdef MAXHOSTNAMELEN
     gethostname(localhost, sizeof(localhost));
@@ -158,6 +159,24 @@ and pass its address to `ioctl`:
       ioctl (fd, TIOCFLUSH, &out);
 
 See [a simple fix for TIOCFLUSH in telnet](http://mail.gnu.org/archive/html/bug-inetutils/2001-08/msg00015.html).
+
+## <a name="Uncompliant_use_of_sockaddr_un"> Uncompliant use of sockaddr\_un </a>
+
+The following declaration: sockaddr\_un sun = \{ AF\_UNIX, "" \}; won't work on GNU/Hurd. The Glibc API requires that the second parameter of a sockaddr\_un struct is a char (or a string of chars), but NOT a pointer to a string of chars. Glibc wants a non-nul-terminated 108 string of chars there, so we have to copy them directly into the sun\_path address. An example:
+
+    #if defined(__GLIBC__)
+       sockaddr_un sun;
+       /* AF_LOCAL is the canonical flag in Glibc */
+       sun.sun_family = AF_LOCAL;
+       /* copy the string into sun_path and fill it with nul chars
+          untill it reaches 108 bytes */
+       strncpy (sun.sun_path, "something", 108);
+    #else
+       /* AF_UNIX used for compatibility reasons */
+       sockaddr_un sun = { AF_UNIX, "something" };
+    #endif
+
+NOTE: the current API is subject to change, see the notes in Glibc's docs ("info libc" and search for sockaddr\_un) and Debian bug #187391
 
 ----
 
