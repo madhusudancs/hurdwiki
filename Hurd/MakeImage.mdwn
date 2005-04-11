@@ -2,10 +2,11 @@
 
 This is just a reminder to myself currently.
 
-    dd if=/dev/zero of=gnu.img count=224000
-    parted -s gnu.img mklabel msdos
-    parted -s gnu.img mkpartfs p ext2 0.0 109.375
-    parted -s gnu.img set 1 boot on
+    /bin/dd if=/dev/zero of=gnu.img count=224000
+    /sbin/sfdisk -C 58 -H 16 -S 63 -D gnu.img<<EOT
+    ,,83,*,0,1,1
+
+    EOT
     losetup -o 32256 /dev/loop0 gnu.img
     mke2fs -o hurd -L GNU -b 4096 /dev/loop0
 
@@ -31,17 +32,24 @@ I use this for testing OSKit...
     root (cd)
     kernel /boot/oskit-mach.gz root=device:hd0s1 --
     root (hd0,0)
-    module /hurd/ext2fs.static --multiboot-command-line=${kernel-command-line} --host-priv-port=${host-port} --device-master-port=${device-port} --exec-server-task=${exec-task} -T typed ${root} $(task-create) $(task-resume)
+    module /hurd/ext2fs.static --multiboot-command-line=${kernel-command-line} \
+           --host-priv-port=${host-port} --device-master-port=${device-port}   \
+           --exec-server-task=${exec-task} -T typed ${root} $(task-create)     \
+           $(task-resume)
     module /lib/ld-2.3.2.so /hurd/exec $(exec-task=task-create)
 
     title GNU/Hurd (GNUmach 1.3)
     root (hd0,0)
     kernel /boot/gnumach.gz root=device:hd0s1
-    module /hurd/ext2fs.static --multiboot-command-line=${kernel-command-line} --host-priv-port=${host-port} --device-master-port=${device-port} --exec-server-task=${exec-task} -T typed ${root} $(task-create) $(task-resume)
+    module /hurd/ext2fs.static --multiboot-command-line=${kernel-command-line} \
+           --host-priv-port=${host-port} --device-master-port=${device-port}   \
+           --exec-server-task=${exec-task} -T typed ${root} $(task-create)     \
+           $(task-resume)
     module /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
 
     EOF
-    mkisofs -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 -boot-info-table -o grub.iso iso
+    mkisofs -R -b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 \
+            -boot-info-table -o grub.iso iso
 
 ## <a name="Booting_Qemu"> Booting Qemu </a>
 
