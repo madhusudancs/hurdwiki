@@ -29,7 +29,7 @@ The Hurd supports several extensions to the ext2fs file system format. Foremost 
 
 To create a file system, we use `mke2fs` and pass it `-o hurd` to designate the Hurd as the owner of the new file system. For instance:
 
-     # mke2fs -o hurd /dev/DEVICE
+    mke2fs -o hurd /dev/DEVICE
 
 **_Note:_** You may wish to add a `-b 4096` option to `mke2fs` (the default is chosen depending on the size of the partition, and the support for block size 1024 is buggy). The command to check the block size is `tune2fs -l /dev/hda9` under GNU/Linux.
 
@@ -41,7 +41,7 @@ A word about GRUB. Unlike traditional boot loaders on the x86, such as LILO, GRU
 
 To find GRUB, visit <ftp://alpha.gnu.org/gnu/grub>. Here, there is a source tarball and a floppy image. If you choose to download the tarball, it is a normal configure, make and make install. Included is a wonderfully complete manual on how GRUB works. Read it. If, on the other hand, you choose to download the floppy image, it is sufficient to dump it to a floppy disk to get a working GRUB:
 
-     # dd if=grub-boot-VERSION.image of=/dev/fd0
+    dd if=grub-boot-VERSION.image of=/dev/fd0
 
 You can always install GRUB onto your hard drive at a later date.
 
@@ -57,8 +57,8 @@ Download the base system `gnu.tar.gz` from <ftp://alpha.gnu.org/gnu/hurd/contrib
 
 The tarball is setup to extract everything into the current directory. After mounting the partition and changing to the mount point, we just need to extract the archive. In the following example, we assume that the root partition is mounted on `/gnu`.
 
-    # cd /gnu
-    # tar --same-owner -xvzpf ~/gnu.tar.gz
+    cd /gnu
+    tar --same-owner -xvzpf ~/gnu.tar.gz
 
 **_NOTE:_** This should NOT be confused with the `cross-install` script method. It is only used by maintainers when creating a new tarball.
 
@@ -70,13 +70,13 @@ First, the root file system needs to be set. GRUB uses a partition nomenclature 
 
 To determine on which file system a particular file resides, one method is to use the find command. When issued this command, GRUB searches on each file system for the specified file and prints where is was found. Here we search for the kernel, `/boot/gnumach.gz`.
 
-      grub> find /boot/gnumach.gz
-       (hd0,0)
+    grub> find /boot/gnumach.gz
+     (hd0,0)
 
 As we can see, GRUB is indicating that `/boot/gnumach.gz` is on `(hd0,0)`. Thus, we set the root respectively:
 
-      grub> root (hd0,0)
-       Filesystem type is ext2fs, partition type 0x83
+    grub> root (hd0,0)
+     Filesystem type is ext2fs, partition type 0x83
 
 Next, GNU Mach needs to be loaded. In addition to loading the binary, at least one option, the root partition, must be specified. This will be used by the Hurd itself. As such, it must be in terms that the Hurd can understand.
 
@@ -86,29 +86,29 @@ Since the Hurd has not yet been configured, it must be run in single user mode. 
 
 Thus, continuing with the above example and assuming that the first drive in the master on the secondary controller, we would have:
 
-      grub> kernel /boot/gnumach.gz root=device:hd2s1 -s
-       [Multiboot-elf, ...]
+    grub> kernel /boot/gnumach.gz root=device:hd2s1 -s
+     [Multiboot-elf, ...]
 
 NOTE: If after running this command you see GRUB Error 28, according to the [GRUB Troubleshooting](http://www.gnu.org/software/grub/manual/grub.html#Troubleshooting) documentation, you may need to tell grub that you have more memory by using the uppermem command. For example, if you have 256MB of RAM and running **displaymem** within GRUB shows that you have less memory than that, you can type **uppermem 262144** to tell GRUB about the additional memory.
 
 Next, the root file system server and the exec server must be loaded. This is done using GRUB's boot module capability. The parameters are the semantics by which the kernel passes some important values to the servers.
 
-      grub> module /hurd/ext2fs.static \
-                   --multiboot-command-line=${kernel-command-line} \
-                   --host-priv-port=${host-port} \
-                   --device-master-port=${device-port} \
-                   --exec-server-task=${exec-task} -T typed ${root} \
+    grub> module /hurd/ext2fs.static \
+                 --multiboot-command-line=${kernel-command-line} \
+                 --host-priv-port=${host-port} \
+                 --device-master-port=${device-port} \
+                 --exec-server-task=${exec-task} -T typed ${root} \
                    $(task-create) $(task-resume)
 
          [Multiboot-module  0x1c4000, 0x2cfe6a bytes]
-      grub> module /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
+    grub> module /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
          [Multiboot-module  0x494000, 0x27afe bytes]
 
 **_Important:_** each module string should be asingle separate line _or_ line wrapped with a backslash at the end of each line. Remember to make sure there are **_no trailing spaces!_** Adding this to GRUB's `menu.lst` file as soon as possible is advised.
 
 Finally, GNU can be booted:
 
-     grub> boot
+    grub> boot
 
 Sit back and watch the messages. This is actually more important than one might think as there is a bug in GNU Mach whereby hitting a key during the boot process causes the kernel to panic.
 
@@ -123,15 +123,15 @@ There are some cavaets to the boot process:
 * **IMPORTANT3!** If you have created the filesystem with a later version of e2fsprogs than the one installed in the tarball, it **might** happen that fsck fails and you can't boot multiuser. The workaround is to copy `/bin/true` into `/sbin/e2fsck` and `/sbin/fsck.ext2`, then boot multiuser and install the latest e2fsprogs.
 
     title GNU (kernel GNUmach 1.3)
-      root (hdX,Y)
-      kernel /boot/gnumach.gz root=device:hdXs(Y+1)
-      module /hurd/ext2fs.static --readonly                \
+    root (hdX,Y)
+    kernel /boot/gnumach.gz root=device:hdXs(Y+1)
+    module /hurd/ext2fs.static --readonly                  \
            --multiboot-command-line=${kernel-command-line} \
            --host-priv-port=${host-port}                   \
            --device-master-port=${device-port}             \
            --exec-server-task=${exec-task}                 \
            -T typed ${root} $(task-create) $(task-resume)
-      module /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
+    module /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
 
 Where `hdX,Y` is the appropriate hard disk and partition number, in GRUB format. `hdXs(Y+1)` is the GNUmach format - because Mach partitions start at 1, unlike GRUB partitions that start on 0 (zero).
 
@@ -143,7 +143,7 @@ It is important that each module string is only a single separate line, or by es
 
 Once a prompt comes up, and any time that the the Hurd is in single user mode, it is necessary to set the terminal type:
 
-     # export TERM=mach
+    export TERM=mach
 
 (Repeat this each time you boot in single user mode)
 
@@ -151,7 +151,7 @@ Be warned that CONTROL-C and family will not work in single user mode.
 
 We can now run the native-install script. This will configure the packages and set up several important translators:
 
-     # ./native-install
+    ./native-install
 
 Right before the script terminates, it will indicate that it needs to be run a second time. Follow its instructions and reboot using the reboot command. Again, go into single user mode and run `./native-install`.
 
@@ -159,10 +159,10 @@ Next, edit `/etc/fstab` to add the home partition and swap space. By default, `n
 
 Here is an example `/etc/fstab` file:
 
-     # <file system>  <mount point>    <type>   <options>  <dump> <pass>
-     /dev/hd2s1        /               ext2       rw         0      1
-     /dev/hd2s2        /home           ext2       rw         0      2
-     /dev/hd2s3        none            swap       sw         0      0
+    # <file system>  <mount point>    <type>   <options>  <dump> <pass>
+    /dev/hd2s1        /               ext2       rw         0      1
+    /dev/hd2s2        /home           ext2       rw         0      2
+    /dev/hd2s3        none            swap       sw         0      0
 
 Remember to create any devices using the `MAKEDEV` command.
 
@@ -174,7 +174,7 @@ To mount an nfs partition, use the nfs translator. When run as non-root, the tra
 
 To mount this from a GNU box:
 
-     # settrans -cgap /home /hurd/nfs 192.168.1.1:/home
+    settrans -cgap /home /hurd/nfs 192.168.1.1:/home
 
 ## <a name="7_Configuration_Making_the_Syste"> 7. Configuration - Making the System Usable </a>
 
