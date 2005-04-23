@@ -10,9 +10,13 @@ Here is an outline of the things that need to be done. Please add your comments 
 
 This is not much of a problem. I have already been successful (see below) in using Grub and the El-Torito HD emulation to boot GNUmach off a CD. There may be some minor tweaking of Grub code necessary to detect which device to use for booting (instead of having the user select their device (hd0,hd1,etc.) from the Grub menu).
 
+Using GRUB's stage2\_eltorito seems to work fine.
+
 ### <a name="2_We_need_a_bootstrap_filesystem"> 2. We need a bootstrap filesystem translator </a>
 
 This would be something like a statically linked iso9660fs translator. Compiling a statically linked iso9660fs translator is easy enough, though it doesn't boot. I don't currently know whether this is because the translator was never meant to be a bootstrap filesystem, or if there is a simple bug which has never been flushed out because the translator has never been used at boot time before. I've had trouble debugging this problem because I haven't yet figured out a way to use a remote gdb with gnumach. Theoretically you could use the "boot" command to overcome this problem, but "boot" for me mangles the terminal and exits in different manner than an actual boot.
+
+The iso9660fs translator works great, it just needs to be statically linked.
 
 ### <a name="3_We_need_a_ramdisk_to_enable_wr"> 3. We need a ramdisk to enable write access </a>
 
@@ -76,13 +80,13 @@ That was the recipe for using a floppy image. If you use the `-t hd` switch of `
 
 ## <a name="My_recipe_for_a_bootable_GNU_CD"> </a> My recipe for a bootable GNU CD
 
-[screenshot](http://24.109.97.177:57777/Screenshot2.png)
+[screenshot](http:///mycelium.afraid.org/Screenshot2.png)
 
 ### <a name="What_you_ll_need"> What you'll need </a>
 
-* A [stage2\_eltorito](http://24.109.97.177:57777/stage2_eltorito) from [grub 0.95](http://www.gnu.org/software/grub)
+* A [stage2\_eltorito](http://mycelium.afraid.org/stage2_eltorito) from [grub 0.95](http://www.gnu.org/software/grub)
 * A [base system](http://www.update.uu.se/~ams/gnu/gnu-2004-12-04.tar.bz2)
-* [iso9660fs.static](http://24.109.97.177:57777/iso9660fs.static) or just build your own, it should work with CVS
+* [iso9660fs.static](http:///mycelium.afraid.org/iso9660fs.static) or just build your own, it should work with CVS
 
 ### <a name="Know_HowTo"> </a> [[Know/HowTo]]
 
@@ -95,11 +99,11 @@ That was the recipe for using a floppy image. If you use the `-t hd` switch of `
        # mkisofs -R -b boot/grub/stage2_eltorito -no-emul-boot \
                  -boot-load-size 4 -boot-info-table -o livecd.iso iso/
 
-**_Note:_** The following files must _NOT_ be symlinks!
+**_Note:_** The following files must **\_NOT\_** be symlinks!
 
 * `/boot/gnumach`
 * `/hurd/iso9660fs.static`
-* `/hurd/exec` and
+* `/hurd/exec`
 * `/lib/ld.so.1`
 
 ### <a name="Contents_of_grub_conf"> Contents of grub.conf </a>
@@ -109,13 +113,15 @@ That was the recipe for using a floppy image. If you use the `-t hd` switch of `
 
        title  GNU/Hurd CD
        #uppermem 523648 #this may need to be set
-       root   (cd)
+       #root   (cd)
        kernel /boot/gnumach root=device:hd2  #set device to your cdrom device
        module /hurd/iso9660fs.static --multiboot-command-line=${kernel-command-line} \
               --host-priv-port=${host-port} --device-master-port=${device-port}      \
               --exec-server-task=${exec-task} -T typed ${root} $(task-create)        \
               $(task-resume)
        module /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
+
+**_Note:_** The `root (cd)` line may prevent some computers from booting the livecd.
 
 -- [[Main/AndrewResch]] - 22 Feb 2005
 
