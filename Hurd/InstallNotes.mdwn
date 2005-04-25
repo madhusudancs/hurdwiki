@@ -153,7 +153,21 @@ We can now run the native-install script. This will configure the packages and s
 
     ./native-install
 
-Right before the script terminates, it will indicate that it needs to be run a second time. Follow its instructions and reboot using the reboot command. Again, go into single user mode and run `./native-install`.
+Right before the script terminates, it will indicate that it needs to be run a second time. Follow its instructions and reboot using the reboot command. Again, go into single user mode.
+
+Now it is advisable to enable swap. The mach kernel dislikes running without swap and is unlikely to last through the installation, especially on systems with little physical RAM. Although you can enable swap later on after running `./native-install` for the second time, turning swap on early increases your probability of getting there.
+
+This will start the default pager, create a device corresponding to the swap partition, and turn swap on on that partition:
+
+    /hurd/mach-defpager
+    cd /dev
+    ./MAKEDEV hdXsY
+    swapon /dev/hdXsY
+    cd /
+
+**IMPORTANT!** When enabling swap please be very sure that the partition really is swap. If you point `swapon` to a data partition it will use that for swap, overwriting any data you may have there.
+
+Now run `./native-install` for the second time and go through a series of prompts.
 
 Next, edit `/etc/fstab` to add the home partition and swap space. By default, `nano` is the only editor installed by the the base distribution (not `ae` nor `vi`). It is very important that swap space be used: the Hurd will be an order of magnitude more stable. Note that the Hurd can transparently share a swap partition with Linux, the kernel, but will happily page to any device including a raw partition such as your home partition.
 
