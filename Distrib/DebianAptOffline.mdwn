@@ -1,0 +1,52 @@
+## <a name="Installing_packages_without_havi"> Installing packages without having a network connection. </a>
+
+This procedure is based on <file:///usr/share/doc/apt-doc/offline.text.gz> (package apt-doc).
+
+Having _apt_ installed is needed to use it.
+
+Put <http://hurd.gnufans.org/pub/Distrib/DebianAptOffline/apt.conf.offline> into Debian GNU/Hurd's /etc/apt/.
+
+#### <a name="You_can_mount_your_Debian_GNU_Hu"> </a> You _can_ mount your Debian GNU/Hurd partition under another OS.
+
+Networked system, user root
+
+    # mkdir SOMEWHERE
+    # mount /dev/DEBIAN_GNU_HURD_PARTITON SOMEWHERE
+    # cd SOMEWHERE
+    # apt-get -c etc/apt/apt.conf.offline {update, upgrade, install foo, etc.}
+
+Debian GNU/Hurd, user root
+
+    # apt-get {update, upgrade, install foo, etc.}
+
+#### <a name="You_can_t_mount_your_Debian_GNU_"> </a> You _can't_ mount your Debian GNU/Hurd partition under another OS.
+
+Debian GNU/Hurd, user root
+
+    # tar -cf SOMEWHERE/tar /etc/apt/{apt.conf.offline,sources.list} /var/lib/dpkg/status
+
+Copy _SOMEWHERE/tar_ to the remote system.
+
+_/var/lib/dpkg/status_ is needed for the remote system's _apt_ to know which packages (and their versions) are already installed on your Debian GNU/Hurd system.
+
+Networked system, any user
+
+    $ mkdir debian_gnu_hurd
+    $ cd debian_gnu_hurd
+    $ tar -xf SOMEWHERE/tar
+    $ mkdir -p var/lib/apt/lists/partial var/cache/apt/archives/partial tmp
+    $ apt-get -c etc/apt/apt.conf.offline {update, upgrade, install foo, etc.}
+    $ tar -cf SOMEWHERE/tar var/
+
+Copy _SOMEWHERE/tar_ back to your Debian GNU/Hurd system.
+
+If you modified _etc/apt/sources.list_, don't forget to also copy it back.
+
+Debian GNU/Hurd, user root
+
+    # tar -xf SOMEWHERE/tar
+    # mv var/cache/apt/archives/*.deb /var/cache/apt/archives/
+    # mv var/lib/apt/lists/*_* /var/lib/apt/lists/
+    # apt-get {update, upgrade, install foo, etc.}
+
+-- [[Main/ThomasSchwinge]] - 03 Aug 2005
