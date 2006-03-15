@@ -1,19 +1,27 @@
-Of course, your first task is to [get the source of the Hurd](http://www.gnu.org/software/hurd/download.html). `gcc-3.3` requires CVS snapshot from 2003-05-08 or later. The unpacked source tree is around 20M, and the build tree (configured with `--disable-profile`) is around 200M.
+Of course, your first task is to get the Hurd's source code.
 
-Building the Hurd requires `gcc`, `libc-dev` and `mig` packages:
+You can chose between getting the [sources from the developer's RCS](http://www.gnu.org/software/hurd/download.html#cvs):
 
-    # apt-get install gcc-3.3 make libc-dev mig
+    $ cvs -z3 -d:pserver:anonymous@cvs.savannah.gnu.org:/sources/hurd co hurd
+    $ cd hurd
 
-The reason for installing `gcc-3.3` but not just `gcc` is that currently `gcc` package doesn't exist in Debian GNU/Hurd archives. When this changes, so will this page.
+... or (if you are working on a Debian system) the ones that are used for the [current Debian hurd package](http://packages.debian.net/source/unstable/hurd):
+
+    $ apt-get source hurd       # Unpacks in hurd-YYYYMMDD
+    $ cd hurd-*
+
+The unpacked source tree is around 20MiB, and the build tree (configured with `--disable-profile`) is around 100MiB.
+
+TODO: cross compiling.
+
+Building the Hurd requires `build-essential`, `libc-dev` and `mig` packages:
+
+    # apt-get install build-essential make libc-dev mig
+    # apt-get build-dep hurd
 
 `libc-dev` will install `libc0.3-dev`, which depends on `gnumach-dev` and `hurd-dev`.
 
-The Hurd can be compiled in its directory, like this:
-
-    $ CC=gcc-3.3 ./configure
-    $ make
-
-but it's recommended to build it in separate directory because there are too many generated files and it becomes too crowdy in the source directories:
+The Hurd has to be built in a separate directory:
 
     $ mkdir build
     $ cd build
@@ -21,25 +29,14 @@ but it's recommended to build it in separate directory because there are too man
     $ make
     $ make install
 
-Notice that `make install` will install the Hurd in `/`, not in `/usr/local` or `/local`, so your current Hurd servers will be replaced. This is generally a good idea because Hurd's development is concetrated on fixing bugs right now, not on introducing ground-breaking features (but it has a lot of them).
+Notice that `make install` will install the Hurd in `/`, not in `/usr/local/` or `/local/`, so your current Hurd servers will be replaced. TODO: how to install somewhere else.
 
-By default profiling versions of all the libraries and code are generated but this is useless in most of the cases, so we disable them.
+By default profiling versions of all the libraries and code are generated but this is useless in most of the cases, so we disable them by specifying `--disable-profile` on =configure='s command line.
 
 As an alternative, you can build and install the Hurd in the Debian way (from CVS snapshot):
 
-    # apt-get build-dep hurd
-    # cd hurd
-    # dpkg-buildpackage
-    # cd ..
-    # dpkg -i hurd_*.deb hurd-dev_*.deb
-
-Notice that the `kbd` and `mouse` translators are only available in the Debian `diff.gz` patch. If you want this patch applied, here is one easy way:
-
-    $ apt-get source hurd       # Unpacks in hurd-YYYYMMDD
-    $ cd hurd                   # This is taken from CVS
-    $ gzip -cd ../hurd_YYYYMMDD-1.diff.gz | patch -p1
-
-Now you can continue with `apt-get build-dep`, etc.
+    $ cd hurd
+    $ dpkg-buildpackage
 
 If you just want to build a specific server or library, you can pass its name to `make`:
 
@@ -48,14 +45,16 @@ If you just want to build a specific server or library, you can pass its name to
 
 This will automatically build all libraries that are required to build the requested server or library.
 
+TODO: update.
+
 If you want to trace the RPC calls made by some process by using `rpctrace` command, you will also want some more human-readable output of this command. This is achieved by generating `hurd.msgids` file that includes the mapping between the number of the RPC call and its name:
 
     $ cd build/hurd
     $ make hurd.msgids
     $ cp hurd.msgids ~
 
-Now you can use this file by the following way:
+Now you can use this file in the following way:
 
-    $ rpctrace -I ~/hurd.msgids ls
+    $ rpctrace -i ~/hurd.msgids ls
 
 -- [[Main/OgnyanKulev]] - 08 Apr 2003
