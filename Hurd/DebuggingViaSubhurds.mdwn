@@ -37,11 +37,11 @@ W2
 
 W3
 
-    $ sudo gdb /var/tmp/one.full/hurd/exec
+    $ sudo gdb /var/tmp/one.full/lib/ld.so.1
     [...]
     (gdb) set solib-absolute-prefix /var/tmp/one.full
     (gdb) attach 854
-    Attaching to program `/var/tmp/one.full/hurd/exec', pid 854
+    Attaching to program `/var/tmp/one.full/lib/ld.so.1', pid 854
     warning: Can't modify tracing state for pid 854: No signal thread
     Can't fetch registers from thread 1: No such thread
 
@@ -50,6 +50,8 @@ W1
     [<Enter>.]
     /hurd/ext2fs.static --bootflags=-dsf --host-priv-port=38 --device-master-port=43 --exec-server-task=47 -Tdevice pseudo-root
     /lib/ld.so.1 /hurd/exec
+
+Now that this step has been accomplished, you can set break points in GDB, etc.
 
 W2
 
@@ -68,14 +70,11 @@ W3
     warning: Can't wait for pid 854: No child processes
 
     Program received signal EXC_BAD_ACCESS, Could not access memory.
-    0x000168f2 in ?? ()
-    (gdb) bt
-    #0  0x000168f2 in ?? ()
-    Cannot access memory at address 0xbeffffe4
-    (gdb) info threads
-    * 1 thread 1005.1  0x000168f2 in ?? ()
-    (gdb) disassemble
-    No function contains program counter for selected frame.
+    __mach_port_mod_refs (task=1, name=139802, right=1, delta=-1)
+        at /var/tmp/glibc-2_5-branch/build_--without-tls_--without-__thread/mach/RPC_mach_port_mod_refs.c:132
+    132             InP->Head.msgh_reply_port = __mig_get_reply_port();
+    (gdb) x/i $pc
+    0x168f2 <__mach_port_mod_refs+82>:      call   0x151b0 <__mig_get_reply_port>
 
 ----
 
@@ -83,3 +82,4 @@ Sources:
 
 * <http://www.gnu.org/software/hurd/howto/subhurd.html>
 * <http://lists.gnu.org/archive/html/bug-hurd/2007-02/msg00030.html>
+* [[ThomasSchwinge]]'s mind
