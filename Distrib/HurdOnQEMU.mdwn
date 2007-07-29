@@ -1,5 +1,7 @@
 # <a name="Hurd_on_QEMU"> </a> Hurd on QEMU
 
+... by the way, there is available an already prepared [disk image with an installation of the Debian distribution of GNU/Hurd](http://www.numenor.art.pl/balrog/hurd/) for QEMU.
+
 ## <a name="What_is_Needed"> What is Needed </a>
 
 1. First thing is to install [[QEMU]].
@@ -45,6 +47,18 @@ Now take the number of sectors for the beginning of the partition and multiply i
 
 ## <a name="Networking_in_QEMU"> </a> Networking in QEMU
 
+If you just want to access the internet from within QEMU, you can setup pfinet for QEMU's user-networking:
+
+    # settrans -afgp /servers/socket/2 /hurd/pfinet -i eth0 -a 10.0.2.15 -g 10.0.2.2 -m 255.255.255.0
+
+(See also <http://fabrice.bellard.free.fr/qemu/qemu-doc.html#SEC30>.)
+
+Outgoing internet connections should just work then, although you might have to setup nameservers in `/etc/resolv.conf` as well.
+
+If you want to connect from the host system to the Hurd system running in QEMU, you need to setup something more advanced, like bridged networking.
+
+## <a name="Bridged_Networking"> Bridged Networking </a>
+
 ### <a name="What_is_Needed"> What is Needed </a>
 
 1. Your Linux kernel will need 802.1d Ethernet Bridging support and TUN/TAP device driver support.
@@ -89,3 +103,27 @@ These are links that users of [[HurdOnQEMU]] may find helpful.
 [[DebianAfterInstall]] - good source of information pertaining to your system after installation.
 
 [[Hurd/QemuImageForL4]] - a QEMU image for the Hurd/L4 project.
+
+## <a name="TODO"> </a> TODO
+
+[[Hurd/HurdIRC]], 2007-07-04.
+
+    <azeem-uni> so, is there a way to use a Debian GNU/Hurd partition (/dev/hda6) with qemu directly?
+    <tschwinge> Don't dare to do that, please.
+    <tschwinge> It will lead to inconsistencies.
+    <tschwinge> Because the Linux kernel thinks that it has complete control over the disk, or something.
+    <tschwinge> In theory you could run something like ``-hda /dev/hda'', having GRUB installed on there to offer you to boot your Hurd system from hda6 and that will even work, but then don't get the idea to stop qemu, mount that partition on your Linux system and restart qemu.  That's where I got lots of inconsistencies then, afterwards.
+    <azeem-uni> it's probably the same problem as having that partition mounted, suspending to disk, booting into it in the Hurd, and resume Linux
+    <neal> right
+    <tschwinge> That's a different problem.
+    <tschwinge> Then the partitoon is still mounted.
+    <neal> no, I think it is basically the same problem
+    <tschwinge> The file system stuff is cached in the kernel.
+    <neal> you have data that has not been written to disk yet
+    <tschwinge> Right.
+    <neal> and neither is prepared for the resource to be shared
+    <tschwinge> In the azeem-uni scenarion the data is on the file system layer and in my scenarion it's some disk block caching inside the Linux kernel, I guess.
+    <azeem-uni> anyway, do you guys think if I use -hda /dev/hda and tell Grub to boot off /dev/hda6, that the rest of hda should be fine, right?
+    <azeem-uni> maybe adding -snapshot makes it totally safe
+    <neal> azeem: Should be fine.
+    <tschwinge> Yes.
