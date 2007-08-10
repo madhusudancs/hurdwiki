@@ -1,0 +1,79 @@
+Index: configure.in
+===================================================================
+RCS file: /cvsroot/hurd/gnumach/configure.in,v
+retrieving revision 1.17
+diff -u -r1.17 configure.in
+--- configure.in	6 Mar 2003 03:57:01 -0000	1.17
++++ configure.in	21 Jun 2003 17:04:36 -0000
+@@ -61,6 +61,34 @@
+ [test "x$enableval" = xno ||
+   AC_DEFINE(FPE, 1, [Enable software FPU emulator for machines with no FPU.])])
+ 
++# Sometimes people don't use traditional places to put the OSKit in.
++# To still be nice we give these people a way of telling us where
++# they have put it.
++AC_ARG_WITH(oskit-includes,
++[  --with-oskit-includes   Specify location of oskit headers],[
++CFLAGS="$CFLAGS -I$withval"
++CPPFLAGS="$CPPFLAGS -I$withval"
++ASFLGAS="$ASFLAGS -I$withval"
++])
++
++# These two will overwrite any previous setting of OSKIT_LIBDIR,
++# but since the user has told us to do so we obey.
++AC_ARG_WITH(oskit-libs,
++[  --with-oskit-libs       Specify location of oskit libs],[
++LDFLAGS="$LDFLAGS -L$withval"
++OSKIT_LIBDIR="$withval/oskit"
++])
++
++AC_ARG_WITH(oskit,
++[  --with-oskit            Specify prefix for oskit files],[
++CFLAGS="$CFLAGS -I$withval/include"
++CPPFLAGS="$CPPFLAGS -I$withval/include"
++ASFLAGS="$ASFLAGS -I$withval/include"
++LDFLAGS="$LDFALGS -I$withval/lib"
++OSKIT_LIBDIR="$withval/lib/oskit"
++])
++AC_SUBST(ASFLAGS)
++
+ #
+ # Programs
+ #
+@@ -76,8 +104,20 @@
+ 
+ AC_CHECK_PROG(MBCHK, mbchk, mbchk, :)
+ 
++# Check for Flux Group's OSKit
++# If not in standard paths to CC the user needs to
++# supply a --with-oskit* or we need to evaluate the
++# OSKIT_LIBDIR variable *before* we check for the
++# correct version below.
++AC_CHECK_HEADERS(oskit/version.h,,
++                 [AC_MSG_ERROR([cannot find oskit/version.h, where are the OSKit includes?])])
++
+ # Check oskit version.
+-NEEDED_OSKIT_VERSION=19991121
++# 19991121 was the old version we relied on, but since
++# the addition of softirqs to both the OSKit, in version
++# 20010214, and handling therof by Daniel Wagner in
++# GNU Mach, we now rely on 20010214.
++NEEDED_OSKIT_VERSION=20010214
+ AC_REQUIRE_CPP()
+ AC_MSG_CHECKING([for oskit version >= ${NEEDED_OSKIT_VERSION}])
+ AC_CACHE_VAL(gnumach_cv_oskit_version_${NEEDED_OSKIT_VERSION}, [
+Index: Makefile.in
+===================================================================
+RCS file: /cvsroot/hurd/gnumach/Makefile.in,v
+retrieving revision 1.38
+diff -u -r1.38 Makefile.in
+--- Makefile.in	6 Mar 2003 04:06:25 -0000	1.38
++++ Makefile.in	21 Jun 2003 17:04:36 -0000
+@@ -47,6 +47,7 @@
+ 
+ CFLAGS = @CFLAGS@
+ LDFLAGS = @LDFLAGS@
++ASFLAGS = @ASFLAGS@
+ SMP_LIBS = @SMP_LIBS@
+ 
+ all:
