@@ -1,13 +1,13 @@
-Mach provides a so-called external pager mechanism.  This
+Mach provides a so-called external pager [[mechanism]].  This
 mechanism serves to separate *managing memory* from *managing
 content*.  Mach does the former while user space tasks do the
 latter.
 
 # Introduction
 
-In Mach, a task's address space consists of references to
-[[Mach/MemoryObjects]].  A memory object is designated using
-a [[Mac/Port]] (a port is just a [[capability]]) and
+In Mach, a task's [[Mach/AddressSpace]] consists of references
+to [[Mach/MemoryObjects]].  A memory object is designated using
+a [[Mach/Port]] (a port is just a [[capability]]) and
 implemented by a normal process.
 
 To associate a memory object with a portion of a task's
@@ -57,11 +57,11 @@ it to the port set that it is listening on and returns a capability (a port
 send right) to the client.
 
 (C) The client attempts to map the object into its address space using
-the vm_map rpc.  It passes a reference to the port that the server gave
+the vm\_map rpc.  It passes a reference to the port that the server gave
 it to the vm server (typically Mach).
 
 (D) Since Mach has never seen the object before, it queues a
-memory_object_init on the given port along with a send right (the
+memory\_object\_init on the given port along with a send right (the
 memory control port) for the manager to use to send messages to the
 kernel and also as an authentication mechanism for future
 interactions: the port is supplied so that the manager will be able to
@@ -72,7 +72,7 @@ structures to manage the mapping and then invokes the
 memory\_object\_ready method on the control object.
 
 (F) The kernel sees that the manager is ready, sets up the appropriate
-mappings in the client and then replies to the vm_map rpc indicating
+mappings in the client and then replies to the vm\_map rpc indicating
 success.
 
 There is nothing stopping others from playing "the kernel."  This is
@@ -84,27 +84,26 @@ mappings etc.
 
 # Resolving Page Faults
 
->
->  (G) Client      ________
->      resumed    /        \
->                |   Mach   |
-> (A) Fault +----|------+   |  \ (B) m_o_request  (C) store_read
->       ____|___  \_____|__/ |\  \| ________         _________  
->      /    +---\-------+       \  /        \       /         \ 
->     |  Client  |          (F)   |  Server  |<===>|  storeio  |
->      \________/       m_o_supply \________/       \_________/ 
->                                      (E) return data  | ^
->                                                       | | (D) device_read 
->                                                       v |
->                                                     ________
->                                                    / Device \
->                                                   |  Driver  |
->                                                    \________/
->                                                       | ^
->                                                       | |
->                                                       v
->                                                  ____________
->                                                 /  Hardware  \
+>       (G) Client      ________
+>           resumed    /        \
+>                     |   Mach   |
+>      (A) Fault +----|------+   |  \ (B) m_o_request  (C) store_read
+>            ____|___  \_____|__/ |\  \| ________         _________  
+>           /    +---\-------+       \  /        \       /         \ 
+>          |  Client  |          (F)   |  Server  |<===>|  storeio  |
+>           \________/       m_o_supply \________/       \_________/ 
+>                                           (E) return data  | ^
+>                                                            | | (D) device_read 
+>                                                            v |
+>                                                          ________
+>                                                         / Device \
+>                                                        |  Driver  |
+>                                                         \________/
+>                                                            | ^
+>                                                            | |
+>                                                            v
+>                                                       ____________
+>                                                      /  Hardware  \
 
 
 (A) The client does a memory access and faults.  The kernel catches
@@ -146,13 +145,13 @@ address space and finally, resumes the client.
 # Paging Data Out
 
 
->           Change manager   Pager m_o_return    store_write
->    \      _________  (B)  __(A)__   (C)  ________  (D)  _______
->  S  |    / Default \     /        \     /        \     /       \ 
->  W  |<=>|   Pager   |<=>|   Mach   |==>|  server  |<=>| storeio |<=>
->  A  |    \_________/     \________/     \________/     \_______/
->  P  |
->    /
+>               Change manager   Pager m_o_return    store_write
+>        \      _________  (B)  __(A)__   (C)  ________  (D)  _______
+>      S  |    / Default \     /        \     /        \     /       \ 
+>      W  |<=>|   Pager   |<=>|   Mach   |==>|  server  |<=>| storeio |<=>
+>      A  |    \_________/     \________/     \________/     \_______/
+>      P  |
+>        /
 
 
 (A) The paging [[policy]] is implemented by Mach: servers just implement
