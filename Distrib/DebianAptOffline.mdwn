@@ -1,52 +1,52 @@
-## <a name="Installing_packages_without_havi"> Installing packages without having a network connection. </a>
+# How to Installing Packages without a Network Connection from your Hurd Installation
 
-This procedure is based on <file:///usr/share/doc/apt-doc/offline.text.gz> (package apt-doc).
+This procedure is based on that found in
+file:///usr/share/doc/apt-doc/offline.text.gz (package apt-doc).
 
-Having _apt_ installed is needed to use it.
+This requires having apt installed on the Host operating system.
 
-Put <http://www.bddebian.com/~wiki/Distrib/DebianAptOffline/apt.conf.offline> into Debian GNU/Hurd's /etc/apt/.
+Put a copy of (apt.conf.offline)[http://www.bddebian.com/~wiki/Distrib/DebianAptOffline/apt.conf.offline]
+into your Debian GNU/Hurd installations /etc/apt/ directory.
 
-#### <a name="You_can_mount_your_Debian_GNU_Hu"> </a> You _can_ mount your Debian GNU/Hurd partition under another OS.
+## If you _can_ mount your Debian GNU/Hurd partition from another OS, which can connect to the Internet
 
-Networked system, user root
+As root on the internet connected OS:
 
-    # mkdir SOMEWHERE
-    # mount /dev/DEBIAN_GNU_HURD_PARTITON SOMEWHERE
-    # cd SOMEWHERE
+    # mount /dev/DEBIAN_GNU_HURD_PARTITON /mnt
+    # cd /mnt
     # apt-get -c etc/apt/apt.conf.offline {update, upgrade, install foo, etc.}
 
-Debian GNU/Hurd, user root
+Then , reboot into your Debian GNU/Hurd installation and as root, run:
 
     # apt-get {update, upgrade, install foo, etc.}
 
-#### <a name="You_can_t_mount_your_Debian_GNU_"> </a> You _can't_ mount your Debian GNU/Hurd partition under another OS.
+## If you _cannot_ mount your Debian GNU/Hurd partition under another OS.
 
-Debian GNU/Hurd, user root
+From your Debian GNU/Hurd installation run, as the root user:
 
-    # tar -cf SOMEWHERE/tar /etc/apt/{apt.conf.offline,sources.list} /var/lib/dpkg/status
+    # tar cf myhurdsconf.tar /etc/apt/{apt.conf.offline,sources.list} /var/lib/dpkg/status
 
-Copy _SOMEWHERE/tar_ to the remote system.
+Copy _myhurdsconf.tar_ to the remote system.
 
-_/var/lib/dpkg/status_ is needed for the remote system's _apt_ to know which packages (and their versions) are already installed on your Debian GNU/Hurd system.
+This copies your apt configuration and the status of your system
+(what packages are installed, which versions, etc.)
 
-Networked system, any user
+From the remote sytem, as any user, run:
 
-    $ mkdir debian_gnu_hurd
-    $ cd debian_gnu_hurd
-    $ tar -xf SOMEWHERE/tar
+    $ mkdir myhurd
+    $ cd myhurd
+    $ tar -xf myhurdsconf.tar
     $ mkdir -p var/lib/apt/lists/partial var/cache/apt/archives/partial tmp
     $ apt-get -c etc/apt/apt.conf.offline {update, upgrade, install foo, etc.}
-    $ tar -cf SOMEWHERE/tar var/
+    $ tar cf myhurdsconf.tar etc/apt/{apt.conf.offline,sources.list} var/
 
-Copy _SOMEWHERE/tar_ back to your Debian GNU/Hurd system.
+Copy _myhurdsconf.tar_ back to your Debian GNU/Hurd system.
 
-If you modified _etc/apt/sources.list_, don't forget to also copy it back.
+Finally, from your Debian GNU/Hurd installation as the root user:
 
-Debian GNU/Hurd, user root
-
-    # tar -xf SOMEWHERE/tar
+    # mkdir tmp
+    # cd tmp
+    # tar -xf myhurdsconf.tar
     # mv var/cache/apt/archives/*.deb /var/cache/apt/archives/
     # mv var/lib/apt/lists/*_* /var/lib/apt/lists/
     # apt-get {update, upgrade, install foo, etc.}
-
--- [[Main/ThomasSchwinge]] - 03 Aug 2005
