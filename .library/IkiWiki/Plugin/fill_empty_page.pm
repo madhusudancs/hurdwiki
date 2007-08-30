@@ -43,6 +43,8 @@ sub formbuilder_setup
     return if $form->title ne "editpage";
     return if $form->field("do") ne "create";
 
+    return if defined $form->field ("editcontent");
+
     # This is obviously not the last conclusion of wisdom.
     my $empty_page_page = bestlink ($page, "empty_page") || return;
     my $empty_page_file = $pagesources {$empty_page_page} || return;
