@@ -20,6 +20,7 @@ mechanism serves to separate *managing memory* from *managing
 content*.  Mach does the former while user space tasks do the
 latter.
 
+
 # Introduction
 
 In Mach, a task's [[Mach/AddressSpace]] consists of references
@@ -66,7 +67,6 @@ The following illustrates the basic idea:
 >               \________/   <-----   \________/
 >                     (B) memory_object
 
-
 (A) The client sends an "open" rpc to the server.
 
 (B) The server creates a memory object (i.e., a port receive right), adds
@@ -99,6 +99,7 @@ the object.  Multiple memory managers are a reality that should be
 dealt with gracefully: they are useful for network transparent
 mappings etc.
 
+
 # Resolving Page Faults
 
 >       (G) Client      ________
@@ -122,16 +123,15 @@ mappings etc.
 >                                                       ____________
 >                                                      /  Hardware  \
 
-
 (A) The client does a memory access and faults.  The kernel catches
 the fault and maps the address to the appropriate memory object.  It
-then invokes the memory_object_request method on the associated
+then invokes the memory\_object\_request method on the associated
 capability.  (In addition to the page to supply, it also supplies the
 control port so that the server can determine which kernel
 sent the message.)
 
 (B) The manager dequeues the message.  On the Hurd, this is translated
-into a store_read: a function in the libstore library which is used to
+into a store\_read: a function in the libstore library which is used to
 transparently manage block devices.  The storeio server starts off as
 a separate process, however, if the server has the appropriate
 permission, the backing object can be contacted directly by the
@@ -152,15 +152,15 @@ its own address space at the same time.
 (E) The storeio transfers the page to the server.  The page is still
 anonymous.
 
-(F) The manager does a memory_object_supply transferring the page to
+(F) The manager does a memory\_object\_supply transferring the page to
 the kernel.  Only now is the page not considered to be anonymous but
 managed.
 
 (G) The kernel caches the page, installs it in the client's virtual
 address space and finally, resumes the client.
 
-# Paging Data Out
 
+# Paging Data Out
 
 >               Change manager   Pager m_o_return    store_write
 >        \      _________  (B)  __(A)__   (C)  ________  (D)  _______
@@ -169,7 +169,6 @@ address space and finally, resumes the client.
 >      A  |    \_________/     \________/     \________/     \_______/
 >      P  |
 >        /
-
 
 (A) The paging [[policy]] is implemented by Mach: servers just implement
 the [[mechanism]].
@@ -186,4 +185,4 @@ fashion.  The server is not required to send a response to the kernel.
 
 (D) The manager then transfers the data to the storeio which
 eventually sends it to disk.  The device driver consumes the memory
-doing the equivalent of a vm_deallocate.
+doing the equivalent of a vm\_deallocate.
