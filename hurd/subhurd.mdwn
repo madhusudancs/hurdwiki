@@ -1,20 +1,42 @@
-# <a name="Subhurd_Howto"> Subhurd Howto </a>
+A sub-Hurd is like a [[neighbor_Hurd|neighborhurd]], however, makes use of some
+resources provided by another Hurd.  For instance, backing store and the
+console.
 
-One of the most visible goodies offered by the Hurd design, is the possibility to run neighbour Hurds AKA subhurds.
+Sub-hurds are extremely useful for debugging core servers as it is possible to
+attach to them with gdb from the parent
+([[debugging_via_subhurds|debugging/subhurd]]).  This avoids deadlock, e.g.,
+when the instance of gdb stops the server but requires its use.  (Note: it is
+possible to use [[noninvasive_debugging|noninvasivedebugging]], but this is
+less flexible.)
 
-Sadly, there is very little information available on using subhurds. This page tries to help getting you started.
 
-## <a name="Preparing"> Preparing </a>
+# Howto
 
-To run a subhurd, you need an additional partition with an installed Hurd system. In principle, you can also use your main partition in read-only mode; but this obviously will create severe limitations. Usually, you will want a complete independant system.
+## Preparing
 
-The system for the subhurd is a normal Hurd installation, which could just as well run standalone. You can use any of the various possible installation methods, or reuse an existing installation if you already have several. If using Debian GNU/Hurd, the easiest is probably to use crosshurd, which you can run directly from your main Hurd to set up another Hurd on a different partition, without ever rebooting. (You can run the native-install step from a chroot or already in a subhurd.)
+To run a subhurd, you need an additional partition with an installed Hurd
+system.  In principle, you can also use your main partition in read-only mode;
+but this obviously will create severe limitations.  Usually, you will want a
+complete independant system.
 
-## <a name="Booting"> Booting </a>
+The system for the subhurd is a normal Hurd installation, which could just as
+well run standalone.  You can use any of the various possible installation
+methods, or reuse an existing installation if you already have several.  If
+using [[Debian_GNU/Hurd|running/debian]], the easiest is probably to use
+[[running/debian/crosshurd]], which you can run directly from your main Hurd to
+set up another Hurd on a different partition, without ever rebooting.  (You can
+run the `native-install` step from a chroot or already in a subhurd.)
 
-To boot the subhurd, you need a boot script. For historical reasons, usually /boot/servers.boot is used. (Originally, this was also used to boot the main Hurd, using "serverboot". Nowadays, this isn't used for the main boot anymore, as GRUB can directly load all the necessary modules.)
 
-However, the canonical /boot/servers.boot file is no longer distributed with Debian GNU/Hurd. Here is a slightly adopted version:
+## Booting
+
+To boot the subhurd, you need a boot script.  For historical reasons, usually
+`/boot/servers.boot` is used. (Originally, this was also used to boot the main
+Hurd, using "serverboot".  Nowadays, this isn't used for the main boot anymore,
+as GRUB can directly load all the necessary modules.)
+
+However, the canonical `/boot/servers.boot` file is no longer distributed with
+[[Debian_GNU/Hurd|running/debian]].  Here is a slightly adopted version:
 
        # Boot script file for booting GNU Hurd.  Each line specifies a file to be
        # loaded by the boot loader (the first word), and actions to be done with it.
@@ -33,34 +55,58 @@ However, the canonical /boot/servers.boot file is no longer distributed with Deb
        ## default pager
        #/dev/sd0b $(add-paging-file)
 
-(NOTE: It's very important not to introduce spurious line breaks, so be very careful when copying! All the options following ext2fs.static have to be on a single line.)
+/!\ It's very important not to introduce spurious line breaks, so be very
+careful when copying!  All the options following `ext2fs.static` have to be on
+a single line.
 
 Now actually booting the subhurd is a simple matter of issuing (as root):
 
        boot servers.boot /dev/hd0s6
 
-(Replace hd0s6 by the name of your partition for the subhurd.)
+(Replace `hd0s6` by the name of your partition for the subhurd.)
 
-NOTE: The partition must be unmounted (or mounted read-only) before you boot from it!
+/!\ The partition must be unmounted (or mounted read-only) before you boot from
+it!
 
-(In theory it shouldn't be neccessary to run the subhurd as user _root_, but in practice [that doesn't work at the moment](http://savannah.gnu.org/bugs/?17341).)
+(In theory it shouldn't be neccessary to run the subhurd as user `root`, but in
+practice [that doesn't work at the
+moment](http://savannah.gnu.org/bugs/?17341).)
 
-Now the subhurd should boot just like a normal Hurd started directly from GRUB, finally presenting a login prompt. The boot program serves as proxy for the subhurd, so you can control it from the terminal where you issued the boot command.
+Now the subhurd should boot just like a normal Hurd started directly from GRUB,
+finally presenting a login prompt.  The `boot` program serves as proxy for the
+subhurd, so you can control it from the terminal where you issued the boot
+command.
 
-To exit the subhurd, issue halt or reboot. This should exit it cleanly, but for some reason it doesn't always work; sometimes it will output various errors and then hang. If that happens, you need to kill the subhurd processes manually from a different terminal.
+To exit the subhurd, issue `halt` or `reboot`.  This should exit it cleanly,
+but for some reason it doesn't always work; sometimes it will output various
+errors and then hang.  If that happens, you need to kill the subhurd processes
+manually from a different terminal.
 
-## <a name="Using"> Using </a>
+
+## Using
 
 In the subhurd, you can do basically all the same things as in the main Hurd.
 
-You can even set up networking: Just invoke settrans on the /servers/socket/2 as usual inside the subhurd, only using a different local IP than in the main Hurd. This way, the subhurd will be able to communicate to the outside world with it's own IP -- allowing for example to do apt-get inside the subhurd, or to ssh directly into the subhurd.
+You can even set up networking: Just invoke `settrans` on the
+`/servers/socket/2` as usual inside the subhurd, only using a different local
+IP than in the main Hurd.  This way, the subhurd will be able to communicate to
+the outside world with its own IP -- allowing for example to do `apt-get`
+inside the subhurd, or to `ssh` directly into the subhurd.
 
-If you want to access the subhurd processes from the outside, e.g. for debugging purposes (or to get rid of a subhurd that didn't exit cleanly...), you need to find out how main Hurd PIDs correspond to subhurd processes: The subhurd processes appear in the main Hurd (e.g. if doing ps -e) as unknown processes, and vice versa, but the PIDs are different! To find out which process is which, you can simply compare the order -- while the numbers are different, the order should usually match. Often it also helps to look at the number of threads (e.g. using ps -l), as many servers have very characteristic thread counts.
+If you want to access the subhurd processes from the outside, e.g. for
+[[debugging_purposes|debugging/subhurd]] (or to get rid of a subhurd that
+didn't exit cleanly...), you need to find out how main Hurd PIDs correspond to
+subhurd processes: the subhurd processes appear in the main Hurd (e.g. if doing
+`ps -e`) as unknown processes, and vice versa, but the PIDs are different!  To
+find out which process is which, you can simply compare the order -- while the
+numbers are different, the order should usually match.  Often it also helps to
+look at the number of threads (e.g. using `ps -l`), as many servers have very
+characteristic thread counts.
 
-## <a name="Further_Info"> Further Info </a>
 
-On [[debugging/subhurd]] you can find information about how to use subhurd for debugging purposes.
+# Further Info
 
+Read about using a subhurd for [[debugging_purposes|debugging/subhurd]].
 
-Roland's [tutorial](http://www.gnu.org/software/hurd/howto/subhurd.html)
-on setting up sub-hurds.
+Roland's [tutorial](http://www.gnu.org/software/hurd/howto/subhurd.html) on
+setting up sub-hurds.
