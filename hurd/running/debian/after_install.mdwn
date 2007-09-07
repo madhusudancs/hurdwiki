@@ -1,0 +1,138 @@
+First steps after installation.
+
+So you have managed to get past the first `native-install` runs in single-user
+mode?
+
+Time to get to work.
+
+[[toc ]]
+
+
+### Get Networking Running
+
+[[Network]].
+
+Check if your NIC was detected by GNU Mach:
+
+    # devprobe eth0
+
+`devprobe` (run as user *root*) will print `eth0` on successful detection.  If
+it doesn't, your NIC was not detected correctly.  You can then try to do the
+following (also as user *root*) for getting details:
+
+    # cat /dev/klog > ~/klog
+    [Wait a second, then press `Ctrl-C'.]
+
+Now examine the `~/klog` file.
+
+If the NIC was detected:
+
+    # settrans -fgap /servers/socket/2 /hurd/pfinet -i eth0 -a 192.168.1.3 -g 192.168.1.1 -m 255.255.255.0
+
+
+# Setup GRUB
+
+You surely want grub to have a nice menu entry able to boot GNU, instead of
+typing a boring arcane.  There are Debian-specific scripts that may help
+you.  See the [[GrubNotes]] for this.
+
+
+# Setup `apt-get`
+
+Sometimes getting `apt-get` to work is not straightforward.  Good mirrors to
+put in `/etc/apt/sources.list` are (as of Jan 2007):
+
+    deb http://mirrors.kernel.org/debian unstable main contrib
+    deb-src http://mirrors.kernel.org/debian unstable main contrib
+    deb http://ftp.gnuab.org/debian unreleased main
+    deb-src http://ftp.gnuab.org/debian unreleased main
+
+`apt-get` update a couple of times if some file fails to download.
+
+<!-- As long as I am around (which is as off February 2005) I never ever had to
+do such following frobbing.  Should we remove this?  --[[tschwinge]] -->
+
+If when doing your first `apt-get`, `dpkg` complains of missing programs, [try
+to cheat it this
+way](http://lists.debian.org/debian-hurd/1999/05/msg00187.html):
+
+    # ln -s /sbin/ldconfig /bin/ldconfig
+    # ln -s /bin/true /bin/update-rc.d
+    # ln -s /bin/true /bin/start-stop-daemon
+    # ln -s /bin/true /bin/install-info
+    # ln -s /bin/true /bin/update-alternatives
+
+Installing packages without having a network connection is described
+[[Distrib/DebianAptOffline]].
+
+
+# [[translator/Random]]
+
+You often need `scp` and `ssh`.  Sadly the Debian GNU/Hurd does not yet come
+with any default random translator package installed.  See
+[[translator/random]] for details, the following is just a quick recap.
+
+    cd && mkdir tmp && cd tmp
+    wget http://kilobug.free.fr/hurd/random-64.tar.gz
+    tar xvfz random-64.tar.gz
+    cp random /hurd/
+
+    settrans -c /dev/random /hurd/random \
+               --seed-file /var/run/random-seed --secure
+    settrans -c /dev/urandom /hurd/random \
+               --seed-file /var/run/urandom-seed --fast
+    chmod 0644 /dev/random /dev/urandom
+
+    apt-get install ssh
+
+
+# [[Console]]
+
+The latest Hurd package in Debian, plus the `native-install` script, creates
+all necessary device nodes and other magic.  You just need to edit
+`/etc/default/hurd-console` to tune the parameters and tell it to start at
+bootup.
+
+You can also call the Hurd console manually with the proper arguments:
+
+    console -d vga -d pc_kbd --repeat=kbd -d pc_mouse --repeat=mouse \
+            -d generic_speaker -c /dev/vcs
+
+    cd /dev
+    ln -s cons/kbd .
+    ln -s cons/mouse .
+
+
+# [[Hurd/DebianXorg]]
+
+You first must have setup the virtual console.  See above.
+
+Assuming you've installed WindowMaker and have tried running `startx` already:
+
+    [/etc/X11/XF86Config-4]
+
+    Section "Module"
+    #        Load           "dri"
+    #        Load           "speedo"
+             .
+             .
+             .
+    EndSection
+
+    Section "InputDevice"
+            Identifier      "Configured Mouse"
+            Driver          "mouse"
+            Option          "CorePointer"
+            Option          "Device"                "/dev/mouse"
+            Option          "Protocol"              "osmouse"
+    EndSection
+
+Make sure not to have the `Emulate3Buttons` and `ZAxisMapping` settings set, as
+they lead to problems with e.g. dragging windows around.
+
+    [/etc/profile]
+    LD_LIBRARY_PATH=/X11R6/lib:$LD_LIBRARY_PATH
+
+# What about package XYZ?
+
+See if you can find a useful tip in [[package_troubleshooting]].
