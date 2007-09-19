@@ -1,0 +1,43 @@
+Say you want to try running file system server (`[[translator/ext2fs]]`,
+`[[translator/jfs]]`, ...)  against a modified version of [[libpager]] and
+debug the latter one using [[GDB]].
+
+Set the translator like this:
+
+    $ settrans -fgap ↩
+      jfs.img.i ↩
+      /usr/bin/env ↩
+        LD_LIBRARY_PATH=~tschwinge/tmp/hurd/hurd.ogi/build/libpager ↩
+      "`pwd`"/jfs.obj/jfs ↩
+      "`pwd`"/jfs.img
+
+Then, when starting GDB, start it like this (or use an equivalent method, of
+course):
+
+    $ LD_LIBRARY_PATH=~tschwinge/tmp/hurd/hurd.ogi/build/libpager ↩
+      gdb ↩
+      ~tschwinge/tmp/jfs/jfs.obj/jfs 15436
+    GNU gdb 6.5-debian
+    [...]
+    Reading symbols from /lib/libdiskfs.so.0.3...Reading symbols from /lib/debug/lib/libdiskfs.so.0.3...done.
+    done.
+    Loaded symbols for /lib/libdiskfs.so.0.3
+    Reading symbols from /devel4/tschwinge/tmp/hurd/hurd.ogi/build/libpager/libpager.so.0.3...done.
+    Loaded symbols for /devel4/tschwinge/tmp/hurd/hurd.ogi/build/libpager/libpager.so.0.3
+    Reading symbols from /lib/libstore.so.0.3...Reading symbols from /lib/debug/lib/libstore.so.0.3...done.
+    done.
+    Loaded symbols for /lib/libstore.so.0.3
+    [...]
+    (gdb) break pager_demuxer
+    Breakpoint 1 at 0x105c98d: file ../../libpager/demuxer.c, line 27.
+    [...]
+    Breakpoint 1, pager_demuxer (inp=0x12bded0, outp=0x12bbec0) at ../../libpager/demuxer.c:27
+    27      {
+    (gdb) list
+    22      /* Demultiplex a single message directed at a pager port; INP is the
+    23         message received; fill OUTP with the reply.  */
+    24      int
+    25      pager_demuxer (mach_msg_header_t *inp,
+    [...]
+
+Voilà.
