@@ -1,5 +1,5 @@
 # A plugin for ikiwiki to implement adding a footer with licensing information
-# to every rendered page.
+# based on a default value taken out of a file.
 
 # Copyright © 2007 Thomas Schwinge <tschwinge@gnu.org>
 #
@@ -18,12 +18,14 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 # A footer with licensing information will be added to every rendered page if
-# either (a) a file `license.mdwn' is found (using the same rules as for the
-# sidebar plugin) or (b) (which be used to override (a)) a statement à la
-# ``[[license text=WHATEVER]]'' is found in the source page.
+# (a) such a footer isn't present already (see the `meta' plugin's ``license''
+# facility) and (b) a file `license.html' is found (using the same rules as for
+# the sidebar plugin).
 #
 # The state which page's license text was gathered from which source is not
-# tracked, so you'll need a full wiki-rebuild if (a)'s files are changed.
+# tracked, so you'll need a full wiki-rebuild if (b)'s files are changed.
+#
+# You can use wiki links in `license.html'.
 
 package IkiWiki::Plugin::license;
 
@@ -33,20 +35,9 @@ use IkiWiki 2.00;
 
 sub import
 {
-    hook (type => "preprocess", id => "license", call => \&preprocess);
-    hook (type => "pagetemplate", id => "license", call => \&pagetemplate);
-}
-
-my %text;
-
-sub preprocess (@)
-{
-    my %params = @_;
-    my $page = $params {page};
-
-    # We don't return any text here, but record the passed text.
-    $text {$page} = $params {text};
-    return "";
+    hook (type => "pagetemplate", id => "license", call => \&pagetemplate,
+	  # Run last, as to have the `meta' plugin do its work first.
+	  last => 1);
 }
 
 sub pagetemplate (@)
@@ -57,31 +48,20 @@ sub pagetemplate (@)
 
     my $template = $params {template};
 
-    if ($template->query (name => "license"))
+    if ($template->query (name => "license") &&
+	! defined $template->param('license'))
     {
 	my $content;
-	my $pagetype;
-	if (defined $text {$page})
-	{
-	    $pagetype = pagetype ($pagesources {$page});
-	    $content = $text {$page};
-	}
-	else
-	{
-	    my $license_page = bestlink ($page, "license") || return;
-	    my $license_file = $pagesources {$license_page} || return;
-	    $pagetype = pagetype ($license_file);
-	    $content = readfile (srcfile ($license_file));
-	}
+	my $license_page = bestlink ($page, "license") || return;
+	my $license_file = $pagesources {$license_page} || return;
+	#my $pagetype = pagetype ($license_file);
+	# Check if ``$pagetype eq 'html'''?
+	$content = readfile (srcfile ($license_file));
 
 	if (defined $content && length $content)
 	{
 	    $template->param (license =>
-	      IkiWiki::htmlize ($destpage, $pagetype,
-		IkiWiki::linkify ($page, $destpage,
-		  IkiWiki::preprocess ($page, $destpage,
-		    IkiWiki::filter ($page, $destpage, $content)))));
-
+	      IkiWiki::linkify ($page, $destpage, $content));
 	}
     }
 }
