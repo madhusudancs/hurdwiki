@@ -1,0 +1,52 @@
+[[meta copyright="Copyright © 2007 Free Software Foundation, Inc."]]
+[[meta license="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU_Free_Documentation_License|/fdl.txt]]."]]
+
+[[Stefan_Siegl|stesie]] has contributed some patches, making the pfinet server IPv6 aware.  Because IPv4 and IPv6 protocols are quite related to each other (think of mapped IPv4 addresses, etc.), there is no separate server for IPv6 but support for the latter has been incorporated into the common pfinet.  Unfortunately it's a little bit clumsy now, to set the translator up, since it has to be bound to */servers/socket/2* (like before) as well as */servers/socket/26* (for IPv6).
+
+To achieve this, you can tell pfinet6 to install active translators on specified nodes, using **-4** and **-6** options.  This is, you have to install a passive translator on /servers/socket/2 that also binds the IPv6 port and vice versa.
+
+# Examples
+
+Normal IPv4 network setup, address 192.168.7.23/24 and gateway 192.168.7.1.  IPv6 address shall be assigned using IPv6 auto-configuration.
+
+    settrans -fgp /servers/socket/2  /hurd/pfinet6 -6 /servers/socket/26 -i eth0 -a 192.168.7.23 -m 255.255.255.0 -g 192.168.7.1
+    settrans -fgp /servers/socket/26 /hurd/pfinet6 -4 /servers/socket/2  -i eth0 -a 192.168.7.23 -m 255.255.255.0 -g 192.168.7.1
+
+Quite the same, but with static IPv6 address assignment:
+
+    settrans -fgp /servers/socket/2  /hurd/pfinet6 -6 /servers/socket/26 -i eth0 -a 192.168.7.23 -m 255.255.255.0 -g 192.168.7.1 \
+      -A 2001:4b88:10e4:0:216:3eff:feff:4223/64 -G 2001:4b88:10e4::1
+    settrans -fgp /servers/socket/26 /hurd/pfinet6 -4 /servers/socket/2  -i eth0 -a 192.168.7.23 -m 255.255.255.0 -g 192.168.7.1 \
+      -A 2001:4b88:10e4:0:216:3eff:feff:4223/64 -G 2001:4b88:10e4::1
+
+# Multicast reception
+IPv6 heavily relies on multicasting (especially router and neighbour solicits and advertisements), however GNU Mach by default isn't configured to receive and handle those multicast packets.  That is, that neighbour solicitations and thus the whole IPv6 thing won't work.  To make your Mach kernel receive these packets, you've got to set the IFF_ALLMULTI flag in the network glue:
+
+    RCS file: /sources/hurd/gnumach/linux/dev/glue/Attic/net.c,v
+    retrieving revision 1.1.4.7
+    diff -u -r1.1.4.7 net.c
+    --- net.c       27 Mar 2007 22:47:11 -0000      1.1.4.7
+    +++ net.c       7 Oct 2007 17:05:04 -0000
+    @@ -398,8 +398,11 @@
+            }
+           else
+            {
+    -         dev->flags |= LINUX_IFF_UP | LINUX_IFF_RUNNING;
+    +         dev->flags |= LINUX_IFF_UP | LINUX_IFF_RUNNING | LINUX_IFF_ALLMULTI;
+              skb_queue_head_init (&dev->buffs[0]);
+    +
+    +         if (dev->set_multicast_list)
+    +           dev->set_multicast_list (dev);
+            }
+           if (IP_VALID (reply_port))
+            ds_device_open_reply (reply_port, reply_port_type,
+
+If you're using the Xen-version of GNU Mach you don't have to change anything, pfinet6 should work out of the box.
+
+# Binaries
+For your convenience there are binaries of a patched GNU Mach kernel (including default driver set and debugging support) and a stripped pfinet6 at <http://brokenpipe.de/GnuHurd/pfinet6/>
