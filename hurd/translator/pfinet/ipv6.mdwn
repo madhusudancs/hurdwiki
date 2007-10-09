@@ -6,16 +6,20 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled
 [[GNU_Free_Documentation_License|/fdl.txt]]."]]
 
-[[Stefan_Siegl|stesie]] has contributed some
-[patches](http://lists.gnu.org/archive/html/bug-hurd/2007-10/msg00014.html),
-making the pfinet server IPv6-aware.  Because the IPv4 and IPv6 protocols are
+[[Stefan_Siegl|stesie]] has added IPv6 support to the pfinet [[translator]].
+This was [Savannah task #5470](http://savannah.gnu.org/task/?5470).
+
+
+# Implementation
+
+Because the IPv4 and IPv6 protocols are
 quite related to each other (think of mapped IPv4 addresses, etc.), there is no
 separate [[server|translator]] for IPv6 but support for the latter has been
 incorporated into the common pfinet.  Unfortunately it's a little bit clumsy
 now to set the [[translator]] up, since it has to be bound to
 */servers/socket/2* (like before) as well as */servers/socket/26* (for IPv6).
 
-To achieve this, you can tell pfinet6 to install [[active_translators|active]]
+To achieve this, you can tell pfinet to install [[active_translators|active]]
 on specified nodes, using **-4** and **-6** options.  This is, you have to
 install a [[passive_translator|passive]] on */servers/socket/2* that also binds
 the IPv6 port and vice versa.
@@ -27,26 +31,28 @@ Normal IPv4 network setup, address 192.168.7.23/24 and gateway 192.168.7.1.
 IPv6 address shall be assigned using IPv6 auto-configuration.
 
     settrans -fgp /servers/socket/2 ↩
-      /hurd/pfinet6 -6 /servers/socket/26 ↩
+      /hurd/pfinet -6 /servers/socket/26 ↩
       -i eth0 -a 192.168.7.23 -m 255.255.255.0 -g 192.168.7.1
     settrans -fgp /servers/socket/26 ↩
-      /hurd/pfinet6 -4 /servers/socket/2 ↩
+      /hurd/pfinet -4 /servers/socket/2 ↩
       -i eth0 -a 192.168.7.23 -m 255.255.255.0 -g 192.168.7.1
 
 Quite the same, but with static IPv6 address assignment:
 
     settrans -fgp /servers/socket/2 ↩
-      /hurd/pfinet6 -6 /servers/socket/26 ↩
+      /hurd/pfinet -6 /servers/socket/26 ↩
       -i eth0 -a 192.168.7.23 -m 255.255.255.0 -g 192.168.7.1 ↩
       -A 2001:4b88:10e4:0:216:3eff:feff:4223/64 -G 2001:4b88:10e4::1
     settrans -fgp /servers/socket/26 ↩
-      /hurd/pfinet6 -4 /servers/socket/2 ↩
+      /hurd/pfinet -4 /servers/socket/2 ↩
       -i eth0 -a 192.168.7.23 -m 255.255.255.0 -g 192.168.7.1 ↩
       -A 2001:4b88:10e4:0:216:3eff:feff:4223/64 -G 2001:4b88:10e4::1
 
 
 # Binaries
 
-For your convenience there are binaries of a patched (multicast reception) GNU Mach kernel (including
-default driver set and debugging support) and a stripped pfinet6 at
+For your convenience -- this work is not yet available in the Debian packages
+-- binaries of a patched (multicast reception) GNU Mach kernel (including
+default driver set and debugging support) and a stripped pfinet translator
+(named `pfinet6` here) are being provided at
 <http://brokenpipe.de/GnuHurd/pfinet6/>
