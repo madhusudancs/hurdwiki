@@ -1,0 +1,53 @@
+[[meta copyright="Copyright © 2007 Free Software Foundation, Inc."]]
+[[meta license="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU_Free_Documentation_License|/fdl.txt]]."]]
+
+Mach has a built-in kernel debugger.
+[Manual](http://www.gnu.org/software/hurd/gnumach-doc/Kernel-Debugger.html).
+
+
+When you're [[running_a_system_in_QEMU|hurd/running/qemu]] you can directly
+[use GDB on the running
+kernel](http://fabrice.bellard.free.fr/qemu/qemu-doc.html#SEC36).
+
+
+Alternatively you can use an approach like this one: add the following code
+snippet to `device/ds_routines.c`'s `ds_device_open` function, right at the top
+of the function, and modify the code as needed.
+
+      void D (char *s)
+      {
+        switch (s[0] - '0')
+          {
+          case 0:
+           printf ("Hello from %s!\n", __FUNCTION__);
+           break;
+          case 1:
+           printf ("%s: Invoking task_collect_scan.\n", __FUNCTION__);
+           extern void task_collect_scan (void);
+           task_collect_scan ();
+           break;
+          default:
+           printf ("No idea what you want me to do.\n");
+           break;
+          }
+      }
+    
+      if (name && name[0] == 'D')
+        D (name + 1);
+
+Then boot your system and do something like this:
+
+    # devprobe D0
+    Hello from D!
+    # devprobe D1
+    D: Invoking task_collect_scan.
+    # devprobe D2
+    No idea what you want me to do.
+
+This is especially useful if you need to manually trigger some stuff inside the
+running kernel, as with the *D1* example.
