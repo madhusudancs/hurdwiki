@@ -43,17 +43,17 @@ sub import
 sub pagetemplate (@)
 {
     my %params = @_;
-    my $page = $params {page};
-    my $destpage = $params {destpage};
+    my $page = $params{page};
+    my $destpage = $params{destpage};
 
-    my $template = $params {template};
+    my $template = $params{template};
 
     if ($template->query (name => "copyright") &&
-	! defined $template->param('copyright'))
+	! defined $template->param ('copyright'))
     {
 	my $content;
 	my $copyright_page = bestlink ($page, "copyright") || return;
-	my $copyright_file = $pagesources {$copyright_page} || return;
+	my $copyright_file = $pagesources{$copyright_page} || return;
 	#my $pagetype = pagetype ($copyright_file);
 	# Check if ``$pagetype eq 'html'''?
 	$content = readfile (srcfile ($copyright_file));

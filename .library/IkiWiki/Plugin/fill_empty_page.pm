@@ -37,7 +37,7 @@ sub import
 sub formbuilder_setup
 {
     my %params = @_;
-    my $form = $params {form};
+    my $form = $params{form};
     my $page = $form->field ("page");
 
     return if $form->title ne "editpage";
@@ -47,7 +47,7 @@ sub formbuilder_setup
 
     # This is obviously not the last conclusion of wisdom.
     my $empty_page_page = bestlink ($page, "empty_page") || return;
-    my $empty_page_file = $pagesources {$empty_page_page} || return;
+    my $empty_page_file = $pagesources{$empty_page_page} || return;
     my $empty_page_type = pagetype ($empty_page_file);
     return unless defined $empty_page_type;
 
