@@ -126,6 +126,20 @@ sub htmlize (@)
     my %params = @_;
     my $page = $params{page};
 
+    my $home;
+    if (defined $pagesources{$page})
+    {
+	$home = $config{srcdir} . '/' . dirname ($pagesources{$page});
+    }
+    else
+    {
+	# This happens in the CGI web frontent, when freshly creating a
+	# `texi'-type page and selecting to ``Preview'' the page before doing a
+	# ``Save Page''.
+# TODO.
+	$home = $config{srcdir};
+    }
+
     my $pid;
     my $sigpipe = 0;
     $SIG{PIPE} = sub
@@ -153,7 +167,7 @@ sub htmlize (@)
 		  # We might be run from a directory different from the one the
 		  # `.texi' file is stored in.
 # TODO.  Should we `cd' to this directory instead?
-		  '-P', $config{srcdir} . '/' . dirname ($pagesources{$page}),
+		  '-P', $home,
 # TODO.  Adding the following allows for putting files like `gpl.texinfo' into
 # the top-level wiki directory.
 		  '-I', $config{srcdir},
