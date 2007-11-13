@@ -1,0 +1,183 @@
+[[meta copyright="Copyright © 2007 Free Software Foundation, Inc."]]
+[[meta license="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU_Free_Documentation_License|/fdl]]."]]
+
+## Howto write a Hurd library
+
+Build the Hurd sources:
+------------------------
+ 
+Refer to: [[HurdCompilation]]
+
+Create the library files:
+----------------------
+
+Create a directory, say, libhello in the Hurd sources directory. 
+
+Create a lhello.h header file:
+
+<pre>
+/* lhello.h - Example library header file.
+   Copyright (C) 2006 Free Software Foundation, Inc.
+   Written by Shakthi Kannan <shaks@shakthimaan.com>.
+
+   This file is part of the GNU Hurd.
+
+   The GNU Hurd is free software; you can redistribute it and/or
+   modify it under the terms of the GNU General Public License as
+   published by the Free Software Foundation; either version 2, or (at
+   your option) any later version.
+
+   The GNU Hurd is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with the GNU Hurd; if not, write to the Free Software
+   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.  */
+
+#ifndef _HURD_HELLO_H
+#define _HURD_HELLO_H	1
+
+struct hello
+{
+  int x;
+};
+
+#endif	/* _HURD_HELLO_H */
+</pre>
+
+Replace filename, year, author name and e-mail address appropriately.
+
+Create a lhello.c file:
+
+<pre>
+/* lhello.c - Example library .c file.
+   Copyright (C) 2006
+   Free Software Foundation, Inc.
+   Written by Shakthi Kannan <shaks@shakthimaan.com>.
+   
+   This file is part of the GNU Hurd.
+
+   The GNU Hurd is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2, or (at your option)
+   any later version.
+
+   The GNU Hurd is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with the GNU Hurd; see the file COPYING.  If not, write to
+   the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.  */
+
+#include "lhello.h"
+
+void 
+print_hello (void)
+{
+  struct hello example;
+  example.x = 2;
+  printf ("foo and bar are %d words!\n", example.x);
+} 
+</pre>
+
+Replace header file year, author name and e-mail address appropriately.
+
+Create a Makefile
+
+<pre>
+#
+#   Copyright (C) 2006 Free Software Foundation, Inc.
+#
+#   This file is part of the GNU Hurd.
+#
+#   The GNU Hurd is free software; you can redistribute it and/or
+#   modify it under the terms of the GNU General Public License as
+#   published by the Free Software Foundation; either version 2, or (at
+#   your option) any later version.
+#
+#   The GNU Hurd is distributed in the hope that it will be useful, but
+#   WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#   General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program; if not, write to the Free Software
+#   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+dir := libhello
+makemode := library
+
+libname := libhello
+SRCS = lhello.c
+installhdrs = lhello.h
+LCLHDRS = $(installhdrs)
+
+OBJS = $(SRCS:.c=.o)
+
+include ../Makeconf
+</pre>
+
+Update the Makeconf file:
+
+Add libhello to lib-subdirs target in the top-level Makefile in the Hurd sources.
+
+<pre>
+cd build
+../configure
+make
+</pre>
+
+Testing the library
+-------------------
+
+Write a file, say, foo.c:
+
+<pre>
+/* foo.c */
+
+#define _GNU_SOURCE
+
+int
+main (int argc, char *argv[])
+{
+  print_hello();
+  return 0;
+}
+</pre>
+
+Static compilation and linking method:
+
+<pre>
+gcc -g -o foo foo.c -L/path/to/libhello -lhello -static
+</pre>
+
+Run the example:
+
+<pre>
+./foo
+</pre>
+
+Compilation and dynamic linking method:
+
+<pre>
+LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/libhello
+gcc -g -o foo foo.c -L/path/to/libhello -lhello
+</pre>
+
+where /path/to/libhello = /path/to/hurd/build/libhello
+
+Run the example:
+<pre>
+./foo
+</pre>
+
+-- ShakthiKannan - 30 Nov 2006
