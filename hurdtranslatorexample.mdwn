@@ -1,0 +1,311 @@
+[[meta copyright="Copyright © 2007 Free Software Foundation, Inc."]]
+[[meta license="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU_Free_Documentation_License|/fdl]]."]]
+
+## Data User-Server Translator Example
+
+The code examples were written by Anand Babu.
+
+We have a data.h header file, a data.defs file, a data-user.c, data-server.c sources files and a Makefile.
+
+data.h:
+-------
+
+<pre>
+#ifndef	_data_user_
+#define	_data_user_
+
+/* Module data */
+
+#include <mach/kern_return.h>
+#include <mach/port.h>
+#include <mach/message.h>
+
+#include <mach/std_types.h>
+#include <mach/mach_types.h>
+#include <device/device_types.h>
+#include <device/net_status.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/statfs.h>
+#include <sys/resource.h>
+#include <sys/utsname.h>
+#include <hurd/hurd_types.h>
+
+/* Routine data_set_value */
+#ifdef	mig_external
+mig_external
+#else
+extern
+#endif
+kern_return_t S_data_set_value
+#if	defined(LINTLIBRARY)
+    (data_port, value)
+	mach_port_t data_port;
+	int value;
+{ return S_data_set_value(data_port, value); }
+#else
+(
+	mach_port_t data_port,
+	int value
+);
+#endif
+
+/* Routine data_get_value */
+#ifdef	mig_external
+mig_external
+#else
+extern
+#endif
+kern_return_t S_data_get_value
+#if	defined(LINTLIBRARY)
+    (data_port, value)
+	mach_port_t data_port;
+	int *value;
+{ return S_data_get_value(data_port, value); }
+#else
+(
+	mach_port_t data_port,
+	int *value
+);
+#endif
+
+#endif	/* not defined(_data_user_) */
+</pre>
+
+data.defs:
+----------
+
+<pre>
+/* Definitions for data interface
+
+This file is part of the GNU Hurd.
+
+The GNU Hurd is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2, or (at your option)
+any later version.
+
+The GNU Hurd is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with the GNU Hurd; see the file COPYING.  If not, write to
+the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.  */
+
+subsystem data 45000;
+
+#include <hurd/hurd_types.defs>
+
+#ifdef STACK_IMPORTS
+STACK_IMPORTS
+#endif
+
+/* intr-rpc.defs defines the INTR_INTERFACE macro to make the generated RPC
+stubs send-interruptible, and to prefix them with `hurd_intr_rpc_'. */
+INTR_INTERFACE
+
+/* set integer value to data */
+routine data_set_value (
+	data_port: mach_port_t;
+	value: int);
+
+/* get integer value from data */
+routine data_get_value (
+	data_port: mach_port_t;
+	out value: int);
+</pre>
+
+data-user.c:
+------------
+
+<pre>
+#include <stdio.h>
+#include <hurd.h>
+#include <hurd/hurd_types.h>
+#include "data.h"
+
+#ifndef _GNU_SOURCE
+  #define _GNU_SOURCE
+#endif
+
+int
+main(int argc, char *argv[])
+{
+  int value=0;
+  mach_port_t data_server_port;
+
+  data_server_port = file_name_lookup ("/tmp/trans", 0, 0);
+  printf ("data_server_port [%u]\n", data_server_port);
+  S_data_set_value (data_server_port, 99);
+  S_data_get_value (data_server_port, &value);
+  printf ("data->get_value: [%d]\n", value);
+  
+  return 0;
+}
+</pre>
+
+data-server.c:
+--------------
+
+<pre>
+#ifndef _GNU_SOURCE
+  #define _GNU_SOURCE
+#endif
+
+#include <stdio.h>
+#include <getopt.h>
+#include <errno.h>
+#include <sys/stat.h>
+#include <error.h>
+
+#include <hurd/ports.h>
+#include <hurd/hurd_types.h>
+#include <hurd/trivfs.h>
+
+#include "data.h"
+
+extern boolean_t S_data_server
+(mach_msg_header_t *InHeadP, mach_msg_header_t *OutHeadP);
+
+int trivfs_fstype = FSTYPE_MISC;
+int trivfs_fsid = 0;
+int trivfs_support_read = 0;
+int trivfs_support_write = 0;
+int trivfs_support_exec = 0;
+int trivfs_allow_open = 0x00;
+int trivfs_protid_nportclasses = 0;
+int trivfs_cntl_nportclasses = 0;
+
+int data_value;
+
+int demuxer (mach_msg_header_t *inp, mach_msg_header_t *outp)
+{
+  return (S_data_server(inp,outp)||trivfs_demuxer(inp,outp));
+}
+
+void trivfs_modify_stat (struct trivfs_protid *cred, io_statbuf_t  *st)
+{
+}
+error_t trivfs_goaway (struct trivfs_control *fsys, int flags)
+{
+  exit (0);
+}
+
+kern_return_t S_data_set_value (mach_port_t data_port, int value)
+{
+  data_value = value;
+  return 0;
+}
+
+kern_return_t S_data_get_value (mach_port_t data_port, int *value)
+{
+  *value = data_value;
+  return 0;
+}
+
+int
+main(int argc, char *argv[])
+{
+  int err;
+  mach_port_t bootstrap;
+  struct trivfs_control *fsys;
+
+  if (argc > 1)
+    {
+      fprintf(stderr, "Usage: settrans [opts] node %s\n", program_invocation_name); 
+      exit (1);
+    }
+
+  task_get_bootstrap_port (mach_task_self (), &bootstrap);
+  if (bootstrap == MACH_PORT_NULL)
+    error(2, 0, "Must be started as a translator");
+
+  /* Reply to our parent */
+  err = trivfs_startup (bootstrap, 0, 0, 0, 0, 0,&fsys);
+  mach_port_deallocate (mach_task_self (), bootstrap);
+  if (err) {
+    return (0);
+  }
+
+  ports_manage_port_operations_one_thread (fsys->pi.bucket, demuxer, 0);
+
+  return 0;
+}
+</pre>
+
+Makefile:
+---------
+
+<pre>
+CC = gcc
+MIG = mig
+CFLAGS = -Wall -g  -D_GNU_SOURCE
+LDFLAGS = -lthreads -lports -ltrivfs -lfshelp -lshouldbeinlibc
+INCLUDES = -I.
+LCHDRS = 
+MIGCOMSFLAGS = -prefix S_
+OBJS = $(SRCS:.c=.o)
+TAGS = etags.emacs21
+
+all: data-server data-user
+tags:
+	$(TAGS) $(SRCS) $(LCHDRS)
+
+stubs: data.defs
+	$(MIG) $(MIGCOMSFLAGS) -server dataServer.c -user dataUser.c $^
+data-server: data-server.c dataServer.c 
+	$(CC) $^ $(CFLAGS) $(INCLUDES) $(LDFLAGS) -o $@
+data-user: data-user.c dataUser.c
+	$(CC) $^ $(CFLAGS) $(INCLUDES) -o $@
+clean:
+	rm -f *.o data-server data-user
+
+start: data-server data-user
+	settrans -ac /tmp/trans data-server
+	ps -x | grep data-server
+end:
+	settrans -fg /tmp/trans
+</pre>
+
+Building
+--------
+
+Do
+
+<pre>  make stubs </pre>
+
+to create the dataUser.c and dataServer.c files generated by mig. Create the executables using:
+
+<pre>  make all </pre>
+
+Testing
+-------
+
+Start the data-server translator using:
+
+<pre>  settrans -ac /tmp/trans data-server  </pre>
+
+You can check if it is running u sing
+
+<pre>  ps -x | grep data-server </pre>
+
+Run the data-user executable to get the resultant output.
+
+You can remove the translator using:
+
+<pre>  settrans -fg /tmp/trans </pre>
+
+To remove the built files use:
+
+<pre>  make clean </pre>.
+
+Happy Hacking!
+
+-- ShakthiKannan - 01 Dec 2006
