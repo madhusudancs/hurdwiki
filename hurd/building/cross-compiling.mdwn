@@ -18,16 +18,12 @@ For now, find the shell scripts at
 
 ## Using
 
-Read through it.  Understand it.  Then use it.
+Read through it.  Understand it.  Only then use it by following the next steps.
 
 /!\ Be made aware that -- while it is of course possible to build a working
-cross-compiler -- this is not trivial to do.  You'll have to patch several of
-the source packages.  See the corresponding Debian unstable source packages
-about which Hurd-specific patches exist and check which of them are not yet in
-the upstream source packages.  Not all of the patches from the Debian packages
-are needed for getting a functional tool chain, though.  Applying patches is
-definitely needed for the glibc, Hurd and GCC source packages, as there are a
-bunch of outstanding patches that are needed for getting a functional build.
+cross-compiler -- this is not trivial to do.  You'll have to patch source
+packages.  See the following list about needed patches, which have not yet been
+installed in the upstream repositories.
 
 
 ### Supported Versions of Source Packages
@@ -65,10 +61,6 @@ guarantee is given.  Always the preferred version is listed first.
             $ svn co svn://gcc.gnu.org/svn/gcc/branches/gcc-4_2-branch
 
         TODO.  patches: libiberty (?!), config.
-
-    For building recent version of GCC (e.g., the upcoming 4.3) you'll need to
-    have development packages of GMP and MPFR (for the *build* system)
-    installed.
 
 -->
 
@@ -136,6 +128,77 @@ guarantee is given.  Always the preferred version is listed first.
     * Recent tarballs from <ftp://ftp.gnu.org/gnu/gdb/> should also work.
 
 -->
+
+
+### Preparation
+
+Unpack the tarballs if you downloaded any.
+
+Create a directory where the cross build shall be rooted in and a `src`
+subdirectory in there.  Then create symbolic links for every of the above
+packages: from `src/PACKAGE` to where you stored or unpacked it.  If you don't
+intend to build several cross compilers or use the source trees otherwise, you
+can also directly store the source trees in `src/`.  The source trees can be
+shared between multiple cross build trees since the packages' build systems are
+supposed not to modify the files in the source trees.  Not all packages adhere
+to that, but they fail to do so only for pre-processed documentation, etc.
+
+Either make sure that `cross-gnu-env` and `cross-gnu` are found in `$PATH`
+(`~/bin/`, for example) or alternatively remember to use their full paths in
+the following.
+
+The system you're running the script on (the *build* system) needs to have a
+basic compiling environment installed, i.e., a C compiler with the basic
+libraries and `make`.  You might also need `flex` and `bison`.  For building
+recent version of GCC (e.g., the upcoming 4.3, which is not yet supported)
+you'll need to have development packages of GMP and MPFR installed.
+
+
+### Setting Up the Environment
+
+Do this every time you intend to use the cross compiler:
+
+    $ ROOT=to/the/cross/build/root
+    $ . cross-gnu-env
+
+This will set several environment variables, which are later used by (a) the
+`cross-gnu` script and (b) by you, the user of the cross compiler.  `$TARGET`
+will be set by the script, `$PATH` will be adjusted, etc.  See the
+`cross-gnu-env` file for all environment variables that are set, as well as
+their default values.  `$ROOT` will be made an absolute path if it isn't
+already.
+
+Later, you'll be able to do things like `../configure --host="$TARGET"` and the
+cross compiler will be found automatically.
+
+
+### Creating the Cross Build Environment
+
+After setting up the environemt, just run `cross-gnu` and watch the messages
+flow by.  In the end you should see a message: *[...]/cross-gnu: Everything
+should be in place now.*
+
+
+### Staying Up-To-Date
+
+You can re-run `cross-gnu` to rebuild the parts of the sources that have
+changed since the last run.  This will save a lot of time compared to starting
+from scratch again.  Also, it is especially useful if you aren't working with
+unpacked tarballs, but on CVS's branches or want to quickly get a new tool
+chain with patches you applied to the source trees.  However: do *not* use this
+technique when doing major changes to the source trees, like switching from GCC
+4.0 to GCC 4.1.
+
+
+#### Comment
+
+Unfortunately the GNU Automake build system (which is used by GNU Mach's
+`gnumach-1-branch`) will overwrite installed files (header files in this case
+here), even if they didn't change.  And because all packages' build systems are
+using dependency tracking, a lot of files will be rebuilt each time `cross-gnu`
+is re-run, even if the files themselves didn't change.  Talk to [[tschwinge]]
+if you want to work on fixing that -- it is already clear what needs to be
+done, it just hasn't been done yet.
 
 
 # References
