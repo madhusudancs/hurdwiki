@@ -1,0 +1,201 @@
+    <antrik> hde: what's the status on tmpfs?
+    <hde> Broke
+    <hde> k0ro traced the errors like the assert show above to a pager problem.
+      See the pager cannot handle request from multiple ports and tmpfs sends
+      request using two differ ports, so to fix it the pager needs to be hacked
+      to support multiple requests.
+    <hde> You can enable debugging in the pager by changing a line from dprintf
+      to ddprintf I can tell you how if you want.
+    <antrik> and changing tmpfs to use a single port isn't possible?...
+    <hde> antrik, I am not sure.
+    <hde> IIRC k0ro was saying it cannot be changed and I cannot recall his
+      reasons why.
+    <sdschulze> antrik: Doing it the quick&dirty way, I'd just use an N-ary
+      tree for representing the directory structure and mmap one new page (or
+      more) for each file.
+    <hde> sdschulze, What are you talking about?
+    <sdschulze> hde: about how I would implement tmpfs
+    <hde> O
+    <azeem> sdschulze: you don't need to reimplement it, just fix it :)
+    <sdschulze> azeem: Well, it seems a bit more difficult than I considered.
+    <sdschulze> I had assumed it was implemented the way I described.
+    <hde> O and the assert above gets triggered if you don't have a
+      default-pager setup on /servers/default-pager
+    <hde> the dir.c:62 assert that is.
+    <azeem> hde: you sure?  I think I have one
+    <hde> I am almost sure.
+    <azeem> mbanck@beethoven:~$ showtrans /servers/default-pager
+    <azeem> /hurd/proxy-defpager
+    <azeem> isn't that enough?
+    <hde> It is suppose to be.
+    <hde> Try it as root
+    <hde> I was experiecing alot of bugs as a normal user, but according to
+      marcus it is suppose to work as root, but I was getting alot of hangs.
+    <azeem> hde: same issue, sudo doesn't work
+    <hde> sucky, well then there are alot of bugs. =)
+    <azeem> eh, no
+    <azeem> I still get the dir.c assert
+    <sdschulze> me too
+    <sdschulze> Without it, I already get an error message trying to set tmpfs
+      as an active translator.
+
+---
+
+    <hde> I think I found the colprit.
+    <hde> default_pager_object_set_size --> This is were tmpfs is hanging.
+    <hde> mmm Hangs on the message to the default-pager.
+
+---
+
+    <hde> Well it looks like tmpfs is sending a message to the default-pager,
+      the default-pager then receives the message and, checks the seqno.  I
+      checked the mig gen code and noticed that the seqno is the reply port, it
+      this does not check out then the default pager is put into a what it
+      seems infinte condition_wait hoping to get the correct seqno.
+    <hde> Now I am figuring out how to fix it, and debugging some more.
+
+---
+
+    <marco_g> hde: Still working on tmpfs?
+    <hde> Yea
+    <marco_g> Did you fix a lot already?
+    <hde> No, just trying to narrow down the reason why we cannot write file
+      greater then 4.5K.
+    <marco_g> ahh
+    <marco_g> What did you figure out so far?
+    <hde> I used the quick marcus fix for the reading assert.
+    <marco_g> reading assert?
+    <hde> Yea you know ls asserted.
+    <marco_g> oh? :)
+    <hde> Because, the offsets changed in sturct dirent in libc.
+    <hde> They added 64 bit checks.
+    <hde> So marcus suggested a while ago on bug-hurd to just add some padding
+      arrays to the struct tmpfs_dirent.
+    <hde> And low and behold it works.
+    <marco_g> Oh, that fix.
+    <hde> Yup
+    <hde> marco_g, I have figured out that tmpfs sends a message to the
+      default-pager, the default-pager does receive the message, but then
+      checks the seqno(The reply port) and if it is not the same as the
+      default-pagers structure->seqno then she waits hoping to get the correct
+      one.  Unfortantly it puts the pager into a infinite lock and never come
+      out of it.
+    <marco_g> hde: That sucks...
+    <marco_g> But at least you know what the problem is.
+    <hde> marco_g, Yea, now I am figuring out how to fix it.
+    <hde> Which requires more debugging lol.
+    <hde> There is also another bug, default_pager_object_set_size in
+    <hde> mach-defpager does never return when called and makes tmpfs hang. I
+    <hde> will have a closer look at this later this week.
+
+---
+
+    <hde> Cool, now that I have two pagers running, hopefully I will have less
+      system crashes.
+    <marcus> running more than one pager sounds like trouble to me, but maybe
+      hde means something different than I think
+    <hde> Well the other pager is only for tmpfs to use.
+    <hde> So I can debug the pager without messing with the entire system.
+    <hde> marcus, I am trying ti figure out why diskfs_object_set_size waits
+      forever.  This way when the pager becomes locked forever I can turn it
+      off and restart it.  When I was doing this with only one mach-defpager
+      running the system would crash.
+    <marcus> hde: how were you able to start two default pagers??
+    <hde> Well you most likely will not think my way of doing it was correct,
+      and I am also not sure if it is lol.  I made my hacked version not stop
+      working if one is alreay started.
+
+---
+
+    <hde> See, the default-pager has a function called
+      default_pager_object_set_size this sets the size for a memory object,
+      well it checks the seqno for each object if it is wrong it goes into a
+      condition_wait, and waits for another thread to give it a correct seqno,
+      well this never happens.
+    <hde> Thus, you get a hung tmpfs and default-pager.
+    <hde> pager_memcpy (pager=0x0, memobj=33, offset=4096, other=0x20740,
+      size=0x129df54, prot=3) at pager-memcpy.c:43
+    <hde> bddebian, See the problem?
+    <bddebian>  pager=0x0?
+    <hde> Yup
+    <hde> Now wtf is the deal, I must debug.
+    <hde>  -- Function: struct pager * diskfs_get_filemap_pager_struct
+    <hde>           (struct node *NP)
+    <hde>      Return a `struct pager *' that refers to the pager returned by
+    <hde>      diskfs_get_filemap for locked node NP, suitable for use as an
+    <hde>      argument to `pager_memcpy'.
+    <hde> That is failing.
+    <hde> If it is not one thing it is another.
+    <bddebian> All of Mach fails ;-)
+    <hde> It is alot of work to make a test program that uses libdiskfs.
+
+---
+
+    <bing> to run tmpfs as a regular user, /servers/default-pager must be
+      executable by that user.  by default it seems to be set to read/write.
+    <bing> $ sudo chmod ugo+x /servers/default-pager
+    <bing> you can see the O_EXEC in tmpfs.c
+    <bing> maybe this is just a debian packaging problem
+    <bing> it's probably a fix to native-install i'd guess
+
+---
+
+    <bing> tmpfs is failing on default_pager_object_create with -308, which
+      means server died
+    <bing> i'm running it as a regular user, so it gets it's pager from
+      /servers/default-pager
+    <bing> and showtrans /servers/default-pager shows /hurd/proxy-defpager
+    <bing> so i'm guessing that's the server that died
+
+---
+
+    <bing> this is about /hurd/tmpfs
+    <bing> a filesystem in memory
+    <bing> such that each file is it's own memory object
+    <andar> what does that mean exactly?  it differs from a "ramdisk"?
+    <bing> instead of the whole fs being a memory object
+    <andar> it only allocates memory as needed?
+    <bing> each file is it's own
+    <bing> andar: yeah
+    <bing> it's not ext2 or anything
+    <andar> yea
+    <bing> it's tmpfs :-)
+    <bing> first off, echo "this" > that
+    <bing> fails
+    <bing> with a hang
+    <bing> on default_pager_object_create
+    <andar> so writing to the memory object fails
+    <bing> well, it's on the create
+    <andar> ah
+    <bing> and it returns -308
+    <bing> which is server died
+    <bing> in mig-speak
+    <bing> but if i run it as root
+    <bing> things behave differently
+    <bing> it gets passed the create
+    <bing> but then i don't know what
+    <bing> i want to make it work for the regular user
+    <bing> it doesn't work as root either, it hangs elsewhere
+    <andar> but it at least creates the memory object
+    <bing> that's the braindump
+    <bing> but it's great for symlinks!
+    <andar> do you know if it creates it?
+    <bing> i could do stowfs in it
+
+---
+
+    <antrik> bing: k0ro (I think) analized the tmpfs problem some two years ago
+      or so, remember?...
+    <antrik> it turns out that it broke due to some change in other stuff
+      (glibc I think)
+    <antrik> problem was something like getting RPCs to same port from two
+      different sources or so
+    <antrik> and the fix to that is non-trivial
+    <antrik> I don't remember in what situations it broke exactly, maybe when
+      writing larger files?
+    <bing> antrik: yeah i never understood the explanation
+    <bing> antrik: right now it doesn't write any files
+    <bing> the change in glibc was to struct dirent
+    <antrik> seems something more broke in the meantime :-(
+    <antrik> ah, right... but I the main problem was some other change
+    <antrik> (or maybe it never really worked, not sure anymore)
