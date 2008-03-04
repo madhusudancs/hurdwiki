@@ -1,0 +1,199 @@
+[[meta copyright="Copyright © 2008 Free Software Foundation, Inc."]]
+
+[[meta license="""[[toggle id="license" text="GFDL 1.2+"]][[toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU_Free_Documentation_License|/fdl]]."]]"""]]
+
+* translator stacking mechanism
+
+One of the major strengths of the Hurd design is that not only it uses a
+modular (multiserver) architecture internally, but also encourages a similar
+modular architecture at application level. Complex applications can be created
+intuitively from simple components by combining them through translator
+stacking -- similar to traditional UNIX pipes, but much more suitable for
+complex interaction and structured data.
+
+The downside is that communication between the components with filesystem- or
+other RPC interfaces imposes a relatively high overhead: Not only are the
+actual IPC operations relatively slow in Mach, but also communication is
+generally more complicated because of the constraints of an RPC interface.
+
+In some cases, like network stacks for example, the overhead might prove a
+serious problem; a mechanism that allows cutting down on it by more or less
+transparently, taking a shortcut in certain situations to avoid actual RPC, is
+highly desirable.
+
+The work on libchannel as a special-purpose translator stacking mechanism as
+last year's GSoC project yielded some very interesting ideas for a more generic
+translator stacking framework.
+
+(links)
+
+The task here is to follow up on the previous work, creating a framework based
+on these ideas, and implementing or porting some translators based on this
+framework to prove it's applicability in practice. It is up to the student to
+decide whether it's better to start with the previous libchannel code, turning
+it into something more generic; or starting from scratch, using libchannel (and
+libstore) only for reference.
+
+This task is pretty involved. The architecture of the stacking framework has
+been discussed before; but the student needs to design the various actual
+interfaces for the framework, and implement all of them.
+
+* sound support
+
+The Hurd presently has no sound support. Fixing this requires two steps: One is
+to port kernel drivers so we can get access to actual sound hardware. The
+second is to implement a userspace server (translator), that implements an
+interface on top of the kernel device that can be used by applications --
+probably OSS or maybe ALSA.
+
+Completing this task requires porting at least one driver (e.g. from Linux) for
+a popular piece of sound hardware, and the basic userspace server. For the
+driver part, previous experience with programming kernel drivers is strongly
+advisable. The userspace part requires some knowledge about programming Hurd
+translators, but shouldn't be too hard.
+
+Once the basic support is working, it's up to the student to use the remaining
+time for porting more drivers, or implementing a more sophisticated userspace
+infrastructure. The latter requires good understanding of the Hurd philosophy,
+to come up with an appropriate design.
+
+(links)
+
+* hurdish TCP/IP stack
+
+The Hurd presently uses a TCP/IP stack based on code from an old Linux version.
+This works, but lacks some rather important features (like PPP/PPPoE), and the
+design is not hurdish at all.
+
+A true hurdish network stack will use a set of stack of translator processes,
+each implementing a different protocol layer. This way not only the
+implementation gets more modular, but also the network stack can be used way
+more flexibly. Rather than just having the standard socket interface, plus some
+lower-level hooks for special needs, there are explicit (perhaps
+filesystem-based) interfaces at all the individual levels; special application
+can just directly access the desired layer. All kinds of packet filtering,
+routing, tunneling etc. can be easily achieved by stacking compononts in the
+desired constellation.
+
+While the general architecture is pretty much given by the various network
+layers, it's up to the student to design and implement the various interfaces
+at each layer. This task requires understanding the Hurd philosophy and
+translator programming, as well as good knowledge of TCP/IP. 
+
+(links)
+
+* new driver glue code
+
+Although a driver framework in userspace would be desirable, presently the Hurd
+uses kernel drivers in the microkernel, gnumach. (And changing this would be
+far beyond a GSoC project...)
+
+The problem is that the drivers in gnumach are presently old Linux drivers
+(mostly from 2.0.x) accessed through a glue code layer. This is not an ideal
+solution, but works quite OK, except that the drivers are very old. The goal of
+this project is to redo the glue code, so we can use drivers from current Linux
+versions, or from one of the free BSD variants.
+
+This is a doable, but pretty involved project. Experience with driver
+programming under Linux (or BSD) is a must. (No Hurd-specific knowledge is
+required, though.)
+
+(links)
+
+* server overriding mechanism
+
+The main idea of the Hurd is that every user can influence almost all system
+functionality, by running private Hurd servers that replace or proxy the global
+default implementations.
+
+However, running such a cumstomized subenvironment presently is not easy,
+because there is no standard mechanism to easily replace an individual standard
+server, keeping everything else. (Presently there is only the subhurd method,
+which creates a completely new system instance with a completely independant
+set of servers.)
+
+The goal of this project is to provide a simple method for overriding
+individual standard servers, using environment variables, or a special
+subshell, or something like that.
+
+Various approaches for such a mechanism has been discussed before. (links)
+Probably the easiest (1) would be to modify the Hurd-specific parts of glibc,
+which are contacting various standard servers to implement certain system
+calls, so that instead of always looking for the servers in default locations,
+they first check for overrides in environment variables, and use these instead
+if present.
+
+A somewhat more generic solution (2) could use some mechanism for arbitrary
+client-side namespace overrides. The client-side part of the filename lookup
+mechanism would have to check an override table on each lookup, and apply the
+desired replacement whenever a match is found.
+
+Another approach would be server-side overrides. Again there are various
+variants. The actual servers themself could provide a mechanism to redirect to
+other servers on request. (3) Or we could use some more generic server-side
+namespace overrides: Either all filesystem servers could provide a mechanism to
+modify the namespace they export to certain clients (4), or proxies could be
+used that mirror the default namespace but override certain locations. (5)
+
+Variants (4) and (5) are the most powerful. They are intimately related to
+chroots: (4) is like the current chroot implementation works in the Hurd, and
+(5) has been proposed as an alternative. The generic overriding mechanism could
+be implemented on top of chroot, or chroot could be implemented on top of the
+generic overriding mechanism. But this is out of scope for this project...
+
+In practice, probably a mix of the different approaches would prove most useful
+for various servers and use cases. It is strongly recommended that the student
+starts with (1) as the simplest approach, perhaps augmenting it with (3) for
+certain servers that don't work with (1) because of indirect invocation.
+
+This tasks requires some understanding of the Hurd internals, especially a good
+understanding of the file name lookup mechanism. It's probably not too heavy on
+the coding side.
+
+* secure chroot implementation
+
+As the Hurd attempts to be (almost) fully UNIX-compatible, it also implements a
+chroot() system call. However, the current implementation is not really good,
+as it allows easily escaping the chroot, for example by use of passive
+translators.
+
+Many solutions have been suggested for this problem -- ranging from simple
+workaround changing the behaviour of passive translators in a chroot; changing
+the context in which passive translators are exectuted; changing the
+interpretation of filenames in a chroot; to reworking the whole passive
+translator mechanism. Some involving a completely different approch to chroot
+implementation, using a proxy instead of a special system call in the
+filesystem servers. (links)
+
+The task is to pick and implement one approach for fixing chroot.
+
+This task is pretty heavy: It requires a very good understanding of file name
+lookup and the translator mechanism, as well as of security concerns in general
+-- the student must prove that he really understands security implications of
+the UNIX namespace approach, and how they are affected by the introduction of
+new mechanisms. (Translators.) More important than the acualy code is the
+documentation of what he did: He must be able to defend why he chose a certain
+approach, and explain why he believes this approach really secure.
+
+* lexical dot-dot resolution
+* namspace based translator selection
+* gnumach code cleanup
+* fix libdiskfs locking issues
+* dtrace support
+* I/O performance tuning
+* VM performance tuning
+* improved NFS implementation
+* fix file locking
+* virtualization based on Hurd mechanisms
+* procfs
+* mtab
+* xmlfs
+* fix tmpfs
+* allow using unionfs early at boot
+* hurdish package manager
