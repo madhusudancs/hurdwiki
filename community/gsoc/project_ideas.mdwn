@@ -182,7 +182,86 @@ documentation of what he did: He must be able to defend why he chose a certain
 approach, and explain why he believes this approach really secure.
 
 * lexical dot-dot resolution
+
+For historical reasons, UNIX filesystems have a real (hard) .. link from each
+directory pointing to its parent. However, this is problematic, because the
+meaning of "parent" really depends on context. If you have a symlink for
+example, you can reach a certain node in the filesystem by a different path. If
+you go to .. from there, UNIX will traditionally take you to the hard-coded
+parent node -- but this is usually not what you want. Usually you want to go
+back to the logical parent from which you came. That is called "lexical"
+resolution.
+
+Some application already use lexical resolution internally for that reason. It
+is generally agreed that many problems could be avoided if the standard
+filesystem lookup calls used lexical resolution as well. The compatibility
+problems probably would be negligable.
+
+The goal of this project is to modify the filename lookup mechanism in the Hurd
+to use lexical resolution, and to check that the system is still fully
+functional afterwards. This task requires understanding the filename resolution
+mechanism. It's probably a relatively easy task.
+
 * namspace based translator selection
+
+The main idea behind the Hurd is to make (almost) all system functionality
+user-modifiable. This includes a user-modifiable filesystem: The whole
+filesystem is implemented decentrally, by a set of filesystem servers forming
+the directory tree together. These filesystem servers are called translators,
+and are the most visible feature of the Hurd.
+
+The reason they are called translators is because when you set a translator on
+a filesystem node, the underlying node(s) are hidden by the translator, but the
+translator itself can access them, and present their contents in a different
+format -- translate them. A simple example is a gunzip translator, which can be
+set on a gzipped file, and presents a virtual file with the uncompressed
+contents. Or the other way around. Or a translator that presents an XML file as
+a directory tree. Or an mbox as a set of individual files for each mail; or
+ever further breaking it down into headers, body, attachements...
+
+This gets even more powerful when translators are used as building blocks for
+larger applications: A mail reader for example doesn't need backends for
+understanding various mailbox formats anymore. All formats can be parsed by
+special translators, and the mail reader gets the data as a uniform, directly
+usable filesystem structure. Translators can also be stacked: If you have a
+compressed mailbox for example, first apply a gunzip translator, and then an
+mbox translator on top of that.
+
+There are a few problems with the way translators are set, though. For one,
+once a translator is set on a node, you always see the translated content. If
+you need the untranslated contents again, to do a backup for example, you first
+need to remove the translator again. Also, having to set a translator
+explicitely before accessing the contents is pretty cumbersome, making this
+feature almost useless.
+
+A possible solution is implementing a mechanism for selecting translators
+through special filename attributes. For example you could use index.html.gz,,+
+and index.html.gz,,- to choose between translated and untranslated versions of
+a file. Or you could use index.html.gz,,u to get the contents of the file with
+a gunzip translator applied automatically. You could also use attributes on
+whole directory trees: .,,0/ would give you a directory tree corresponding to
+the current directory, but with any translators disabled, for doing a backup.
+And site,,u/*.html.gz would present a whole directory tree of compressed HTML
+files as uncompressed files.
+
+One benefit of the Hurd's flexibility is that it should be possible to
+implement such a mechanism without touching the existing Hurd components:
+Rather, just implement a special proxy, that mirrors the normal filesystem, but
+is able to interpret the special extensions and present transformed files in
+place of the original ones.
+
+In the long run it's probably desirable to have the mechanism implemented in
+the standard name lookup mechanism, so it will be available globally, and avoid
+the overhead of a proxy; but for the beginnig the proxy solution is much more
+flexible.
+
+The goal of this project is implementing a prototype proxy; perhaps also a
+first version of the global variant as proof of concept, if time permits. It
+requires good understanding of the name lookup mechanism, and translator
+programming; but the implementation should not be too hard. Perhaps the hardest
+part is finding a convenient, flexible, elegant, hurdish method for mapping the
+special extensions to actual translators...
+
 * gnumach code cleanup
 * fix libdiskfs locking issues
 * dtrace support
