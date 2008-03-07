@@ -263,15 +263,294 @@ part is finding a convenient, flexible, elegant, hurdish method for mapping the
 special extensions to actual translators...
 
 * gnumach code cleanup
+
+Although there are some attempts to move to a more modern microkernel
+alltogether, the current Hurd implementation is based on gnumach, which is only
+a slightly modified variant of the original CMU Mach.
+
+Unfortunately, Mach was created about two decades ago, and is in turn based on
+even older BSD code. Parts of the BSD kernel -- file systems, UNIX mechanisms
+like processes and signals etc. -- were ripped out (to be implemented in
+userspace servers instead); while other mechanisms were added to allow
+implementing stuff in userspace. (Pager interface, IPC etc.)
+
+Also, Mach being a research project, many things were tried, adding lots of
+optional features not really needed.
+
+The result of all this is that the current code base is in a pretty bad shape.
+It's rather hard to make modifications -- to make better use of modern hardware
+for example, or even to fix bugs. The goal of this project is to improve the
+situation.
+
+The task starts out easy, with fixing compiler warnings. Later it moves on to
+more tricky things: Removing dead or unneeded code paths; restructuring code
+for readability and maintainability.
+
+This task requires good knowledge of C, and experience with working on a large
+existing code base. Previous kernel hacking experience is an advantage, but not
+really necessary.
+
 * fix libdiskfs locking issues
+
+Nowadays the most often encountered cause of Hurd crashes seems to be lockups
+in the ext2fs server. One of these could be traced recently, and turned out to
+be a lock inside libdiskfs that was taken and not released in some cases. There
+is reason to believe that there are more faulty paths causing these lockups.
+
+The task is systematically checking the libdiskfs code for this kind of locking
+issues. To achieve this, some kind of test harness has to be implemented: For
+exmple instrumenting the code to check locking correctness constantly at
+runtime. Or implementing a unit testing framework that explicitely checks
+locking in various code paths. (The latter could serve as a template for
+implementing unit checks in other parts of the Hurd codebase...)
+
+This task requires experience with debugging locking issues in multithreaded
+applications.
+
 * dtrace support
-* I/O performance tuning
-* VM performance tuning
+
+One of the main problems of the current Hurd implementation is very poor
+performance. While we have a bunch of ideas what could cause the performance
+problems, these are mostly just guesses. Better understanding what really
+causes bad performance is necessary to improve the situation.
+
+For that, we need tools for performance measurements. While all kinds of more
+or less specific profiling tools could be convieved, the most promising and
+generic approach seems to be a framework for logging certain events in the
+running system (both in the microkernel and in the Hurd servers). This would
+allow checking how much time is spent in certain modules, how often certain
+situations occur, how things interact, etc. It could also prove helpful in
+debugging some issues that are otherwise hard to find because of complex
+interactions.
+
+The most popular framework for that is Sun's dtrace; but there might be others.
+The student has to evaluate the existing options, deciding which makes most
+sense for the Hurd; and implement that one. (Apple's implementation of dtrace
+in their Mach-based kernel might be helpful here...)
+
+This project requires ability to evaluate possible solutions, and experience
+with integrating existing components as well as low-level programming.
+
+* disk I/O performance tuning
+
+The most obvious reason for the Hurd feeling slow compared to mainstream
+systems like GNU/Linux, is very slow harddisk access.
+
+The reason for this slowness is lack and/or bad implementation of common
+optimisation techniques, like scheduling reads and writes to minimalize head
+movement; effective block caching; effective reads/writes to partial blocks;
+reading/writing multiple blocks at once. The ext2 filesystem driver might also
+need some optimisation at a higher logical level. (links)
+
+The goal of this project is to analyze the current situation, and implement/fix
+various optimisations, to achieve significantly better disk performance. It
+requires understanding the data flow through the various layers involved in
+disk acces on the Hurd (filesystem, pager, driver), and general experience with
+optimising complex systems.
+
+* VM tuning
+
+Hurd/Mach presently make very bad use of the available physical memory in the
+system. Some of the problems are inherent to the system design (the kernel
+can't distinguish between important application data and discardable disk
+buffers for example), and can't be fixed without fundamental changes. Other
+problems however are an ordinary lack of optimisation, like extremely crude
+heuristics when to start paging. Many parameters are based on assumptions from
+a time when typical machines had like 16 MiB of RAM, or simply have been set to
+arbitrary values and never tuned for actual use.
+
+The goal of this project is to bring the virtual memory management in Hurd/Mach
+closer to that of modern mainstream kernels (Linux, FreeBSD), by comparing the
+implementation to other systems, implementing any worthwhile improvements, and
+general optimisation/tuning. It requires very good understanding of the Mach
+VM, and virtual memory in general.
+
+(links)
+
 * improved NFS implementation
+
+The Hurd has both NFS server and client implementations, which work, but not
+very well: File locking doesn't work properly (at least in conjuction with a
+GNU/Linux server), and performance is extremely poor. Part of the problems
+could be owed to the fact that only NFSv2 is supported so far.
+
+This project encompasses implementing NFSv3 support, fixing bugs and
+performance problems -- the goal is to have good NFS support. The work done in
+a previous unfinished GSoC project can serve as a starting point. (link)
+
+Both client and server parts need work, though the client is probably much more
+important for now, and shall be the major focus of this project.
+
+The task has no special prerequisites besides general programming skills, and
+an interest in file systems and network protocols.
+
 * fix file locking
-* virtualization based on Hurd mechanisms
+
+Over the years, UNIX has aquired a host of different file locking mechanisms.
+Some of them work on the Hurd, while others are buggy or only partially
+implemented. This breaks many applications.
+
+The goal is to make all file locking mechanisms work properly. This requires
+finding all existing shortcomings (through systematic testing and/or checking
+for known issues in the bug tracker and mailing list archives), and fixing
+them. (links)
+
+This task will require digging into parts of the code to understand how file
+locking works on the Hurd. Only general programming skills are required.
+
+* virtualization using Hurd mechanisms
+
+The main idea behind the Hurd design is to allow users to replace almost any
+system functionality. Any user can easily create a subenvironment using some
+custom servers instead of the default system servers. This can be seen as an
+[advanced lightweight
+virtualization](http://tri-ceps.blogspot.com/2007/10/advanced-lightweight-virtualization.html)
+mechanism, which allows implementing all kinds of standard and nonstandard
+virtualization scenarios.
+
+However, though the basic mechanisms are there, currently it's not easy to make
+use of these possibilities, because we lack tools to automatically launch the
+desired constellations.
+
+The goal is to create a set of powerful tools for managing at least one
+desirable virtualization scenario. One possible starting point could be the
+subhurd/neighbour Hurd mechanism (link), which allows a second almost totally
+independant instance of the Hurd in parallel to the main one. The current
+implementation has serious limitations though. A subhurd can only be started by
+root. There are no communication channels between the subhurd and the main one.
+There is no mechanism for safe sharing of hardware devices. Fixing this issues
+could turn subhurds into a very powerful solution for lightweight
+virtualization using so-called logical partitions. (Similar to Linux-vserver,
+OpenVZ etc.)
+
+While subhurd allow creating a complete second system instance, with an own set
+of Hurd servers and UNIX daemons and all, there are also situations where it is
+desirable to have a smaller subenvironment, living withing the main system and
+using most of its facilities -- similar to a chroot environment. A simple way
+to create such a subenvironment with a single command would be very helpful.
+
+It might be possible to implement (perhaps as a prototype) a wrapper using
+existing tools (chroot and unionfs); or it might require more specific tools,
+like some kind of unionfs-like filesytem proxy that mirrors other parts of the
+filesystem, but allows overriding individual locations, in conjuction with
+either chroot or some similar mechanism to create a subenvironment with a
+different root filesystem.
+
+It's also desirable to have a mechanism allowing a user to set up such a custom
+environment in a way that it will automatically get launched on login --
+practically allowing the user to run a customized operating system in his own
+account.
+
+Yet another interesting scenario would be a subenvironment -- using some kind
+of special filesystem proxy again -- in which the user serves as root, being
+able to create local sub-users and/or sub-groups.
+
+This would allow the user to run "dangerous" applications (webbrowser, chat
+client etc.) in a confined fashin, allowing it access to only a subset of the
+user's files and other resources. (This could be done either using a lot of
+groups for individual resources, and lots of users for individual applications;
+adding a user to a group would give the corresponding application access to the
+corresponding resource -- an advanced ACL mechanism. Or leave out the groups,
+assigning the resources to users instead, and use the Hurd's ability for a
+process to have multiple user ID's, to equip individual applications with set's
+of user ID's giving them access to the necessary resources -- basically a
+capability mechanism.)
+
+The student will have to pick (at least) one of the described scenarios -- or
+come up with some other one in a similar spirit -- and implement all the tools
+(scripts, translators) necessary to make it available to users in an
+easy-to-use fashion. While the Hurd by default already offers the necessary
+mechanisms for that, these are not perfect and could be further refined for
+even better virtualization capabilities. Should need or desire for specific
+improvements in that regard come up in the course of this project, implementing
+these improvements can be considered part of the task.
+
+Completing this project will require gaining a very good understanding of the
+Hurd architecture and spirit. Previous experience with other virtualization
+solutions would be very helpful.
+
 * procfs
+
+Although there is no standard (POSIX or other) for the layout of the /proc
+pseudo-filesystem, it turned out a very useful facility in GNU/Linux and other
+systems, and many tools concerned with process management use it. (ps, top,
+htop, gtop, killall, pkill, ...)
+
+Instead of porting all these tools to use libps (Hurd's official method for
+accessing process information), they could be made to run out of the box, by
+implementing a Linux-compatible /proc filesystem for the Hurd.
+
+The goal is to implement all /proc functionality needed for the various process
+management tools to work. (On Linux, the /proc filesystem is used also for
+debugging purposes; but this is highly system-specific anyways, so there is
+probably no point in trying to duplicate this functionality as well...)
+
+The existing partially working procfs implementation from the hurdextras
+repository (link) can serve as a starting point, but needs to be largely
+rewritten. (It should use libnetfs rather than libtrivfs; the data format needs
+to change to be more Linux-compatible; and it needs adaptation to newer system
+interfaces.)
+
+This project requires learning translator programming, and understanding some
+of the internals of process management in the Hurd. It should not be too hard
+coding-wise; and the task is very nicely defined by the exising Linux /proc
+interface -- no design considerations necessary.
+
 * mtab
+
+In traditional monolithic system, the kernel keeps track of all mounts; the
+information is available through /proc/mounts (on Linux at least), and in a
+very similar form in /etc/mtab.
+
+The Hurd on the other hand has a totally decentralized file system. There is no
+single entity involved in all mounts. Rather, only the parent file system to
+which a mountpoint (translator) is attached is involved. As a result, there is
+no central place keeping track of mounts.
+
+As a consequence, there is currently no easy way to obtain a listing of all
+mounted file systems. This also means that commands like "df" can only work on
+explicitely specified mountpoints, instead of displaying the usual listing.
+
+One possible solution to this would be for the translator startup mechanism to
+update the mtab on any mount/unmount, like in traditional systems. However,
+there are same problems with this approach. Most notably: What to do with
+passive translators, i.e. translators that are not presently running, but set
+up to be started automatically whenever the node is accessed? Probably these
+should be counted an among the mounted filesystems; but how to handle the mtab
+updates for a translator that is not started yet? Generally, being centralized
+and event-based, this is a pretty unelegant, non-hurdish solution.
+
+A more promising approach is to have mtab exported by a special translator,
+which gathers the necessary information on demand. This could work by
+traversing the tree of translators, asking each one for mount points attached
+to it. (Theoretically, it could also be done by just traversing *all* nodes,
+checking each one for attached translators. That would be very inefficient,
+though. Thus a special interface is probably required, that allows asking a
+translator to list mount points only.)
+
+There are also some other issues to keep in mind. Traversing arbitrary
+translators set by other users can be quite dangerous -- and it's probably not
+very interesting anyways what private filesystems some other user has mounted.
+But what about the global /etc/mtab? Should it list only root-owned
+filesystems? Or should it create different listings depending on what user
+contacts it?...
+
+That leads to a more generic question: Which translators should be actually
+listed? There are all kinds of translators: Ranging from traditional
+filesystems (disks and other actual stores), but also purely virtual
+filesystems like ftpfs or unionfs, and even things that have very little to do
+with a traditional filesystem, like gzip translator, mbox translator, xml
+translator, or various device file translators... Listing all of these in
+/etc/mtab would be pretty pointless, so some kind of classification mechanism
+is necessary. By default it probably should list only translators that claim to
+be real filesystems, though alternative views with other filtering rules might
+be desirable.
+
+After taking decisions on the outstanding design questions, the student will
+implement both the actual mtab translator, and the necessery interface(s) for
+gathering the data. It requires getting a good understanding of the translator
+mechanism and Hurd interfaces in general.
+
 * xmlfs
 * fix tmpfs
 * allow using unionfs early at boot
