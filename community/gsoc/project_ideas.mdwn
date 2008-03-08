@@ -552,6 +552,136 @@ gathering the data. It requires getting a good understanding of the translator
 mechanism and Hurd interfaces in general.
 
 * xmlfs
+
+Hurd translators allow presenting underlying data in a different format. This
+is a very powerful ability: It allows using standard tools on all kinds of
+data, and combining existing components in new ways, once you have the
+necessary translators.
+
+A typical example for such a translator would be xmlfs: A translator that
+presents the contents of an underlying XML file in the form of a directory
+tree, so it can be studied and edited with standard filesystem tools, or using
+a graphical file manager, or to easily extract data from an XML file in a
+script etc.
+
+The exported directory tree should represent the DOM structure of the document,
+or implement XPath, or both, or some combination thereof (perhaps XPath could
+be implemented as a second translator working on top of the DOM one) --
+whatever works well, while sticking to XML standards as much as possible.
+
+Ideally, the translation should be reversible, so that another, complementary
+translator applied on the expanded directory tree would yield the original XML
+file again; and also the other way round, applying the complementary translator
+on top of some directory tree and xmlfs on top of that would yield the original
+directory again. However, with the different semantics of directory trees and
+XML files, it might not be possible to create such a universal mapping. Thus it
+is a desirable goal, but not a strict requirement.
+
+The goal of this project is to create a fully usable XML translator, that
+allows both reading and writing any XML file. Implementing the complementary
+translator also would be nice if time permits, but is not mandatory part of the
+task.
+
+The existing partial (read-only) xmlfs implementation from the hurdextras
+repository (link) can serve as a starting point.
+
+This task requires pretty good designing skills. Good knowledge of XML is also
+necessary. Learning translator programming will obviously be necessary to
+complete the task.
+
 * fix tmpfs
+
+In some situations it is desirable to have a file system that is not backed by
+actual disk storage, but only by anonymous memory, i.e. lives in the RAM (and
+possibly swap space).
+
+A simplistic way to implement such a memory filesystem is literally creating a
+ramdisk, i.e. simply allocating a big chunck of RAM (called a memory store in
+Hurd terminology), and create a normal filesystem like ext2 on that. However,
+this is not very efficient, and not very convenient either (the filesystem
+needs to be recreated each time the ramdisk is invoked). A nicer solution is
+having a real tmpfs, which creates all filesystem structures directly in RAM,
+allocating memory on demand.
+
+The Hurd has had such a tmpfs for a long time. However, the existing
+implementation doesn't work anymore -- it got broken by changes in other parts
+of the Hurd design.
+
+There are several issues. (links) The most serious known problem seems to be
+that for technical reasons it receives RPCs from two different sources on one
+port, and gets mixed up with them. Fixing this is non-trivial, and requires a
+good understanding of the involved mechanisms.
+
+The goal of this project to get a fully working, full featured tmpfs
+implementation. It requires digging into some parts of the Hurd, incuding the
+pager interface and translator programming. This task probably doesn't require
+any design work, only good debugging skills.
+
 * allow using unionfs early at boot
-* hurdish package manager
+
+In UNIX systems, traditionally most software is installed in a common directory
+hierachy, where files from various packages live beside each other, grouped by
+function: User-invokable executables in /bin, configuration files in /etc,
+architecture specific static files in /lib, variable data in /var and so on. To
+allow clean installation, deinstallation, and upgrade of software packages,
+GNU/Linux distributions usually come with a package manager, which keeps track
+of all files upon installation/removal in some kind of central database.
+
+An alternative approach is the one implemented by GNU Stow: Each package is
+actually installed in a private directory tree. The actual standard directory
+structure is then created by collecting the individual files from all the
+packages, and presenting them in the common /bin, /lib etc. locations.
+
+While the normal Stow package (for traditional UNIX systems) uses symlinks to
+the actual files, updated on installation/deinstallation events, the Hurd
+translator mechanism allows a much more elegant solution: Stowfs (which is
+actually a special mode of unionfs) creates virtual directories on the fly,
+composed of all the files from the individual package directories.
+
+The problem with this approach is that unionfs presently can be launched only
+once the system is booted up, meaning the virtual directories are not available
+at boot time. But the boot process itself already needs access to files from
+various packages. So to make this design actually usable, it is necessary to
+come up with a way to launch unionfs very early at boot time, along with the
+root filesystem.
+
+Completing this task will require gaining a very good understanding of the Hurd
+boot process and other parts of the design. It requires some design skills also
+to come up with a working mechanism.
+
+* hurdish package manager for the GNU system
+
+Most GNU/Linux systems use pretty sophisticated package managers, to ease the
+management of installed software. These keep track of all installed files, and
+various kinds of other necessary information, in special databases. On package
+installation, deinstallation, and upgrade, scripts are used that make all kinds
+of modifications to other parts of the system, making sure the packages get
+properly integrated.
+
+This approach creates various problems. For one, *all* management has to be
+done with the distribution package management tools, or otherwise they would
+loose track of the system state. This is reinforced by the fact that the state
+information is stored in special databases, that only the special package
+management tools can work with.
+
+Also, as changes to various parts of the system are made on certain events
+(installation/deinstallation/update), managing the various possible state
+transitions becomes very complex and bug-prone.
+
+For the official (Hurd-based) GNU system, a different approach is intended:
+Making use of Hurd translators -- more specifically their ability to present
+existing data in a different form -- the whole system state will be created on
+the fly, directly from the information provided by the individual packages. The
+visible system state is always a reflection of the sum of packages installed at
+a certain moment; it doesn't matter how this state came about. There are no
+global databases of any kind. (Some things might require caching for better
+performance, but this must happen transparently.)
+
+The core of this approach is formed by stowfs, which creates a traditional unix
+directory structure from all the files in the individual package directories.
+But this only handles the lowest level of package management. Additional
+mechanisms are necessary to handle stuff like dependencies on other packages.
+
+The goal of this task is to create these mechanisms.
+
+* Lisp, Python, ... bindings
