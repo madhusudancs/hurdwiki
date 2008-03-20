@@ -2,18 +2,18 @@
 
 ## <a name="Rationale"> Rationale </a>
 
-When a request to one or more servers is needed from a server to process a request from its client, and the client cancels its request, there will be at least temporary resource leakage in the chain of servers.
+When a request to a chain of one or more servers is needed from a server to process a request from its client, and the client cancels its request, there will be at least temporary resource leakage in the chain of servers.
 
 If the last server in the chain completes processing and gives a response to its client, there will be unnecessary CPU and memory usage from all the servers. And if one of the servers never completes, there will be permanent memory leakage.
 
-Timeouts are a way to avoid the permament memory leakage, at the cost of rendering the whole communication impossible above some system load. They also only bring the duration of the memory leakage from infinite to some time.
+Timeouts are a way to avoid the permament memory leakage, at the cost of rendering the whole communication impossible above some system load, hence opening a denial of service possibility. They also only bring the duration of the memory leakage from an infinite to an arbitrary finite time that may have no relation with the operations of the servers.
 
-Cancellation forwarding is a mechanism that can be used to propagate, without additional overt communication, the information that initial request has been cancelled.
+Cancellation forwarding is a mechanism that can be used to propagate, without additional overt communication, the information that initial request has been cancelled. It also bring the duration of the memory leakage to a finite time, but each server in the chain is able to use the protocol at key points of its operations (like before a costly operation), and because the protocol will not produce false positive results, it can be used at an arbitrary high frequency. The only tradeoff is between leakage time and checking overhead.
 
 ## <a name="Protocol"> Protocol </a>
 
 * Each client that want to forward cancellation to its server increment the protected payload of the FCRB for which a sender's capability has been given to the server, thus invalidating the capability.
-* Each server that wants to notice cancellation forwarding will set up a watchdog, and ask the kernel to send heartbeats. At each heartbeat, the watchdog checks that the reply capability to the FCRB of the client is not invalid, with a Discrim capability.
+* Each server that wants to notice cancellation forwarding will either set up a watchdog, and ask the kernel to send heartbeats, or decide for deterministic check points in its operations. At each heartbeat or check point, the server checks that the reply capability to the FCRB of the client is not invalid, with a Discrim capability.
 
 ## <a name="Example"> Example </a>
 
@@ -53,4 +53,4 @@ Notation:
 
 ----
 
--- [[Main/NowhereMan]] - 28 Apr 2006
+-- [[Main/NowhereMan]] — originally designed in April 2006
