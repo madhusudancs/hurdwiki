@@ -15,14 +15,15 @@ interfaces, to creating totally new mechanisms.
 
 If you have questions regarding the projects, or if there is more than one that
 you are interested in and you are unsure which to choose, don't hesitate to
-contact us -- on [[IRC]] or using [[mailing_lists]].
+[[contact_us|communication]].
 
-## Lisp, (Python), ... bindings
+
+## Bindings to Other Programming Languages
 
 The main idea of the Hurd design is giving users the ability to easily
-modify/extend the system's functionality.  This is done by creating
-[[filesystem_translators|hurd/translator]], or sometimes other kinds of Hurd
-servers.
+modify/extend the system's functionality ([[extensible_system|extensibility]]).
+This is done by creating [[filesystem_translators|hurd/translator]] and other
+kinds of Hurd servers.
 
 However, in practice this is not as easy as it should, because creating
 translators and other servers is quite involved -- the interfaces for doing
@@ -52,20 +53,21 @@ choice, and some example servers to prove that it works well in practice. This
 project will require gaining a very good understanding of the various Hurd
 interfaces. Skills in designing nice programming interfaces are a must.
 
-(!) There has already been some [earlier work on Python
+There has already been some [earlier work on Python
 bindings](http://www.sigill.org/files/pytrivfs-20060724-ro-test1.tar.bz2), that
-perhaps can be re-used.
+perhaps can be re-used.  Also some work on [Perl
+bindings](http://www.nongnu.org/hurdextras/#pith) is availabled.
 
 
-## virtualization using Hurd mechanisms
+## Virtualization Using Hurd Mechanisms
 
 The main idea behind the Hurd design is to allow users to replace almost any
-system functionality. Any user can easily create a subenvironment using some
-custom [[servers|hurd/translator]] instead of the default system servers. This can be seen as an
-[advanced lightweight
-virtualization](http://tri-ceps.blogspot.com/2007/10/advanced-lightweight-virtualization.html)
-mechanism, which allows implementing all kinds of standard and nonstandard
-virtualization scenarios.
+system functionality ([[extensible_system|extensibility]]). Any user can easily
+create a subenvironment using some custom [[servers|hurd/translator]] instead
+of the default system servers. This can be seen as an
+[[advanced_lightweight_virtualization|hurd/virtualization]] mechanism, which
+allows implementing all kinds of standard and nonstandard virtualization
+scenarios.
 
 However, though the basic mechanisms are there, currently it's not easy to make
 use of these possibilities, because we lack tools to automatically launch the
@@ -73,7 +75,7 @@ desired constellations.
 
 The goal is to create a set of powerful tools for managing at least one
 desirable virtualization scenario. One possible starting point could be the
-[[hurd/subhurd]]/[[hurd/neighbourhurd]] mechanism, which allows a second almost totally
+[[hurd/subhurd]]/[[hurd/neighborhurd]] mechanism, which allows a second almost totally
 independant instance of the Hurd in parallel to the main one. The current
 implementation has serious limitations though. A subhurd can only be started by
 root. There are no communication channels between the subhurd and the main one.
@@ -111,8 +113,8 @@ groups for individual resources, and lots of users for individual applications;
 adding a user to a group would give the corresponding application access to the
 corresponding resource -- an advanced [[ACL]] mechanism. Or leave out the groups,
 assigning the resources to users instead, and use the Hurd's ability for a
-process to have multiple user ID's, to equip individual applications with set's
-of user ID's giving them access to the necessary resources -- basically a
+process to have multiple user IDs, to equip individual applications with sets
+of user IDs giving them access to the necessary resources -- basically a
 [[capability]] mechanism.)
 
 The student will have to pick (at least) one of the described scenarios -- or
@@ -129,22 +131,25 @@ Hurd architecture and spirit. Previous experience with other virtualization
 solutions would be very helpful.
 
 
-## namspace based translator selection
+## Namspace-based Translator Selection
 
 The main idea behind the Hurd is to make (almost) all system functionality
-user-modifiable. This includes a user-modifiable filesystem: The whole
-filesystem is implemented decentrally, by a set of filesystem servers forming
-the directory tree together. These filesystem servers are called translators,
-and are the most visible feature of the Hurd.
+user-modifiable ([[extensible_system|extensibility]]).  This includes a
+user-modifiable filesystem: the whole filesystem is implemented decentrally, by
+a set of filesystem servers forming the directory tree together, a
+[[hurd/virtual_file_system]].  These filesystem servers are called
+[[translators|hurd/translator]], and are the most visible feature of the Hurd.
 
 The reason they are called translators is because when you set a translator on
 a filesystem node, the underlying node(s) are hidden by the translator, but the
 translator itself can access them, and present their contents in a different
-format -- translate them. A simple example is a gunzip translator, which can be
-set on a gzipped file, and presents a virtual file with the uncompressed
-contents. Or the other way around. Or a translator that presents an XML file as
-a directory tree. Or an mbox as a set of individual files for each mail; or
-ever further breaking it down into headers, body, attachements...
+format -- translate them.  A simple example is a
+[[gunzip_translator|hurd/translator/storeio]], which can be set on a gzipped
+file, and presents a virtual file with the uncompressed contents.  Or the other
+way around.  Or a translator that presents an
+[[XML_file_as_a_directory_tree|hurd/translator/xmlfs]].  Or an mbox as a set of
+individual files for each mail ([[hurd/translator/mboxfs]]); or ever further
+breaking it down into headers, body, attachements...
 
 This gets even more powerful when translators are used as building blocks for
 larger applications: A mail reader for example doesn't need backends for
@@ -162,14 +167,14 @@ explicitely before accessing the contents is pretty cumbersome, making this
 feature almost useless.
 
 A possible solution is implementing a mechanism for selecting translators
-through special filename attributes. For example you could use index.html.gz,,+
-and index.html.gz,,- to choose between translated and untranslated versions of
-a file. Or you could use index.html.gz,,u to get the contents of the file with
-a gunzip translator applied automatically. You could also use attributes on
-whole directory trees: .,,0/ would give you a directory tree corresponding to
-the current directory, but with any translators disabled, for doing a backup.
-And site,,u/*.html.gz would present a whole directory tree of compressed HTML
-files as uncompressed files.
+through special filename attributes.  For example you could use
+`index.html.gz,,+` and `index.html.gz,,-` to choose between translated and
+untranslated versions of a file.  Or you could use `index.html.gz,,u` to get
+the contents of the file with a gunzip translator applied automatically.  You
+could also use attributes on whole directory trees: `.,,0/` would give you a
+directory tree corresponding to the current directory, but with any translators
+disabled, for doing a backup.  And `site,,u/*.html.gz` would present a whole
+directory tree of compressed HTML files as uncompressed files.
 
 One benefit of the Hurd's flexibility is that it should be possible to
 implement such a mechanism without touching the existing Hurd components:
@@ -189,7 +194,8 @@ programming; but the implementation should not be too hard. Perhaps the hardest
 part is finding a convenient, flexible, elegant, hurdish method for mapping the
 special extensions to actual translators...
 
-## fix file locking
+
+## Fix File Locking
 
 Over the years, UNIX has aquired a host of different file locking mechanisms.
 Some of them work on the Hurd, while others are buggy or only partially
@@ -203,40 +209,43 @@ them.
 This task will require digging into parts of the code to understand how file
 locking works on the Hurd. Only general programming skills are required.
 
+
 ## procfs
 
-Although there is no standard (POSIX or other) for the layout of the /proc
+Although there is no standard (POSIX or other) for the layout of the `/proc`
 pseudo-filesystem, it turned out a very useful facility in GNU/Linux and other
-systems, and many tools concerned with process management use it. (ps, top,
-htop, gtop, killall, pkill, ...)
+systems, and many tools concerned with process management use it.  (`ps`, `top`,
+`htop`, `gtop`, `killall`, `pkill`, ...)
 
-Instead of porting all these tools to use libps (Hurd's official method for
+Instead of porting all these tools to use [[hurd/libps]] (Hurd's official method for
 accessing process information), they could be made to run out of the box, by
-implementing a Linux-compatible /proc filesystem for the Hurd.
+implementing a Linux-compatible `/proc` filesystem for the Hurd.
 
-The goal is to implement all /proc functionality needed for the various process
-management tools to work. (On Linux, the /proc filesystem is used also for
+The goal is to implement all `/proc` functionality needed for the various process
+management tools to work.  (On Linux, the `/proc` filesystem is used also for
 debugging purposes; but this is highly system-specific anyways, so there is
 probably no point in trying to duplicate this functionality as well...)
 
-The existing partially working procfs implementation from the hurdextras
-repository can serve as a starting point, but needs to be largely
-rewritten. (It should use libnetfs rather than libtrivfs; the data format needs
-to change to be more Linux-compatible; and it needs adaptation to newer system
+The [[existing_partially_working_procfs_implementation|hurd/translator/procfs]]
+can serve as a starting point, but needs to be largely rewritten.  (It should
+use [[hurd/libnetfs]] rather than [[hurd/libtrivfs]]; the data format needs to
+change to be more Linux-compatible; and it needs adaptation to newer system
 interfaces.)
 
-This project requires learning translator programming, and understanding some
-of the internals of process management in the Hurd. It should not be too hard
-coding-wise; and the task is very nicely defined by the exising Linux /proc
-interface -- no design considerations necessary.
+This project requires learning [[hurd/translator]] programming, and
+understanding some of the internals of process management in the Hurd.  It
+should not be too hard coding-wise; and the task is very nicely defined by the
+exising Linux `/proc` interface -- no design considerations necessary.
 
-## new driver glue code
+
+## New Driver Glue Code
 
 Although a driver framework in userspace would be desirable, presently the Hurd
-uses kernel drivers in the microkernel, gnumach. (And changing this would be
-far beyond a GSoC project...)
+uses kernel drivers in the microkernel,
+[[GNU_Mach|microkernel/mach/gnumach]]. (And changing this would be far beyond a
+GSoC project...)
 
-The problem is that the drivers in gnumach are presently old Linux drivers
+The problem is that the drivers in GNU Mach are presently old Linux drivers
 (mostly from 2.0.x) accessed through a glue code layer. This is not an ideal
 solution, but works quite OK, except that the drivers are very old. The goal of
 this project is to redo the glue code, so we can use drivers from current Linux
@@ -246,24 +255,27 @@ This is a doable, but pretty involved project. Experience with driver
 programming under Linux (or BSD) is a must. (No Hurd-specific knowledge is
 required, though.)
 
-## server overriding mechanism
+This is [[GNU_Savannah_task 5488]].
+
+
+## Server Overriding Mechanism
 
 The main idea of the Hurd is that every user can influence almost all system
-functionality, by running private Hurd servers that replace or proxy the global
-default implementations.
+functionality ([[extensible_system|extensibility]]), by running private Hurd
+servers that replace or proxy the global default implementations.
 
 However, running such a cumstomized subenvironment presently is not easy,
 because there is no standard mechanism to easily replace an individual standard
-server, keeping everything else. (Presently there is only the subhurd method,
-which creates a completely new system instance with a completely independant
-set of servers.)
+server, keeping everything else.  (Presently there is only the [[hurd/subhurd]]
+method, which creates a completely new system instance with a completely
+independent set of servers.)
 
 The goal of this project is to provide a simple method for overriding
 individual standard servers, using environment variables, or a special
 subshell, or something like that.
 
 Various approaches for such a mechanism has been discussed before.
-Probably the easiest (1) would be to modify the Hurd-specific parts of glibc,
+Probably the easiest (1) would be to modify the Hurd-specific parts of [[hurd/glibc]],
 which are contacting various standard servers to implement certain system
 calls, so that instead of always looking for the servers in default locations,
 they first check for overrides in environment variables, and use these instead
@@ -296,7 +308,12 @@ This tasks requires some understanding of the Hurd internals, especially a good
 understanding of the file name lookup mechanism. It's probably not too heavy on
 the coding side.
 
-## dtrace support
+This is [[GNU_Savannah_task 6612]].  Also there are quite a bit of emails
+discussing this topic, from a last year's GSoC application.  <!-- TODO.  Link
+to those.  -->
+
+
+## dtrace Support
 
 One of the main problems of the current Hurd implementation is very poor
 performance. While we have a bunch of ideas what could cause the performance
@@ -320,7 +337,8 @@ in their Mach-based kernel might be helpful here...)
 This project requires ability to evaluate possible solutions, and experience
 with integrating existing components as well as low-level programming.
 
-## hurdish TCP/IP stack
+
+## Hurdish TCP/IP Stack
 
 The Hurd presently uses a TCP/IP stack based on code from an old Linux version.
 This works, but lacks some rather important features (like PPP/PPPoE), and the
@@ -341,7 +359,8 @@ layers, it's up to the student to design and implement the various interfaces
 at each layer. This task requires understanding the Hurd philosophy and
 translator programming, as well as good knowledge of TCP/IP. 
 
-## improved NFS implementation
+
+## Improved NFS Implementation
 
 The Hurd has both NFS server and client implementations, which work, but not
 very well: File locking doesn't work properly (at least in conjuction with a
@@ -358,7 +377,8 @@ important for now, and shall be the major focus of this project.
 The task has no special prerequisites besides general programming skills, and
 an interest in file systems and network protocols.
 
-## fix libdiskfs locking issues
+
+## Fix libdiskfs Locking Issues
 
 Nowadays the most often encountered cause of Hurd crashes seems to be lockups
 in the ext2fs server. One of these could be traced recently, and turned out to
@@ -375,7 +395,8 @@ implementing unit checks in other parts of the Hurd codebase...)
 This task requires experience with debugging locking issues in multithreaded
 applications.
 
-## convert Hurd servers to pthreads
+
+## Convert Hurd Libraries and Servers to pthreads
 
 The Hurd was originally created at a time when the [pthreads
 standard](http://www.opengroup.org/onlinepubs/009695399/basedefs/pthread.h.html)
@@ -409,7 +430,7 @@ with multithreaded programming in general and pthreads in particular is
 required, though.
 
 
-## sound support
+## Sound Support
 
 The Hurd presently has no sound support. Fixing this requires two steps: One is
 to port kernel drivers so we can get access to actual sound hardware. The
@@ -428,7 +449,8 @@ time for porting more drivers, or implementing a more sophisticated userspace
 infrastructure. The latter requires good understanding of the Hurd philosophy,
 to come up with an appropriate design.
 
-## disk I/O performance tuning
+
+## Disk I/O Performance Tuning
 
 The most obvious reason for the Hurd feeling slow compared to mainstream
 systems like GNU/Linux, is very slow harddisk access.
@@ -447,7 +469,8 @@ optimising complex systems.  That said, the killing feature we are definitely
 missing is the read-ahead, and even a very simple implementation would bring
 very big performance speedups.
 
-## VM tuning
+
+## VM Tuning
 
 Hurd/Mach presently make very bad use of the available physical memory in the
 system. Some of the problems are inherent to the system design (the kernel
@@ -463,6 +486,7 @@ closer to that of modern mainstream kernels (Linux, FreeBSD), by comparing the
 implementation to other systems, implementing any worthwhile improvements, and
 general optimisation/tuning. It requires very good understanding of the Mach
 VM, and virtual memory in general.
+
 
 ## mtab
 
@@ -519,7 +543,8 @@ implement both the actual mtab translator, and the necessery interface(s) for
 gathering the data. It requires getting a good understanding of the translator
 mechanism and Hurd interfaces in general.
 
-## gnumach code cleanup
+
+## GNU Mach Code Cleanup
 
 Although there are some attempts to move to a more modern microkernel
 alltogether, the current Hurd implementation is based on gnumach, which is only
@@ -546,6 +571,7 @@ for readability and maintainability.
 This task requires good knowledge of C, and experience with working on a large
 existing code base. Previous kernel hacking experience is an advantage, but not
 really necessary.
+
 
 ## xmlfs
 
@@ -578,14 +604,15 @@ allows both reading and writing any XML file. Implementing the complementary
 translator also would be nice if time permits, but is not mandatory part of the
 task.
 
-The existing partial (read-only) xmlfs implementation from the hurdextras
-repository can serve as a starting point.
+The [[existing_partial_(read-only)_xmlfs_implementation|hurd/translator/xmlfs]]
+can serve as a starting point.
 
 This task requires pretty good designing skills. Good knowledge of XML is also
 necessary. Learning translator programming will obviously be necessary to
 complete the task.
 
-## allow using unionfs early at boot
+
+## Allow Using unionfs Early at Boot
 
 In UNIX systems, traditionally most software is installed in a common directory
 hierachy, where files from various packages live beside each other, grouped by
@@ -617,7 +644,8 @@ Completing this task will require gaining a very good understanding of the Hurd
 boot process and other parts of the design. It requires some design skills also
 to come up with a working mechanism.
 
-## fix tmpfs
+
+## Fix tmpfs
 
 In some situations it is desirable to have a file system that is not backed by
 actual disk storage, but only by anonymous memory, i.e. lives in the RAM (and
@@ -645,7 +673,8 @@ implementation. It requires digging into some parts of the Hurd, incuding the
 pager interface and translator programming. This task probably doesn't require
 any design work, only good debugging skills.
 
-## lexical dot-dot resolution
+
+## Lexical `..` Resolution
 
 For historical reasons, UNIX filesystems have a real (hard) `..` link from each
 directory pointing to its parent. However, this is problematic, because the
@@ -669,7 +698,7 @@ mechanism. It's probably a relatively easy task.
 See also [[GNU_Savannah_bug 17133]].
 
 
-## secure chroot implementation
+## Secure `chroot` implementation
 
 As the Hurd attempts to be (almost) fully UNIX-compatible, it also implements a
 chroot() system call. However, the current implementation is not really good,
@@ -694,7 +723,8 @@ new mechanisms. (Translators.) More important than the acualy code is the
 documentation of what he did: He must be able to defend why he chose a certain
 approach, and explain why he believes this approach really secure.
 
-## hurdish package manager for the GNU system
+
+## Hurdish Package Manager for the GNU System
 
 Most GNU/Linux systems use pretty sophisticated package managers, to ease the
 management of installed software. These keep track of all installed files, and
@@ -729,7 +759,8 @@ mechanisms are necessary to handle stuff like dependencies on other packages.
 
 The goal of this task is to create these mechanisms.
 
-## port Debian Installer to the Hurd
+
+## Port the Debian Installer to the Hurd
 
 The primary means of distributing the Hurd is through Debian GNU/Hurd. However,
 the installation CDs presently use an ancient, non-native installer. The
