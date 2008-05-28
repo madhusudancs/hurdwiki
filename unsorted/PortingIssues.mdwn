@@ -53,6 +53,10 @@ If you get Bad File Descriptor error when trying to read from a file (or accessi
 
 Every unconditionalized use of `PATH_MAX`, `MAX_PATH` or `MAXPATHLEN` is a POSIX incompatibility. If there is no upper limit on the length of a path (as its the case for GNU), this symbol is not defined in any header file. Instead, you need to either use a different implementation that does not rely on the length of a string or use `sysconf()` to query the length at runtime. If `sysconf()` returns -1, you have to use `realloc()` to allocate the needed memory dynamically.
 
+## <a name="ARG_MAX"> `ARG_MAX` </a>
+
+Same as `PATH_MAX`. There is no limit on the number of arguments.
+
 ## <a name="MAXHOSTNAMELEN_tt_"> `MAXHOSTNAMELEN` </a>
 
 Same as `PATH_MAX`. When you find a `gethostname()` function, which acts on a static buffer, you can replace it with Neal's [xgethostname function](http://ftp.walfield.org/pub/people/neal/xgethostname/) which returns the hostname as a dynamic buffer. For example:
@@ -81,7 +85,7 @@ Fixed code:
 
 ## <a name="NOFILE_tt_"> `NOFILE` </a>
 
-Replace with `RLIMIT_NOFILE`
+Replace with `getrlimit(RLIMIT_NOFILE,...)`
 
 ## <a name="GNU_specific_define_tt_"> </a> GNU specific `#define`
 
@@ -137,27 +141,92 @@ Those are evil if they don't exist and you want to name a directory this way. Fo
 
 Change it to use `termios.h` (check for it properly with autoconf `HAVE_TERMIOS_H` or the `__GLIBC__` macro)
 
+Also, change calls to `ioctl(fd, TCGETS, ...)` and `ioctl(fd, TCSETS, ...)` with `tcgetattr(fd, ...)` and `tcsetattr(fd, ...)`.
+
 ## <a name="AC_HEADER_TERMIO_tt_"> `AC_HEADER_TERMIO` </a>
 
 The autoconf check for `AC_HEADER_TERMIO` tryes to check for termios, but it's only really checking for termio in `termios.h`. It is better to use `AC_CHECK_HEADERS(termio.h termios.h)`
 
+## <a name="_IOT"> missing `_IOT` </a>
+
+This comes from ioctls.  Fixing this is easy if the structure members can be expressed by using the _IOT() macro, else it's simply impossible... See `bits/termios.h` for an instance:
+
+`#define _IOT_termios /* Hurd ioctl type field.  */ \
+  _IOT (_IOTS (tcflag_t), 4, _IOTS (cc_t), NCCS, _IOTS (speed_t), 2)`
+
+because `struct termios` holds 4 members of type `tcflag_ts`, then `NCCS`
+members of type `cc_tsi` and finaly 2 members of type `speed_ts`.
+
+As you can see, this limits the number of kinds of members to 3, and in
+addition to that (see the bitfield described in `ioctls.h`), the third
+kind of member is limited to 3 members.  However, since at the API
+compatibility layer you are generally allowed to reorder fields in
+structures, you can usually manage to fit into these limits.
+
+Note: if a field member is a pointer, then the ioctl can't be expressed
+this way, and that makes sense, since the server you're talking to
+doesn't have direct access to your memory. Ways other than ioctls must
+then be found.
+
+## <a name="SA_SIGINFO"> `SA_SIGINFO` </a>
+
+Not implemented, packages may be fixed for working around this: use void sighandler(int num) prototype and sa_handler field.
+
+## <a name="MSG_NOSIGNAL"> `MSG_NOSIGNAL` </a>
+
+Not implemented yet: [Savannah bug](https://savannah.gnu.org/bugs/?18218)
+
+## <a name="IPV6_PKTINFO"> `IPV6_PKTINFO` </a>
+
+Not fixed yet: [Glibc bug](http://sourceware.org/bugzilla/show_bug.cgi?id=3906)
+
+## <a name="SOL_IP"> `SOL_IP` </a>
+
+Not implemented yet.
+
+## <a name="HZ"> `HZ` </a>
+
+Linuxish and doesn't even make sense since the value may vary according to the running kernel.  Should use `sysconf(_SC_CLK_TCK)` or `CLK_TCK` instead.
+
+## <a name="SIOCDEVPRIVATE"> `SIOCDEVPRIVATE` </a>
+
+Oh, we should probably provide it.
+
+## <a name="MAP_NORESERVE"> `MAP_NORESERVE` </a>
+
+Not POSIX, but we could implement it.
+
+## <a name="O_DIRECT"> `O_DIRECT` </a>
+
+Long story to implement.
+
+## <a name="PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP"> `PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP` </a>
+
+We could easily provide it;
+
+## <a name="PTHREAD_STACK_MIN"> `PTHREAD_STACK_MIN` </a>
+
+We should actually provide it.
+
+## <a name="types"> `linux/types.h` or `asm/types.h` </a>
+
+These are not POSIX, `sys/types.h` and `stdint.h` should be used instead.
+
+## <a name="iopl"> `iopl` </a>
+
+Not supported. Try to replace with `ioperm(0, 65536, 1)` (conditionned with `__GNU__` as that will not work in Linux).
+
+## <a name="iopl"> `semget`, `sem_open` </a>
+
+Not implemented, will always fail.  Use `sem_init()` instead if possible.
+
+## <a name="net/..."> `net/if_arp.h`, `net/ethernet.h`, etc. </a>
+
+Not implemented, not POSIX.  Try to disable the feature in the package.
+
 ## <a name="broken_libc6_dependency"> broken libc6 dependency </a>
 
 Some packages use an erroneous dependency on `libc6-dev`. This is incorrect because `libc6` is specific to GNU/Linux. The corresponding package for GNU is `libc0.3-dev` but other OSes will have different ones. You can locate the problem in the `debian/control` file of the source tree. Typical solutions include detecting the OS using `dpkg-architecture` and hardcoding the soname, or better, use a logical OR. eg: `libc6-dev | libc0.3-dev | libc-dev`. The `libc-dev` is a virtual package that works for any soname but you have to put it only as the last option.
-
-## <a name="Third_argument_in_ioctl_tt_TIOCF"> Third argument in `ioctl` (`TIOCFLUSH`, etc) </a>
-
-Broken arguments for `ioctl`'s which might work on other systems will cause segfault on GNU, because they are passed to and from a Hurd server RPC.
-
-For example, `TIOCFLUSH` wants an `(int *)`, but will run on GNU/Linux if you pass it a 0. The solution in this case is to declare and assign an `int`, eg:
-
-      int out = 0;
-
-and pass its address to `ioctl`:
-
-      ioctl (fd, TIOCFLUSH, &out);
-
-See [a simple fix for TIOCFLUSH in telnet](http://mail.gnu.org/archive/html/bug-inetutils/2001-08/msg00015.html).
 
 ----
 
