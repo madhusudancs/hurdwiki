@@ -8,7 +8,7 @@ The [code](http://www.assembla.com/spaces/VNetHurd/trac_subversion_tool).
 
 ---
 
-## The design and implementation of hypervisor
+## The design and the implementation
 
 ### The requirements:
 * to implement a mechanism which help pfinet servers communicate with each other. For example, if pfinet 1 has IP A and pfinet 2 has IP B, the packet sent by pfinet 1 with destination address IP B should be received by pfinet 2.
@@ -16,17 +16,33 @@ The [code](http://www.assembla.com/spaces/VNetHurd/trac_subversion_tool).
 * Meanwhile this mechanism should allow non-privileged the user to start his own pfinet.
  
 
-### The possible approach is to create a hypervisor whose roles are:
+### The possible approach is to use the multiplexer and the filter.
+The multiplexer's roles are:
+
 1. to create some virtual network interface, so pfinet can send packets to it.
 2. to receive the packet from pfinet, and forward the packet to other pfinets in hurd
 3. or forward the packet to the real network device in the kernel and send it to the network.
-4. to guard the network traffic and filter illegal packets (forged by some malicious users) from pfinet or some other programs. 
+
+A filter translator is needed to enforce the policies between the interface and the pfinet server. For example, the filter can control which packets can be delivered to the pfinet server, and which packets can be sent to the network interface. The filter can also guard the network traffic and drop illegal packets (forged by some malicious users) from pfinet or some other programs. 
 
  
 ### To create a virtual network interface:
-* Implement the RPC interface defined in device.defs just as "boot" does.
-* Publish the port, so other programs can get the port and open the virtual device by calling device_open(). 
-* The hypervisor now works as a translator and other programs can get the port by calling file_name_port(). 
+* Implement the RPC interface defined in device.defs.
+* The multiplexer works as a translator and other programs can get the port to it by calling file_name_port(). 
+* Other programs can use this port as a master device port to open the virtual interface.
+
+
+### The routing inside the multiplexer:
+* when the multiplexer gets a packet, it forwards it to every interface. 
+* BPF is ported to the multiplexer. BPF delivers the packet to the right pfinet (according to the filter set by the pfinet) just as the BPF in Mach does.
+* All packets are forwarded to the interface which the multiplexer sits on.
+
+
+### The implementation of the filter translator:
+* The filter works as a proxy, forwarding the packet between the interface and the pfinet server.
+* BPF is also ported to the filter translator. There are two filers in the translator, one for outgoing packets, the other for incoming packets.
+* Only one pfinet can connect to the translator at a time. 
+
 
 (to be continued)
 
@@ -37,13 +53,13 @@ From 14.06 - 18.06 Coding:
 build the connection between pfinets in sub-hurd and network interface (by broadcasting)
 
 From 21.06 - 25.06 Coding: 
-build the connection between the hypervisor and the pfinet server in the main hurd.
+build the connection between the multiplexer and the pfinet server in the main hurd.
 
 From 26.06 - 13.07 Coding: 
 Implement the real routing among the pfinets and the network interface
 
 From 15.07 - 10.08 Coding: 
-Implement some traffic control in the hypervisor and some policy control if necessary
+Implement some traffic control in the multiplexer and some policy control if necessary
 
 From 11.08 - 18.08 Testing
 
@@ -53,7 +69,7 @@ From 11.08 - 18.08 Testing
 ## TODO
 ### Coding
 
-build the connection between the hypervisor and the pfinet server in the main hurd by creating a proxy of the process server
+a proxy of the process server
 
 ---
 
@@ -61,14 +77,19 @@ build the connection between the hypervisor and the pfinet server in the main hu
 
 ### Coding
 
-pfinet server overriding by modifying glibc. The patch is [here](http://svn.assembla.com/svn/VNetHurd/glibc_2.7_multi-netserv.patch).
+pfinet server overriding by modifying glibc. The patch is [here](http://www.assembla.com/spaces/VNetHurd/documents/aJidqKp6ur3z-Nab7jnrAJ/download/A%20patch%20of%20glibc).
+the patch of pfinet is [here](http://www.assembla.com/spaces/VNetHurd/documents/dqoQg0qUer3Asvab7jnrAJ/download/A%20patch%20of%20pfinet).
 
+the multiplexer:
 
-Start to write the hypervisor:
+- Create multiple virtual network interfaces.
+- Port BPF to the multiplexer.
+- Finish the routing among the pfinet servers.
 
-- Create a virtual network interface.
-- Publish the port created by the hypervisor by using the file system. Other program can get the port by using file_name_lookup() now.
-- Broadcast packets to the real network interface and the virtual network interface (currently, there is only one virtual network interface). The pfinet server connecting to the hypervisor can communicate with other pfinet servers which connect to the hypervisor and with the external network.
+the filter translator:
+
+- Forward the packet between the interface and the pfinet server.
+- Filter the packet.
 
 ### The Code Read
 
