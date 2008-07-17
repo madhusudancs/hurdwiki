@@ -22,6 +22,39 @@ hg clone http://freehg.org/u/flavioc/cl-hurd/
 
 Creating an extensible translator library in lisp using the mig generated stubs.
 
+### What's done
+
+- The library for writing translators is mostly written.
+- This library is intended to implement virtual filesystems. Examples are: translators were data is located in a local file (like zipfs, tarfs, rarfs, ...), single file translators (that do content filtering, output of a command, etc), network based filesystems (ftpfs, httpfs, ...)
+- Right now, what's missing is: support for symlinks, file execution, and setting other translators on our node tree.
+- It's possible to specialize the basic translator library and implement new translator classes. This is done using CLOS.
+- There is a tree-translator class that makes the managing of a node tree very easy, doing all the work for us, through a simple directory API and implementing the directory callbacks for us.
+- There is a simple example (something like zipfs) translator that can expose the directories and file contents of a ZIP file.
+- Translator options (manipulated through fsysopts) have a simple and easy to use API.
+- All the Mach port manipulation API is available.
+- It's possible to send and receive messages. Simple example:
+<pre>
+  (let* ((spec-mixed (make-message-spec :fields '(:string :integer :char :string :integer :real)))
+         (msg-mixed (make-message :spec spec-mixed))
+         (port (port-allocate :right-receive)))
+    (send-message msg-mixed :remote port :data (list "abc" 42 #\b "cba" 314 3.14))
+    (receive-message msg-mixed :source port) ; This returns T on success.
+    (get-message msg-mixed))) ; Returns '("abc" 42 #\b "cba" 314 3.14)
+</pre>
+- New message types (like :string, :integer) can be implemented, providing a powerful extension mechanism.
+
+
+### What needs to be done
+
+- Using continuations for IO blocking operations. This can be done using cl-cont.
+- Support for symlinks.
+- Support for stacking translators.
+
+
+### Notes
+
+- File execution is complicated to do, because there is no multithreading support on CLisp and continuations won't do it. Maybe forking the clisp process?.
+
 ## To do
 
 ### Documentation
