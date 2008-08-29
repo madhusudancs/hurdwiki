@@ -18,15 +18,16 @@ This document briefly introduces how to set up the virtual network and connect t
 
 Step 1: Get the Hurd and compile it.
 
-	# cvs -z3 -d:ext:username@cvs.savannah.gnu.org:/sources/hurd co -r zhengda-soc2008-virt-branch
+	cvs -z3 -d:ext:username@cvs.savannah.gnu.org:/sources/hurd co -r zhengda-soc2008-virt-branch
 
 
 Step 2: apply the [patch](http://www.assembla.com/spaces/VNetHurd/documents/b0eLzUxHmr3ymXab7jnrAJ/download/A%20patch%20of%20gnumach) on the GNU Mach.
-In order to connect the virtual network created in hurd with the external network, we need this patch. It enables the Hurd to set the Mach device into the promiscuous mode, so the real device can accept the packet that goes to the virtual device in hurd.
 
-This step is optional if we are only interested in creating a internal virtual network.
+In order to connect the virtual network created in hurd with the external network, we need this patch. It enables the Hurd to set the Mach device into the promiscuous mode, so the real device can accept the packet that goes to the virtual device in hurd.
+(This step is optional if we are only interested in creating a internal virtual network.)
 
 Step 3: apply the [patch](http://www.assembla.com/spaces/VNetHurd/documents/aJidqKp6ur3z-Nab7jnrAJ/download/A%20patch%20of%20glibc) on glibc.
+
 This patch enables the user to override the default socket server by using the environment variables SOCK_SERV_DIR or SOCK_SERV_%d (%d is the domain of the socket server).
 
 
@@ -40,6 +41,7 @@ The network device file is used to help other translators open the device.
 	# settrans -acfg /dev/eth0 /root/hurd/devnode/devnode -d eth0
 
 Step 5: create the virtual network device with eth-multiplexer.
+
 eth-multiplexer is responsible to create the virtual network device and dispatch the packet to the right clients that connect to the virtual device. It also connects the virtual network and the external network.
 
 	# settrans -acfg /root/multiplexer /root/hurd/eth-multiplexer/eth-multiplexer -v 2 -i /dev/eth0
@@ -65,11 +67,12 @@ Step 8: setup the pfinet server on the virtual network device.
 1.3 Run the command with the customized pfinet server.
 
 Step 9: Set environment variables to use the customized pfinet server.
+
 The environment variable of SOCK_SERV_DIR is used to override all socket servers and SOCK_SERV_%d to override a specific socket server. %d after SOCK_SERV_ is the domain of the protocol that the socket server supports. The environment variable SOCK_SERV_%d has the higher priority than SOCK_SERV_DIR. 
 
 	# export SOCK_SERV_2=/root/socket1/2
 
-If the modified glibc isn't installed as the system glibc, set LD_LIBRARY_PATH environment.
+If the modified glibc isn't installed as the system default C library, set LD_LIBRARY_PATH environment.
 
 	# export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/the/path/of/glibc
 
