@@ -18,7 +18,7 @@ This document briefly introduces how to set up the virtual network and connect t
 
 Step 1: Get the Hurd and compile it.
 
- cvs -z3 -d:ext:username@cvs.savannah.gnu.org:/sources/hurd co -r zhengda-soc2008-virt-branch
+	# cvs -z3 -d:ext:username@cvs.savannah.gnu.org:/sources/hurd co -r zhengda-soc2008-virt-branch
 
 
 Step 2: apply the [patch](http://www.assembla.com/spaces/VNetHurd/documents/b0eLzUxHmr3ymXab7jnrAJ/download/A%20patch%20of%20gnumach) on the GNU Mach.
@@ -36,22 +36,27 @@ In this section, I show how to create two virtual interfaces and run three pfine
 
 Step 4: create the network device file in /dev with devnode.
 The network device file is used to help other translators open the device.
+
 	# settrans -acfg /dev/eth0 /root/hurd/devnode/devnode -d eth0
 
 Step 5: create the virtual network device with eth-multiplexer.
 eth-multiplexer is responsible to create the virtual network device and dispatch the packet to the right clients that connect to the virtual device. It also connects the virtual network and the external network.
+
 	# settrans -acfg /root/multiplexer /root/hurd/eth-multiplexer/eth-multiplexer -v 2 -i /dev/eth0
 
 Step 6: create the network device files for the virtual network device with devnode.
+
 	# settrans -acfg /dev/veth0 /root/hurd/devnode/devnode -d veth0 -M /root/multiplexer
 	# settrans -acfg /dev/veth1 /root/hurd/devnode/devnode -d veth1 -M /root/multiplexer
 
 Step 7: setup the filter translator eth-filter on the network device. This step is optional. 
 eth-filter is used to set up the traffic policy on the network device.
+
 	# settrans -acfg /dev/fveth0 /root/hurd/eth-filter/eth-filter -i /dev/veth0 -S 192.168.8.0/24 -R 192.168.8.0/24
 	# settrans -acfg /dev/fveth1 /root/hurd/eth-filter/eth-filter -i /dev/veth1 -S 192.168.8.0/24 -R 192.168.8.0/24
 
 Step 8: setup the pfinet server on the virtual network device.
+
 	# settrans -afgc /root/socket0/2 /root/hurd/pfinet/pfinet -i /dev/fveth0 -a 192.168.8.10 -g 192.168.8.1 -m 255.255.255.0
 	# settrans -afgc /root/socket1/2 /root/hurd/pfinet/pfinet -i /dev/fveth1 -a 192.168.8.11 -g 192.168.8.1 -m 255.255.255.0
 	# settrans -afgc /root/socket2/2 /root/hurd/pfinet/pfinet -i /dev/fveth1 -a 192.168.8.12 -g 192.168.8.1 -m 255.255.255.0
@@ -61,9 +66,13 @@ Step 8: setup the pfinet server on the virtual network device.
 
 Step 9: Set environment variables to use the customized pfinet server.
 The environment variable of SOCK_SERV_DIR is used to override all socket servers and SOCK_SERV_%d to override a specific socket server. %d after SOCK_SERV_ is the domain of the protocol that the socket server supports. The environment variable SOCK_SERV_%d has the higher priority than SOCK_SERV_DIR. 
+
 	# export SOCK_SERV_2=/root/socket1/2
+
 If the modified glibc isn't installed as the system glibc, set LD_LIBRARY_PATH environment.
+
 	# export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/the/path/of/glibc
+
 We can run any command now, for example, ping.
 
 A SHELL script is provided to run all translators I mentioned automatically: http://www.assembla.com/spaces/VNetHurd/documents/c2W71ABser3AIxab7jnrAJ/download/runmultiplexer. To use this script, the user must specify the source of the hurd tree (the default value is /root/hurd) and the path of the servers (the default value is /root) where they should be created. This script is only used to test all translators I mentioned above and shows all steps to set up the virtual network.
