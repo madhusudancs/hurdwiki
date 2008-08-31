@@ -16,7 +16,7 @@ Some [Hurd stuff](http://opensvn.csie.org/leic/hurd/)
 
 And code: [cl-hurd](http://freehg.org/u/flavioc/cl-hurd/)
 
-hg clone http://freehg.org/u/flavioc/cl-hurd/
+hg clone [http://freehg.org/u/flavioc/cl-hurd/](http://freehg.org/u/flavioc/cl-hurd/)
 
 ## Summer session
 
@@ -25,11 +25,18 @@ Creating an extensible translator library in lisp using the mig generated stubs.
 ### What's done
 
 - The library for writing translators is mostly written.
-- This library is intended to implement virtual filesystems. Examples are: translators were data is located in a local file (like zipfs, tarfs, rarfs, ...), single file translators (that do content filtering, output of a command, etc), network based filesystems (ftpfs, httpfs, ...)
-- Right now, what's missing is: support for symlinks, file execution, and setting other translators on our node tree.
+- This library is intended to implement virtual filesystems. Examples are: translators were data is located in a local file (like zipfs, tarfs, rarfs, ...), single file translators (that do content filtering, output of a command, etc), network based filesystems (ftpfs, httpfs, ...), proxy filesystems (like hostmux, usermux, etc..)
 - It's possible to specialize the basic translator library and implement new translator classes. This is done using CLOS.
 - There is a tree-translator class that makes the managing of a node tree very easy, doing all the work for us, through a simple directory API and implementing the directory callbacks for us.
 - There is a simple example (something like zipfs) translator that can expose the directories and file contents of a ZIP file.
+- More translator examples include:
+  - /dev/null translator.
+  - /dev/zero translator.
+  - translator that creates a symlink node.
+  - tmpfs like translator.
+  - a translator that does proxying between clients and the underlying translator returning all data in upper-case.
+  - a translator that watches for changes in a file describing the file system structure.
+  - an IRC translator.
 - Translator options (manipulated through fsysopts) have a simple and easy to use API.
 - All the Mach port manipulation API is available.
 - It's possible to send and receive messages. Simple example:
@@ -44,21 +51,33 @@ Creating an extensible translator library in lisp using the mig generated stubs.
 - New message types (like :string, :integer) can be implemented, providing a powerful extension mechanism.
 - Creation of symlinks and symlink path resolution.
 - Creation of character/block devices, fifos and sockets.
+- Patch that opens stdin + stdout to /dev/null.
+- Project has been separated into 5 ASDF installable systems:
+  - hurd-common
+  - mach
+  - hurd
+  - hurd-translator
+  - tree-translator
+- Test cases are now written.
 
 
 ### What needs to be done
 
-- Using continuations for IO blocking operations. This can be done using cl-cont.
-- Callbacks:
-  - file_lock, file_lock_stat (still not sure if they are really needed)
-  - file_reparent
-- Bind the client RPC calls.
+- Fix fsys-getroot (block happens in trivfs based translators, when they do RPC's to me when I call fsys_getroot to them) and fetch-root (for passive translators).
 - Use the socket stubs?
+- Documentation
+- Integrate upstream:
+  - Done, but still not commited.
 
 
-### Notes
+### Project dependencies
 
-- File execution is complicated to do, because there is no multithreading support on CLisp and continuations won't do it. Maybe forking the clisp process?.
+- CLISP
+- [CFFI](http://common-lisp.net/project/cffi/) (apt-get installable)
+- [Flexi streams](http://www.weitz.de/flexi-streams/) (apt-get installable)
+- [Trivial garbage](http://www.cliki.net/trivial-garbage) (not in debian repositories)
+- [cl-zip](http://common-lisp.net/project/zip/) (only needed for the example translator)
+
 
 ## To do
 
