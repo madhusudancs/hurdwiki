@@ -1,0 +1,46 @@
+[[meta copyright="Copyright © 2008 Free Software Foundation, Inc."]]
+
+[[meta license="""[[toggle id="license" text="GFDL 1.2+"]][[toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU_Free_Documentation_License|/fdl]]."]]"""]]
+
+The Xen dom0 infrastructure provides for a bridged networking setup using shell
+scripts to configure the bridging device properly and attach the domUs' virtual
+interfaces to the bridge.  However, we've [seen
+problems](http://lists.gnu.org/archive/html/bug-hurd/2008-08/msg00023.html)
+when using this approach, so to [solve these
+issues](http://lists.gnu.org/archive/html/bug-hurd/2008-09/msg00071.html),
+instead suggest the following configuration method (to achieve the same thing).
+
+This is for a Debian dom0.
+
+# */etc/network/interfaces*
+
+Comment out everything referencing your physical devices.  Add this:
+
+    auto br0
+    iface br0 inet dhcp
+    	bridge_ports regex (eth|vif).* noregex
+
+... or if you want to do the manual configuration dance:
+
+    auto br0
+    iface br0 inet static
+    	bridge_ports regex (eth|vif).* noregex
+    	address 192.168.10.60
+    	netmask 255.255.255.0
+    	[...]
+
+This needs a version of the `bridge-utils` package more recent than the current
+Debian stable one ([[debbug 405215]]).  (It's trivial to rebuild the `dpkg` of,
+e.g., the Debian testing one on Debian stable.)
+
+# */etc/xen/xend-config.sxp*
+
+Make sure that only `(network-script network-dummy)` and `(vif-script
+vif-bridge)` are activated and all other `(network-script network-WHATEVER)`,
+respective `(vif-script vif-WHATEVER)` are commented out.
