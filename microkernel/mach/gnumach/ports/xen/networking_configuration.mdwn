@@ -8,6 +8,8 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled
 [[GNU_Free_Documentation_License|/fdl]]."]]"""]]
 
+[[toc ]]
+
 The Xen dom0 infrastructure provides for a bridged networking setup using shell
 scripts to configure the bridging device properly and attach the domUs' virtual
 interfaces to the bridge.  However, we've [seen
@@ -44,3 +46,60 @@ e.g., the Debian testing one on Debian stable.)
 Make sure that only `(network-script network-dummy)` and `(vif-script
 vif-bridge)` are activated and all other `(network-script network-WHATEVER)`,
 respective `(vif-script vif-WHATEVER)` are commented out.
+
+
+# Sample configuration files on Debian Lenny
+
+## /etc/xen/hurd on dom0
+
+    kernel = "/boot/gnumach-xen"
+    memory = 256
+    disk = ['phy:sda5,hda,w']
+    extra = "root=device:hd0"
+    vif = [ 'mac=00:16:3e:00:00:00, bridge=br0' ]
+    ramdisk = "/boot/hurd-modules"
+
+/dev/sda5 is an extended partition. br0 is bridge interface on dom0.
+
+## /etc/xen/xend-config.sxp on dom0
+
+    (network-script 'network-bridge netdev=br0')
+    (dom0-min-mem 196)
+    (dom0-cpus 0)
+    (vncpasswd '')
+
+## /etc/network/interfaces  on dom0
+
+    auto br0
+      iface br0 inet static
+        address 192.168.1.211
+        network 192.168.1.0
+        netmask 255.255.255.0
+        broadcast 192.168.1.255
+        gateway 192.168.1.1
+        bridge_ports eth1
+
+eth1 is the interface that is connected to the Internet on the LAN:
+
+## Doing settrans on domU
+
+    settrans -fgap /servers/socket/2 /hurd/pfinet -i eth0 -a 192.168.1.210 -g 192.168.1.1 -m 255.255.255.0
+
+## /sbin/ifconfig on dom0 
+
+    br0       Link encap:Ethernet  HWaddr 00:19:d1:2e:06:33  
+              inet addr:192.168.1.211  Bcast:192.168.1.255  Mask:255.255.255.0
+              inet6 addr: fe80::219:d1ff:fe2e:633/64 Scope:Link
+              UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+              RX packets:14187 errors:0 dropped:0 overruns:0 frame:0
+              TX packets:9214 errors:0 dropped:0 overruns:0 carrier:0
+              collisions:0 txqueuelen:0 
+              RX bytes:936563 (914.6 KiB)  TX bytes:746184 (728.6 KiB)
+
+    eth1      Link encap:Ethernet  HWaddr 00:19:d1:2e:06:33  
+              inet6 addr: fe80::219:d1ff:fe2e:633/64 Scope:Link
+              UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+              RX packets:34339 errors:0 dropped:0 overruns:0 frame:0
+              TX packets:18526 errors:0 dropped:0 overruns:0 carrier:0
+              collisions:0 txqueuelen:1000 
+              RX bytes:3019251 (2.8 MiB)  TX bytes:1453672 (1.3 MiB)

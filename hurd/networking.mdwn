@@ -1,0 +1,32 @@
+[[meta copyright="Copyright © 2000, 2008 Free Software Foundation, Inc."]]
+
+[[meta license="""[[toggle id="license" text="GFDL 1.2+"]][[toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU_Free_Documentation_License|/fdl]]."]]"""]]
+
+For each supported `PF_*` protocol family, there is a file `/servers/socket/N`
+where `N` is the numberic value fo the `PF_*` symbol.  Right now
+[[`PF_LOCAL`|translator/pflocal]] (a.k.a. `PF_UNIX`) and
+[[`PF_INET`|translator/pfinet]] (together with
+[[`PF_INET6`|translator/pfinet/ipv6]]) are supported.
+
+User programs open those files, and use the `socket_create` [[RPC]] to make a
+new socket.  With that socket, they can use the other `socket_*` RPCs and also
+the `io_*` RPCs.  The `socket_*` RPCs are essentially clones of the Unix
+syscalls in question.
+
+The only exception is `sockaddrs`, which are implemented as [[ports|libports]]
+instead of the opaque data arrays they are in the syscalls.  You manipulate
+`sockaddr` ports with the `socket_create_address`, `socket_fabricate_address`,
+and `socket_whatis_address` calls.  The `sockaddr` port is then used in socket
+calls like `socket_connect` and `socket_accept`.
+
+`PF_INET` `sockaddr` ports are manipulated with `socket_create_address` from
+the usual `struct sockaddr_in`.  `PF_LOCAL` `sockaddr` ports are stored by
+`S_IFSOCK` filesystem nodes; you find the address associated with a node with
+`ifsock_getsockaddr`.  The [[file_system_server|translator]] will get a
+`sockaddr` to return with `socket_fabricate_address`.
