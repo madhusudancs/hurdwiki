@@ -1,7 +1,7 @@
 # A plugin for ikiwiki to implement adding a footer with copyright information
 # based on a default value taken out of a file.
 
-# Copyright © 2007 Thomas Schwinge <tschwinge@gnu.org>
+# Copyright © 2007, 2008 Thomas Schwinge <tschwinge@gnu.org>
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the
@@ -17,15 +17,14 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-# A footer with copyright information will be added to every rendered page if
-# (a) such a footer isn't present already (see the `meta' plugin's
-# ``copyright'' facility) and (b) a file `copyright.html' is found (using the
-# same rules as for the sidebar plugin).
+# Unless overridden with the `meta' plugin, a footer with copyright information
+# will be added to every page using a source file `copyright' (e.g.,
+# `copyright.mdwn') (using the same ``locating rules'' as for the sidebar
+# plugin).
 #
 # The state which page's copyright text was gathered from which source is not
-# tracked, so you'll need a full wiki-rebuild if (b)'s files are changed.
-#
-# You can use wiki links in `copyright.html'.
+# tracked, so you'll need a full wiki-rebuild if the `copyright' file is
+# changed.
 
 package IkiWiki::Plugin::copyright;
 
@@ -33,37 +32,29 @@ use warnings;
 use strict;
 use IkiWiki 2.00;
 
+my %copyright;
+
 sub import
 {
-    hook (type => "pagetemplate", id => "copyright", call => \&pagetemplate,
-	  # Run last, as to have the `meta' plugin do its work first.
-	  last => 1);
+    hook (type => "scan", id => "copyright", call => \&scan);
 }
 
-sub pagetemplate (@)
+sub scan (@)
 {
     my %params = @_;
     my $page = $params{page};
-    my $destpage = $params{destpage};
 
-    my $template = $params{template};
+    return if defined $pagestate{$page}{meta}{copyright};
 
-    if ($template->query (name => "copyright") &&
-	! defined $template->param ('copyright'))
-    {
-	my $content;
-	my $copyright_page = bestlink ($page, "copyright") || return;
-	my $copyright_file = $pagesources{$copyright_page} || return;
-	#my $pagetype = pagetype ($copyright_file);
-	# Check if ``$pagetype eq 'html'''?
-	$content = readfile (srcfile ($copyright_file));
+    my $content;
+    my $copyright_page = bestlink ($page, "copyright") || return;
+    my $copyright_file = $pagesources{$copyright_page} || return;
 
-	if (defined $content && length $content)
-	{
-	    $template->param (copyright =>
-	      IkiWiki::linkify ($page, $destpage, $content));
-	}
-    }
+    # Only an optimization to avoid reading the same file again and again.
+    $copyright{$copyright_file} = readfile (srcfile ($copyright_file))
+	unless defined $copyright{$copyright_file};
+
+    $pagestate{$page}{meta}{copyright} = $copyright{$copyright_file};
 }
 
 1
