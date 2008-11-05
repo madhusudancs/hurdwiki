@@ -1,0 +1,101 @@
+From:     mib@gnu.ai.mit.edu (Michael I Bushnell)
+To:       hurd-ann@gnu.ai.mit.edu
+Date:     Mon, 8 Aug 94 16:01:23 -0400
+Subject:  New Hurd Snapshot
+X-Shopping-List: 
+	  (1) Starboard sauce (2) Cinematic lesions (3) Two-way alphabetic
+	  accordions
+
+
+A new Hurd snapshot has been placed on alpha.gnu.ai.mit.edu in
+/pub/gnu/hurd-snap.tar.gz.
+
+It is expected that the next snapshot after this one will have signals
+basically working and thus be usable for a self-hosting system.  In
+addition, the next snapshot will probably have the current state of
+our networking code (which has been proceeding, but has been absent
+from the snapshots).
+
+Here is the NEWS about this current snapshot, however.  Because some
+big changes were made to the makefile and directory structure, things
+might have gotten inadvertently ommitted from the snapshot.  If this
+happened, please let me know ASAP and I'll fix it and make a new
+snapshot.
+
+	-mib
+
+
+August 8, 1994:
+
+Structural changes:
+
+Makefiles have been vastly improved and are simpler.  The programs
+`su', `ps', and `sh' have been moved from separate dirs into `utils';
+the programs `symlink' and `ifsock' have been moved into `trans'.
+
+Several changes were made to GCC use.  You should definitely get GCC
+version 2.6.0 now.  Version 2.6.1 will have distributed the proper
+`specs' file for the i386-gnu target, but it isn't quite ready yet, so
+you still have to copy hurd/gcc-specs into
+gcc-lib/i386-gnu/2.6.0/specs.
+
+
+Interface changes:
+
+The tioctl.defs suite is complete now.
+
+INTR RPC's have been changed; individual RPC's are no longer marked
+INTR.  Rather, entire interfaces are marked `INTR_INTERFACE' if they
+conform to the library's signalling/interruption expectations.
+
+There is a new magical retry type (for dir_pathtrans and fsys_getroot)
+called `machtype' and a new one `/'; the former is for @sys tweaks and
+the latter cleans up the retry of root-based symlinks a bit.
+
+There is a new interface `login.defs'.
+
+The "dotdot node" is no longer passed at fsys_startup time; instead,
+it is passed by fsys_getroot.
+
+
+Library changes:
+
+The ports library now does death-timeouts for multi-threaded servers;
+it doesn't actually work right yet, however.  Also the ports library
+has new features (soft vs. hard ports; no outstanding ports
+notifications) that enable server-death to be done cleanly.  (I hope;
+libdiskfs and ufs haven't yet been changed to use it, so libports
+might not actually have the right facilities yet.)
+
+The translator startup routines in libfshelp have been vastly improved
+(so that they can actually be used).
+
+Numerous bugfixes in libdiskfs, particularly relating to translator
+usage.  Use new magical retry type `/' when appropriate.  Use new
+dotdot node protocol.  O_FSYNC and O_NOATIME are now honored properly.
+Alternative methods of storing symlinks are now supported through new
+hooks.  
+
+The new dotdot protocol is now used by libtrivfs.  Also, users of the
+library are now able to set the atime and mtime when necessary.
+
+The special threads version of malloc has been placed back in
+libthreads now that the C library uses a Mach-safe version on its own.
+
+
+Program changes:
+
+The `boot' program no longer implements the tioctl interface now that
+the terminal driver works.
+
+A bug was fixed in the handling of pgrps in `proc'.
+
+Many bugfixes in term.  The tioctl interface is now implemented.  EOF
+processing is fixed; break characters now work right.  Signals and
+interruption are now done correctly.  VDISCARD works.  
+
+Ufs has Some bigs fixed in dir.c.  Filesystem upgraded to BSD 4.4.
+There are now some compatibility flags.  
+
+New program dev.trim does a very minimal /dev (but doesn't work yet).
+New program dev is an initial (but poor) attempt at a real /dev.
