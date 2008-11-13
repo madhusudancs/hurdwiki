@@ -1,0 +1,219 @@
+From: mib@duality.gnu.ai.mit.edu (Michael I. Bushnell, p/BSG)
+Newsgroups: gnu.misc.discuss
+Subject: Re: GNU vs. Linux FSSTND conflict?
+Date: 13 Aug 1995 22:31:18 GMT
+Organization: Free Software Foundation, Cambridge, MA
+In-reply-to: Rick Niles's message of 13 Aug 1995 16:20:29 GMT
+
+In article <40l8od$ia9@news4.digex.net> Rick Niles <niles@axp745.gsfc.nasa.gov>
+ writes:
+
+   Is there a conflict between the GNU Filesystem Structure and
+   the Linux Filesystem Structure (FSSTND)?
+
+What you point out is the trivial difference; there are significant
+lossages in FSSTND, such as the absence of libexec...
+
+   I've heard on this newsgroup that the GNU std. is to elminate
+   the use of /usr.  So:
+
+   I guess the first question is: Is this true?
+
+Yes.
+
+   If it is how do you answer those who say the root part. should
+   be small and only enough to boot the system? And
+   the rest of the system should be on a separate part. (/usr)
+
+In GNU the directory /bin will be an amalgam of several directories;
+this well be done by the use of a translator in the Hurd.  (It will be
+similar to BSD shadow filesystems.)
+
+So we have no need to confuse users by putting binaries in two
+different places.  We can put different binaries in different physical
+locations without either forcing them to appear in different places or
+creating a forest of symlinks.
+
+But the FSSTND's arguments are bogus even for Unixoid systems which do
+force differently located files to have different directory names:
+
+      o It is often mounted from very small media.  For example, many Linux
+	users install and recover systems by mounting root off a RAM disk,
+	which is copied from a single 1.44M or 1.2M floppy disk.
+
+This is a non-issue.  Obviously a floppy can only have a small number
+of files, but that's totally irrelevant in deciding what should be on
+root on a fully loaded system.
+
+      o The root filesystem has many system-specific configuration files in
+	it.  Possible examples include a kernel that is specific to the
+	system, a different hostname, etc.  This means that the root
+	filesystem isn't always shareable between networked systems.
+	Keeping it small on networked systems minimizes the amount of space
+	lost on servers to unshareable files.  It also allows workstations
+	with smaller local hard drives.
+
+It should be possible to require only the etc directory to be
+per-system; there is no reason that bin and such should be non-shared
+at all. 
+
+      o While you may have the root filesystem on a large partition, and
+	may be able to fill it to your heart's content, there will be
+	people with smaller partitions.  If you have more files installed,
+	you may find incompatibilities with other systems using root
+	filesystems on smaller partitions.  If you are a developer then you
+	may be turning your assumption into a problem for a large number of
+	users.
+
+This is totally incoherent, as far as I can tell.  If someone can tell
+me what it means, then maybe I could help.  What sort of
+incompatibilities are expected?
+
+Michael
+
+
+
+From: gord@enci.ucalgary.ca (Gord Matzigkeit)
+Newsgroups: gnu.misc.discuss
+Subject: Re: GNU vs. Linux FSSTND conflict?
+Date: 14 Aug 1995 18:55:20 -0600
+In-reply-to: mib@duality.gnu.ai.mit.edu's message of 13 Aug 1995 22:31:18 GMT
+
+-----BEGIN PGP SIGNED MESSAGE-----
+
+Hi!
+
+>>>>> "mib" == Michael I Bushnell, p/BSG <mib@duality.gnu.ai.mit.edu> writes:
+
+ mib> In article <40l8od$ia9@news4.digex.net> Rick Niles
+ mib> <niles@axp745.gsfc.nasa.gov> writes:
+[hack & slice]
+
+ >>    If it is how do you answer those who say the root
+ >> part. should be small and only enough to boot the system? And
+ >> the rest of the system should be on a separate part. (/usr)
+
+ mib> In GNU the directory /bin will be an amalgam of several
+ mib> directories; this well be done by the use of a translator in the
+ mib> Hurd.  (It will be similar to BSD shadow filesystems.)
+
+This is what I figured... my reply didn't get posted to USENET,
+though, because our NNTP server has been down for the last day or two.
+
+ mib> So we have no need to confuse users by putting binaries in two
+ mib> different places.  We can put different binaries in different
+ mib> physical locations without either forcing them to appear in
+ mib> different places or creating a forest of symlinks.
+
+This is grand!  One of my ideas that I mentioned to Rick was that I'm
+currently using depot, and I see that the GNU union/shadowfs could
+replace that.
+
+What depot does is manages symlinks for a "software environment" (a
+more restricted version of what you have described).
+
+The way I think I'll be setting up my Hurd machine is to have all the
+physical disks mounted under "/disk", each containing a fragment of
+the filesystem.
+
+Now, my only concerns are: 
+
+1) control files, as far as determining precedence, and what can and
+cannot be shadowed (for collision resolution), and what is just
+auxilliary info (like CVS directories in the site package, which
+should not be mapped onto the software environment)
+
+2) packages.  Is there some slick way to divide the filesystem into
+"package pieces", like depot does?
+
+One suggestion to get (2), is that I could create an intermediate
+directory, say "/package", that would be the union of various mounted
+physical disks (under /disk), and would contain things like:
+
+emacs-19.30/bin
+emacs-19.30/lib...
+gcc-2.7.3/bin...
+fileutils-5.8/man...
+site/sbin/useful_perl_script
+
+et al.  Then I would unionfs all the directories in the /package dir
+onto the root filesystem.
+
+This would have most of the advantages I'm getting from depot, namely,
+the ability to specify different precedences on different machines,
+so that I can try out emacs-19.31 on one workstation without
+disrupting the others.
+
+Is there a better way to do this?  I do like the idea of three
+different hierarchies for files (under /disk, where I can see what is
+on each server; under /package, where I can see what is in each
+package; the GNU standard dirs, where I actually use the files), but I
+am hoping that there is something more elegant.  Hmm.  Maybe not.
+
+ mib> It should be possible to require only the etc directory to be
+ mib> per-system; there is no reason that bin and such should be
+ mib> non-shared at all.
+
+This is one point (for security), that would mandate the use of config
+files, so that the unionfs doesn't map /etc/some_important_file from
+another server.
+
+This is yet another thing that I'm looking forward to.  Thanks. ;)
+
+- --Gordon
+
+- -- 
+Gordon Matzigkeit     |  Heck, it was only a TOASTER... lighten up!
+gord@enci.ucalgary.ca |  PGP mail preferred... finger me for my key.
+Keyprint: D5 66 08 E0 4D F4 D7 7B 8A C8 8A 9C 7F 39 25 A7 - ID 339ABEB9
+
+
+-----BEGIN PGP SIGNATURE-----
+Version: 2.6.2
+Comment: Processed by Mailcrypt 3.3, an Emacs/PGP interface
+
+iQCVAwUBMC/wcyFsfCEzmr65AQHubwP7BGVHqs9ACB8hFUqDdF2oWu/lLq1hW/Oa
+qra2ZfcKfIZq9hIM4tLRJ0qCaiOVm5MGLgH7Yax+ZyOPb4K0fCObzk1XY5b0enhV
+9SR70UZ7Qm7MXj+PFCp5lxvrNiaFXMbil0EN5FQEvH9kUp0ed1NWcaXGqTK6gezm
+YBUumt2Zadk=
+=6f2c
+-----END PGP SIGNATURE-----
+
+
+
+
+From: mib@duality.gnu.ai.mit.edu (Michael I. Bushnell, p/BSG)
+Newsgroups: gnu.misc.discuss
+Subject: Re: GNU vs. Linux FSSTND conflict?
+Date: 16 Aug 1995 14:43:47 GMT
+In-reply-to: gord@enci.ucalgary.ca's message of 14 Aug 1995 18:55:20 -0600
+
+In article <npka8gj893.fsf@enci.ucalgary.ca> gord@enci.ucalgary.ca (Gord Matzig
+keit) writes:
+
+   The way I think I'll be setting up my Hurd machine is to have all the
+   physical disks mounted under "/disk", each containing a fragment of
+   the filesystem.
+
+Our idea is to do something roughly like this.
+
+   1) control files, as far as determining precedence, and what can and
+   cannot be shadowed (for collision resolution), and what is just
+   auxilliary info (like CVS directories in the site package, which
+   should not be mapped onto the software environment)
+
+Yes, the relevant translator will support a *rich* set of semantics
+for this kind of things specified by a control file.
+
+   2) packages.  Is there some slick way to divide the filesystem into
+   "package pieces", like depot does?
+
+We're going to do this; rms and I have worked out a usable scheme that
+meets all the necessary goals.
+
+The physical location of files has to be reflected by sharing rules
+(see the GNU makefile standards); users have to be able to see all the
+files relevant to a particular program easily; programs have to be
+easily de-installed.  We have a scheme that meets these three.
+
+Michael
