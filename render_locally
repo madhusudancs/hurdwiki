@@ -1,36 +1,36 @@
 #!/bin/sh
 
-# Render the pages of this repository for your local browsing pleasure.
-
-# We use ``--no-usedirs'' here, because when browsing local files, the web
-# browsers don't display `index.html' files by default when a hyperlink
-# referencing a directory is being opened.
+# Render the pages of this repository.
 
 # Written by Thomas Schwinge <tschwinge@gnu.org>
 
+export ROOT && ROOT=$(readlink -f "$(dirname "$0")") &&
 
-# Need a symlink-free path.
-src=$(readlink -f "$(dirname "$0")") &&
-dest=$src.rendered &&
+case $1 in
+  --official)
+    # Use this for rendering the set of pages which are to be installed under
+    # <http://www.gnu.org/software/hurd/>.
+    shift &&
+    export TZ && TZ=UTC &&
+    export DESTDIR && DESTDIR=$ROOT.rendered.official &&
+    set x \
+      --set wikistatedir="$ROOT"/.ikiwiki-official \
+      "$@" &&
+    shift;;
+  *)
+    # Use ``--no-usedirs'' here, because when browsing local files, the web
+    # browsers don't display `index.html' files by default when a hyperlink
+    # referencing a directory is being opened.
+    set x \
+      --no-usedirs \
+      "$@" &&
+    shift;;
+esac &&
 
 ikiwiki \
-  --verbose \
-  --wikiname GNU\ Hurd \
-  --templatedir "$src"/.templates \
-  --userdir user \
-  --no-usedirs \
-  --plugin favicon \
-  --plugin goodstuff \
-  --plugin html \
-  --plugin sidebar \
-  --plugin table \
-  --plugin txt \
-  --libdir "$src"/.library \
-  --plugin copyright \
-  --plugin license \
-  --plugin texinfo \
-  ${1+"$@"} \
-  "$src" "$dest" &&
+  --setup "$ROOT"/ikiwiki.setup \
+  --refresh \
+  "$@" &&
 
 echo &&
-echo Now\ open\ \`"$dest"/index.html\'' to browse the web pages.'
+echo Now\ open\ \`"${DESTDIR-"$ROOT".rendered}"/index.html\'' to browse the web pages.'
