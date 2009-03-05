@@ -1,0 +1,90 @@
+[[meta copyright="Copyright © 2008, 2009 Free Software Foundation, Inc."]]
+
+[[meta license="""[[toggle id="license" text="GFDL 1.2+"]][[toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU_Free_Documentation_License|/fdl]]."]]"""]]
+
+[[meta title="Bindings to Other Programming Languages"]]
+
+The main idea of the Hurd design is giving users the ability to easily
+modify/extend the system's functionality ([[extensible_system|extensibility]]).
+This is done by creating [[filesystem_translators|hurd/translator]] and other
+kinds of Hurd servers.
+
+However, in practice this is not as easy as it should, because creating
+translators and other servers is quite involved -- the interfaces for doing
+that are not exactly simple, and available only for C programs. Being able to
+easily create simple translators in RAD languages is highly desirable, to
+really be able to reap the advantages of the Hurd architecture.
+
+Originally Lisp was meant to be the second system language besides C in the GNU
+system; but that doesn't mean we are bound to Lisp. Bindings for any popular
+high-level language, that helps quickly creating simple programs, are highly
+welcome.
+
+Several approaches are possible when creating such bindings. One way is simply
+to provide wrappers to all the available C libraries ([[hurd/libtrivfs]], [[hurd/libnetfs]]
+etc.). While this is easy (it requires relatively little consideration), it may
+not be the optimal solution. It is preferable to hook in at a lower level, thus
+being able te create interfaces that are specially adapted to make good use of
+the features available in the respective language.
+
+These more specialised bindings could hook in at some of the lower level
+library interfaces ([[hurd/libports]], [[hurd/glibc]], etc.); use the
+[[microkernel/mach/MIG]]-provided [[microkernel/mach/RPC]] stubs directly; or
+even create native stubs directly from the interface definitions.
+
+The task is to create easy to use Hurd bindings for a language of the student's
+choice, and some example servers to prove that it works well in practice. This
+project will require gaining a very good understanding of the various Hurd
+interfaces. Skills in designing nice programming interfaces are a must.
+
+There has already been some [earlier work on Python
+bindings](http://www.sigill.org/files/pytrivfs-20060724-ro-test1.tar.bz2), that
+perhaps can be re-used.  Also some work on [Perl
+bindings](http://www.nongnu.org/hurdextras/#pith) is availabled.
+
+# Lisp
+
+Most Lisp implementations provide a Foreign Function Interface (FFI) that
+enables the Lisp code to call functions written in another language.
+Specifically, most implementations provide an FFI to the C ABI (hence giving
+access to C, Fortran and possibly C++).
+
+Common Lisp has even a portability layer for such FFI,
+[CFFI](http://common-lisp.net/project/cffi/), so that you can write bindings
+purely in Lisp and use the same binding code on any implementation supported by
+CFFI.
+
+Many Scheme implementation also provide an FFI. [Scheme48](http://www.s48.org/)
+is even the implementation used to run scsh, a Scheme shell designed to provide
+instant access to POSIX functions.
+[Guile](http://www.gnu.org/software/guile/guile.html) is the GNU project's
+Scheme implementation, meant to be embeddable and provide access to C. At least
+[Gambit](http://dynamo.iro.umontreal.ca/~gambit/),
+[Chicken](http://www.call-with-current-continuation.org/),
+[Bigloo](http://www-sop.inria.fr/mimosa/fp/Bigloo/) and
+[PLT](http://www.plt-scheme.org/) are known to provide an FFI too.
+
+With respect to the packaging and dependencies, the good news is that Debian
+comes handy: 5 Common Lisp implementations are packaged, one of which has
+already been ported to Hurd (ECL), and CFFI is also packaged. As far as Scheme
+is concerned, 14 [R5RS](http://www.schemers.org/Documents/Standards/R5RS/)
+implementations are provided and 1 [R6RS](http://www.r6rs.org/).
+
+Possible mentors: Pierre THIERRY (nowhere_man) for Common Lisp or Scheme, and perhaps Python
+
+Exercise: Write some simple program(s) using Hurd-specific interfaces in the
+language you intend to work on. For a start, you could try printing the system
+uptime. A more advanced task is writing a simple variant of the hello
+translator (you can use the existing C imlementation as reference),
+implementing only open() and read() calls. Don't only write an implementations
+using the existing C libraries (libps, libtrivfs), but also try to work with
+the MiG-generated stubs directly. If you are ambitious, you could even try to
+write your own stubs...
+
+*Status*: Flavio Cruz has completed [[Lisp_bindings|flaviocruz]] for GSoC 2008!
