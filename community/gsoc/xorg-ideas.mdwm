@@ -1,0 +1,68 @@
+[[meta copyright="Copyright © 2009 Free Software Foundation, Inc."]]
+
+[[meta license="""[[toggle id="license" text="GFDL 1.2+"]][[toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU_Free_Documentation_License|/fdl]]."]]"""]]
+
+## libpciaccess Support for GNU Hurd
+
+xserver 1.5 introduces libpciaccess as a new method for handling PCI devices.
+The purpose was to get rid of the messy old PCI code in the server, instead
+using a new implementation that is encapsulated in a library, and uses external
+PCI access interfaces provided by the operating systems.
+
+As libpciaccess is written from scratch, support for various operating systems
+needs to be reimplemented individually, writing specific backends for each.
+This task is about creating such a backend for GNU Hurd.
+
+Writing a "proper" native backend for the Hurd is rather involved, as there is
+no kernel PCI interface so far -- it has to be created first. It would also
+have the disadvantage of being somewhat tied to the specific driver framework:
+The present framework is pretty dated (using some ancient Linux drivers with a
+layer of glue code); and when this is replaced, the PCI interface will have to
+be updated as well.
+
+Alternatively, a libpciaccess backend simply doing old-style register poking
+from user space could be implemented. (Either from scratch, or by reusing some
+existing PCI code from the old server or some BSD kernel.) That approach is not
+as elegant; it would be somewhat fragile and limited, like the old PCI code in
+the server. On the other hand, it is much simpler to implement; and it would
+also benefit other non-mainstream platforms that can't afford
+creating/maintaining a native backend.
+
+The goal of this project is getting a recent xorg server, using libpciaccess,
+to run on the Hurd.
+
+This task probably doesn't require any previous X programming knowledge, though
+a bit of experience with PCI programming will probably help. Some Hurd-specific
+knowledge will have to be obtained while working on it -- especially if
+implementing a proper kernel PCI interface. The task is pretty involved in the
+latter case, but shouldn't be too hard if taking the user space register poking
+approach.
+
+Exercise: Implement a stub backend for libpciaccess, which doesn't really do
+anything useful, but compiles fine on the Hurd.
+
+
+## VT Switching for GNU Hurd
+
+While XFree86 was first ported to the Hurd more than a decade ago, and there
+are updates now and then to make newer versions of Xorg run as well (see also
+the libpciaccess task), the support is quite rudimentary: in particualar, there
+is no support for switching back to the text console while X is running.
+
+Implementing this requires creating an interface between the X server and the
+Hurd console, and implementing the necessary code on both sides.
+
+The goal of this project is to get console switching fully working on the Hurd.
+Some Hurd-specific and X-specific knowlegde will need to be obtained, but the
+task should be quite doable without previous experience with either. It
+requires implementing some pieces of code that are not quite trivial, but
+shouldn't be terribly hard either.
+
+Exercise: Try fixing <http://savannah.gnu.org/bugs/?21000>, or perhaps some
+other minor issue with X on the Hurd.
