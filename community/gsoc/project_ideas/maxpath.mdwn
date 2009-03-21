@@ -1,0 +1,43 @@
+[[meta copyright="Copyright © 2009 Free Software Foundation, Inc."]]
+
+[[meta license="""[[toggle id="license" text="GFDL 1.2+"]][[toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU_Free_Documentation_License|/fdl]]."]]"""]]
+
+[[meta title="Fixing Programs Using PATH_MAX et al Unconditionally"]]
+
+POSIX describes some constants (or rather macros) like PATH_MAX/MAXPATHLEN and
+similar, which may be defined by the system to indicate certain limits. Many
+people overlook the *may* though: Systems only should define them if they
+actually have such fixed limits. The Hurd, following the GNU Coding Standards,
+tries to aviod this kind of arbitrary limits, and consequently doesn't define
+the macros.
+
+Many programs however just assume their presence, and use them unconditionally.
+This is simply sloppy coding: not only does it violate POSIX and fails on
+systems not defining the macros, but in fact most common use cases of these
+macros are simply wrong! (See
+<http://insanecoding.blogspot.com/2007/11/pathmax-simply-isnt.html> for some
+hints as to why this is so.)
+
+There are a few hundred packages in Debian GNU/Hurd failing to build because of
+this -- simply grep for the offending macros in the
+[list_of_build_failures](http://unstable.buildd.net/buildd/hurd-i386_Failed.html).
+
+Fixing these issues usually boils down to replacing `char foo[PATH_MAX]` by
+`char *foo`, and using dynamic memory allocation. Sometimes this is tricky, but
+more often not very hard. With a bit of practice, it should be easily possible
+to fix several programs per day.
+
+The goal of this project is to fix the PATH_MAX and related problems in a
+significant number of packages, and make the fixes ready for inclusion in
+Debian and (where possible) upstream. No Hurd-specific knowledge is needed, nor
+any other special knowledge aside from general C programming skills.
+
+Possible mentors:
+
+Exercise: Fix the PATH_MAX issues in some Debian package.
