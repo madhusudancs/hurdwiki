@@ -1,4 +1,5 @@
-[[meta copyright="Copyright © 2007, 2008 Free Software Foundation, Inc."]]
+[[meta copyright="Copyright © 2007, 2008, 2009 Free Software Foundation,
+Inc."]]
 
 [[meta license="""[[toggle id="license" text="GFDL 1.2+"]][[toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -8,54 +9,65 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled
 [[GNU_Free_Documentation_License|/fdl]]."]]"""]]
 
-CVS repositories on Savannah, see <http://savannah.gnu.org/cvs/?group=hurd>.
+Git repositories on Savannah, see <http://git.savannah.gnu.org/cgit/> (search
+for *hurd*).
 
 # Branches
 
-Members of the Hurd Savannah group,
-<http://savannah.gnu.org/project/memberlist.php?group=hurd>, are allowed to
-create branches without formal permission...
+[Members of the Hurd Savannah
+group](http://savannah.gnu.org/project/memberlist.php?group=hurd) are allowed
+to create branches without formal permission:
 
-* named *SAVANNAH_LOGIN-WHATEVER-branch* for general-purpose branches, or
-
-* named *BASE_BRANCH-WHATEVER-branch* for topic-branches basing on
+  * named *BASE_BRANCH-SAVANNAH_LOGIN[-TOPIC]* for private general-purpose or
+    topic branches, respectively, or
+  * named *BASE_BRANCH-TOPIC* for public topic branches basing on
     *BASE_BRANCH*.
 
-*WHATEVER* shall be a suitable tag.
+*TOPIC* shall be a suitable tag describing the branch's main concern.  These
+tags can be applied recursively (*TOPIC-SUBTOPIC-SUBSUBTOPIC*).
+
+*private* vs. *public* does, of course, in this scenario not mean visibility,
+but instead authority: *private* branches are those that the user
+*SAVANNAH_LOGIN* has authority over, whereas public branches are open for
+every committer to install changes on.  The private branches are those that
+you would typically host on your own machine and publish through your own web
+server, but we offer that you can instead do this from the centralized Savannah
+repository, as a number of people don't have an always-accessible web server
+running on their own machines.
 
 Examples:
 
-* GNU Mach
+  * GNU Mach
 
-    * *gnumach-1-branch-Xen-branch*
-    * *gnumach-1-branch-gdb-branch*
+      * *master* -- the mainline branch
+      * *master-oskit* -- port to OSKit; branched off of *master* at some point
+      * *master-gdb_stubs* -- add support for GDB stubs; branched off of
+        *master* at some point
 
-* GNU Hurd
+  * libpthread
 
-    * *miles-orphaned-changes*
-    * *hammy-libchannel-branch*
-    * *mmenal-soc2006-nfs-branch*
-
-Also, create helper tags for merging mainline changes into your branches.
-
-Examples:
-
-* GNU Mach
-
-    * *gnumach-1-branch-Xen-branch*: *gnumach-1-branch-Xen-branch-merge_helper*
-    * *gnumach-1-branch-gdb-branch*: *gnumach-1-branch-gdb-branch-merge_helper*
-
-* GNU Hurd
-
-    * *hammy-libchannel-branch*: *hammy-libchannel-branch-base*
-    * *mmenal-soc2006-nfs-branch*: *mmenal-soc2006-nfs-branch-base*
+      * *master* -- the mainline branch
+      * *master-viengoos* -- port to Viengoos; branched off of *master* at some
+        point
+      * *master-viengoos-on-bare-metal* -- port to Viengoos running on bare
+        metal; branched off of *master-viengoos* at some point
 
 ## Merging
 
-Merging between CVS branches is not trivial.  Unless you really know what
-you're doing, please talk to [[Thomas_Schwinge|tschwinge]] or
-[[Samuel_Thibault|samuelthibault]], to avoid cluttering the repositories
-unintendedly.
+Merging between Git branches is trivial, at least as long as no conflicts
+arise.
+
+Due to this, you are encouraged to freely make use of separate branches for
+different working topics, as this really faciliates concentrating on one
+specific working topic.
+
+You are encouraged to regularely merge from the respective mainline branches
+(*BASE_BRANCH*; should be *master* in most cases) into your working branches,
+and ensure that your modifications are still fine in the context of new
+mainline changes.
+
+Merging from working branches into the mainline branches will usually be done
+by one of the project administrators, unless negotiated otherwise.
 
 # Tags
 
@@ -63,24 +75,18 @@ Equivalent rules apply.
 
 # Behavior
 
-## ... on your branches
+## Behavior on branches
 
-Most branches are to be eventually be merged back into the mainline branch.  To
-faciliate (and also to help other contributors) we'd like you to write a short
-summary log in a top-level (or wherever else appropriate) `ChangeLog.WHATEVER`
-file.
+Usually, branches are to be eventually merged back into their respective
+mainline branches.  To faciliate (and also to help other contributors) we'd
+like you to write a short summary log in a top-level (or wherever else
+appropriate) `ChangeLog.*TOPIC*` file.
 
 Examples:
 
-* GNU Mach
+  * GNU Mach
 
-    * *gnumach-1-branch-Xen-branch*: `ChangeLog.Xen`
-    * *gnumach-1-branch-gdb-branch-merge_helper*: `ChangeLog.gdb`
-
-* GNU Hurd
-
-    * *hammy-libchannel-branch-base*: `channelio/ChangeLog`, `libchannel/ChangeLog`
-    * *mmenal-soc2006-nfs-branch-base*: `nfs/ChangeLog`
+      * *master-gdb_stubs*: `ChangeLog.gdb`
 
 This need not be a full-fledged [GNU-style *ChangeLog*
 file](http://www.gnu.org/prep/standards/html_node/Change-Logs.html).  E.g.,
@@ -88,12 +94,24 @@ don't waste time writing *ChangeLog* entries for debugging stuff that will be
 removed again before merging back into mainline.  But please do write
 something.  Short notes.
 
-## ... in general
+### Behavior on *private* branches
+
+Even though you are said to be the owner of branches tagged with your
+*SAVANNAH_LOGIN*, it is generally nevertheless good to not do history-rewriting
+stuff and the like (`git rebase` and friends), as others may in turn be basing
+their work on your private branches.
+
+We could establish a branch-tagging policy for branches that others should
+expect their history possibly to be rewritten.  This may be useful for branches
+that are only meant for aggregating the changes of (several) development
+branches, like *master-proposed_for_general_testing*.
+
+## Behavior in general
 
 Try to not introduce spurious, unneeded changes, e.g., whitespace changes.
 
-Adhere to the already-used coding conventions.  These are usually the [GNU
-Coding Standards](http://www.gnu.org/prep/standards/html_node/) for stuff
+Adhere to the coding conventions that are already used.  These are usually the
+[GNU Coding Standards](http://www.gnu.org/prep/standards/html_node/) for stuff
 written by ourselves, including new files, of course.
 
 GNU Mach code is largely based on external code.  Don't GNU-ify it, as this
