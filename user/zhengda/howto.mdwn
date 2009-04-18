@@ -42,31 +42,26 @@ The network device file is used to help other translators open the device.
 
 Step 5: create the virtual network device with eth-multiplexer.
 
-eth-multiplexer is responsible to create the virtual network device and dispatch the packet to the right clients that connect to the virtual device. It also connects the virtual network and the external network.
+eth-multiplexer is responsible to create the virtual network device and dispatch the packet to the right clients that connect to the virtual device. It also connects the virtual network and the external network. Eth-multiplexer of the current version is a netfs translator and can create virtual devices and the device files dynamically, according to the request from the client. 
 
-	# settrans -acfg /root/multiplexer /root/hurd/eth-multiplexer/eth-multiplexer -v 2 -i /dev/eth0
+	# ettrans -acfg /root/multiplexer /root/hurd/eth-multiplexer/eth-multiplexer -i /dev/eth0
 
-Step 6: create the network device files for the virtual network device with devnode.
+Step 6: setup the filter translator eth-filter on the network device. This step is optional. 
 
-	# settrans -acfg /dev/veth0 /root/hurd/devnode/devnode -d veth0 -M /root/multiplexer
-	# settrans -acfg /dev/veth1 /root/hurd/devnode/devnode -d veth1 -M /root/multiplexer
+eth-filter is used by the user to force the traffic policy on the network device.
 
-Step 7: setup the filter translator eth-filter on the network device. This step is optional. 
-eth-filter is used to set up the traffic policy on the network device.
+	# settrans -acfg /dev/fveth0 /root/hurd/eth-filter/eth-filter -i /root/multiplexer/veth0 -S 192.168.8.0/24 -R 192.168.8.0/24
+	# settrans -acfg /dev/fveth1 /root/hurd/eth-filter/eth-filter -i /root/multiplexer/veth1 -S 192.168.8.0/24 -R 192.168.8.0/24
 
-	# settrans -acfg /dev/fveth0 /root/hurd/eth-filter/eth-filter -i /dev/veth0 -S 192.168.8.0/24 -R 192.168.8.0/24
-	# settrans -acfg /dev/fveth1 /root/hurd/eth-filter/eth-filter -i /dev/veth1 -S 192.168.8.0/24 -R 192.168.8.0/24
-
-Step 8: setup the pfinet server on the virtual network device.
+Step 7: setup the pfinet server on the virtual network device.
 
 	# settrans -afgc /root/socket0/2 /root/hurd/pfinet/pfinet -i /dev/fveth0 -a 192.168.8.10 -g 192.168.8.1 -m 255.255.255.0
 	# settrans -afgc /root/socket1/2 /root/hurd/pfinet/pfinet -i /dev/fveth1 -a 192.168.8.11 -g 192.168.8.1 -m 255.255.255.0
-	# settrans -afgc /root/socket2/2 /root/hurd/pfinet/pfinet -i /dev/fveth1 -a 192.168.8.12 -g 192.168.8.1 -m 255.255.255.0
 
 
 #### 1.3 Run the command with the customized pfinet server.
 
-Step 9: Set environment variables to use the customized pfinet server.
+Step 8: Set environment variables to use the customized pfinet server.
 
 The environment variable of SOCK_SERV_DIR is used to override all socket servers and SOCK_SERV_%d to override a specific socket server. %d after SOCK_SERV_ is the domain of the protocol that the socket server supports. The environment variable SOCK_SERV_%d has the higher priority than SOCK_SERV_DIR. 
 
@@ -83,13 +78,13 @@ A SHELL script is provided to run all translators I mentioned automatically: htt
 
 ### 2. Connect the subhurd with the main hurd.
 
-In the main hurd, we still need to do Step 1-9. 
+In the main hurd, we still need to do Step 1-8. 
 We run subhurd, 
 
 	# /root/hurd/boot/boot -m eth0=/dev/fveth0 -m eth1=/dev/fveth1 servers.boot /dev/hd1s1
 
 In the subhurd, we do Step 1, 4, 8.
 Step 4: # settrans -acfg /dev/veth0 /root/hurd/devnode/devnode -d veth0
-Step 8: # settrans -afgc /servers/socket/2 /root/hurd/pfinet/pfinet -i /dev/veth0 -a 192.168.8.20 -g 192.168.8.1 -m 255.255.255.0
+Step 7: # settrans -afgc /servers/socket/2 /root/hurd/pfinet/pfinet -i /dev/veth0 -a 192.168.8.20 -g 192.168.8.1 -m 255.255.255.0
 
 Now we can communicate from the subhurd with any pfinet server of the main Hurd that runs in the virtual network.
