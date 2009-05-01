@@ -1,4 +1,4 @@
-[[meta copyright="Copyright © 2008 Free Software Foundation, Inc."]]
+[[meta copyright="Copyright © 2008, 2009 Free Software Foundation, Inc."]]
 
 [[meta license="""[[toggle id="license" text="GFDL 1.2+"]][[toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -8,97 +8,93 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled
 [[GNU_Free_Documentation_License|/fdl]]."]]"""]]
 
-## Viengoos build
+Check out Viengoos and switch to the viengoos-on-bare-metal branch
+(all development is currently done on this branch and it will
+eventually be merged into the master branch):
 
-####Checkout viengoos-master:
+    $ git clone git://git.savannah.gnu.org/hurd/viengoos.git
+    $ cd viengoos
+    $ git checkout -b viengoos-on-bare-metal origin/viengoos-on-bare-metal
 
-    git clone git://git.savannah.gnu.org/hurd/viengoos.git
+Generate the autoconf environment (note that --force is not specified
+as we have our own version of config.guess and config.sub):
 
-Configure:
+    $ autoreconf -i
 
-    autoreconf -i
-    mkdir test build
+Configure a build directory:
 
-Make check on test (fails to complete as on July 7, 2008):
+    $ mkdir build
+    $ cd build
+    $ ../configure --host=x86_64-pc-viengoos-gnu --with-newlib
 
-    cd test
-    ../configure --enable-l4-abi=x2 --host=i686-pc-viengoos-gnu --enable-tests
-    make check
+Now, build Viengoos.  Running make the first time will automatically
+fetch binutils and gcc from the Internet and build a cross compiler.
+Running make again will build the Viengoos proper.  Again, the build
+process with fetch several tarballs including Newlib, the Boehm GC and
+Sqlite.
 
-Build the compiler:
+    $ make
+    ...
+    The cross compiler is now set-up.  Re-run `make' and proceed as usual.
+    make[2]: Leaving directory `.../viengoos/build'
+    make[1]: Leaving directory `.../viengoos/build'
+    $ make
 
-    cd ../build
-    ../configure --enable-l4-abi=x2 --host=i686-pc-viengoos-gnu --with-newlib
+# Booting Using QEMU
 
-Build cross-compiler:
+To boot Viengoos, use Grub 2.  You cannot use Grub Legacy: Viengoos is
+an ELF64 executable, which Grub Legacy does not support.
 
-    make
+First, check out Grub 2 from svn:
 
-Build Viengoos proper:
+    $ svn co svn://svn.savannah.gnu.org/grub/trunk/grub2
+    $ cd grub2
 
-    make
+Before building Grub 2, you should apply the following patch, which
+makes it easy to tell Grub to load a specific grub.cfg at start up
+([details](http://lists.gnu.org/archive/html/grub-devel/2009-01/msg00099.html)).
 
-Install the built executables:
+    $ wget http://www.gnu.org/software/hurd/microkernel/viengoos/grub2-config.diff -O /dev/stdout | patch -p0
 
-    cd ..
-    mkdir install
-    install -s build/laden/laden install
-    install -s build/viengoos/viengoos install
-    install -s build/hieronymus/hieronymus install
+Next, build Grub 2:
 
-## BUILD L4
+    $ ./autogen.sh
+    $ mkdir build
+    $ cd build
+    $ ../configure --prefix=`pwd`/../install
+    $ make && make install
 
-Get Pistachio using hg:
+Create the boot disk:
 
-    hg clone http://hg.l4ka.org/l4ka-pistachio
+    $ cd ../install
+    $ bin/grub-mkrescue boot.img --configfile=grub.cfg --image-type=floppy --modules='help reboot serial multiboot pc configfile normal boot fat'
 
-Build:
+Now, create /viengoos and link viengoos and hieronymus into that
+directory:
 
-    cd kernel
+    $ mkdir /viengoos
+    $ cd /viengoos
+    $ ln -s ~/viengoos/build/viengoos/viengoos.stripped viengoos
+    $ ln -s ~/viengoos/build/hieronymus/hieronymus.stripped hieronymus
 
-    make BUILDDIR=/absolute/path/to/build
-    cd build
+Also, create a grub.cfg file in /viengoos/grub.cfg:
 
-Check Makeconf.local:
+    set timeout=1
+    set default=0
+    set root=hd0,1
+    
+    menuentry "Viengoos" {
+        multiboot /viengoos -D 3 -o serial
+        module /hieronymus
+    }
 
-    make menuconfig
-    Kernel->Enable experimental features->Pager ExchangeRegisters
-     
-    make
+NB: If you edit grub.cfg and a backup file called grub.cfg~ is
+created, qemu will use grub.cfg~ instead of grub.cfg!  Thus, after
+editing grub.cfg, be sure to delete any grub.cfg~ file!
 
-## Build sigma0
+Finally, boot!
 
-    cd user
+    $ qemu-system-x86_64 -serial stdio -fda ~/grub2/install/boot.img -hda fat:/viengoos -boot a
 
-    autoheader
-    autoconf
-    ./configure
-    make
-
-## Test!
-
-Install all executables to /usr/local/hurd. Create a menu.lst
-
-    title The GNU Hurd on L4
-    root (hd0,0)
-    kernel /laden -D
-    module /x86-kernel
-    module /sigma0
-    module /viengoos -D 3 -o serial
-    module /hieronymus -D 3
-
-Get specific grub version:
-
-     wget ftp://alpha.gnu.org/gnu/grub/grub-0.97-i386-pc.ext2fs
-
-Use the following to boot:
-
-    qemu -serial stdio -hdb fat:/usr/local/hurd -fda grub-0.97-i386-pc.ext2fs -boot a
-
-At grub prompt:
-
-    grub> root (hd0,0)
-
-    grub> configfile /menu.lst
-
-It will boot to a kernel debugger prompt.
+By default, Hieronymus is configured to load ruth, a test suite.  Ruth
+can take a long time to complete.

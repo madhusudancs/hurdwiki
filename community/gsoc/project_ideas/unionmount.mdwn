@@ -1,0 +1,60 @@
+[[meta copyright="Copyright © 2009 Free Software Foundation, Inc."]]
+
+[[meta license="""[[toggle id="license" text="GFDL 1.2+"]][[toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU_Free_Documentation_License|/fdl]]."]]"""]]
+
+[[meta title="Union Mounts"]]
+
+When setting a translator on Hurd -- similar to mounting a file system on UNIX
+-- the new node(s) exported by the translator are obscuring the original node
+where the translator is set, and any nodes below it in the directory tree. The
+translator itself can access the underlying node (which is a very nice feature,
+as it allows translators presenting the contents of the node in a different
+format); but it's no longer accessible from the "outside".
+
+Plan9 has a feature where a file system can be mounted in union mode: the new
+file system doesn't obscure the mount point in this case, but instead the
+contents are combined. (This feature has also been under discussion in Linux
+for a couple of years now, under the label "VFS-based union mounts".)
+
+This kind of union mounts is generally useful, as it's sometimes more
+convenient than unioning existing filesystem locations with unionfs -- it's not
+necessary to mount a file system that is to be unioned at some external
+location first: just union-mount it directly at the target location.
+
+But union mounts also allow creating passive translator hierarchies: If there
+is a passive translator on a parent node, and further passive translators on
+child nodes, the union mount allows the child nodes with the further translator
+settings still to be visible after the parent translator has started.
+
+This could be useful for device nodes for example: let's say we have an
+ethernet multiplexer at /dev/veth. Now the virtual subnodes could all be
+directly under /dev, i.e. /dev/veth0, /dev/veth1 etc., and explicitely refer to
+the main /dev/veth node in the translator command line. It would be more
+elegant however to store the virtual nodes direcly below the main multiplexer
+node -- /dev/veth/0, /dev/veth/1 etc.
+
+There are two possible approaches how union mounts could be implemented in the
+Hurd. The first one is to let the various translators handle union mounts
+internally, i.e. let them present the underlying nodes to the clients in
+addition to the actual nodes they export themselfs. This probably can be
+implemented as some kind of extension to the existing netfs and diskfs
+libraries.
+
+The other possible apporach is less efficient and probably more tricky, but
+probably also more generic: create a special unionmount translator, which
+serves as a kind of proxy: setting the union-mounted translator on some
+internal node; and at the actual mount location, presenting a union of the
+nodes exported by this translator, and the nodes from the underlying file
+system.
+
+The goal of this project is implementing union mounts using either of the
+approaches described above. (Though it might be useful initially to prototype
+both for comparision.) The ethernet multiplexer shall serve as an example use
+case -- any changes necessary to allow using it with the union mount
+functionality are also to be considered part of the task.

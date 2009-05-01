@@ -1,0 +1,47 @@
+2009-01-17  Neal H. Walfield  <address@hidden>
+
+        * util/i386/pc/grub-mkrescue.in: Add new option --configfile.  If
+        not the set and not the empty string, load it from the generated
+        config file on boot.
+
+Index: util/i386/pc/grub-mkrescue.in
+===================================================================
+--- util/i386/pc/grub-mkrescue.in	(revision 2148)
++++ util/i386/pc/grub-mkrescue.in	(working copy)
+@@ -49,6 +49,7 @@
+   --image-type=TYPE       select floppy or cdrom (default)
+   --emulation=TYPE        select El Torito boot emulation type floppy
+                           or none (default) (cdrom only)
++  --configfile=FILE       config file to load (default: none)
+ 
+ grub-mkimage generates a bootable rescue image of the specified type.
+ 
+@@ -93,6 +94,9 @@
+             echo "Unknown emulation type \`$emulation'" 1>&2
+             exit 1 ;;
+         esac ;;
++    --configfile=*)
++       configfile=`echo "$option" | sed 's/--configfile=//'`
++        ;;
+     -*)
+ 	echo "Unrecognized option \`$option'" 1>&2
+ 	usage
+@@ -121,9 +125,15 @@
+   ${aux_dir}/boot/grub/
+ 
+ modules="biosdisk `cat ${input_dir}/partmap.lst` ${modules}"
+-for i in ${modules} ; do
+-  echo "insmod $i"
+-done > ${aux_dir}/boot/grub/grub.cfg
++{
++  for i in ${modules} ; do
++    echo "insmod $i"
++  done
++  if test x$configfile != x
++  then
++    echo "configfile $configfile"
++  fi
++} > ${aux_dir}/boot/grub/grub.cfg
+ 
+ for d in ${overlay}; do
+   echo "Overlaying $d"
