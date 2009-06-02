@@ -16,10 +16,10 @@ Mail: <mailto:unlimitedscolobb@gmail.com>
 
 # Google Summer of Code: 2009 Project
 
-**Unionmount**: The goal of this project is to make it possible to
-mount a translator on a node in such a way that the contents of the
-node be merged with the (virtual) filesystem published by the
-translator.
+**Unionmount**: The goal of this project is to make it possible to set
+translators in unionmount mode, which means that the filesystem
+published by the mounted translator will get merged with the directory
+tree of the node the translator is mounted onto.
 
 For documentation, see [[hurd/translator/unionmount]].
 
@@ -29,27 +29,64 @@ For documentation, see [[hurd/translator/unionmount]].
 
 ### DONE
 
-* Make unionfs build.
+* **Make `unionfs` build.** For reasons unknown to me, `unionfs`
+  Makefile was configured to search for include files from under
+  `$(prefix)/include`, while `$(prefix)` was never defined. Setting
+  `$(prefix)` to `/usr` solved the problem.
 
-* Change the command line parsing in unionfs to comply with the
-  requirements of unionmount.
+* **Change the command line parsing in `unionfs` to comply with the
+  requirements of `unionmount`.** Although the core functionality of
+  `unionmount` heavily relies on `unionfs`, the command line interface
+  of these two programs is completely different: `unionfs` operates on
+  directories, the list of which is explicitly specified, while
+  `unionmount` *always* merges the underlying filesystem and the
+  filesystem published by the mountee. Therefore, options like
+  `--add`, `--remove`, `--underlying` (specific to `unionfs`) make
+  little sense in `unionmount` context. These options have been
+  removed. Also, `unionmount` must be able to pass some switches to
+  the mountee, which means that it should stop parsing the command
+  line arguments immediately after having encountered the path to the
+  mountee (very similar to how `settrans` works). This functionality
+  has also been implemented.
 
-* Start the mountee.
+* **Make `unionmount` capable of starting the mountee.** The idea
+  behind implementation of this goal is that `unionmount` should
+  provide a proxy node on which to set the mountee. The main issue
+  about this goal was the fact that the mountee *cannot* be started
+  during the initialization of `unionmount`, because in this phase
+  `unionmount` is not capable of responding to RPCs, while many
+  translators try to `io_stat` their underlying node or do other
+  interesting things on startup. The solution to this problem is,
+  obviously, *lazy* startup, i.e. the mountee is started at the first
+  attempt to access (via `dir_lookup` or `dir_readdir`) the merged
+  filesystem published by `unionmount`.
+
+* **Include the filesystem published by the mountee in the list of
+  merged filesystems.** `unionfs` operates on a list of ports to the
+  underlying filesystems, therefore, to finish the unionmount
+  functionality, I had to include the port to the mountee in this
+  list.
 
 ### TODO
 
-* Include the filesystem published by the mountee in the list of
-  merged filesystems.
+* **Use a different (better?) implementation idea.** It has been
+  pointed out several times that `unionmount` could be implemented not
+  by forking off `unionfs`, but by keeping the merging functionality
+  in a stand-alone module (which could then be used by `unionfs` as
+  well). Different implementation ideas with their own specific
+  advantages may also arise in the future.
 
-* Use a different (better?) implementation idea.
+* **Write documentation.** The basic unionmount functionality being
+  finished, it has to be documented properly, lest it should lag
+  behind and remain unfinished eventually.
 
-* Write documentation.
-
-* Push the unionmount branch (*master-scolobb-unionmount*) to the
-  unionfs repository.
-
-* Derive an independent repository based on the
-  *master-scolobb-unionmount* branch.
+* **Decide as to location of unionmount.** Presently, `unionmount` is
+  a (local) branch in `unionfs` git repository. The first step of
+  publishing it is planned to be pushing it to the Savannah `unionfs`
+  repository. Some agree that there should also be a second step
+  consisting in splitting `unionmount` in a separate git repository,
+  since the destinations of `unionfs` and `unionmount` are *similar*,
+  and not identical.
 
 ---
 
@@ -170,4 +207,3 @@ The code is at <http://github.com/scolobb/nsmux/tree/master>.
 ####0: Sun Apr 27:
 
 > Followed the code of *dmesgd* (<http://www.bddebian.com/junk/dmesgd/>) kindly offered by **bddebian** and rewrote it from scratch as a tutorial.
-
