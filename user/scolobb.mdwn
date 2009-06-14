@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2008 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2008, 2009 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -8,13 +8,122 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled
 [[GNU Free Documentation License|/fdl]]."]]"""]]
 
-# scolobb
 
-Sergiu Ivanov, interested non-student
+Sergiu Ivanov
 
 Mail: <mailto:unlimitedscolobb@gmail.com>
 
-Project: Namespace-based translator selection
+
+# Google Summer of Code: 2009 Project
+
+**Unionmount**: The goal of this project is to make it possible to set
+translators in unionmount mode, which means that the filesystem
+published by the mounted translator will get merged with the directory
+tree of the node the translator is mounted onto.
+
+For documentation, see [[hurd/translator/unionmount]].
+
+---
+
+## Roadmap
+
+### DONE
+
+(Dates in brackets show the completion date)
+
+* **Make `unionfs` build.** *(24 May)* For reasons unknown to me,
+  `unionfs` Makefile was configured to search for include files from
+  under `$(prefix)/include`, while `$(prefix)` was never
+  defined. Setting `$(prefix)` to `/usr` solved the problem.
+
+* **Change the command line parsing in `unionfs` to comply with the
+  requirements of `unionmount`.** *(25 May)* Although the core
+  functionality of `unionmount` heavily relies on `unionfs`, the
+  command line interface of these two programs is completely
+  different: `unionfs` operates on directories, the list of which is
+  explicitly specified, while `unionmount` *always* merges the
+  underlying filesystem and the filesystem published by the
+  mountee. Therefore, options like `--add`, `--remove`, `--underlying`
+  (specific to `unionfs`) make little sense in `unionmount`
+  context. These options have been removed. Also, `unionmount` must be
+  able to pass some switches to the mountee, which means that it
+  should stop parsing the command line arguments immediately after
+  having encountered the path to the mountee (very similar to how
+  `settrans` works). This functionality has also been implemented.
+
+* **Make `unionmount` capable of starting the mountee.** *(28 May)*
+  The idea behind implementation of this goal is that `unionmount`
+  should provide a proxy node on which to set the mountee. The main
+  issue about this goal was the fact that the mountee *cannot* be
+  started during the initialization of `unionmount`, because in this
+  phase `unionmount` is not capable of responding to RPCs, while many
+  translators try to `io_stat` their underlying node or do other
+  interesting things on startup. The solution to this problem is,
+  obviously, *lazy* startup, i.e. the mountee is started at the first
+  attempt to access (via `dir_lookup` or `dir_readdir`) the merged
+  filesystem published by `unionmount`.
+
+* **Include the filesystem published by the mountee in the list of
+  merged filesystems.** *(1 Jun)* `unionfs` operates on a list of
+  ports to the underlying filesystems, therefore, to finish the
+  unionmount functionality, I had to include the port to the mountee
+  in this list.
+
+* **Learn Texinfo.** *(Jun 4)* In order to produce canonical
+  documentation I had to learn the Texinfo documentation format.
+
+* **Write documentation for `unionmount`.** *(Jun 5)* The basic
+  unionmount functionality being finished, it has to be documented
+  properly, lest it should lag behind and remain unfinished
+  eventually.
+
+* **Write documentation for `unionfs`.** *(Jun 5)* `unionfs` is not
+  exactly well-documented at the moment, the only help being provided
+  by the comments in the sources. The goal is to write a more coherent
+  documentation.
+
+### TODO
+
+(Dates in brackets show the *expected* completion date)
+
+* **Study eth-multiplexer.** *(12 Jun)* In order to get an idea of
+  what should the rules for eth-multipexer be, I will have to study
+  the current state of eth-multiplexer.
+
+* **Start with a clean unionfs and implement the `--mount` argument**
+  *(12 Jun)* It was suggested to implement the union mount
+  functionality first, instead of doing some partial adaptation of
+  `unionfs` to `unionmount` and leaving the complete adaptation for
+  the future.
+
+* **Implement merging rules.** *(25 Jul)* Some details are still
+  awaiting discovery by me.
+
+* **Wrap up the project for upstream inclusion.** *(1 Aug)*
+  `unionmount` is intended to be included upstream, therefore it
+  should be mostly complete and polished by the end of GSoC.
+
+* **Decide as to location of unionmount.** *(1 Aug)* Presently,
+  `unionmount` is a (local) branch in `unionfs` git repository. The
+  first step of publishing it is planned to be pushing it to the
+  Savannah `unionfs` repository. Some agree that there should also be
+  a second step consisting in splitting `unionmount` in a separate git
+  repository, since the destinations of `unionfs` and `unionmount` are
+  *similar*, and not identical.
+
+* **Employ `unionmount` in eth-multiplexer.** *(10 Aug)* I still have
+  to scrounge for details.
+
+* **Use a different (better?) implementation idea.** *(17 Aug)* It has
+  been pointed out several times that `unionmount` could be
+  implemented not by forking off `unionfs`, but by keeping the merging
+  functionality in a stand-alone module (which could then be used by
+  `unionfs` as well). Different implementation ideas with their own
+  specific advantages may also arise in the future.
+
+---
+
+# Google Summer of Code: 2008 Project: Namespace-based translator selection
 
 ---
 
@@ -131,4 +240,3 @@ The code is at <http://github.com/scolobb/nsmux/tree/master>.
 ####0: Sun Apr 27:
 
 > Followed the code of *dmesgd* (<http://www.bddebian.com/junk/dmesgd/>) kindly offered by **bddebian** and rewrote it from scratch as a tutorial.
-

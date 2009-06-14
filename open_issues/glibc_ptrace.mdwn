@@ -1,0 +1,47 @@
+[[!meta copyright="Copyright © 2009 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="glibc: ptrace"]]
+
+[[!tag open_issue_glibc]]
+
+`ptrace` has some issues (`sysdeps/mach/hurd/ptrace.c`).
+
+  * Our implementation (and the generic one in `misc/ptrace.c`) differ
+    from the Linux one (`sysdeps/unix/sysv/linux/ptrace.c`)
+    w.r.t. handling of...
+
+      * the third argument: `int data` vs. `void *data`;
+
+      * `void *addr2` -- Linux doesn't have this, but we provide some
+        additional functionalty using this;
+
+      * function declaration: Linux has **`long`** `int ptrace (enum
+        __ptrace_request __request, ...)` **`__THROW`**, we have `int ptrace
+        (enum __ptrace_request __request, ...)`;
+
+      * interface do differ, e.g., Linux' `PTRACE_GETREGS` uses `void
+        *data`, we use `void *addr` for returning the struct, and in
+	Linux this is a `struct user_regs_struct` from `linux/user.h`,
+        and for us it is a `struct i386_thread_state` from
+        `mach/i386/thread_status.h`;
+
+      * Linux probides some functionality that we don't provide, e.g.,
+        `PTRACE_SINGLESTEP`.
+
+  * Some parts are wrongly implemented, e.g., `PTRACE_GETREGS` and
+    `PTRACE_SETREGS` both do the same thing.
+
+  * `return` values are wrong, e.g., `return EOPNOTSUPP` should instead
+    set `errno = EOPNOTSUPP` and `return -1` in a few places (but not
+    with the three `PTRACE_PEEK*` requests.
+
+Also consider the `sysdeps/generic/sys/ptrace.h` and
+`sysdeps/unix/sysv/linux/sys/ptrace.h` files.
