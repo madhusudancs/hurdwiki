@@ -170,12 +170,15 @@ This comes from ioctls.  Fixing this is easy if the structure members can be exp
 `#define _IOT_termios /* Hurd ioctl type field.  */ \
   _IOT (_IOTS (tcflag_t), 4, _IOTS (cc_t), NCCS, _IOTS (speed_t), 2)`
 
-because `struct termios` holds 4 members of type `tcflag_ts`, then `NCCS`
-members of type `cc_tsi` and finaly 2 members of type `speed_ts`.
+The rationale behind is that on the Hurd ioctl numbers actually encode how the
+data should be transferred via RPC: here `struct termios` holds 4 members of
+type `tcflag_ts`, then `NCCS` members of type `cc_tsi` and finaly 2 members of
+type `speed_ts`, so the RPC mecanism will know how to transfer them.
 
-As you can see, this limits the number of kinds of members to 3, and in
-addition to that (see the bitfield described in `ioctls.h`), the third
-kind of member is limited to 3 members.
+As you can see, this limits the number of contiguous kinds of members to 3, and
+in addition to that (see the bitfield described in `ioctls.h`), the third kind
+of member is limited to 3 members.  This is a design limitation, there is no way
+to overcome it at the moment.
 
 Note: if a field member is a pointer, then the ioctl can't be expressed
 this way, and that makes sense, since the server you're talking to
