@@ -1,0 +1,545 @@
+[[!meta copyright="Copyright © 2009 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="splitting a patch into three, and then some git rebase
+--interactive"]]
+
+I was revisiting the issue of getting the Hurd's code base compiled with recent
+versions of GCC.  Specifically, there were a lot of duplicate symbols shown at
+linking time, and all these were related to `inline` functions.  Originally, in
+2007, we had solved this problem already (or rather, shifted it) by using GCC's
+`-fgnu89-inline` option, but as we [[!GNU_Savannah_patch 6840 desc="saw now"]],
+that one obviously doesn't help anymore if third-party code is using the Hurd's
+unfixed header files.
+
+So I was revisiting this issue.  I was already prepared that this would take
+some hours, with lots of editing, compiling cycles, plus some analyzing of the
+binaries.  So I made up a fresh repository for this work.
+
+    $ mkdir hurd-ei
+    $ cd hurd-ei/
+    $ git init
+    [...]
+    $ git remote add savannah git://git.savannah.gnu.org/hurd/hurd.git
+    $ git fetch
+    [...]
+
+Switch to a new topic-branch.
+
+    $ git checkout -b master-ei savannah/master
+    Branch master-ei set up to track remote branch master from savannah.
+    Switched to a new branch 'master-ei'
+
+(*`ei`* is short for `extern inline`.)
+
+The first thing to do was to disable that `-fgnu89-inline` option, so I edited
+`Makeconf` where it was added to `CFLAGS`.
+
+I started editing, compiling, editing, compiling, and so on.
+
+Finally, the tree was in a shape where everything was building fine and the
+resulting libraries contained the symbols they should, etc.
+
+I committed the whole junk as one *big blob* commit, to store it in a safe
+place (you never know with these Hurd machines...), and to continue working on
+it the next day.
+
+    $ git commit -a
+
+For the commit message, I already mostly assembled a `ChangeLog`-style log.
+Then:
+
+    $ git format-patch savannah/master..
+    0001-Bla.patch
+
+... and here is [[0001-Bla.patch.bz2]] (compressed).
+
+
+The next day, a.k.a. today, in a different Git repository.
+
+    $ git checkout -b master-fix_inline savannah/master
+    Branch master-fix_inline set up to track remote branch master from savannah.
+    Switched to a new branch 'master-fix_inline'
+    $ bunzip2 < ../some/where/0001-Bla.patch.bz2 | git am
+    Applying: Bla.
+
+The *big blob* is now on top of savannah/master (which was
+`2772f5c6a6a51cf946fd95bf6ffe254273157a21`, by the way -- in case that you want
+to reproduce this tutorial later, simply substitute `savannah/master` with
+`2772...`).
+
+By then, I had come to the conclusion that the commit essentially was fine, but
+should be split into two, and the `configure` hunk shouldn't be in there.  So
+be it.
+
+So, the `HEAD` of the active branch is our *big blob* commit that we want to
+work on.  Check with `git show HEAD`:
+
+    $ git show HEAD
+    commit 93e97f3351337c349e2926f4041e61bc487ef9e6
+    Author: Thomas Schwinge <tschwinge@gnu.org>
+    Date:   Tue Jun 23 00:27:28 2009 +0200
+    
+        Bla.
+    
+        * console-client/timer.h (fetch_jiffies): Use static inline instead of extern
+        inline.
+        * ext2fs/ext2fs.h (test_bit, set_bit, clear_bit, dino, global_block_modified)
+        (record_global_poke, sync_global_ptr, record_indir_poke, sync_global)
+        (alloc_sync): Likewise.
+        * libftpconn/priv.h (unexpected_reply): Likewise.
+        * term/term.h (qsize, qavail, clear_queue, dequeue_quote, dequeue)
+        (enqueue_internal, enqueue, enqueue_quote, unquote_char, char_quoted_p)
+        (queue_erase): Likewise.
+        * ufs/ufs.h (dino, indir_block, cg_locate, sync_disk_blocks, sync_dinode)
+        (swab_short, swab_long, swab_long_long): Likewise.
+        * term/munge.c (poutput): Use static inline instead of inline.
+    
+        * libdiskfs/diskfs.h: Apply inline optimization only ifdef
+        [__USE_EXTERN_INLINES].  Use __extern_inline instead of extern inline.
+        * libftpconn/ftpconn.h: Likewise.
+        * libpipe/pipe.h: Likewise.
+        * libpipe/pq.h: Likewise.
+        * libshouldbeinlibc/idvec.h: Likewise.
+        * libshouldbeinlibc/maptime.h: Likewise.
+        * libshouldbeinlibc/ugids.h: Likewise.
+        * libstore/store.h: Likewise.
+        * libthreads/rwlock.h: Likewise.
+        * libdiskfs/extern-inline.c: Adapt to these changes.
+        * libftpconn/xinl.c: Likewise.  And don't #include "priv.h".
+        * libpipe/pipe-funcs.c: Likewise.
+        * libpipe/pq-funcs.c: Likewise.
+        * libshouldbeinlibc/maptime-funcs.c: Likewise.  And remove superfluous
+        includes.
+        * libstore/xinl.c: Likewise.
+        * libthreads/rwlock.c: Likewise.
+    
+        * Makeconf (CFLAGS): Don't append $(gnu89-inline-CFLAGS).
+        * pfinet/Makefile (CFLAGS): Append $(gnu89-inline-CFLAGS).
+    
+    diff --git a/Makeconf b/Makeconf
+    index e9b2045..236f1ec 100644
+    --- a/Makeconf
+    +++ b/Makeconf
+    @@ -65,7 +65,7 @@ INCLUDES += -I$(..)include -I$(top_srcdir)/include
+     CPPFLAGS += $(INCLUDES) \
+                 -D_GNU_SOURCE -D_IO_MTSAFE_IO -D_FILE_OFFSET_BITS=64 \
+                $($*-CPPFLAGS)
+    -CFLAGS += -std=gnu99 $(gnu89-inline-CFLAGS) -Wall -g -O3 \
+    +CFLAGS += -std=gnu99 -Wall -g -O3 \
+    [...]
+
+We want to undo this one commit, but preserve its changes in the working
+directory.
+
+    $ git reset HEAD^
+    Makeconf: locally modified
+    configure: locally modified
+    console-client/timer.h: locally modified
+    ext2fs/ext2fs.h: locally modified
+    libdiskfs/diskfs.h: locally modified
+    libdiskfs/extern-inline.c: locally modified
+    libftpconn/ftpconn.h: locally modified
+    libftpconn/priv.h: locally modified
+    libftpconn/xinl.c: locally modified
+    libpipe/pipe-funcs.c: locally modified
+    libpipe/pipe.h: locally modified
+    libpipe/pq-funcs.c: locally modified
+    libpipe/pq.h: locally modified
+    libshouldbeinlibc/idvec.h: locally modified
+    libshouldbeinlibc/maptime-funcs.c: locally modified
+    libshouldbeinlibc/maptime.h: locally modified
+    libshouldbeinlibc/ugids.h: locally modified
+    libstore/store.h: locally modified
+    libstore/xinl.c: locally modified
+    libthreads/rwlock.c: locally modified
+    libthreads/rwlock.h: locally modified
+    pfinet/Makefile: locally modified
+    term/munge.c: locally modified
+    term/term.h: locally modified
+    ufs/ufs.h: locally modified
+
+Now, `HEAD` points to the commit before the previous `HEAD`, i.e. `HEAD^`.
+Again, check with `git show HEAD`:
+
+    $ git show HEAD
+    commit 2772f5c6a6a51cf946fd95bf6ffe254273157a21
+    Author: Samuel Thibault <samuel.thibault@ens-lyon.org>
+    Date:   Thu Apr 2 23:06:37 2009 +0000
+    
+        2009-04-03  Samuel Thibault  <samuel.thibault@ens-lyon.org>
+    
+            * exec.c (prepare): Call PREPARE_STREAM earlier to permit calling
+            finish_mapping on E even after errors, as is already done in do_exec.
+    
+    diff --git a/exec/ChangeLog b/exec/ChangeLog
+    index 5a0ad1d..a9300bf 100644
+    --- a/exec/ChangeLog
+    +++ b/exec/ChangeLog
+    @@ -1,3 +1,8 @@
+    +2009-04-03  Samuel Thibault  <samuel.thibault@ens-lyon.org>
+    +
+    +       * exec.c (prepare): Call PREPARE_STREAM earlier to permit calling
+    +       finish_mapping on E even after errors, as is already done in do_exec.
+    +
+     2008-06-10  Samuel Thibault  <samuel.thibault@ens-lyon.org>
+    
+            * elfcore.c (TIME_VALUE_TO_TIMESPEC): Completely implement instead of
+    diff --git a/exec/exec.c b/exec/exec.c
+    index 05dc883..cb3d741 100644
+    --- a/exec/exec.c
+    +++ b/exec/exec.c
+    @@ -726,6 +726,9 @@ prepare (file_t file, struct execdata *e)
+    
+       e->interp.section = NULL;
+     
+    +  /* Initialize E's stdio stream.  */
+    +  prepare_stream (e);
+    [...]
+
+Luckily, Git saves the previous (i.e. before the `git reset`) `HEAD` reference
+as `ORIG_HEAD`.  Have a look at it with `git show ORIG_HEAD` -- it contains the
+*big blob* commit, including the preliminary commit message -- just what HEAD
+was before:
+
+    $ git show ORIG_HEAD
+    commit 93e97f3351337c349e2926f4041e61bc487ef9e6
+    Author: Thomas Schwinge <tschwinge@gnu.org>
+    Date:   Tue Jun 23 00:27:28 2009 +0200
+    
+        Bla.
+    
+        * console-client/timer.h (fetch_jiffies): Use static inline instead of extern
+        inline.
+    [...]
+    
+    diff --git a/Makeconf b/Makeconf
+    index e9b2045..236f1ec 100644
+    --- a/Makeconf
+    +++ b/Makeconf
+    @@ -65,7 +65,7 @@ INCLUDES += -I$(..)include -I$(top_srcdir)/include
+     CPPFLAGS += $(INCLUDES) \
+                 -D_GNU_SOURCE -D_IO_MTSAFE_IO -D_FILE_OFFSET_BITS=64 \
+                $($*-CPPFLAGS)
+    -CFLAGS += -std=gnu99 $(gnu89-inline-CFLAGS) -Wall -g -O3 \
+    +CFLAGS += -std=gnu99 -Wall -g -O3 \
+    [...]
+
+OK, now let's pick the files that we want to have in the first of the
+envisioned two commits: these are the *static inline instead of extern inline*
+and *apply inline optimization only...* sections.
+
+    $ git add console-client/timer.h ext2fs/ext2fs.h [...] libthreads/rwlock.c
+
+Oh, we forgot something: now that we're preparing this stuff to go into the
+*master* repository, update the copyright years.  Edit, edit, edit, and then,
+again:
+
+    $ git add console-client/timer.h ext2fs/ext2fs.h [...] libthreads/rwlock.c
+
+Now Git's staging area contains the changes that we want to commit (and the
+working directory contains the rest of the *big blob*).  Commit these `add`ed
+files, and use *big blob*'s commit message as a template for the new one, as it
+already contains most of what we want (don't forget to chop off the unneeded
+parts).
+
+    $ git commit -c ORIG_HEAD
+    Waiting for Emacs...
+    [master-fix_inline 51c15bc] Use static inline where appropriate.
+     6 files changed, 50 insertions(+), 51 deletions(-)
+    $ git show HEAD
+    commit c6c9d7a69dea26e04bba7010582e7bcd612e710c
+    Author: Thomas Schwinge <tschwinge@gnu.org>
+    Date:   Tue Jun 23 00:27:28 2009 +0200
+    
+        Use static inline where appropriate and use glibc's __extern_inline machinery.
+    
+        * console-client/timer.h (fetch_jiffies): Use static inline instead of extern
+        inline.
+        * ext2fs/ext2fs.h (test_bit, set_bit, clear_bit, dino, global_block_modified)
+        (record_global_poke, sync_global_ptr, record_indir_poke, sync_global)
+        (alloc_sync): Likewise.
+        * libftpconn/priv.h (unexpected_reply): Likewise.
+        * term/term.h (qsize, qavail, clear_queue, dequeue_quote, dequeue)
+        (enqueue_internal, enqueue, enqueue_quote, unquote_char, char_quoted_p)
+        (queue_erase): Likewise.
+        * ufs/ufs.h (dino, indir_block, cg_locate, sync_disk_blocks, sync_dinode)
+        (swab_short, swab_long, swab_long_long): Likewise.
+        * term/munge.c (poutput): Use static inline instead of inline.
+    
+        * libdiskfs/diskfs.h: Apply inline optimization only ifdef
+        [__USE_EXTERN_INLINES].  Use __extern_inline instead of extern inline.
+        * libftpconn/ftpconn.h: Likewise.
+        * libpipe/pipe.h: Likewise.
+        * libpipe/pq.h: Likewise.
+        * libshouldbeinlibc/idvec.h: Likewise.
+        * libshouldbeinlibc/maptime.h: Likewise.
+        * libshouldbeinlibc/ugids.h: Likewise.
+        * libstore/store.h: Likewise.
+        * libthreads/rwlock.h: Likewise.
+        * libdiskfs/extern-inline.c: Adapt to these changes.
+        * libftpconn/xinl.c: Likewise.  And don't #include "priv.h".
+        * libpipe/pipe-funcs.c: Likewise.
+        * libpipe/pq-funcs.c: Likewise.
+        * libshouldbeinlibc/maptime-funcs.c: Likewise.  And remove superfluous
+        includes.
+        * libstore/xinl.c: Likewise.
+        * libthreads/rwlock.c: Likewise.
+    
+    diff --git a/console-client/timer.h b/console-client/timer.h
+    index 4204192..5e64e97 100644
+    --- a/console-client/timer.h
+    +++ b/console-client/timer.h
+    @@ -1,5 +1,7 @@
+     /* timer.h - Interface to a timer module for Mach.
+    -   Copyright (C) 1995,96,2000,02 Free Software Foundation, Inc.
+    +
+    +   Copyright (C) 1995, 1996, 2000, 2002, 2009 Free Software Foundation, Inc.
+    +
+        Written by Michael I. Bushnell, p/BSG and Marcus Brinkmann.
+    
+        This file is part of the GNU Hurd.
+    @@ -54,7 +56,7 @@ int timer_remove (struct timer_list *timer);
+     /* Change the expiration time of the timer TIMER to EXPIRES.  */
+     void timer_change (struct timer_list *timer, long long expires);
+    
+    -extern inline long long
+    +static inline long long
+    [...]
+
+As you can see, `HEAD` now points to the new commit on top of the current
+branch.  (`ORIG_HEAD` doesn't change.)
+
+On to the next, and last one, only two changes should be left: the `Makeconf`
+and `pfinet/Makefile` ones.
+
+    $ git status
+    # On branch master-fix_inline
+    # Your branch is ahead of 'savannah/master' by 1 commit.
+    #
+    # Changed but not updated:
+    #   (use "git add <file>..." to update what will be committed)
+    #   (use "git checkout -- <file>..." to discard changes in working directory)
+    #
+    #       modified:   Makeconf
+    #       modified:   configure
+    #       modified:   pfinet/Makefile
+    #
+    # Untracked files:
+    #   (use "git add <file>..." to include in what will be committed)
+    #
+    #       0001-Bla.patch
+    #       autom4te.cache/
+    #       hurd_extern_inline_fix.patch?file_id=18191
+    no changes added to commit (use "git add" and/or "git commit -a")
+
+Alright, there is as well still the `configure` hunk that we want to get rid
+of.  But first for the real second commit, after editing for again adding the
+copyright year update:
+
+    $ git add Makeconf pfinet/Makefile
+    $ git commit -c ORIG_HEAD
+    Waiting for Emacs...
+    [master-fix_inline 6a967d1] We're now C99 inline safe -- apart from the Linux code in pfinet.
+     2 files changed, 6 insertions(+), 3 deletions(-)
+
+Check that we're in a clean state now:
+
+    $ git status
+    # On branch master-fix_inline
+    # Your branch is ahead of 'savannah/master' by 2 commits.
+    #
+    # Changed but not updated:
+    #   (use "git add <file>..." to update what will be committed)
+    #   (use "git checkout -- <file>..." to discard changes in working directory)
+    #
+    #       modified:   configure
+    #
+    # Untracked files:
+    #   (use "git add <file>..." to include in what will be committed)
+    #
+    #       0001-Bla.patch
+    #       autom4te.cache/
+    #       hurd_extern_inline_fix.patch?file_id=18191
+    no changes added to commit (use "git add" and/or "git commit -a")
+
+Oops, we forgot something...
+
+    $ git checkout -- configure
+
+Now, our tree is clean again.  (Check with `git status`.)
+
+By now, we came to the conclusion that the first of the two commits should have
+been further split into two separate ones.  Of course, essentially we would do
+the same splitting again that we've done just now -- but how to easily modify
+the first commit, now that we have another one on top of it?
+
+Alright, `git rebase --interactive` to the rescue -- let's interactively
+*`rebase`* the last two commits, to modify them as wanted.
+
+    $ git rebase --interactive HEAD~2
+    Waiting for Emacs...
+
+Emacs wants us to tell which commits we want to keep as they are (`pick`),
+which should be merged into others (`squash`), and which we want to `edit`.  In
+our scenario, we want to `edit` the first one and `pick` the second one.
+Change the file thusly and close it.
+
+    Stopped at 5becbb5... Use static inline where appropriate and use...
+    You can amend the commit now, with
+    
+            git commit --amend
+    
+    Once you are satisfied with your changes, run
+    
+            git rebase --continue
+
+We want to undo this first commit to split it into two.  Again, use `git reset`
+for that, while preserving the commit's changes in the working directory.
+
+    $ git reset HEAD^
+    console-client/timer.h: locally modified
+    [...]
+
+Pick the set of files that we want to have in the first of the envisioned two
+commits: the *static inline instead of extern inline* section, and commit them,
+again using the previous commit message as a template for the new one:
+
+    $ git add console-client/timer.h ext2fs/ext2fs.h [...] term/munge.c
+    $ git commit -c ORIG_HEAD
+    Waiting for Emacs...
+    [detached HEAD 51c15bc] Use static inline where appropriate.
+     6 files changed, 50 insertions(+), 51 deletions(-)
+
+Next part: *apply inline optimization only...*.  Again, `git add` those files
+that shall be part of the next commit, i.e. all remaining ones.  As before, use
+the previous commit message as a template.
+
+    $ git add libdiskfs/diskfs.h [...] libthreads/rwlock.c
+    $ git commit -c ORIG_HEAD
+    Waiting for Emacs...
+    [detached HEAD 8ac30ea] [__USE_EXTERN_INLINES]: Use glibc's __extern_inline machinery.
+     16 files changed, 508 insertions(+), 356 deletions(-)
+
+Now we're done with splitting that commit into two.  (Check with `git status`
+that we didn't forget anything.)  What's missing is getting back the other
+commit on top of the two now-split ones:
+
+    $ git rebase --continue
+    Successfully rebased and updated refs/heads/master-fix_inline.
+
+Here we go.  The other commit has been applied on top of the two new ones.
+
+Due to time-honored tradition, I always double-check what I have just
+committed, before distributing it to the world:
+
+    $ git log --reverse -p -C --cc savannah/master..
+
+... and promptly, I recognize some changes that shouldn't be in there: when
+using it on some files, Emacs' `copyright-fix-years`, aside from indeed fixing
+the list of copyright years, and adding the current year, also changed *GPL
+... version 2* into *version 3*, which would be nice, but which we can't do for
+the moment.  The error is present only in the first and second commit.  If it
+were in only in the third (the last) one, simply editing the files, and then
+using `git commit --amend` would be the solution.  But again there is the
+problem about how to modify the first (`HEAD~2`) and second (`HEAD~1`, or
+`HEAD^`) commit now that there is another one on top of it.  By now, we know
+the solution:
+
+    $ git rebase --interactive HEAD~3
+    Waiting for Emacs...
+
+This time, we need to `edit` the first and second commits, and `pick` the third
+one.
+
+    Stopped at ffd215b... Use static inline where appropriate.
+    You can amend the commit now, with
+    
+            git commit --amend
+    
+    Once you are satisfied with your changes, run
+    
+            git rebase --continue
+
+`git show` (which defaults to showing `HEAD`, by the way) can again be used to
+have a look at the current `HEAD` (which is the first of the three commits),
+and then we revert the unwanted changes in the editor, resulting with the
+following changed files:
+
+    $ git status
+    # Not currently on any branch.
+    # Changed but not updated:
+    #   (use "git add <file>..." to update what will be committed)
+    #   (use "git checkout -- <file>..." to discard changes in working directory)
+    #
+    #       modified:   ext2fs/ext2fs.h
+    #       modified:   libftpconn/priv.h
+    #       modified:   term/munge.c
+    #       modified:   term/term.h
+    #       modified:   ufs/ufs.h
+    #
+    # Untracked files:
+    #   (use "git add <file>..." to include in what will be committed)
+    #
+    #       0001-Bla.patch
+    #       autom4te.cache/
+    #       hurd_extern_inline_fix.patch?file_id=18191
+    no changes added to commit (use "git add" and/or "git commit -a")
+
+Then, we can -- as `git rebase` suggested above -- *amend* the existing `HEAD`
+commit with these changes (`--amend` and `--all`), reusing `HEAD`'s commit
+message without spawning an editor (`-C HEAD`):
+
+    $ git commit --amend -C HEAD --all
+    [detached HEAD c6c9d7a] Use static inline where appropriate.
+     6 files changed, 45 insertions(+), 46 deletions(-)
+
+Continue with the next commit:
+
+    $ git rebase --continue
+    Stopped at 8ac30ea... [__USE_EXTERN_INLINES]: Use glibc's __extern_inline machinery.
+    You can amend the commit now, with
+    
+            git commit --amend
+    
+    Once you are satisfied with your changes, run
+    
+            git rebase --continue
+
+Again, have a look at the commit (`git show`), revert the unwanted changes,
+*amend* `HEAD`, and continue to the next commit:
+
+    $ git commit --amend -C HEAD --all
+    [detached HEAD 9990dc6] [__USE_EXTERN_INLINES]: Use glibc's __extern_inline machinery.
+     16 files changed, 500 insertions(+), 348 deletions(-)
+    $ git rebase --continue
+    Stopped at 6a967d1... We're now C99 inline safe -- apart from the Linux code in pfinet.
+    You can amend the commit now, with
+    
+            git commit --amend
+    
+    Once you are satisfied with your changes, run
+    
+            git rebase --continue
+
+Two files are left to be edited (`git show`, etc., again), and finally:
+
+    $ git commit --amend -C HEAD --all
+    [detached HEAD 241c605] We're now C99 inline safe -- apart from the Linux code in pfinet.
+     2 files changed, 5 insertions(+), 2 deletions(-)
+    $ git rebase --continue
+    Successfully rebased and updated refs/heads/master-fix_inline.
+
+That's it.  `git log --reverse -p -C --cc savannah/master..` now looks as nice
+as can be.
+
+
+Of course, this is only a small insight of what is possible to do with `git
+rebase` and friends -- see the manual for further explanations.
