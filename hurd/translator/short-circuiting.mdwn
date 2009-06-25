@@ -34,34 +34,40 @@ special files:
   * `/hurd/ifsock`
 
 So all special files are implemented through special-purpose translators,
-right?  Well, actually there aren't even implementations of either `chrdev` or
-`blkdev` in the Hurd.  Instead these are implemented purely by *translator
-short-circuiting*, as well as the others from the above list are, if possible.
+right?  Not quite, instead the translators of this list are often
+implemented in their underlying filesystem through *translator
+short-circuiting*.  In fact, `chrdev` and `blkdev` aren't even implemented
+as translators at all.
 
-Translator short-circuiting is when a file system server, instead of starting a
-passive translator -- say, for resolving a symbolic link -- implements the
-functionality itself.  For instance, by continuing a file name look-up by
-simply appending the path of a symlink's target without returning to the caller
-a `FS_RETRY_*` reply, which is what the [[`symlink`|symlink]] translator would
-do.  (And that's all the `symlink` translator ever does, by the way.)
+Translator short-circuiting is when a file system server implements the
+functionality of a passive translator itself, instead of actually starting
+it.  For instance, all the [[`symlink`|symlink]] translator does is return
+a `FS_RETRY_*` reply to the caller.  So instead of starting it, the file
+system server can simply continue the file name look-up internally by
+appending the target of the symbolic link to the path being looked-up.
 
-In fact this list's translators that actually are implemented (`symlink`,
+This way, we can skip starting the `symlink` translator, skip retrying
+the look-up on the newly started translator, and we might also skip a
+retry to the same file system server again, if the target of the symbolic
+link is in it.
+
+In fact, the list's translators that actually are implemented (`symlink`,
 `fifo`, `ifsock`) are only used as a default implementation if the underlying
 file system's translator does not implement the functionality itself, i.e., if
 it doesn't short-circuit it.
 
-To make sure that you use one of these translators, that you bypass the
+To make sure that you use one of these translators, there by bypassing the
 short-circuiting mechanism, you can either start it as
-an active translator, or you can use a different path from the one in
+an active translator, or use a different path from the one in
 `hurd/path.h`, e.g. `settrans bar /hurd/./symlink foo`.
 
 The best example of how short-circuiting is implemented can be found
 in [[`libdiskfs`|libdiskfs]].  Notice how it detects if a translator to store
-is a special file in `diskfs_S_file_set_translator` and (if possible) instead
-of storing a real passive translator setting on the disk, simply has (for
-example) [[`ext2fs`|ext2fs]]' `diskfs_create_symlink_hook` handle this case.
+is a special file in `diskfs_S_file_set_translator` and instead
+of storing a real passive translator setting on the disk, stores it as a
+symlink node (using `diskfs_create_symlink_hook` or a generic implementation).
 
-When reading (resolving), it checks the node's `stat` structure in
+In later look-ups to the node, it checks the node's `stat` structure in
 `diskfs_S_file_get_translator`, or
 `diskfs_S_dir_lookup` and handles special file types appropriately.
 
@@ -71,6 +77,12 @@ functionality, but it also has advantages: using functionality that the file
 system's data structures nevertheless already provide -- storing symbolic links
 in `ext2fs`' inodes instead of storing passive translator settings -- and thus
 staying compatible with other operating systems mounting that file system.
+
 Also, this short-circuiting does preserve system resources, as it's no longer
 required to start a `symlink` translator for resolving each symbolic link, as
 well as it does reduce the [[RPC]] overhead.
+
+It can also confuse users who expect the passive translator to start.
+For instance, if a user notices that [[`symlink`|symlink]]'s code is
+lacking some functionality, but that it unexpectedly works when the user
+tries to run it.
