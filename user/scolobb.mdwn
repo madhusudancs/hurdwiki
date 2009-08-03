@@ -102,9 +102,9 @@ For documentation, see [[hurd/translator/unionmount]].
   Jul)* Initially the mountee was started at the first lookup. Now it
   is started immediately after initialization of `unionmount`.
 
-* **Fix the patches in ``--mount'' option series** *(5 Jul)* The
-  patches have been reviewed by **antrik**. I corrected them and
-  posted them to the ML for final reviews.
+* **Fix the patches in `--mount` option series** *(5 Jul)* The patches
+  have been reviewed by **antrik**. I corrected them and posted them
+  to the ML for final reviews.
 
 * **Orphan the mountee after starting it** *(7 Jul)* Orphaning the
   mountee after starting it up seems to be a nice work-around for the
@@ -113,38 +113,64 @@ For documentation, see [[hurd/translator/unionmount]].
   separate patch (without inclusion in master) should it turn out that
   orphaning the mountee is a bad idea.
 
+* **Decide which RPCs should be forwarded to the mountee and how this
+  should happen** *(10 Jul)* This is the primary requirement in being
+  able to proxy the control port of `unionmount`.
+
+* **Fix the patches the have already been commented on** *(14 Jul)*
+  The new patches I have submitted have been reviewed; also, the older
+  patches have been reviewed again, which required correcting them.
+
+* **Add the `--no-mount` option** *(14 Jul)* Using the `--no-mount`
+  and `--mount` options, the user can decide whether unionmount should
+  be completely transparent (i.e. most control-port RPCs forwarded to
+  the mountee) or not.
+
+* **Make `unionmount` go away when the mountee goes away** *(14 Jul)*
+  `unionmount` makes sense only while the mountee is running, so it
+  has to go away as soon as the mountee has been shut down for some
+  reason.
+
+* **Proxy the control port of `unionmount`** *(14 Jul)* For
+  `unionmount` to become transparent, most of the RPCs invoked on the
+  its control port should be forwarded to the mountee.
+
+* **Fix adding filesystems to `unionmount`** *(16 Jul)* `settrans -a
+  foo unionfs -a <dir> -u -t <translator>` worked, but `settrans -a
+  foo unionfs -u -t <translator> -a <dir>` didn't.  The problem was
+  that in a series of rebase operations I accidentally left the
+  "Orphan the mountee" commit out and the problem appeared when the
+  `start_mountee` function tried to attach the mountee.  Of course,
+  this is not the definite solution, since I don't know why should the
+  attempt to attach the mountee work in the former case and fail in
+  the latter, but I will leave the investigation for some future time.
+
+* **Create the patch for supplying the mountee with a port to the
+  underlying node of unionfs** *(17 Jul)* Such functionality makes
+  `unionmount` even more transparent.
+
+* **Try to make `eth-multiplexer` work with statically set instances
+  of `devnode`** *(3 Aug)* The problem was in the fact that the root
+  node of `eth-multiplexer` was not treated completely similarly as
+  other nodes; specifically no pseudo master device port was created
+  for it.  Minor modifications to some conditions solved the problem.
+
 ### TODO
 
 (Dates in brackets show the *expected* completion date)
 
-* **Proxy the control port of `unionmount`** *(10 Jul)* It was agreed
-  that `unionmount` be completely transparent, therefore a number of
-  RPCs on the control port should be forwarded to the mountee.
+* **Wrap the "--mount" patch series** *(2 Aug)* It's top priority to
+  make do the final corrections to these patches and to apply them to
+  the `master-unionmount` branch.
 
-* **Read the relevant code of `devnode`, `eth-multiplexer`, and
-  `pfinet`.** *(14 Jul)* At the moment a part of `devnode`
-  functionality appears in `eth-multiplexer` and (probably) because of
-  this, `devnode` cannot use `eth-multiplexer`'s pseudo master device
-  port. I'll have to figure out why it happens like that.
+* **Employ `unionmount` in `eth-multiplexer`.** *(4 Aug)* `unionmount`
+  will have to merge the dynamic filesystem of `eth-multiplexer` with
+  the directory tree it will be sitting on.  The latter directory tree
+  will contain static nodes with `devnode` translators.
 
-* **Implement merging rules.** *(25 Jul)* I will have to make the
-  merging of the virtual filesystem published by `eth-multiplexer` and
-  the real filesystem containing static nodes possible.
-
-* **Wrap up the project for upstream inclusion.** *(1 Aug)*
+* **Wrap up the project for upstream inclusion.** *(7 Aug)*
   `unionmount` is intended to be included upstream, therefore it
   should be mostly complete and polished by the end of GSoC.
-
-* **Decide as to location of unionmount.** *(1 Aug)* Presently,
-  `unionmount` is a (local) branch in `unionfs` git repository. The
-  first step of publishing it is planned to be pushing it to the
-  Savannah `unionfs` repository. Some agree that there should also be
-  a second step consisting in splitting `unionmount` in a separate git
-  repository, since the destinations of `unionfs` and `unionmount` are
-  *similar*, and not identical.
-
-* **Employ `unionmount` in eth-multiplexer.** *(10 Aug)* I still have
-  to scrounge for details.
 
 * **Use a different (better?) implementation idea.** *(17 Aug)* It has
   been pointed out several times that `unionmount` could be
