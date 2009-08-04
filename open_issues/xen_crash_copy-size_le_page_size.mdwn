@@ -77,3 +77,28 @@ GDB on `mkfs.ext2`:
     #3  0x0805e87d in ext2fs_zero_blocks (fs=0x8082940, blk=524272, num=16, ret_blk=0x15ffb1c, ret_count=0x0)
         at ../../../git/lib/ext2fs/mkjournal.c:182
     #4  0x0804ec56 in main (argc=131072, argv=0x80000) at ../../git/misc/mke2fs.c:2032
+
+Discussion:
+
+    <tschwinge> I had a look at the code, but unfortunately don't really know
+      how this data transfers between Xen and the domU work.
+    <tschwinge> Well, I know how it roughly works, but not the implementation
+      deatils.
+    <youpi> well here it's not about the xen/domU transfers
+    <youpi> it's about copying data to align it
+    <youpi> i.e. when offset is not aligned, I need to copy it
+    <tschwinge> Yes-
+    <youpi> I was lazy, just implemented it for things smaller than a page
+    <youpi> it just needs to be extended into copying several pages
+    <tschwinge> youpi: Hmm, do we need to copy all the data to shift away the
+      offset or is there a better way?
+    <youpi> the blkbackend needs data to be sector-aligned
+    <youpi> just aligning on a page makes offset computation simpler
+    <youpi> as it's rare that's not a problem
+    <tschwinge> And a sector is the usual 512 bytes there, I assume?
+    <tschwinge> But then we do need to copy all of it?
+    <youpi> let me check
+    <youpi> the sector is the granularity you can't go below
+    <youpi> sector is the sector_size reported by the backend
+    <youpi> but for sector_number and first/last_sect it's 512
+    <youpi> yes, that's weird
