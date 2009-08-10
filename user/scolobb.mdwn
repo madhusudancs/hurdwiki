@@ -161,29 +161,37 @@ For documentation, see [[hurd/translator/unionmount]].
   device port was created for it.  Minor modifications to some
   conditions solved the problem.
 
-* **Add the `MASTER` node to `eth-multiplexer`** *(5 Aug)* Instances
-  of `devnode` can now use the root node of `eth-multiplexer` as a
-  pseudo master device port, but, as of now, accessing the root node
-  creates only *one* device.  This has to be fixed and the
-  corresponding functionality has to be moved into the `MASTER` node,
-  published by the eth-multiplexer.
+* **Add the `MASTER` node to `eth-multiplexer`** *(5 Aug)* The
+  `MASTER` node, published by eth-multiplexer, allows creating any
+  number of virtual devices.  This node is mainly accessed by static
+  instances of `devnode` to setup their corresponding virtual devices.
 
-* **Add support for priorities** *(6 Aug)* Due to the specific nature
-  of mountee's filesystem, priorities are not currently supported for
-  it.
+* **Add support for priorities** *(6 Aug)* Now the mountee's
+  filesystem can be configured to "lie" beneath other filesystems.
+
+* **Use `unionmount` to merge the virtual filesystem of
+  `eth-multiplexer` with its underlying filesystem** *(7 Aug)*
+  `eth-multiplexer` can is unionmounted to "lie beneath" it's
+  underlying filesystem.  If, for example, the multiplexer is
+  unionmounted on `veth/`, the user can both set (static) `devnode`
+  translator on the nodes shown in `veth/` and belonging to the
+  underlying filesystem and create normal virtual multiplexer devices
+  by accessing any node (not present in the underlying filesystem) and
+  opening a device using the port to the node as a pseudo device port.
+
+* **Rename the `MASTER` node into `.MASTER`** (7 Aug) This name seems
+  more natural for a special-purpose node.
+
+* **Set the stat information for `eth-multiplexer` nodes in
+  `netfs_validate_stat`** (9 Aug) In the initial version the stat
+  information was set up properly only at device creation.  Before
+  that the stat information was copied from the underlying node, which
+  baffled `unionmount`.  Now the stat information is setup in
+  `netfs_validate_stat`.
 
 ### TODO
 
 (Dates in brackets show the *expected* completion date)
-
-* **Use `unionmount` to merge the virtual filesystem of
-  `eth-multiplexer` with its underlying filesystem** *(7 Aug)* This
-  will allow both setting static `devnode`s and accessing dynamic
-  nodes under the eth-multiplexer's root node.
-
-* **Wrap the "--mount" patch series** *(11 Aug)* It's top priority to
-  make do the final corrections to these patches and to apply them to
-  the `master-unionmount` branch.
 
 * **Wrap up the project for upstream inclusion.** *(20 Aug)*
   `unionmount` is intended to be included upstream, therefore it
