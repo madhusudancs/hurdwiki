@@ -19,6 +19,35 @@ License|/fdl]]."]]"""]]
 
 Sync the entire filesystem.
 
+# Implementation Examples
+
+Servers that either don't keep any unsynchronized state (or don't have a
+backing store at all) can simply `return 0`.  Examples: [[translator/nfs]].
+
+The implementation typically doesn't care on which specific node (as exported
+by the implementing server) [[`file_syncfs`|file_syncfs]] is being invoked on.
+
+## [[libtrivfs]]
+
+Invoke [[`file_sync`|file_sync]] on the underlying node.  Rationale: the
+underlying node represents this filesystem's backend, and once this node is
+synchronized, the whole [[libtrivfs]]-based filesystem is to be considered
+synchronized.
+
+### [[storeio]] / [[streamio]]
+
+Instead of the to underlying node, pass the call through to the backend
+(device).
+
+## [[libnetfs]]
+
+Invoke `netfs_attempt_syncfs`.
+
+## [[libdiskfs]]
+
+Invoke [[`fsys_syncfs`|fsys_syncfs]] on all active children, and invoke
+`diskfs_sync_everything` and `diskfs_set_hypermetadata`.
+
 # Usage Examples
 
 ## [[glibc]]
