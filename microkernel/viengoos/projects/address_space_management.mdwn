@@ -1,0 +1,40 @@
+[[!meta copyright="Copyright © 2008, 2009 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_viengoos]]
+
+In Viengoos, a process's address space is managed entirely in user
+space by the process itself.  This creates two interesting problems:
+dealing with circular dependencies resulting from having to manage the
+address space data structures and accessing and manipulating the
+address space data structures.
+
+First, managing the address space requires resources, which in turn
+may require address space (e.g., data structures require memory which
+require address space, etc.).  We currently break this circular
+dependency by trying to keep enough resources in reserve that
+allocating resources for managing the address space never requires
+more resources than are minimally in the reserve.  The reserve is
+currently chosen in an ad-hoc fashion.  It would be nice to determine
+it more systematically.  Moreover, it would be nice to reduce the
+cases in which a reserve is required.  This may be possible by
+restructuring some of the code.
+
+Second, the address space data structures are protected using a single
+lock.  This not only means that only a single thread can be updating
+the address space at a time, but that if a thread faults and the
+address space is locked, then the process dead locks!  It should be
+possible to at least walk the address space using lock-free
+techniques.  This requires updating the address space construction
+code such that all addresses remain valid during any given
+manipulation.  Second, to avoid the mentioned dead-lock problem, we
+try to ensure that accessing the data structures will never result in
+a fault.  This means protecting the stack.  An alternative approach is
+to use undo buffers.
