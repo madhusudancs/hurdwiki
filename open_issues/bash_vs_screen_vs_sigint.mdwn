@@ -65,5 +65,24 @@ this:
 
 To sum up:
 
-  * *bash*: 4.0 packages have the MIG reply error.
   * <strike>*screen*: new package causes that invokee doesn't react to `C-c` anymore.</strike>
+
+  * *bash*: 4.0 packages have the MIG reply error.
+
+    After having noticed that this error doesn't occur if starting *bash* with
+    `--norc`, I isolated it to the following command in `.bashrc`:
+    
+        case $TERM in
+          xterm* | rxvt*)
+            PROMPT_COMMAND='echo -ne "\033]0;${USER}@${HOSTNAME}:${PWD}\007"';;
+        esac
+
+    ... and indeed:
+
+        tschwinge@flubber:~ $ echo "$TERM" -- "$PROMPT_COMMAND"
+        xterm -- echo -ne "\033]0;${USER}@${HOSTNAME}:${PWD}\007"
+        tschwinge@flubber:~ $ ^C
+        -bash: echo: write error: (ipc/mig) wrong reply message ID
+        tschwinge@flubber:~ $ PROMPT_COMMAND=
+        tschwinge@flubber:~ $ ^C
+        tschwinge@flubber:~ $ 
