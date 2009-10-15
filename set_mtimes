@@ -1,0 +1,56 @@
+#!/bin/sh
+
+# Set the checked-out files' mtimes according to their last Git revision.
+
+# Written by Thomas Schwinge <tschwinge@gnu.org>
+
+trap '
+  if [ x"$tmp_dir" = x ]; then :; else
+    rm -rf -- "$tmp_dir"
+  fi
+' EXIT &&
+
+# TODO: handle arguments meaning to only process a subset (directories / files)
+# of the repository.
+if [ x"$#" = x0 ]; then :; else
+  echo >&2 No command line arguments expected.
+  exit 1
+fi &&
+
+tmp_dir=$(mktemp -d) &&
+
+tmp_ignore=$tmp_dir/ignore &&
+# TODO: have to add more flags?
+git ls-files \
+  > "$tmp_ignore" \
+  -d -m &&
+while read file; do
+  echo >&2 "*** WARNING: file <$file> locally changed or deleted, not touching"
+done < "$tmp_ignore" &&
+
+tmp_known=$tmp_dir/known &&
+git ls-files \
+  > "$tmp_known" \
+  -c &&
+
+tmp_consider=$tmp_dir/consider &&
+grep \
+  < "$tmp_known" \
+  > "$tmp_consider" \
+  -f "$tmp_ignore" -x -v &&
+
+while read file; do
+  # TODO: use %ci?  TODO: can we optimize this to not have to invoke git log
+  # individually for every single file?
+  date_git=$(git log -1 --pretty=format:%ai -- "$file") &&
+  date_git=$(date --rfc-3339=ns -d "$date_git") &&
+  date_file=$(date --rfc-3339=ns -r "$file") &&
+  if [ x"$date_git" = x"$date_file" ]; then :; else
+    echo >&2 "*** INFO: file $file: mtime <$date_file> -> <$date_git>"
+    touch -m -d "$date_git" "$file"
+  fi \
+  || {
+    echo >&2 "*** ERROR: file <$file>, date_git <$date_git>, date_file <$date_file>"
+    exit 1
+  }
+done < "$tmp_consider"
