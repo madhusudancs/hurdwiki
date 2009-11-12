@@ -1,0 +1,39 @@
+[[!meta copyright="Copyright © 2009 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+There must be some blocking / dead-locking (?) problem in `term`:
+
+    # w | grep [t]sch
+    tschwing  p1 192.168.10.60: Tue 8PM  0:03  2172 /bin/bash
+    tschwing  p2 192.168.10.60: Tue 4PM 40hrs   689 emacs
+    tschwing  p3 192.168.10.60:  8:52PM 11:37 15307 /bin/bash
+    tschwing  p0 192.168.10.60:  6:42PM 11:47  8104 /bin/bash
+    tschwing  p8 192.168.10.60:  8:27AM  0:02 16510 /bin/bash
+
+Now open a new screen window, or login shell, or...
+
+    # ps -Af | tail
+    [...]
+    tschwinge 16538  676  p6  0:00.08 /bin/bash
+        root 16554   128  co  0:00.09 ps -Af
+        root 16555   128  co  0:00.01 tail
+
+`bash` is started (on `p6`), but newer makes it to the shell promt; doesn't
+even start to execute `.bash_profile` / `.bashrc`.  The next shell started, on
+the next available pseudoterminal, will work without problems.
+
+The `term` on `p6` has already been running before:
+
+    # ps -Af | grep [t]typ6
+        root  6871     3   -  5:45.86 /hurd/term /dev/ptyp6 pty-master /dev/ttyp6
+
+Killed it, and things were fine again.
