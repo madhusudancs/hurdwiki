@@ -37,3 +37,58 @@ The `term` on `p6` has already been running before:
         root  6871     3   -  5:45.86 /hurd/term /dev/ptyp6 pty-master /dev/ttyp6
 
 Killed it, and things were fine again.
+
+---
+
+Have a freshly started shell blocking on such a `term` instance.
+
+    $ ps -F hurd-long -p 1766 -T -Q
+      PID TH#  UID  PPID  PGrp  Sess TH  Vmem   RSS %CPU     User   System Args
+     1766        0     3     1     1  6  131M 1.14M  0.0  0:28.85  5:40.91 /hurd/term /dev/ptyp3 pty-master /dev/ttyp3
+            0                                        0.0  0:05.76  1:08.48
+            1                                        0.0  0:00.00  0:00.01
+            2                                        0.0  0:06.40  1:11.52
+            3                                        0.0  0:05.76  1:09.89
+            4                                        0.0  0:05.42  1:06.74
+            5                                        0.0  0:05.50  1:04.25
+
+... and after 5:45 h:
+
+    $ ps -F hurd-long -p 21987 -T -Q
+      PID TH#  UID  PPID  PGrp  Sess TH  Vmem   RSS %CPU     User   System Args
+    21987     1001   676 21987 21987  2  148M 2.03M  0.0  0:00.02  0:00.07 /bin/bash
+            0                                        0.0  0:00.02  0:00.07 
+            1                                        0.0  0:00.00  0:00.00 
+
+    $ ps -F hurd-long -p 1766 -T -Q
+      PID TH#  UID  PPID  PGrp  Sess TH  Vmem   RSS %CPU     User   System Args
+     1766        0     3     1     1  6  131M 1.14M  0.0  0:29.04  5:42.38 /hurd/term /dev/ptyp3 pty-master /dev/ttyp3
+            0                                        0.0  0:05.76  1:08.48
+            1                                        0.0  0:00.00  0:00.01
+            2                                        0.0  0:06.41  1:11.90
+            3                                        0.0  0:05.82  1:10.28
+            4                                        0.0  0:05.52  1:07.06
+            5                                        0.0  0:05.52  1:04.63
+
+    $ sudo gdb /hurd/term 1766
+    [sudo] password for tschwinge: 
+    GNU gdb (GDB) 7.0-debian
+    Copyright (C) 2009 Free Software Foundation, Inc.
+    License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+    This is free software: you are free to change and redistribute it.
+    There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+    and "show warranty" for details.
+    This GDB was configured as "i486-gnu".
+    For bug reporting instructions, please see:
+    <http://www.gnu.org/software/gdb/bugs/>...
+    Reading symbols from /hurd/term...Reading symbols from /usr/lib/debug/hurd/term...done.
+    (no debugging symbols found)...done.
+    Attaching to program `/hurd/term', pid 1766
+    [New Thread 1766.1]
+    [New Thread 1766.2]
+    [New Thread 1766.3]
+    [New Thread 1766.4]
+    [New Thread 1766.5]
+    [New Thread 1766.6]
+    Reading symbols from /lib/libhurdbugaddr.so.0.3...Reading symbols from /usr/lib/debug/lib/libhurdbugaddr.so.0.3...
+    [System doesn't respond anymore, but no kernel crash.]
