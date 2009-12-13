@@ -1,0 +1,27 @@
+# [GRUB2](http://www.gnu.org/software/grub/grub-2.en.html)
+
+This section complements the [[InstallNotes]] with complete information regarding the GRUB2 boot loader. The syntax is different from [[Legacy Grub aka grub1|Grub]].
+
+* update-grub is **Debian specific** and very nice. It will automatically create a /boot/grub/grub.cfg file for the kernels in /boot/ and for OSes that it finds on various partitions, including GNU/Hurd!
+* Make sure that grub2's version is at least 20091130 and GNU Mach's version is at least 20091020.
+* sample file
+
+menuentry "GNU/Linux" {
+    insmod ext2
+    set root=(hd0,12)
+    linux      /boot/vmlinuz-2.6.32 root=/dev/hda12 ro
+    initrd     /boot/initrd.img-2.6.32
+}
+
+menuentry "GNU" {
+    insmod ext2
+    set root=(hd0,16)
+    multiboot /boot/gnumach.gz root=device:hd0s16
+    module /hurd/ext2fs.static ext2fs --readonly                             \
+			--multiboot-command-line='${kernel-command-line}'    \
+			--host-priv-port='${host-port}'                      \
+			--device-master-port='${device-port}'                \
+			--exec-server-task='${exec-task}' -T typed '${root}' \
+			'$(task-create)' '$(task-resume)'
+    module /lib/ld.so.1 exec /hurd/exec '$(exec-task=task-create)'
+}
