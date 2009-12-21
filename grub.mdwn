@@ -1,4 +1,41 @@
-# [GRUB](http://www.gnu.org/software/grub/)
+<http://www.gnu.org/software/grub/>
+
+This section complements the [[InstallNotes]] with complete information
+regarding the GRUB 2 boot loader.  The syntax is different from GRUB Legacy aka
+GRUB 1 (see below).
+
+  * `update-grub` is *Debian specific* and very useful.  It will automatically
+    create a `/boot/grub/grub.cfg` file for the kernels in `/boot/` and for
+    OSes that it finds on various partitions, including GNU/Hurd.
+
+  * Make sure that GRUB 2's version is at least 20091130 and GNU Mach's version
+    is at least 20091020.
+
+  * Sample file:
+    
+        menuentry "GNU/Linux" {
+            insmod ext2
+            set root=(hd0,12)
+            linux      /boot/vmlinuz-2.6.32 root=/dev/hda12 ro
+            initrd     /boot/initrd.img-2.6.32
+        }
+        
+        menuentry "GNU" {
+            insmod ext2
+            set root=(hd0,16)
+            multiboot /boot/gnumach.gz root=device:hd0s16
+            module /hurd/ext2fs.static ext2fs --readonly \
+        			--multiboot-command-line='${kernel-command-line}' \
+        			--host-priv-port='${host-port}' \
+        			--device-master-port='${device-port}' \
+        			--exec-server-task='${exec-task}' -T typed '${root}' \
+        			'$(task-create)' '$(task-resume)'
+            module /lib/ld.so.1 exec /hurd/exec '$(exec-task=task-create)'
+        }
+
+---
+
+**The following information may be outdated and should be revised.**
 
 This section complements the [[InstallNotes]] with complete information regarding the GRUB boot loader. The syntax is different from Lilo's and so to scratch my own itch I'm creating this quick reference. The [Grub manual](http://www.gnu.org/software/grub/manual/grub.html) is another good reference.
 
@@ -13,27 +50,27 @@ This section complements the [[InstallNotes]] with complete information regardin
   * boot
 * sample file
 
-    title      GNU/Linux
-    root       (hd0,11)
-    kernel     /boot/vmlinuz-2.4.18 root=/dev/hda12 ro
-    initrd     /boot/initrd.img-2.4.18
-    savedefault
-
-    title      GNU
-    root       (hd0,15)
-    kernel     /boot/oskit-mach root=device:hd0s16 --
-    module     /hurd/ext2fs.static                              \
-               --multiboot-command-line=${kernel-command-line}  \
-               --host-priv-port=${host-port}                    \
-               --device-master-port=${device-port}              \
-               --exec-server-task=${exec-task}                  \
-               -T typed ${root} $(task-create) $(task-resume)
-    module     /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
-    savedefault
-
-    title           DOS
-    rootnoverify    (hd0,0)
-    chainloader +1
+        title      GNU/Linux
+        root       (hd0,11)
+        kernel     /boot/vmlinuz-2.4.18 root=/dev/hda12 ro
+        initrd     /boot/initrd.img-2.4.18
+        savedefault
+    
+        title      GNU
+        root       (hd0,15)
+        kernel     /boot/oskit-mach root=device:hd0s16 --
+        module     /hurd/ext2fs.static                              \
+                   --multiboot-command-line=${kernel-command-line}  \
+                   --host-priv-port=${host-port}                    \
+                   --device-master-port=${device-port}              \
+                   --exec-server-task=${exec-task}                  \
+                   -T typed ${root} $(task-create) $(task-resume)
+        module     /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
+        savedefault
+    
+        title           DOS
+        rootnoverify    (hd0,0)
+        chainloader +1
 
 -- [[Main/GrantBow]] - 01 Oct 2002 <br /> -- [[Main/GrantBow]] - 22 Dec 2002
 
