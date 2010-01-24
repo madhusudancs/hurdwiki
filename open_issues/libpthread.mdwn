@@ -1,0 +1,44 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_glibc open_issue_pthread]]
+
+GSoC project idea: [[community/gsoc/project ideas/pthreads]]
+
+---
+
+`#hurd`, 2010-01-24
+
+    <pinotree> youpi: hm, thought about the pthread/stubs issue w/ dlopen'ed libraries
+    <pinotree> currently looks like libstdc++ on hurd links to pthread-stubs, we're the only one with such configuration
+    <pinotree> i was looking at the gcc 4.4 patch hurd-pthread.diff, could it be it does not set THREADLIBS in the configure.ac switch case?
+    <youpi> that's expected
+    <youpi> on linux the libc provides hooks itself, on hurd-i386 it's pthread-stubs
+    <pinotree> why not explicitly link to pthread though?
+    <youpi> because there is no strict need to, for applications that don't need libpthread
+    <youpi> the dlopen case is a tricky case that pthread-stubs had not thought about
+    <pinotree> hm
+    <pinotree> what if the pthread stubs would be moved in our glibc?
+    <youpi> that's what we should do yes
+    <youpi> (ideally)
+    <youpi> but for this we need to build libpthread along glibc, to get it really working
+    <youpi> and that's the tricky part (Makefile & such) which hasn't been done yet
+    <pinotree> why both (stubs + actual libpthread)?
+    <youpi> because you need the stubs to be able to call the actual libpthread
+    <youpi> as soon libpthread gets dlopened for instance
+    <youpi> +as
+    <pinotree> i see
+    <youpi> (remember that nptl does this if you want to see how)
+    <youpi> (it's the libc files in nptl/)
+    <youpi> (and forward.c)
+    <guillem> also if libpthreads gets integrated with glibc don't we need to switch the hurd from cthreads then? Which has been the blocker all this time AFAIR?
+    <youpi> we don't _need_ to
+    <guillem> ok
+
