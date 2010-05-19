@@ -1,0 +1,73 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+# Emilio Pozuelo Monfort
+
+Email: pochu27@gmail.com
+
+---
+
+# GSoC 2010: Hurd: Fix Compatibility Problems Exposed by Testsuites
+
+Mentor: Carl Fredrik Hammar
+
+## Abstract
+
+This project will consist of identifiying some projects' test suite
+failures when executed on GNU/Hurd, debugging them, and if they are
+truly GNU/Hurd issues (and not problems in the projects themselves),
+fixing them.
+
+## Timeline
+
+### Before April 28
+* Investigated the glib's gtester problem and tracked it down:
+  [bug 28934](https://savannah.gnu.org/bugs/?28934). Prepared a patch
+  but it's not good.
+* [glib's garray test timeouts on Hurd](https://bugzilla.gnome.org/show_bug.cgi?id=568760).
+  The tests passes if the timeout is increased. The current upstream timeout
+  (10s) is quite small (it fails on many Debian builds for some Linux arches).
+  However on Hurd it needs a very big time it seems (like more than 100s).
+  Maybe do an allocation benchmarch?
+* Investigated glib's unix-fd test failure: getsockopt() isn't implemented
+  on Hurd. Need to implement it in hurd/pflocal/socket.c.
+* Investigated coreutils' ln EIEIO, with Samuel's help. linkat() is buggy.
+  Reported as [bug 29655](https://savannah.gnu.org/bugs/?29655). Prepared a
+  patch, waiting on the copyright paperwork before submitting it to libc-alpha.
+  Got part of it already (committed)[http://sources.redhat.com/ml/libc-alpha/2010-04/msg00046.html].
+* Investigated coreutils' cp EACCES. Test case: 'mkfifo a && cp -R --copy-contents a b'.
+  Problem is that O_NOFOLLOW adds O_NOTRANS.
+
+
+### April 28 - May 5
+* Submitted a talk proposal on Hurd with Michael Banck for DebConf
+* Sent request to assign copyright to the FSF for Hurd/Mach/libc
+
+### May 5 - May 12
+* Read http://www.gnu.org/software/hurd/hurd-paper.html
+* Improved the linkat() patch
+* Fixed the issues mentioned in bug 28934, but after doing so I realized
+  that wouldn't work well. The only good solution is to pass file_name
+  from execve() to the exec server, so we need new RPCs.
+
+### May 12 - May 19
+* Read http://www.gnu.org/software/hurd/hurd-talk.html
+* Half read http://www.gnu.org/software/hurd/hacking-guide/hhg.html
+* Read many Hurd interfaces (fs.defs, auth.defs, fsys.defs, io.defs,
+  password.defs).
+
+
+## TODO
+
+
+## Documentation
+* [Towards a New Strategy of OS Design, an architectural overview by Thomas Bushnell, BSG](http://www.gnu.org/software/hurd/hurd-paper.html)
+* [The Hurd, a presentation by Marcus Brinkmann](http://www.gnu.org/software/hurd/hurd-talk.html)
+* [The Hurd Hacking Guide](http://www.gnu.org/software/hurd/hacking-guide/hhg.html)
