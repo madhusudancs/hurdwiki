@@ -12,20 +12,23 @@ porting DDE developed by DROPS to the Hurd, and it will still run in the user sp
 ##Introduction
 The introduction of DDE/DDEKit can be found in [here](http://wiki.tudos.org/DDE/DDEKit) and more information can be found [here](http://os.inf.tu-dresden.de/pipermail/l4-hackers/2009/004291.html). DDE/DDEKit is a library, and it should be compiled with the code of Linux or FreeBSD drivers. DDE Linux26 is still under development and it can now support network and block devices (but doesn't support SCSI). 
 
+##The current status
+Currently a few NIC cards work now. I tested pcnet32, e100, e1000, ne2k-pci and rtl8139 in VMWare and Qemu. But the DDE e100 driver cannot work for some e100 cards as currently DDE doesn't support firmware. Someone also reported sis900 cannot work, unfortunately, I cannot test it myself. I appreciate if someone can try some other NIC drivers and give me some feedbback. Please run DDE with GNUMach in the [master-user_level_drivers](http://git.savannah.gnu.org/cgit/hurd/gnumach.git/) branch.
+
 ## My work
 I separate DDE Linux26 to 2 parts: libddekit and libdde_linux26. I also provide a library called libmachdev on the top of the Linux code to provide the Mach device interface, so it is easy for the user to compile a Linux driver and run it in the Hurd. The latest code can be found in the dde branch of the incubator repository. 
-
-The current status: the pcnet32 driver can work very well in DDE Linux26 now. I hope someone can try other NIC drivers. Please run DDE with GNUMach in the [master-user_level_drivers](http://git.savannah.gnu.org/cgit/hurd/gnumach.git/) branch.
 
 There is a minor problem when we compile a Linux driver. Linux drivers use jiffies to measure time. Unfortunately, Mach doesn't provide it, so whenever we need it, we need to calculate it by ourselves. I decide to provide a macro to calculate it for the sake of performance and the cost is that the source code of Linux drivers has to include ddekit/timer.h.
 
 ## Build and run DDE drivers
 
-It is better to disable the corresponding kernel drivers in GNU Mach. For example, if we use the pcnet card, we'd better disable lance and pcnet32 drivers while building GNU Mach. DDE requires the pfinet with the modification during my GSoC project in 2008 and that pfinet requires libpcap-dev. To build DDE, we have to first install libpciaccess. libdde_linux26 has to be compiled manually (building dde_pcnet32 doesn't compile libdde_linux26 automatically). 
+To build a Linux driver with DDE Linux, we need libddekit, libdde_linux26 and libmachdev. libddekit and libmachdev use the same Makefile system as other Hurd components but libdde_linux26 does not, so we have to build libdde_linux26 in its source file directory. DDE drivers use the same makefile system as libdde_linux26 and thus we need to build them in their source file directories as well. The repository has all DDE drivers I have tested, but in case you want to try other drivers, the easiest way is to use dde_pcnet32 as a template. The directory of dde_pcnet32 has Makefile, Makeconf.local, default.ld, pcnet32.c and main.c. If we need to build a new driver file, we only need to replace pcnet32.c with the new file and change Makefile accordingly. You also need to change DDEKITLIBDIR, DDEKITINCDIR, DDE26LIBDIR and OBJ_BASE in Makeconf.local to indicate the path to ddekit and dde_linux26. 
 
-To build a Linux driver with DDE Linux, the easiest way is to use dde_pcnet32 (also in the dde branch) as a template. The directory of dde_pcnet32 has Makefile, Makeconf.local, default.ld, pcnet32.c and main.c. If we need to build a new driver file, we only need to replace pcnet32.c with the new file and change Makefile accordingly. You also need to change DDEKITLIBDIR, DDEKITINCDIR, DDE26LIBDIR and OBJ_BASE in Makeconf.local to indicate the path to ddekit and dde_linux26.
+When all parts are ready, we can start to build DDE drivers now. In case someone hasn't installed libpciaccess, please install it first. We first build libddekit, then libdde_linux26, then libmachdev and at last the DDE driver.
 
 To run a DDE NIC driver:
+
+It is better to disable the corresponding kernel drivers in GNU Mach. For example, if we use the pcnet card, we'd better disable lance and pcnet32 drivers in gnumach. DDE requires the pfinet with modification during my GSoC project in 2008 and that pfinet requires libpcap-dev (this pfinet is also in the dde branch). 
 
 settrans -acfg pcnet32 hurd/dde_pcnet32/dde_pcnet32
 settrans -acfg /dev/eth0 hurd/devnode/devnode eth0 -M pcnet32
