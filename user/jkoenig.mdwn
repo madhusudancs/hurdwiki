@@ -65,21 +65,19 @@ I will be keeping track of my progress on this page.
     * cleanup, ask youpi to commit
 
 * reloading the partition table (2010-06-25)
-    * unfortunately, *non-workable-aroud* without a reboot
-    * (./) hurd-udeb now uses `part:N:device:X` for partition devices
-      (2010-06-23)
-    * (./) it also provides /lib/partman/commit.d/??hurd\_reloadpart,
-      which basically does `settrans -ag /dev/[hs]d*`.
-      (2010-06-24)
-    * {X} However, once it's mounted on /target,
-      the test-exec script from base-installer hangs.
-    * (./) Mach's drivers from Linux support reloading partitions.
-      With help from youpi this has been made available through a
-      device\_set\_status() call.
-    * (./) make libparted use it
-    * {X} However, still the same failure,
-      which must be from something else.
-    * Reminder: I should file a bug against libparted with the patch sometime.
+    * User-space part stores
+        * (./) hurd-udeb now uses `part:N:device:X` for partition devices
+          (2010-06-23)
+        * (./) it also provides /lib/partman/commit.d/??hurd\_reloadpart,
+          which basically does `settrans -ag /dev/[hs]d*`.
+          (2010-06-24)
+    * Kernel-based partition devices
+        * (./) Mach's drivers from Linux support reloading partitions.
+          With help from youpi this has been made available through a
+          device\_set\_status() call.
+        * (./) make libparted use it
+        * Reminder:
+          I should file a bug against libparted with the patch sometime.
 
 * **busybox**: submit upstream and to [[!debbug 323670]]
   (waiting for upstream to review)
@@ -92,10 +90,24 @@ I will be keeping track of my progress on this page.
     * backport any additional changes onto the debian branch
     * hijack [[!debbug 323670]] and submit my patches
 
-* **base-installer**:
-  implement the arch-specific shell functions for kernel selection
-  and devices in /target.
-  (expected 2010-06-28)
+* (./) The `/servers/exec` issue (2010-06-26)
+    * Due to /servers being inexistant,
+      the bootstrap ext2fs could not register the initial exec server,
+      meaning that non-bootstrap filesystems used a different one
+      (started from the passive translator),
+      which for some reason died on shell scripts, making them stall.
+    * Adding the `/servers` directory to hurd-udeb fixed it,
+      as well as the /hurd/proc issue
+      (failed to be run by init the first time around).
+    * Reminder: report the non-bootstrap exec servers failure on scripts.
+
+* (./) **base-installer**: (2010-06-26)
+    * Work around non-existant /proc/mounts.
+    * Firmlink /servers into /target after debootstrap
+      to make the network available.
+
+* **grub-installer** (expected 2010-06-28)
+    * review the whole thing and add hurd to the supported cases
 
 * **d-i/installer/build**: (expected 2010-06-28)
     * publish the patch I use
@@ -115,15 +127,9 @@ installer kindof works, with documented manual intervention required**
     * *mount*, *swaponoff* can be from hurd-udeb for now,
       though the kFreeBSD people will need them
 
-* tweak the hurd debian package to handle
-  what native-install used to be required for
-  [apparently there's already some relevant stuff done in the postinst,
-  it might just work though maybe something is missing,
-  or some special code would be needed in the installer
-  to enable say, /servers/socket/local before anything
-  is attempted in the chroot]
-
-* investigate the /hurd/proc issue
+* <strike>tweak the hurd debian package to handle
+  what native-install used to be required for</strike>
+  (debootstrap does it)
 
 * netcfg: make it work on Hurd somehow (port `busybox ip`?)
 
