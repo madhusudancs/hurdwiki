@@ -79,17 +79,6 @@ I will be keeping track of my progress on this page.
         * Reminder:
           I should file a bug against libparted with the patch sometime.
 
-* **busybox**: submit upstream and to [[!debbug 323670]]
-  (waiting for upstream to review)
-    * (./) I have mentioned my work on the upstream mailing list,
-    * (./) merge the recent changes from upstream,
-      notably to the build system.
-      (2010-06-23)
-    * (./) ask upstream for review and merge
-      (2010-06-25)
-    * backport any additional changes onto the debian branch
-    * hijack [[!debbug 323670]] and submit my patches
-
 * (./) The `/servers/exec` issue (2010-06-26)
     * Due to /servers being inexistant,
       the bootstrap ext2fs could not register the initial exec server,
@@ -106,16 +95,68 @@ I will be keeping track of my progress on this page.
     * Firmlink /servers into /target after debootstrap
       to make the network available.
 
-* **grub-installer** (expected 2010-06-28)
-    * review the whole thing and add hurd to the supported cases
+* (./) **grub-installer**
+    * (./) add hurd support (2010-06-27)
+    * /!\ grub-legacy still needs to be tested
+    * submit changes as a Debian bug
+
+**Milestone (2010-06-28):
+installer kindof works, with documented manual intervention required**
+
+* (./) Set up a Debian mirror with modified packages for installation
+    * the [mirror](http://jk.fr.eu.org/debian/hurd-install/mirror)
+      is now up and running (2010-07-06)
+    * hacked the image build script to include its public key in
+      debian-archive-keyring at image build time (2010-07-08)
+
+* (./) Sort out the situation with dev node creation (2010-07-07):
+    * Devices and servers used to be set up by debootstrap;
+      the hurd package would add some missing nodes.
+    * New strategy implemented in hurd and debootstrap:
+        * debootstrap uses active firmlinks into the host system
+          for the target system's /dev and /servers.
+        * the hurd package now include a `setup-translators` script,
+          which is used to register the passive translators by the installer's
+          `/libexec/runsystem` and hurd's postinst script.
+
+* **busybox**: submit upstream and to [[!debbug 323670]]
+  (waiting for upstream to review)
+    * (./) I have mentioned my work on the upstream mailing list,
+    * (./) merge the recent changes from upstream,
+      notably to the build system.
+      (2010-06-23)
+    * (./) ask upstream for review and merge
+      (2010-06-25)
+    * (./) sent as patches as requested
+      (2010-07-08)
+    * backport any additional changes onto the debian branch
+    * hijack [[!debbug 323670]] and submit my patches
+
+* **aptitude**:
+    * Currently broken on hurd-i386:
+      [[!debpkg gtest]] fails to build because of a segfault in one of the test
+      cases, [[!debpkg google-mock]] and hence [[!debpkg aptitude]] are missing
+      it as a build-dep.
+      The older package is not installable anymore because it's linked against
+      an older version of libept, which has been removed.
+    * (./) I bypassed the tests and uploaded the 3 packages to my repository
+      (2010-07-08)
+    * The segfault will have to be sorted out. (postponed)
+
+* (./) "Fix" the swap situation. (2010-07-08)
+    * The device_close() libstore patch
+      had the unfortunate effect of making swapon fail,
+      since the device it activates has to be kept open.
+    * add options for MAKEDEV and setup-devices
+      to use the libparted stores
+    * disable youpi's patch
+    * make partman-basicfilesystems re-create the device
+      as a kernel partition, which is needed for swapon
 
 * **d-i/installer/build**: (expected 2010-06-28)
     * publish the patch I use
     * sort out the changes suitable for inclusion
       and ask youpi and/or debian-boot@l.d.o to commit them
-
-**Milestone (expected 2010-06-28):
-installer kindof works, with documented manual intervention required**
 
 * **partman**: further adjustments
     * hide irrelevant mount options? (sync, relatime)
@@ -131,13 +172,13 @@ installer kindof works, with documented manual intervention required**
   what native-install used to be required for</strike>
   (debootstrap does it)
 
-* netcfg: make it work on Hurd somehow (port `busybox ip`?)
-
-* Hurd-specific partitionning (use supported fs types and options).
-  NB: we will need support in mach to reload the partition tables,
-  or alternatively use the parted support in libstore somehow.
-
-* grub2 installation
+* <strike>netcfg: make it work on Hurd somehow (port `busybox ip`?)</strike>
+    * Apparently netcfg-static already has Hurd support,
+      though we may want to make it use fsysopts instead of settrans.
+    * What I *will* have to do is to teach ethdetect
+      to use 'devprobe' on a number for network device prefixes
+      to determine the list (eth%d, wl%d, anything else?).
+    * busybox udhcpc will eventually have to be ported.
 
 **Milestone (expected 2010-07-05):
 installer works but it's still somewhat ugly and broken**
@@ -159,6 +200,7 @@ it works great and it's beautiful**
 * test, fix, document
 * support more types of installation images
 * give a shot at the graphical installer if time permits
+* integrate wireless drivers with netcfg
 * see how [[zhengda]]'s work on DDE could be integrated
 * etc..
 
