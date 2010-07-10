@@ -103,12 +103,6 @@ I will be keeping track of my progress on this page.
 **Milestone (2010-06-28):
 installer kindof works, with documented manual intervention required**
 
-* (./) Set up a Debian mirror with modified packages for installation
-    * the [mirror](http://jk.fr.eu.org/debian/hurd-install/mirror)
-      is now up and running (2010-07-06)
-    * hacked the image build script to include its public key in
-      debian-archive-keyring at image build time (2010-07-08)
-
 * (./) Sort out the situation with dev node creation (2010-07-07):
     * Devices and servers used to be set up by debootstrap;
       the hurd package would add some missing nodes.
@@ -153,37 +147,48 @@ installer kindof works, with documented manual intervention required**
     * make partman-basicfilesystems re-create the device
       as a kernel partition, which is needed for swapon
 
-* **d-i/installer/build**: (expected 2010-06-28)
-    * publish the patch I use
-    * sort out the changes suitable for inclusion
-      and ask youpi and/or debian-boot@l.d.o to commit them
+* (./) netcfg-static: port to hurd (2010-07-09)
+    * There was some amount of hurd support already
+      (namely, activating the interface by replacing the socket translator)
+    * However, this code started an active translator with
+      di_exec_shell_log("settrans -a ...),
+      which stalled as a consequence of it capturing libdi's pipe
+      as its standard output.
+    * Network devices must be probed by trying to open Mach devices
+      with predetermined names (currently eth%d, wl%d),
+      because getifaddrs() does not seem to work on Hurd.
+    * /!\ netcfg, and configuring the installed system, postponed.
+
+* (./) Set up a Debian mirror with modified packages for installation
+    * the [mirror](http://jk.fr.eu.org/debian/hurd-install/mirror)
+      is now up and running (2010-07-06)
+    * hacked the image build script to include its public key in
+      debian-archive-keyring at image build time (2010-07-08)
+    * Apparently debootstrap does not handle multiple versions very well.
+      Fix by using dpkg-scan{package,sources} rather than apt-ftparchive
+      to create index files.
+      (2010-07-10)
 
 * **partman**: further adjustments
     * hide irrelevant mount options? (sync, relatime)
 
-* **busybox**: port 
-    * fix stty/stat/ipcs on kFreeBSD,
-    * generally port more stuff,
-    * *ip* is needed for network configuration,
-    * *mount*, *swaponoff* can be from hurd-udeb for now,
-      though the kFreeBSD people will need them
+* **d-i/installer/build**: (expected 2010-07-12)
+    * publish the patch I use
+    * sort out the changes suitable for inclusion
+      and ask youpi and/or debian-boot@l.d.o to commit them
 
-* <strike>tweak the hurd debian package to handle
-  what native-install used to be required for</strike>
-  (debootstrap does it)
-
-* <strike>netcfg: make it work on Hurd somehow (port `busybox ip`?)</strike>
-    * Apparently netcfg-static already has Hurd support,
-      though we may want to make it use fsysopts instead of settrans.
-    * What I *will* have to do is to teach ethdetect
-      to use 'devprobe' on a number for network device prefixes
-      to determine the list (eth%d, wl%d, anything else?).
-    * busybox udhcpc will eventually have to be ported.
-
-**Milestone (expected 2010-07-05):
+**Milestone (expected 2010-07-12):
 installer works but it's still somewhat ugly and broken**
 
 * call for testing and fix the bugs
+
+* **busybox**: port 
+    * fix stty/stat/ipcs on kFreeBSD,
+    * generally port more stuff,
+    * *ip* is needed (maybe) for network configuration,
+    * *mount*, *swaponoff* can be from hurd-udeb for now,
+      though the kFreeBSD people will need them
+
 * improve the [initrd situation](FIXME: link to bug-hurd post):
   ajust the ramdisk support in Mach,
   use tmpfs if possible,
