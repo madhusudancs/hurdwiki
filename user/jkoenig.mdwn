@@ -103,12 +103,6 @@ I will be keeping track of my progress on this page.
 **Milestone (2010-06-28):
 installer kindof works, with documented manual intervention required**
 
-* (./) Set up a Debian mirror with modified packages for installation
-    * the [mirror](http://jk.fr.eu.org/debian/hurd-install/mirror)
-      is now up and running (2010-07-06)
-    * hacked the image build script to include its public key in
-      debian-archive-keyring at image build time (2010-07-08)
-
 * (./) Sort out the situation with dev node creation (2010-07-07):
     * Devices and servers used to be set up by debootstrap;
       the hurd package would add some missing nodes.
@@ -153,37 +147,96 @@ installer kindof works, with documented manual intervention required**
     * make partman-basicfilesystems re-create the device
       as a kernel partition, which is needed for swapon
 
-* **d-i/installer/build**: (expected 2010-06-28)
+* (./) netcfg-static: port to hurd (2010-07-09)
+    * There was some amount of hurd support already
+      (namely, activating the interface by replacing the socket translator)
+    * However, this code started an active translator with
+      di_exec_shell_log("settrans -a ...),
+      which stalled as a consequence of it capturing libdi's pipe
+      as its standard output.
+    * Network devices must be probed by trying to open Mach devices
+      with predetermined names (currently eth%d, wl%d),
+      because getifaddrs() does not seem to work on Hurd.
+    * /!\ netcfg, and configuring the installed system, postponed.
+
+* **procps** 3.2.7-11 (current hurd-i386 version) has [[!debbug 546888]]
+    * (./) Submit [[!debbug 588677]] and upload the result to my repository.
+      (2010-07-11)
+
+* (./) Set up a Debian mirror with modified packages for installation
+    * the [mirror](http://jk.fr.eu.org/debian/hurd-install/mirror)
+      is now up and running (2010-07-06)
+    * hacked the image build script to include its public key in
+      debian-archive-keyring at image build time (2010-07-08)
+    * Apparently debootstrap does not handle multiple versions very well.
+      Fix by using dpkg-scan{package,sources} rather than apt-ftparchive
+      to create index files.
+      (2010-07-10)
+    * Use the override files from ftp.debian.org,
+      to avoid debootstrap grabbing inappropriate packages.
+    * Changed them to make [[!debpkg ifupdown]],
+      [[!debpkg dhcp3-client]] and [[!debpkg dhcp3-client]] priority extra,
+      because they're uninstallable at the moment.
+      (2010-07-12)
+
+* (./) Put together a "jk-archive-keyring" package,
+  so that the mirror is authenticated in the target system as well.
+  (2010-07-12)
+
+* Fix grub for user-space partitions (expected 2010-07-12)
+    * Currently, when using user-space partitions,
+      grub-probe detects the whole device rather than the partition
+      as the device behind /boot/grub.
+      Consequently, grub-install fails.
+    * One approach would be to replace /dev/hd* by kernel devices
+      for file systems as well as for swap partitions.
+    * On the other hand, grub-probe will need to be fixed
+      sooner or later for user-space partition support,
+      and parsing the fsysopts would possibly be an option.
+
+* **d-i/installer/build**: (expected 2010-07-12)
     * publish the patch I use
     * sort out the changes suitable for inclusion
       and ask youpi and/or debian-boot@l.d.o to commit them
 
-* **partman**: further adjustments
-    * hide irrelevant mount options? (sync, relatime)
+**Milestone (expected 2010-07-12):
+installer works but it's still somewhat ugly and broken**
+
+* call for testing and fix the bugs
+
+* See if it would be possible to avoid accessing devices
+  when firmlinking them into the target system.
+    * Who does that?
+        * find should prune them as instructed,
+          and avoid a stat/readdir as a result
+        * showtrans shouldn't access the translator itself
+        * firmlink should access the target only when it is used
+
+* In the same vein, permissions on underlying nodes
+  are probably broken when created by hurd through `MAKEDEV -k`,
+  and doing the actual chmod/chown accesses the device
+    * Maybe settrans could be made to accept -o/--owner and
+      -p/--perm, to set the permissions for the underlying node?
+
+* Silence the "no kernel" warning somehow.
+
+* Prepare a NMU for genext2fs (which is orphaned),
+  and ask youpi to sponsor the upload.
 
 * **busybox**: port 
     * fix stty/stat/ipcs on kFreeBSD,
     * generally port more stuff,
-    * *ip* is needed for network configuration,
+    * *ip* is needed (maybe) for network configuration,
     * *mount*, *swaponoff* can be from hurd-udeb for now,
       though the kFreeBSD people will need them
 
-* <strike>tweak the hurd debian package to handle
-  what native-install used to be required for</strike>
-  (debootstrap does it)
+* **partman**: further adjustments
+    * hide irrelevant mount options? (sync, relatime)
 
-* <strike>netcfg: make it work on Hurd somehow (port `busybox ip`?)</strike>
-    * Apparently netcfg-static already has Hurd support,
-      though we may want to make it use fsysopts instead of settrans.
-    * What I *will* have to do is to teach ethdetect
-      to use 'devprobe' on a number for network device prefixes
-      to determine the list (eth%d, wl%d, anything else?).
-    * busybox udhcpc will eventually have to be ported.
+* Network configuration on the installed system.
+  This includes porting ifupdown and isc-dhcp-client,
+  which are currently uninstallable on hurd-i386.
 
-**Milestone (expected 2010-07-05):
-installer works but it's still somewhat ugly and broken**
-
-* call for testing and fix the bugs
 * improve the [initrd situation](FIXME: link to bug-hurd post):
   ajust the ramdisk support in Mach,
   use tmpfs if possible,
