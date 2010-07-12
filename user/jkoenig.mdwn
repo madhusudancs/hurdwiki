@@ -159,6 +159,10 @@ installer kindof works, with documented manual intervention required**
       because getifaddrs() does not seem to work on Hurd.
     * /!\ netcfg, and configuring the installed system, postponed.
 
+* **procps** 3.2.7-11 (current hurd-i386 version) has [[!debbug 546888]]
+    * (./) Submit [[!debbug 588677]] and upload the result to my repository.
+      (2010-07-11)
+
 * (./) Set up a Debian mirror with modified packages for installation
     * the [mirror](http://jk.fr.eu.org/debian/hurd-install/mirror)
       is now up and running (2010-07-06)
@@ -168,13 +172,16 @@ installer kindof works, with documented manual intervention required**
       Fix by using dpkg-scan{package,sources} rather than apt-ftparchive
       to create index files.
       (2010-07-10)
+    * Use the override files from ftp.debian.org,
+      to avoid debootstrap grabbing inappropriate packages.
+    * Changed them to make [[!debpkg ifupdown]],
+      [[!debpkg dhcp3-client]] and [[!debpkg dhcp3-client]] priority extra,
+      because they're uninstallable at the moment.
+      (2010-07-12)
 
-* **procps** 3.2.7-11 (current hurd-i386 version) has [[!debbug 546888]]
-    * (./) Submit [[!debbug 588677]] and upload the result to my repository.
-      (2010-07-11)
-
-* **partman**: further adjustments
-    * hide irrelevant mount options? (sync, relatime)
+* (./) Put together a "jk-archive-keyring" package,
+  so that the mirror is authenticated in the target system as well.
+  (2010-07-12)
 
 * **d-i/installer/build**: (expected 2010-07-12)
     * publish the patch I use
@@ -186,12 +193,36 @@ installer works but it's still somewhat ugly and broken**
 
 * call for testing and fix the bugs
 
+* See if it would be possible to avoid accessing devices
+  when firmlinking them into the target system.
+    * Who does that?
+        * find should prune them as instructed,
+          and avoid a stat/readdir as a result
+        * showtrans shouldn't access the translator itself
+        * firmlink should access the target only when it is used
+
+* In the same vein, permissions on underlying nodes
+  are probably broken when created by hurd through `MAKEDEV -k`,
+  and doing the actual chmod/chown accesses the device
+    * Maybe settrans could be made to accept -o/--owner and
+      -p/--perm, to set the permissions for the underlying node?
+
+* Prepare a NMU for genext2fs (which is orphaned),
+  and ask youpi to sponsor the upload.
+
 * **busybox**: port 
     * fix stty/stat/ipcs on kFreeBSD,
     * generally port more stuff,
     * *ip* is needed (maybe) for network configuration,
     * *mount*, *swaponoff* can be from hurd-udeb for now,
       though the kFreeBSD people will need them
+
+* **partman**: further adjustments
+    * hide irrelevant mount options? (sync, relatime)
+
+* Network configuration on the installed system.
+  This includes porting ifupdown and isc-dhcp-client,
+  which are currently uninstallable on hurd-i386.
 
 * improve the [initrd situation](FIXME: link to bug-hurd post):
   ajust the ramdisk support in Mach,
