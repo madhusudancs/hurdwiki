@@ -183,23 +183,33 @@ installer kindof works, with documented manual intervention required**
   so that the mirror is authenticated in the target system as well.
   (2010-07-12)
 
-* Fix grub for user-space partitions (expected 2010-07-12)
-    * Currently, when using user-space partitions,
-      grub-probe detects the whole device rather than the partition
+* (./) Fix grub for user-space partitions (2010-07-16)
+    * grub-probe detects the whole device rather than the partition
       as the device behind /boot/grub.
       Consequently, grub-install fails.
     * One approach would be to replace /dev/hd* by kernel devices
       for file systems as well as for swap partitions.
-    * On the other hand, grub-probe will need to be fixed
-      sooner or later for user-space partition support,
-      and parsing the fsysopts would possibly be an option.
+      > {X} this makes the installer crash,
+      > possibly due to cache coherency issue between hdX and hdXsY.
 
-* **d-i/installer/build**: (expected 2010-07-12)
+    * (./) GRUB2 kern/emu/getroot.c
+      [patched](http://lists.gnu.org/archive/html/bug-hurd/2010-07/msg00059.html)
+      to support part stores.
+
+* (./) Fix finish-install to skip `finish-install.d/90console` on Hurd
+  (2010-07-17)
+
+* debootstrap:
+  Don't use find to firmlink devices into /target,
+  to avoid starting many translators at once
+  (2010-07-17, to be tested soon)
+
+* **d-i/installer/build**: (expected soon)
     * publish the patch I use
     * sort out the changes suitable for inclusion
       and ask youpi and/or debian-boot@l.d.o to commit them
 
-**Milestone (expected 2010-07-12):
+**Milestone (expected 2010-07-18):
 installer works but it's still somewhat ugly and broken**
 
 * call for testing and fix the bugs
@@ -220,6 +230,11 @@ installer works but it's still somewhat ugly and broken**
 
 * Silence the "no kernel" warning somehow.
 
+* Try to resolve problems with udebs which are uninstallable on hurd-i386,
+  such as installation-locale and partman-whatever.
+
+* Provide `/proc/cmdline -> 2/cmdline`, or something.
+
 * Prepare a NMU for genext2fs (which is orphaned),
   and ask youpi to sponsor the upload.
 
@@ -236,16 +251,17 @@ installer works but it's still somewhat ugly and broken**
 * Network configuration on the installed system.
   This includes porting ifupdown and isc-dhcp-client,
   which are currently uninstallable on hurd-i386.
+* Also, better DHCP support during and after installation
 
 * improve the [initrd situation](FIXME: link to bug-hurd post):
   ajust the ramdisk support in Mach,
-  use tmpfs if possible,
-  possibly add `module -nounzip` to grub2.
+  use tmpfs if possible.
+
 * mklibs{,-copy}:
   test library reduction,
   make it copy the ld.so -> ld.so.1 symlink.
+
 * hurd console fonts
-* better DHCP support during and after installation
 
 **Milestone (expected 2010-07-19):
 it works great and it's beautiful**
