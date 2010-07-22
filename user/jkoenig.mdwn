@@ -199,10 +199,26 @@ installer kindof works, with documented manual intervention required**
 * (./) Fix finish-install to skip `finish-install.d/90console` on Hurd
   (2010-07-17)
 
-* debootstrap:
-  Don't use find to firmlink devices into /target,
-  to avoid starting many translators at once
-  (2010-07-17, to be tested soon)
+* (./) Avoid starting unnecessary /dev translators in a burst (2010-07-20)
+  * Use debootstrap use the extracted /usr/lib/hurd/setup-translators
+    to create device and server nodes in /target,
+    then firmlink the whole /target/dev and /target/servers
+    to the outer system.
+  * Make hurd.postinst not touch them on initial install.
+
+* (./) Fix mach-defpager for file and part stores on larger devices
+  * Use DEVICE_GET_RECORDS instead of DEVICE_GET_SIZE, which overflows an int
+    (2010-07-22)
+
+* (./) Ship the uft-8 font for the hurd console (2010-07-22)
+  * Upload a version of bogl with youpi's patch for Hurd.
+    (see [[!debbug 589987]])
+  * Fix the hurd console for fonts with 16 pixels wide glyphs
+    (ie. handle the 8-wide glyph in there correclty)
+  * {X} However the reduced font can't be loaded yet,
+    so make installer/build/Makefile
+    ship the whole `/usr/src/unifont.bgf`
+    as `/usr/share/hurd/vga-system.bgf`.
 
 * **d-i/installer/build**: (expected soon)
     * publish the patch I use
@@ -229,6 +245,11 @@ installer works but it's still somewhat ugly and broken**
       -p/--perm, to set the permissions for the underlying node?
 
 * Silence the "no kernel" warning somehow.
+
+* Think about TERM=hurd and preseed locale
+
+* Investigate the wget/libc/pfinet/whatever bug which corrupts Packages.gz,
+  see the IRC log for 2010-07-23, around 1am UTC+0200 
 
 * Try to resolve problems with udebs which are uninstallable on hurd-i386,
   such as installation-locale and partman-whatever.
