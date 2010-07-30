@@ -1,0 +1,142 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_gnumach]]
+
+IRC, unknown channel, unknown date.
+
+    <antrik> youpi: I have found an interesting Mach problem, but I'm a bit scared of debugging it...
+    <antrik> (it is related to VM stuff)
+    <antrik> I have a memory region that is mapped by the iopl device (it's an mmio region -- graphics memory to be precise)
+    <antrik> when gdb tries to read that region with vm_read() (for a "print" command), it triggers a general protection trap...
+    <youpi> antrik: does the general protection trap kill the whole kernel or just gdb?
+    <antrik> kernel
+    <antrik> kernel: General protection trap (13), code=0
+    <antrik> pmap_copy_page(41000000,49f2000,1,0,1)
+    <antrik> /build/buildd/gnumach-1.3.99.dfsg.cvs20090220/build-dbg/../i386/i386/phys.c:62
+    <antrik> vm_object_copy_slowly(209c1c54,41000000,1000,1,20994908)
+    <antrik> /build/buildd/gnumach-1.3.99.dfsg.cvs20090220/build-dbg/../vm/vm_object.c:1150
+    <antrik> vm_object_copy_strategically(209c1c54,41000000,1000,20994908,2099490c)
+    <antrik> /build/buildd/gnumach-1.3.99.dfsg.cvs20090220/build-dbg/../vm/vm_object.c:1669
+    <antrik> vm_map_copyin(209ba6e4,2c000,1000,0,25394ec8)
+    <antrik> /build/buildd/gnumach-1.3.99.dfsg.cvs20090220/build-dbg/../vm/vm_map.c:3297
+    <antrik> vm_read(209ba6e4,2c000,1000,208d303c,25394f00)
+    <antrik> /build/buildd/gnumach-1.3.99.dfsg.cvs20090220/build-dbg/../vm/vm_user.c:228
+    <antrik> _Xvm_read(2095cfe4,208d3010,0,1fff3e48,2095cfd4)
+    <antrik> /build/buildd/gnumach-1.3.99.dfsg.cvs20090220/build-dbg/kern/mach.server.c:1164
+    <antrik> ipc_kobject_server(2095cfd4,2095cfe4,28,127ca0,0)
+    <antrik> /build/buildd/gnumach-1.3.99.dfsg.cvs20090220/build-dbg/../kern/ipc_kobject.c:201
+    <antrik> mach_msg_trap(1024440,3,28,30,2c)
+    <antrik> /build/buildd/gnumach-1.3.99.dfsg.cvs20090220/build-dbg/../ipc/mach_msg.c:1367
+    <antrik> Bad frame pointer: 0x102441c
+    <antrik> BTW, is it useful at all to write down the paramenters as well?...
+    <antrik> argments I mean
+    <youpi> in the trace you mean?
+    <antrik> yes
+    <youpi> apparently the problem here is that the call to vm_fault_page() didn't perform its task
+    <youpi> which address is faulty?
+    <antrik> not sure what you mean
+    <youpi> ah shit the gpf wouldn't tell you
+    <youpi> does examine 49f2000 work?
+    <youpi> oh, wait, 4100000, that can't work
+    <youpi> +0
+    <youpi> which physical address is your mmio at?
+    <antrik> haven't tried it... but I can provoke the fault again if it helps :-)
+    <youpi> we have the 1GB limitation issue
+    <antrik> oh... lemme check
+    <youpi> no need to, I think the problem is that
+    <youpi> the iopl driver should check that it's not above phys_last_addr
+    <antrik> it's only vm_read() that fails, though...
+    <antrik> the actual program I debugged in gdb works perfectly fine
+    <youpi> yes, but that's because it's accessing the memory in a different way
+    <youpi> in the case of direct reads it just uses the page table
+    <youpi> in the case of vm_read() it uses kernel's projection
+    <youpi> but in that case it's not in the kernel projection
+    <antrik> phys = 1090519040
+    <youpi> that's it, it's beyond 1GB
+    <youpi> there's not much to do except changing mach's adressing organization
+    <antrik> yeah, that's the 0x41000000
+    <antrik> hm... I guess we could make the vm_read() bail out instead of crashing?...
+    <youpi> yes
+    <youpi> but there are a lot of places like this
+    <antrik> still, it's not exactly fun when trying to debug a program and the kernel crashes :-)
+    <youpi> right :)
+    <antrik> I could try to add the check... if you tell me where it belongs ;-)
+    <youpi> antrik: it's not just one place, that's the problem
+    <youpi> it's all the places that call pmap_zero_page, pmap_copy_page, copy_to_phys or copy_from_phys
+    <youpi> and since we do want to let the iopl device create such kind of page, in principle we have to cope with them all
+    <youpi> pmap_zero_page should be ok, though
+    <youpi> the rest isn't
+    <antrik> is that tricky, or just a matter of doing it in all places?
+
+    <antrik> hm... now it crashed in "normal" usage as well...
+    <antrik> hm... a page fault trap for a change...
+    <antrik> hm... now gdb tried to vm_read() something that is mapped to physical address 0x0...
+    <antrik> so I guess I fucked something up in the mapping code
+    <antrik> is it expected that such a vm_read() causes a kernel page fault, though?...
+    <antrik> youpi: ^
+    <youpi> nope
+    <youpi> in principle the check for validity of the page is done earlier
+    <youpi> physical address 0x0 makes sense, though
+    <antrik> OK, here is the trace:
+    <antrik> Kernel page fault (14), code=0 at address 0x0
+    <antrik> pmap_copy_page(0,6e54000,1,0,1)
+    <antrik> /build/buildd/gnumach-1.3.99.dfsg.cvs20090220/build-dbg/../i386/i386/phys.c:62
+    <antrik> vm_object_copy_slowly(20a067b0,0,1000,1,0acacec)
+    <antrik> /build/buildd/gnumach-1.3.99.dfsg.cvs20090220/build-dbg/../vm/vm_object.c:1150
+    <antrik> vm_object_copy_strategically(20a067b0,0,1000,20acacec,20acacf0)
+    <antrik> /build/buildd/gnumach-1.3.99.dfsg.cvs20090220/build-dbg/../vm/vm_object.c:1669
+    <antrik> vm_map_copyin(20a0f1c4,120d000,1000,0,253cdec8)
+    <antrik> /build/buildd/gnumach-1.3.99.dfsg.cvs20090220/build-dbg/../vm/vm_map.c:3297
+    <antrik> vm_read(20a0f1c4,120d000,1000,20a5703c,253cdf00)
+    <antrik> /build/buildd/gnumach-1.3.99.dfsg.cvs20090220/build-dbg/../vm/vm_user.c:228
+    <antrik> _Xvm_read(20a52c80,20a57010,253cdf40,20ae33cc,20a52c70)
+    <antrik> /build/buildd/gnumach-1.3.99.dfsg.cvs20090220/build-dbg/kern/mach.server.c:1164
+    <antrik> ipc_kobject_server(20a52c70,20a52c80,28,20873074,20873070)
+    <antrik> /build/buildd/gnumach-1.3.99.dfsg.cvs20090220/build-dbg/../kern/ipc_kobject.c:201
+    <antrik> mach_msg_trap(10247d0,3,28,30,2f)
+    <antrik> /build/buildd/gnumach-1.3.99.dfsg.cvs20090220/build-dbg/../ipc/mach_msg.c:1367
+    <antrik> Bad frame pointer: 0x10247ac
+    <antrik> seems to be exactly the same, except for the different arguments...
+    <antrik> hm... interesting... it *does* write something to the framebuffer, before it crashes...
+    <antrik> (which unfortunately makes it a bit hard to read the panic message... ;-) )
+    <LarstiQ> heh :)
+    <antrik> wait, it must write to something else than the frame buffer as well, or else the debugger should just paint over the crap...
+    <antrik> or perhaps it crashes so hard that the debugger doesn't even work? ;-)
+    <antrik> hm... I guess the first thing I should actually do is finding out what's up with e2fsck... this make testing crashes kinda annoying :-(
+    <antrik> oh, "interesting"... I ran it on one of my other hurd partitions, and it complained about an endless number of files... (perhaps all)
+    <antrik> however, the value for the normal files was different than for the passive translator nodes
+    <antrik> it doesn't happen only on crashes; it seems that all passive translators that are still in use at time of shutdown (or crash) have the offending bit set in the inode
+    <antrik> ouch... seems it doesn't write into the framebuffer after all, but rather scribbles all over the first 4 MiB of memory -- which includes also the VGA window, before it goes on killing the kernel...
+    <youpi> which iopl driver are you using ?
+    <antrik> ?
+    <youpi> the one from the debian patch?
+    <youpi> upstream, gnumach doesn't have an iopl device any more
+    <antrik> I guess so... standard Debian stuff here
+    <antrik> oh. how does X map the memory, then?
+    <youpi> X does yes
+    <antrik> ?
+    <youpi> X uses the iopl() device to access the video memory, yes
+    <youpi> I don't know if that was what you were asking for, but that's what I meant by my answer :)
+    <antrik> yeah, I know how it does *currently* do it -- I stole the code from there :-)
+    <antrik> my question is, how is X supposed to get at the framebuffer, when there is no iopl device anymore?
+    <youpi> ah, I hadn't noticed the "how" word
+    <youpi> in Debian there is
+    <LarstiQ> !debian → !x?
+    <youpi> the clean "access device memory" interface is yet to be done
+    <antrik> err... that sounds like Xorg philosophy
+    <youpi> what, to wait for a nice interface ?
+    <antrik> "let's kill the old stuff, fuck regressions... maybe someone will figure out how to do it with the new stuff at some point. if not, not our problem"
+    <youpi> that's also a GNU philosophy
+    <youpi> ah, that one
+    <antrik> anyone know how device_map() is supposed to behave? the documentation isn't really clear...
+    <antrik> my understanding was then when an offset is specified, then the resulting object will be relative to that object; i.e. the offset of a later vm_map() on this object is applied on top of the object's internal offset...
+    <antrik> but that doesn't seem to be how it works for the iopl device, if I read the xf86 code correctly...
+    <antrik> yeah, the offset parameter seems a nop when doing device_map() on the iopl device
