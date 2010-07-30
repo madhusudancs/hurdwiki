@@ -1,0 +1,148 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd open_issue_glibc]]
+
+bug-hurd email from 2010-07-28: *O_NOTRANS & O_NOFOLLOW*
+
+2010-07-29, #hurd
+
+    <antrik> cfhammar: I think that touches on a rather fundamental problem... it's always hard to decide how to handle translators, as the most useful approach depends a lot on context
+    <antrik> this was actually part of the idea behind namespace-based translator selection
+    <cfhammar> or perhaps we should just drop the whole O_NOFOLLOW == O_NOTRANS and only apply it for link like translators
+    <pochu> cfhammar: from what I read in [glibc]/hurd/lookup-retry.c, the problem is that some translators can lie about that
+    <antrik> cfhammar: at some point I considered the possibility of adding a couple of special flags describing translators ("link" and "device" being some, but also introducing a few new ones) to decide standard behaviour in various situations
+    <pochu> so you can't really know whether they are links without O_NOTRANS
+    <cfhammar> pochu: yeah, this would have to be considered carefully
+    <pochu> antrik: care to explain what namespace based translator selection means? :)
+    <antrik> pochu: the basic idea is that you add special suffixes to the file name during a lookup, which change the behaviour of lookups
+    <antrik> the most basic use would be adding a suffix that automatically runs an annonymous translator on the file
+    <cfhammar> antrik: doesn't stat cover most of those flags (except for firmlink i guess)
+    <antrik> (scolobb mostly implemented that part)
+    <antrik> but the idea was also to selectively activate/deactivate static translators based on patterns
+    <antrik> (this is implemented partially, but recursion is completely missing so far)
+    <antrik> cfhammar: some of them, yes. but I think there are some cases where the standard stat information is not enough to decide on useful handling
+    <antrik> let's take the example of a translator that mangles the underlying file -- like xmlfs, mboxfs etc.
+    <antrik> these aren't device file nor links, but should not really be handled like "normal" (store) filesystems either
+    <antrik> hm... is there any information in the stat that indicates mount points?
+    <antrik> I guess that would be good enough to flag "normal" filesystems
+    <pochu> I'm not sure I understand. you add a suffix during a lookup, based on what? whatever, including e.g. flags?
+    <antrik> pochu: well, an exmple would be "cat foo.gz,,u"
+    <antrik> where "u" would be a shorthand for "unzip"
+    <antrik> and it would launch a translator that uncompresses the underlying file
+    <pochu> what if there are a foo.gz and a foo.gz,,u files?
+    <antrik> (I think storeio with gzip store can do that... though some more generic translator might be useful, to cover other compression/archieve types as well)
+    <antrik> pochu: than you are SOL ;-)
+    <antrik> pochu: I chose ",," as the suffix after some careful examination that this is *extremely* unlikely to occur in normal use
+    <antrik> pochu: actually, we introduced an escaping scheme too, so it is still possible to access files with ",," in the name... but that's of limited use, as programs not aware of this will still break
+    <cfhammar> hmm i wonder why glibc handles O_NOFOLLOW to begin with, since the test it does presumes trust in the containing directory the fs could do it just as securely
+    <antrik> cfhammar: the FS could do what?
+    <pochu> another problem I've found is that an open(symlink, O_RDONLY | O_NOFOLLOW, 0) should fail with ELOOP according to POSIX, but it doesn't fail on Hurd
+    <antrik> pochu: yeah, saw that
+    <antrik> shouldn't be too hard to fix I hope?...
+    <cfhammar> antrik: libc test whether the node is a symlink or a (trusted) root owned translator, which it would follow
+    <pochu> antrik: probably not, though I haven't looked at it closely
+    <antrik> cfhammar: in what situation would the filesystem do the test?
+    <antrik> cfhammar: and what advantage would it have over the current approach?
+    <antrik> pochu: OK
+    <cfhammar> antrik: the point of the test is to approximate symlink vs. mount point but the fs seems to be in a better position to answer this
+    <antrik> cfhammar: why? I think this information should be fully available to glibc... if it's not, I'd consider this a bug, or at least a major omission
+    <cfhammar> antrik: well take fifos for instance, they should be considered part of the containing filesystem but would not by glibc
+    <cfhammar> antrik: we could make an exception in glibc for fifos but not for other future situations in new translators
+    <cfhammar> antrik: i mean, we could but this leaves control at the translators hand and let different translators handle things their own way
+    <cfhammar> generally, it seems more flexible to leave policy to servers rather than to bake it into the (implicit) protocol (which glibc implements)
+    <antrik> cfhammar: I don't see though why handling it in the filesystem would help here... if the filesystem has the information about how the translator should be handled, it can pass it to the clients
+    <antrik> hm... that's actually a tricky point. we have many situations where we have to choose between handling things in the client library or server-side... I'm haven't really formed an opinion yet which is preferable in general
+    <pochu> with cfhammar's proposal, you wouldn't need O_NOTRANS when you specify O_NOFOLLOW, right?
+    <cfhammar> pochu: i don't think my proposal would even work with O_NOTRANS
+    <antrik> cfhammar: hm, perhaps we are talking past each other. do you want the handling to be in the filesystem containing the underlying node, or in the actual translator implementing the node?
+    <antrik> hrm
+    <cfhammar> antrik: the containing filesystem
+    <cfhammar> (since this is a security issue)
+    <pochu> yeah, otherwise the trust issue would still be there
+    <antrik> then why wouldn't it work with O_NOTRANS?
+    <antrik> BTW, what security issue are you talking about? do you mean the fact that a translator can redirect the lookups to another file, but hide the fact that it's a link?
+    <pochu> antrik: I mean the O_NOTRANS & O_NOFOLLOW comment in [glibc]/hurd/lookup-retry.c
+    <cfhammar> antrik: because O_NOTRANS means don't follow translators (including symlinks) and O_NOFOLLOW means don't follow (any) link but do follow translators
+    <antrik> pochu: I must admit that I never fully understood what that one is about :-)
+    <cfhammar> antrik: i imagine O_NOTRANS|O_NOFOLLOW == O_NOTRANS
+    <antrik> cfhammar: I see
+    <antrik> cfhammar: but I guess that's totally orthogonal from handling in glibc vs. handling in the FS?...
+    <pochu> AFAIU, it's that if you do an open(translator, O_NOFOLLOW, 0), the translator can lie about it being a symlink. So you need to do an O_NOTRANS lookup
+    <pochu> hence hurd/hurdlookup.c adds O_NOTRANS if O_NOFOLLOW is present in flags
+    <antrik> ah, OK
+    <antrik> so the idea here is that instead of doing that, glibc would only pass on O_NOFOLLOW, and the filesystem would handle the O_NOTRANS part itself
+    <cfhammar> antrik: if you have O_NOTRANS the filesystem will never follow any translators including non-link ones, so it can't really handle O_NOFOLLOW to exclude link translators
+    <cfhammar> antrik: yeah
+    <antrik> AIUI the problem is that with the current scheme, using O_NOFOLLOW will also ignore non-link translators?
+    <cfhammar> antrik: exactly, including fifos
+    <cfhammar> antrik: of course, there's still the problem of determining that it is a non-link translator
+    <antrik> cfhammar: but why can't this be fixed keeping the current scheme? wouldn't it suffice for glibc to ask the filesystem whether there is a link (with O_NOTRANS), and if not, do the actual lookup without O_NOTRANS?...
+    <pochu> antrik: there's still the problem of translators lying about them being symlinks or not, right? so instead of a blacklist (is it a symlink?) you would need a whitelist
+    <antrik> pochu: sure. I just don't see how an implementation in the filesystem would do any better on that score than one in glibc
+    <cfhammar> antrik: the fs is better at maintaining the whitelist, e.g. you could have different whitelist for different translators
+    <cfhammar> antrik: the fs also knows who own the fs, so it could make exeptions for the owner's translators
+    <cfhammar> like glibc does for the root user, currently
+    <antrik> I'm not really convinced so far that having these policies in the filesystem is really preferable to having them in the client-side library...
+    <cfhammar> antrik: we want to put /hurd/fifo in the whitelist for all users but we can't determine whether an active translator on the underlying node is /hurd/fifo or not, but the FS can if it started the translator itself
+    <cfhammar> antrik: of course, this can also be done by hiding the /hurd/fifo translator so that glibc doesn't do the test in the first place
+    <cfhammar> antrik: but this isn't pretty, you'd have to proxy it afaics :-/
+    <antrik> cfhammar: TBH, I don't like the whole whilelisting idea
+    <antrik> seems to me this is really just another manifestation of the infamous firmlink problem
+    <antrik> as I said in past discussions, I tend to think that the only way to fix it *properly* is changing the way authentification is handled
+    <antrik> we actually discussed this at some point... when crossing translator boundries, the client shouldn't use it's full permissions on the new translator, but rather the intersection of it's own permissions and that of the parent translator
+    <antrik> this way, "secret" links should cease to be dangerous...
+    <cfhammar> yeah, but that'll take way too long for poor pochu ;-)
+    <antrik> cfhammar: true... but I'm not convinced that a whitelisting hack in the meantime is really worthwhile
+    <cfhammar> antrik: we already have a whitelisting hack (root user's translators), we're just moving it to the filesystem and adding /hurd/fifo
+    <antrik> cfhammar: nope, allowing all root translators is a general policy, not a whitelisting hack
+    <antrik> not elegant either, but a very different class
+    <cfhammar> antrik: i don't remember the details but fixing firmlink problem seemed to require some fundamental changes, it might even turn out to be unfeasible
+    <antrik> BTW, it's still not clear to my why the filesystem is supposed to have a better idea which translators to whitelist than glibc?...
+    <cfhammar> antrik: huh, i don't think i've seen that policy elsewhere, only for root clients not servers
+    <cfhammar> antrik: for one it can keep track of if the current active translator is the current passive one, and thus know which program it runs
+    <antrik> do I get it right that in the case of fifo, the client can't generally trust the user running the translator, and thus the idea is instead to trust the translator program?...
+    <cfhammar> O_NOFOLLOW implies that the client does not trust the file not to redirect it anywhere and we know /hurd/fifo will not do this
+    <antrik> cfhammar: was that a "yes"?...
+    <cfhammar> antrik: yes
+    <antrik> hm... I think I already said it in the context of object migration: I really don't like the idea of trust based on the program being executed...
+    <antrik> this workaround also has other shortcomings: what if the transaltor is started actively?
+    <cfhammar> hmm the owner of the translator could hijack it and the fs wouldn't know
+    <antrik> I must admit though that I don't see another short-term solution either :-(
+    <antrik> oh, right, that's another problem
+    <cfhammar> seems like the fs must implement the fifo itself (or atleast hide the /hurd/fifo translator behind a proxy)
+    <antrik> BTW, what is the specific manifestation of the problem with fifos being ignored on NOFOLLOW?
+    <pochu> there are two problems
+    <pochu> one is that with O_NOFOLLOW, it's ext2fs who checks the file permissions, and denies it (dunno the reason for that)
+    <pochu> the other one is that if you stat the fifo with O_NOFOLLOW and without it, the device will look different (and thus cp believes the file has changed and fails)
+    <pochu> that's because an stat on the fifo will return the fifo translator's PID as the device
+    <antrik> ah
+    <pochu> while one with O_NOFOLLOW will return the partition device
+    <antrik> so the specific problem here is that the stat info is differenet with the fifo translator than without
+    <pochu> I'm not sure whether it would be correct & possible to return the device of the parent translator in libtrivfs, instead of the PID
+    <pochu> yes
+    <pochu> that, and the permission one (they are different)
+    <pochu> though both would be solved if O_NOFOLLOW didn't imply O_NOTRANS :)
+    <antrik> what exactly do you mean by "device" here?
+    <pochu> I mean st_dev in struct stat
+    <antrik> well, I wonder whether the permission problem shouldn't actually be considered a bug in fifo. i sthere a good reason why the permissions are not propagated to the underlying node, as with most other translators?
+    <pochu> I don't think that's the problem
+    <antrik> what else?
+    <pochu> it's rather that if you open the fifo with O_NOTRANS, you don't get the underlying node, and then it's ext2fs (and so libdiskfs) who checks the permissions, and it denies them for whatever reason
+    <pochu> antrik: libdiskfs/dir-lookup.c has this:
+    <pochu>       if (((type == S_IFSOCK || type == S_IFBLK || type == S_IFCHR)
+    <pochu> >-------   && (flags & (O_READ|O_WRITE|O_EXEC)))
+    <pochu> >-------  || (type == S_IFLNK && (flags & (O_WRITE|O_EXEC))))
+    <pochu> >-------error = EACCES;
+    <pochu> so it returns EACCES for the fifo
+    <pochu> I wonder whether there's a good reason (that I'm missing) for that
+    <cfhammar> pochu: i think the reason might be that ext2fs denies access because it does not implement those file types itself
+    <cfhammar> i.e. ext2fs expects them to be opened without O_NOTRANS
+    <cfhammar> (or opened exclusively for non rwx reasons such as stat or settrans)
