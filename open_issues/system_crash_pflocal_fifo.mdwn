@@ -1,0 +1,41 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_gnumach]]
+
+IRC, unknown channel, unknown date:
+
+`cat < /dev/zero | cat > /dev/null` will eventually make the system crash,
+likewise when using a FIFO.
+
+    <antrik> hm... VM activity seems much higher when running fifo than pfinet... may be the cause
+    <antrik> "zero filled" and "page faults" are serveral times higher with pipe than with pfinet
+    <antrik> (cow faults however are about the same...)
+    <antrik> pflocal is about the same as fifo
+    
+    <antrik> no, because it usually takes like 20 minutes until it crashes, sometimes much longer
+    
+    <antrik> not sure, but the longest so far was in the range of hours IIRC
+    
+    <antrik> I think I never tested what happens on "cat /dev/zero >/dev/null"... another thing yet to try
+    
+    <antrik> Linux BTW seems to employ some major VM trickery in this case -- dd shows a transfer rate of 10 GB/s...
+    
+    <antrik> no, no anomalies in vmstat
+    <antrik> the only observation I made is that number of page faults and some other number rise pretty quickly with pflocal and fifo, but not with pfinet
+    <antrik> I guess that's somehow related to the fact that pfinet doesn't crash -- though I guess the difference is simply that pfinet is way slower...
+    <antrik> (haven't checked that, though)
+    
+    <antrik> BTW, I'm not sure you got it right: the test case is "cat /dev/zero|cat >/dev/null", *not* "cat /dev/zero >/dev/null"
+    
+    <antrik> OK, "cat /dev/zero|tail -c 1" also crashes, so it's definitely not related to /dev/null
+    <antrik> "dd if=/dev/zero|tail -c 1" crashes as well
+    <antrik> but "tail -c 1 /dev/zero" doesn't seem to
+    <antrik> cool... running multiple instances of the pipe test also considerably speeds up the crash
