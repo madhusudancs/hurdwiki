@@ -1,0 +1,33 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+I've first seen this problem after having had the following command line run
+for a week, or two, or three:
+
+Start `screen`.  Find PID of pfinet.
+
+    $ while sleep 66; do echo "$(date)" " $(ps --no-header --format=hurd -p [PID])"; done | tee ps-pfinet
+
+Leave it running, detach from `screen`.
+
+Eventually, the main `bash` process will go bonkers and eat 100 % CPU time.
+Reproduced on four different systems.
+
+A faster way to reproduce this, again inside `screen`; every three seconds,
+write text in 10 MiB bursts to the terminal:
+
+    $ while sleep 3; do date > tmp/tmp && yes "$(date)" | dd bs=1M count=10; done
+
+This one only needs like ten hours, before `bash` starts its busy-loop, from
+which it can only be terminated with `SIGKILL`.  At this point, the `term`,
+`screen`, `fifo` processes also have used 40, 52, 25 minutes of CPU time,
+respectively, but appear to be still working fine.
+
+I did not yet start debugging this.

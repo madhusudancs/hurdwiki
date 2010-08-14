@@ -1,0 +1,197 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_gnumach open_issue_glibc]]
+
+This issue has been known for some time, due to coreutils' testsuite choking
+when testing *nice*: <http://bugs.debian.org/190581>.
+
+There has been older discussion about this, too, but this is not yet captured
+here.
+
+IRC, #hurd, August 2010
+
+    <pochu> I'm reading Mach and POSIX documentation to understand the priorities/nice problems
+    <pochu> antrik said it would be better to reimplement everything instead of fixing the current Mach interfaces, though I'm not sure about that yet
+    <youpi> uh, so he changed his mind?
+    <pochu> it seems POSIX doesn't say nice values should be -20..20, but 0..(2*NZERO - 1)
+    <youpi> he said we could just change the max priority value and be done with it :)
+    <pochu> so we can probably define NZERO to 16 to match the Mach range of 0..31
+    <youpi> s/said/had said previously/
+    <antrik> youpi: POSIX is actually fucked up regarding the definition of nice values
+    <antrik> or at least the version I checked was
+    <pochu> antrik: why? this says the range is [0,{NZERO}*2-1], so we can just set NZERO to 16 AFAICS: http://www.opengroup.org/onlinepubs/9699919799/functions/getpriority.html
+    <antrik> it talkes about NZERO and all; making it *look* like this could be defined arbitrarily... but in other places, it's clear that the standard 40 level range is always assumed
+    <antrik> anyways, I totally see no point in deviating from other systems in this regard. it can only cause problems, and gives us no benefits
+    <cfhammar> it says NZERO should be at least 20 iirc 
+    <youpi> agreed
+    <antrik> I don't remember the details; it's been a while since I looked at this
+    <antrik> youpi: changing the number of levels is only part of the issue. I'm not sure why I didn't mention it initially when we discussed this
+    <antrik> youpi: I already concluded years ago that it's not possible to implement nice levels correctly with the current Mach interfaces in a sane fashion
+    <antrik> (it's probably possible, but only with a stupid hack like setting all the thread priorities one by one)
+    <antrik> youpi: also, last time we discussed this, I checked how the nice stuff works currently on Hurd; and concluded that it's so utterly broken, that there is no point in trying to preserve *any* compatibility. I think we can safely throw away any handling that is alread there, and do it over from scratch in the most straightforward fashion
+    <pochu> antrik: I've thought about setting NZERO to 16 and doing exactly what you've just said to be a hack (setting all the thread priorities one by one)
+    <pochu> but there seems to be consensus that that's undesirable...
+    <pochu> indeed, POSIX says NZERO should be at least 20
+    <antrik> pochu: BTW, I forgot to say: I'm not sure you appreciate the complexity of setting the thread max priorities individually
+    <pochu> antrik: I don't. would it be too complex? I imagined it would be a simple loop :)
+    <antrik> pochu: in order to prevent race conditions, you have to stop all other threads before obtaining the list of threads, and continue them after setting the priority for each
+    <antrik> I don't even know whether it can be done without interfering with other thread handling... in which case it gets really really ugly
+    <pochu> antrik: btw I'm looking at [gnumach]/kern/thread.[ch], removing the priority stuff as appropriate, and will change the tasks code later
+    <antrik> it seems to me that using a more suitable kernel interface will not only be more elegant, but quite possibly actually easier to implement...
+    <pochu> antrik: apparently it's not that hard to change the priority for all threads in a task, see task_priority() in gnumach/kern/task.c
+    <pochu> it looks like the nice test failures are mostly because of the not 1:1 mapping between nice values and Mach priorities
+    <marcusb> "Set priority of task; used only for newly created threads."
+    <marcusb> there is a reason I didn't fix nice 8 years ago
+    <marcusb> ah there is a change_threads option
+    <pochu> marcusb: I'm not sure that comment is correct. that syscall is used by setpriority()
+    <marcusb> yeah
+    <marcusb> I didn't read further, where it explains the change_threads options
+    <marcusb> I was shooting before asking questions :)
+    <marcusb> pochu: although there are some bad interactions if max_priorities are set per thread
+    <antrik> pochu: maybe we are talking past each other. my point was not that it's hard to do in the kernel. I was just saying that it would be painful to do from userspace with the current kernel interface
+    <pochu> antrik: you could still use that interface in user space, couldn't you? or maybe I'm misunderstanding...
+    <pochu> cfhammar, antrik: current patch: http://emilio.pozuelo.org/~deb/gnumach.patch, main issue is probably what to do with high-priority threads. are there cases where there should be a thread with a high priority but the task's priority shouldn't be high? e.g. what to do with kernel_thread() in [gnumach]/kern/thread.c
+    <pochu> i.e. if tasks have a max_priority, then threads shouldn't have a higher priority, but then either we raise the task's max_priority if we need a high-prio thread, or we treat them specially (e.g. new field in struct thread), or maybe it's a non-issue because in such cases, all the task is high-prio?
+    <pochu> also I wonder whether I can kill the processor set's max_priority. It seems totally unused (I've checked gnumach, hurd and glibc)
+    <pochu> (that would simplify the priority handling)
+    <cfhammar> pochu: btw what does your patch do? i can't remember what was decided
+    <pochu> cfhammar: it moves the max_priority from the thread to the task, so raising/lowering it has effect on all of its threads
+    <pochu> it also increases the number of run queues (and thus that of priority levels) from 32 to 40 so we can have a 1:1 mapping with nice values
+    <pochu> cfhammar: btw don't do a full review yet, just a quick look would be fine for now
+    <neal> why not do priorities from 0 to 159
+    <neal> then both ranges can be scaled
+    <neal> without loss of precision
+    <pochu> neal: there would be from Mach to nice priorities, e.g. a task with a priority of 2 another with 3 would have the same niceness, though their priority isn't really the same
+    <neal> pochu: sure
+    <neal> pochu: but any posix priority would map to a current mach priority and back
+    <neal> sorry, that's not true
+    <neal> a posix priority would map to a new mach priority and bach
+    <neal> and a current mach priority would map to a new mach priority and back
+    <neal> which is I think more desirable than changing to 40 priority levels
+    <pochu> neal> and a current mach priority would map to a new mach priority and back <- why should we care about this?
+    <neal> to be compatible with existing mach code
+    <neal> why gratutiously break existing interfaces?
+    <pochu> they would break anyway, wouldn't them? i.e. if you do task_set_priority(..., 20), you can't know if the caller is assuming old or new priorities (to leave it as 20 or as 100)
+    <neal> you add a new interface
+    <neal> you should avoid changing the semantics of existing interfaces as much as possible
+    <pochu> ok, and deprecate the old ones I guess
+    <neal> following that rule, priorities only break if someone does task_set_priority_new(..., X) and task_get_priority ()
+    <neal> there are other users of Mach
+    <neal> I'd add a configure check for the new interface
+    <neal> alternatively, you can check at run time
+    <pochu> well if you _set_priority_new(), you should _get_priority_new() :)
+    <neal> it's not always possible
+    <pochu> other users of GNU Mach?
+    <neal> you are assuming you have complete control of all the code
+    <neal> this is usually not the case
+    <neal> no, other users of Mach
+    <neal> even apple didn't gratuitously break Mach
+    <neal> in fact, it may make sense to see how apple handles this problem
+    <pochu> hmm, I hadn't thought about that
+    <pochu> the other thing I don't understand is: "I'd add a configure check for the new interface". a configure check where? in Mach's configure? that doesn't make sense to me
+    <neal> any users of the interface
+    <pochu> ok so in clients, e.g. glibc & hurd
+    <neal> yes.
+    <antrik> neal: I'm not sure we are winning anything by keeping compatibility with other users of Mach...
+    <antrik> neal: we *know* that to make Hurd work really well, we have to do major changes sooner or later. we can just as well start now IMHO
+    <antrik> keeping compatibility just seems like extra effort without any benefit for us
+    <guillem> just OOC have all other Mach forks, preserved full compatibility?
+    <neal> guillem: Darwin is pretty compatible, as I understand it
+    <antrik> pochu: the fundamental approach of changing the task_priority interface to serve as a max priority, and to drop the notion of max priorities from threads, looks fine
+    <antrik> pochu: I'm not sure about the thread priority handling
+    <antrik> I don't know how thread priorities are supposed to work in chreads and/or pthread
+    <antrik> I can only *guess* that they assume a two-stage scheduling process, where the kernel first decides what process to run; and only later which thread in a process...
+    <antrik> if that's indeed the case, I don't think it's even possible to implement with the current Mach scheduler
+    <antrik> I guess we could work with relative thread priorities if we really want: always have the highest-priority thread run with the task's max priority, and lower the priorities of the other threads accordingly
+    <antrik> however, before engaging into this, I think you should better check whether any of the code in Hurd or glibc actually uses thread priorities at all. my guess is that it doesn't
+    <antrik> I think we could get away with stubbing out thread priority handling alltogether for now, and just use the task priority for all threads
+    <antrik> I agree BTW that it would be useful to check how Darwin handles this
+    <pochu> btw do you know where to download the OS X kernel source? I found something called xnu, but I?m not sure that's it
+    <antrik> pochu: yeah, that's it
+    <antrik> Darwin is the UNIX core of OS X, and Xnu is the actual kernel...
+    <pochu> hmm, so they have both a task.priority and a task.max_priority
+    <neal> pochu: thoughts?
+    <pochu> neal: they have a priority and a max_priority in the task and in the threads, new threads inherit it from its parent task
+    <pochu> then they have a task_priority(task, priority, max_priority) that can change a task's priorities, and it also changes it for all its threads
+    <neal> how does the global run queue work?
+    <pochu> and they have 128 run queues, no idea if there's a special reason for that number
+    <pochu> neal: sorry, what do you mean?
+    <neal> I don't understand the point of the max_priority parameter
+    <pochu> neal: and I don't understand the point of the (base) priority ;)
+    <pochu> the max_priority is just that, the maximum priority of a thread, which can be lowered, but can't exceed the max one
+    <pochu> the (base) priority, I don't understand what it does, though I haven't looked too hard. maybe it's the one a thread starts at, and must be <= max_priority
+    <antrik> pochu: it's clearly documented in the manual, as well as in the code your initial patch changes...
+    <antrik> or do you mean the meaning is different in Darwin?...
+    <pochu> I was speaking of Darwin, though maybe it's the same as you say
+    <antrik> I would assume it's the same. I don't think there would be any point in having the base vs. max priority distinction at all, except to stay in line with standard Mach...
+    <antrik> at least I can't see a point in the base priority semantics for use in POSIX systems...
+    <pochu> right, it would make sense to always have priority == max_priority ...
+    <pochu> neal: so max_priority is that maximum priority, and priority is the one used to calculate the scheduled priority, and can be raised and lowered by the user without giving special permissions as long as he doesn't raise it above max_priority
+    <pochu> well this would allow a user to lower a process' priority, and raise it again later, though that may not be allowed by POSIX, so then we would want to have max_priority == priority (or get rid of one of them if possible and backwards compatible)
+    <antrik> pochu: right, that's what I think too
+    <antrik> BTW, did I bring up handling of thread priorities? I know that I meant to, but I don't remember whether I actually did...
+    <pochu> antrik: you told me it'd be ok to just get rid of them for now
+    <pochu> so I'm more thinking of fixing max_priority and (base) priority and leaving thread's scheduling priority as it currently is
+    <pochu> s/so/though/
+    <antrik> pochu: well, my fear is that keeping the thread priority handling as ist while changing task priority handling would complicate the changes, while giving us no real benefit...
+    <antrik> though looking at what Darwin did there should give you an idea what it involves exactly...
+    <pochu> antrik: what would you propose, keeping sched_priority == max_priority ?
+    <pochu> s/keeping/making/
+    <antrik> yes, if that means what I think it does ;-)
+    <antrik> and keeping the priority of all threads equal to the task priority for now
+    <antrik> of course this only makes sense if changing it like this is actually simpler than extending the current handling...
+    <antrik> again, I can't judge this without actually knowing the code in question. looking at Darwin should give you an idea...
+    <pochu> I think leaving it as is, making it work with the task's max_priority changes would be easier
+    <antrik> perhaps I'm totally overestimating the amount of changes required to do what Darwin does
+    <antrik> OTOH, carrying around dead code isn't exactly helping the maintainability and efficiency of gnumach...
+    <antrik> so I'm a bit ambivalent on this
+    <antrik> should we go for minimal changes here, or use this occasion to simplify things?...
+    <antrik> I guess it would be good to bring this up on the ML
+    <cfhammar> in the context of gsoc i'd say minimal changes
+    <pochu> there's also neal's point on keeping backwards compatibility as much as possible
+    <neal> my point was not backwards compatibility at all costs
+    <antrik> I'm still not convinced this is a valid point :-)
+    <neal> but to not gratutiously break things
+    <antrik> neal: well, I never suggested breaking things just because we can... I only suggested breaking things to make the code and interface simpler :-)
+    <antrik> I do not insist on it though
+    <neal> at that time, we did not know how Mac did it
+    <antrik> I only think it would be good to get into a habit that Mach interfaces are not sacred...
+    <neal> and, I also had a proposal, which I think is not difficult to implement given the existing patch
+    <antrik> but as I said, I do not feel strongly about this. if people feel more confident about a minimal change, I'm fine with that :-)
+    <antrik> neal: err... IIRC your proposal was only about the number of nice levels? we are discussing the interface change necessary to implement POSIX semantics properly
+    <antrik> or am I misremembering?
+    <pochu> antrik: he argues that with that number of nice levels, we could keep backwards compatibility for the 0..31 levels, and for 0..39 for POSIX compatibility
+    <antrik> pochu: yes, I remember that part
+    <neal> antrik : My suggestion was: raise the number of nice levels to 160 and introduce a new interface which uses those.  Adjust the old interface to space by 160/32
+    <antrik> neal: I think I said it before: the problem is not *only* in the number of priority levels. the semantics are also wrong. which is why Darwin added a max_priority for tasks
+    <neal> what do you mean the semantics are wrong?
+    <neal> I apologize if you already explained this.
+    <antrik> hm... I explained it at some point, but I guess you were not present at that conversation
+    <neal> I got disconnected recently so I likely don't have it in backlog.
+    <antrik> in POSIX, any process can lower its priority; while only privileged processes can raise it
+    <antrik> Mach distinguishes between "current" and "max" priority for threads: "max" behaves like POSIX; while "current" can be raised or lowered at will, as long as it stays below "max"
+    <antrik> for tasks, there is only a "current" priority
+    <antrik> (which applies to newly created threads, and optionally can be set for all current threads while changing the task priority)
+    <antrik> glibc currently uses the existing task priorities, which leads to *completely* broken semantics
+    <antrik> instead, we need something like a max task priority -- which is exactly what Darwin added
+    <neal> yes
+    <antrik> (the "current" task priority is useless for POSIX semantics as far as I can tell; and regarding thread priorities, I doubt we actually use them at all?...)
+    <cfhammar> where does a new thread get its initial max_priority from?
+    <antrik> cfhammar: from the creator thread IIRC
+    <pochu> yes
+
+2010-08-12
+
+    <pochu> my plan is to change the number of priority levels and the threads/tasks priority handling, then add new RPCs to play with them and make the old ones stay compatible, then make glibc use the new RPCs
+
+---
+
+Another nice issue: [[nice_changes_priority_of_parent_shell]].
