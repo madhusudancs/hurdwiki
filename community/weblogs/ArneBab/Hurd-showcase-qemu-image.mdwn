@@ -9,20 +9,70 @@ For that I want to use:
 * Translators from [hurd-extras](http://www.nongnu.org/hurdextras/) and the [incubator](http://git.savannah.gnu.org/cgit/hurd/incubator.git/), and naturally
 * a lot of apt-get update; apt-get upgrade and apt-get dist-upgrade :) (all worked flawlessly). 
 
-## Hurdextras
+## Working
+
+### Generally
+
+    # ssh with public key
+    apt-get install random-egd
+    ssh-keygen 
+    
+    # build tools
+    apt-get install build-essential
+
+### StoreIO
+
+    # mount an iso image
+    mount foo.iso bar -t iso9660fs
+    # see myfile as device
+    settrans foo /hurd/storeio myfile
+    # so that means I can pack a complete chroot (300MB) into a file with storeio and ext2fs — giselher
+    
+    # nfs mount anywhere (TODO: check this with antrik)
+    mount server:/home /home -t nfs
+    settrans /home /hurd/nfs server:/home
+
+## In Progress
+
+### Hurdextras
 
     hg clone <hurdextras repo>
 
-## Tarfs
+### httpfs
 
-    cd hurdextras/tarfs
+    # pkg-config is needed to avoid “PKG_CHECK_MODULES syntax error near unexpected token `HTTPFS,'”
+    # pkg-config must be installed before you run autoreconf.
+    apt-get install autoconf autoconf-archive libxml2-dev pkg-config
+    autoreconf -i -f
+    ./configure
     make
     make install
-    tar -cf test/intro.tar repos/hurd_intro 
-    settrans -ac t test/intro.tar
-    (settrans: /hurd/tarfs: Translator died :( ⇒ more work to do )
+    
+    settrans -ac gnu /usr/local/httpfs www.gnu.org/
+    # (breaks, because libxml2 needs pthreads → work to do.)
+    # (what we need: pthreads in translators. → see the work of Barry)
+    # check: for i in `objdump -x /usr/local/bin/httpfs |grep NEEDED| sed s/.*NEEDED//`; do echo $i; objdump -x /usr/lib/$i | grep pthread; objdump -x /lib/$i | grep pthread; done
 
-## nsmux
+### Tarfs
+
+    apt-get install zip libz-dev libbz2-dev
+    hg clone http://bitbucket.org/ArneBab/hurd-tarfs tarfs
+    cd tarfs
+    make
+    make install
+    # works, though with warnings.
+    
+    settrans -ca new /hurd/tarfs -cz test/intro.tar.gz
+    cp repos/intro/README new/
+    settrans -g new
+    tar -tf test/intro.tar.gz
+    # works
+    
+    tar -cf test/intro.tar repos/intro 
+    settrans -ac t /hurd/tarfs test/intro.tar
+    # (settrans: /hurd/tarfs: Translator died :( ⇒ more work to do )
+
+### nsmux
 
     git clone git://git.sv.gnu.org/hurd/incubator.git nsmux
     cd nsmux/
@@ -40,7 +90,7 @@ For that I want to use:
     tar -cf test/intro.tar repos/hurd_intro 
     ls test2/intro.tar,,tarfs
 
-## clisp
+### clisp
 
     git clone git://git.sv.gnu.org/hurd/incubator.git clisp
     cd clisp/
@@ -50,3 +100,7 @@ For that I want to use:
     make
     make install
     
+
+### debugging Translators
+
+    rpctrace 
