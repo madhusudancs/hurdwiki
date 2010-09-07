@@ -1,0 +1,165 @@
+# "Supporting Larger ext2 File Systems in the Hurd"
+# Written by Ognyan Kulev for presentation at FOSDEM 2005.
+# Content of this file is in public domain.
+%include "default.mgp"
+%page
+%nodefault
+%center, font "thick", size 5
+
+
+
+
+Supporting Larger ext2 File Systems in the Hurd
+
+
+
+%font "standard", size 4
+Ognyan Kulev
+%size 3
+<ogi@fmi.uni-sofia.bg>
+
+
+%size 4
+FOSDEM 2005
+
+%page
+
+Need for supporting larger file systems
+
+	Active development during 1995-1997
+
+	Hurd 0.2 was released in 1997 and it was very buggy
+
+	Many bugs are fixed since then
+
+	The 2G limit for ext2 file systems becomes more and more annoying
+
+%page
+
+Timeline
+
+	2002: Time for graduating, fixing the 2G limit in Hurd's ext2fs and implementing ext3fs were chosen for MSc thesis
+
+	2003: First alfa quality patch
+
+	2004: Graduation, ext2fs patch in Debian, but ext3fs is unstable
+
+%page
+
+User pager in GNU Mach
+
+	Address space
+		memory_object_data_supply
+		memory_object_data_return
+	Memory object (Mach concept)
+		pager_read_page
+		pager_write_page
+	User-supplied backstore (libpager concept)
+
+%page
+
+Current ext2fs
+
+	Memory mapping of the whole store
+
+	Applies only for metadata!
+
+	bptr (block -> data pointer)
+		= image pointer + block * block_size
+
+	Inode and group descriptor tables are used as if they are continous in memory
+
+%page
+
+Patched ext2fs, part one
+
+	Address space region
+		mapping
+	Array of buffers
+		association
+	Store
+
+	Association of buffers changes (reassocation)
+
+	It's important reassociation to occur on buffers that are not in core
+
+%page
+
+Patched ext2fs, part two
+
+	Always use buffer guarded by
+		disk_cache_block_ref (block -> buffer)
+		disk_cache_block_deref (release buffer)
+
+	Buffer = data + reference count + flags (e.g. INCORE)
+
+	Calling some functions implies releasing buffer:
+		pokel_add (pokels are list of dirty buffers)
+		record_global_poke (use pokel_add)
+		sync_global_ptr (sync immediately)
+		record_indir_poke (use pokel_add)
+
+	Use ihash for mapping block to buffer
+
+%page
+
+When unassociated block is requested
+
+
+%font "typewriter", size 4, cont
+retry:
+  i = hint;
+  while (buffers[i] is referenced or in core) {
+    i = (i + 1) % nbuffers;
+    if (i == hint) {
+      return_unreferenced_buffers ();
+      goto retry;
+    }
+  }
+  hint = i + 1;
+
+  deassociate (buffers[i]);
+  associate (buffers[i], block);
+
+  return buffers[i];
+
+%page
+
+Notification for evicted pages
+
+	Notification is essential for optimal reassociation
+
+	Precious pages in Mach
+
+	Slight change to API and ABI of libpager is required
+
+	Mach sometimes doesn't notify!
+
+%page
+
+Pager optimization
+
+1. Mach returns page to pager without leaving it in core
+
+2. Pager becomes unlocked because of calling callback pager_write_page
+
+3. User task touches the page
+
+4. Mach requests the same page from pager
+
+5. XXX Pager supplies the page that was returned by Mach, instead of calling callback pager_read_page
+
+%page
+
+Future directions
+
+	Committing in the Hurd :-)
+	Block sizes of 1K and 2K
+	Run-time option for buffer array size (?)
+	Compile-time option for memory-mapping the whole store
+	Upgrade of UFS
+	Extended attributes (EAs) and Access control lists (ACLs)
+
+# Local Variables:
+# mgp-options: "-g 640x480"
+# End:
