@@ -27,16 +27,6 @@ Steps for *install_crosshurd*:
 
   * \# MACHINE=[MACHINE] TARGET=/dev/zenhost/[MACHINE]-root ./install_crosshurd
 
-      * TODO
-
-            I: Extracting /var/cache/apt/archives/dash_0.5.5.1-3_hurd-i386.deb...
-            tar: ./bin/sh: Cannot create symlink to `dash': File exists
-            tar: ./usr/share/man/man1/sh.1.gz: Cannot create symlink to `dash.1.gz': File exists
-            tar: Exiting with failure status due to previous errors
-
-        Ignore?  --
-        <http://lists.gnu.org/archive/html/bug-hurd/2009-11/msg00094.html>
-
   * \# sudo umount /tmp/*/target
 
   * /etc/xen/[MACHINE]
@@ -53,23 +43,62 @@ Steps for *install_crosshurd*:
 
           * TODO
 
-                +---------------------------Configuring grub-pc------------------------------+
+                Unpacking bash (from .../bash_4.1-3_hurd-i386.deb) ...
+                The bash upgrade discovered that your /bin/sh link points to dash.
+                As bash for Debian is destined to provide a working /bin/sh (pointing to
+                /bin/bash) your link will be overwritten by a default link.
 
-            Make it not install GRUB packages.
+                If you don't want further upgrades to overwrite your customization, please
+                read /usr/share/doc/bash/README.Debian.gz for a more permanent solution.
 
-            Likewise, the *gnumach* package need not be installed.
+                [Press RETURN to continue]
 
-      * If needed:
+            That file doesn't say anything about it.
 
-        \# cd /dev/ && ./MAKEDEV hd2  
-        \# mkfs.ext2 -I 128 -b 4096 /dev/hd2 # TAKE CARE!  
-        \# mkdir /media/data && settrans /media/data /hurd/ext2fs /dev/hd2  
-        \# rmdir /home && ln -s media/data/home /  
-        \# mkdir /media/data/home
+          * TODO; related to the *debconf-set-selections* thing above
+
+                Setting up libpam-runtime (1.1.1-6) ...
+                debconf: unable to initialize frontend: Dialog
+                debconf: (No usable dialog-like program is installed, so the dialog based frontend cannot be used. at /usr/share/perl5/Debconf/FrontEnd/Dialog.pm line 75.)
+                debconf: falling back to frontend: Readline
+                debconf: unable to initialize frontend: Readline
+                debconf: (Can't locate Term/ReadLine.pm in @INC (@INC contains: /etc/perl /usr/local/lib/perl/5.10.1 /usr/local/share/perl/5.10.1 /usr/lib/perl5 /usr/share/perl5 /usr/lib/perl/5.10 /usr/share/perl/5.10 /usr/local/lib/site_perl .) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 7.)
+                debconf: falling back to frontend: Teletype
+                Configuring libpam-runtime
+                --------------------------
+
+                Pluggable Authentication Modules (PAM) determine how authentication,
+                authorization, and password changing are handled on the system, as well as
+                allowing configuration of additional actions to take when starting user
+                sessions.
+
+                Some PAM module packages provide profiles that can be used to automatically
+                adjust the behavior of all PAM-using applications on the system.  Please
+                indicate which of these behaviors you wish to enable.
+
+                  1. Unix authentication
+
+                (Enter the items you want to select, separated by spaces.)
+
+                PAM profiles to enable:  
+
+          * if it's a Xen domU:
+
+                # sudo apt-get --purge install libc0.3-xen libc0.3-i686-
+
+      * As needed:
+
+            # mkfs.ext2 -I 128 -b 4096 /dev/hd2 # TAKE CARE!
+            # settrans /media/data /hurd/ext2fs /dev/hd2
+            # mkdir /media/data/home
+            # rmdir /home && ln -s media/data/home /
+
+            # mkfs.ext2 -I 128 -b 4096 /dev/hd3 # TAKE CARE!
+            # settrans /media/var /hurd/ext2fs /dev/hd3
+            # mv /var /media/var/
+            # ln -s media/var/var /
 
       * If needed: restore (parts of) some files
-
-          * /etc/fstab
 
           * /etc/{passwd,shadow,group,gshadow}
 
@@ -77,10 +106,7 @@ Steps for *install_crosshurd*:
 
               * \# passwd root
 
-          * /etc/ssh/ssh_host_*key*
-
-            Can do this here or have to move after install_packages due to the
-            files being overwritten again (don't think so)?
+          * (`mkdir /etc/ssh`), restore `/etc/ssh/ssh_host_*key*`
 
       * \# syncfs -s && halt
 
