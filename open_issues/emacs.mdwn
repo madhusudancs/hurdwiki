@@ -41,3 +41,1487 @@ GNU Emacs mostly does work, however there are a few issues.
     rootfs is fine (`syncfs -c -s /` works; `syncfs` involving `/media/data`
     hangs).  Plan: GDB on that ext2fs, and see what's hanging / locked.  [[!tag
     open_issue_hurd]]
+
+
+---
+
+# 2010-10-11
+
+Apparently, none of the Debian emacs packages are installable at the moment.
+
+Try to compile bzr trunk.
+
+System (sort-of) crashed during build.  Perhaps while / or shortly after
+dumping `src/emacs`, as there was such a zero-sized file.  (Log file doesn't
+show anything useful.)  Removed the truncated `src/emacs`, continued build:
+
+    [...]
+    Compiling /home/tschwinge/tmp/emacs/trunk/lisp/cedet/srecode/mode.el
+    Parsing  *srecode-map-tmp* (LALR)...
+    Parsing  *srecode-map-tmp* (LALR)...done
+    Segmentation fault
+    make[2]: *** [cedet/srecode/mode.elc] Error 139
+    make[2]: Leaving directory `/media/data/home/tschwinge/tmp/emacs/trunk.build/lisp'
+    make[1]: *** [compile-main] Error 2
+    make[1]: Leaving directory `/media/data/home/tschwinge/tmp/emacs/trunk.build/lisp'
+    make: *** [lisp] Error 2
+
+Command line:
+
+    $ EMACSLOADPATH=/home/tschwinge/tmp/emacs/trunk/lisp LC_ALL=C /home/tschwinge/tmp/emacs/trunk.build/src/emacs -batch --no-site-file  -f batch-byte-compile /home/tschwinge/tmp/emacs/trunk/lisp/cedet/srecode/mode.el
+
+GDB:
+
+    Program received signal SIGSEGV, Segmentation fault.
+    mark_object (arg=1) at /home/tschwinge/tmp/emacs/trunk/src/alloc.c:5343
+    5343            if (STRING_MARKED_P (ptr))
+    (gdb) bt
+    #0  mark_object (arg=1) at /home/tschwinge/tmp/emacs/trunk/src/alloc.c:5343
+    #1  0x0818080f in Fgarbage_collect () at /home/tschwinge/tmp/emacs/trunk/src/alloc.c:4993
+    #2  0x08196db3 in Ffuncall (nargs=1, args=0x23fce70) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:2987
+    #3  0x081ce8e1 in Fbyte_code (bytestr=139696577, vector=141708997, maxdepth=28) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:679
+    #4  0x08196894 in funcall_lambda (fun=<value optimized out>, nargs=<value optimized out>, arg_vector=0x1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3174
+    #5  0x08196bb3 in Ffuncall (nargs=1, args=0x23fcff0) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3047
+    #6  0x081ce8e1 in Fbyte_code (bytestr=139922913, vector=141583493, maxdepth=28) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:679
+    #7  0x08196894 in funcall_lambda (fun=<value optimized out>, nargs=<value optimized out>, arg_vector=0x1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3174
+    #8  0x08196bb3 in Ffuncall (nargs=3, args=0x23fd170) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3047
+    #9  0x081ce8e1 in Fbyte_code (bytestr=140515737, vector=141583205, maxdepth=24) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:679
+    #10 0x08196894 in funcall_lambda (fun=<value optimized out>, nargs=<value optimized out>, arg_vector=0x1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3174
+    #11 0x08196bb3 in Ffuncall (nargs=2, args=0x23fd2f0) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3047
+    #12 0x081ce8e1 in Fbyte_code (bytestr=139911193, vector=139312997, maxdepth=12) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:679
+    #13 0x08196894 in funcall_lambda (fun=<value optimized out>, nargs=<value optimized out>, arg_vector=0x1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3174
+    #14 0x08196bb3 in Ffuncall (nargs=3, args=0x23fd460) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3047
+    #15 0x081ce8e1 in Fbyte_code (bytestr=136508105, vector=136508125, maxdepth=20) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:679
+    #16 0x08196894 in funcall_lambda (fun=<value optimized out>, nargs=<value optimized out>, arg_vector=0x1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3174
+    #17 0x08196bb3 in Ffuncall (nargs=3, args=0x23fd5e0) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3047
+    #18 0x081ce8e1 in Fbyte_code (bytestr=136508849, vector=136508869, maxdepth=20) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:679
+    #19 0x08196894 in funcall_lambda (fun=<value optimized out>, nargs=<value optimized out>, arg_vector=0x1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3174
+    #20 0x08195bff in apply_lambda (fun=136508805, args=139814646, eval_flag=1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3100
+    #21 0x08195ef4 in Feval (form=139814582) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:2412
+    #22 0x081bb206 in readevalloop (readcharfun=138475290, stream=<value optimized out>, sourcename=139636697, printflag=0, unibyte=138364586, readfun=138364586,
+	start=138364586, end=138364586, evalfun=<value optimized out>) at /home/tschwinge/tmp/emacs/trunk/src/lread.c:1734
+    #23 0x081bbad7 in Fload (file=140023529, noerror=138364586, nomessage=138364610, nosuffix=138364586, must_suffix=138364586)
+	at /home/tschwinge/tmp/emacs/trunk/src/lread.c:1225
+    #24 0x081a1357 in Frequire (feature=141037690, filename=138364586, noerror=138364586) at /home/tschwinge/tmp/emacs/trunk/src/fns.c:2694
+    #25 0x08196d83 in Ffuncall (nargs=2, args=0x23fdb90) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:2996
+    #26 0x081ce8e1 in Fbyte_code (bytestr=140023705, vector=141489853, maxdepth=8) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:679
+    #27 0x08196304 in Feval (form=141177630) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:2358
+    #28 0x081bb206 in readevalloop (readcharfun=138475290, stream=<value optimized out>, sourcename=140023785, printflag=0, unibyte=138364586, readfun=138364586,
+	start=138364586, end=138364586, evalfun=<value optimized out>) at /home/tschwinge/tmp/emacs/trunk/src/lread.c:1734
+    #29 0x081bbad7 in Fload (file=139743441, noerror=138364586, nomessage=138364610, nosuffix=138364586, must_suffix=138364586)
+	at /home/tschwinge/tmp/emacs/trunk/src/lread.c:1225
+    #30 0x081a1357 in Frequire (feature=140528330, filename=138364586, noerror=138364586) at /home/tschwinge/tmp/emacs/trunk/src/fns.c:2694
+    #31 0x08196d83 in Ffuncall (nargs=2, args=0x23fe030) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:2996
+    #32 0x081ce8e1 in Fbyte_code (bytestr=139743489, vector=139592949, maxdepth=8) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:679
+    #33 0x08196304 in Feval (form=139785254) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:2358
+    #34 0x081bb206 in readevalloop (readcharfun=138475290, stream=<value optimized out>, sourcename=139743569, printflag=0, unibyte=138364586, readfun=138364586,
+	start=138364586, end=138364586, evalfun=<value optimized out>) at /home/tschwinge/tmp/emacs/trunk/src/lread.c:1734
+    #35 0x081bbad7 in Fload (file=139985769, noerror=138364586, nomessage=138364610, nosuffix=138364586, must_suffix=138364586)
+	at /home/tschwinge/tmp/emacs/trunk/src/lread.c:1225
+    #36 0x081a1357 in Frequire (feature=140528282, filename=138364586, noerror=138364586) at /home/tschwinge/tmp/emacs/trunk/src/fns.c:2694
+    #37 0x08196d83 in Ffuncall (nargs=2, args=0x23fe5c4) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:2996
+    #38 0x0819879e in Fapply (nargs=2, args=0x23fe5c4) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:2453
+    #39 0x08196e26 in Ffuncall (nargs=3, args=0x23fe5c0) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:2971
+    #40 0x081ce8e1 in Fbyte_code (bytestr=139665665, vector=140243293, maxdepth=12) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:679
+    #41 0x08196894 in funcall_lambda (fun=<value optimized out>, nargs=<value optimized out>, arg_vector=0x1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3174
+    #42 0x08196bb3 in Ffuncall (nargs=2, args=0x23fe730) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3047
+    #43 0x081ce8e1 in Fbyte_code (bytestr=139663633, vector=140113917, maxdepth=16) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:679
+    #44 0x08196894 in funcall_lambda (fun=<value optimized out>, nargs=<value optimized out>, arg_vector=0x1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3174
+    #45 0x08196bb3 in Ffuncall (nargs=2, args=0x23fe8a0) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3047
+    #46 0x081ce8e1 in Fbyte_code (bytestr=139651313, vector=141733317, maxdepth=16) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:679
+    #47 0x08196894 in funcall_lambda (fun=<value optimized out>, nargs=<value optimized out>, arg_vector=0x1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3174
+    #48 0x08196bb3 in Ffuncall (nargs=1, args=0x23fea20) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3047
+    #49 0x081961cd in Feval (form=142062606) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:2324
+    #50 0x08198ec2 in internal_lisp_condition_case (var=139619738, bodyform=142062606, handlers=142059126) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:1407
+    #51 0x081cdb3a in Fbyte_code (bytestr=139651065, vector=138947149, maxdepth=64) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:869
+    #52 0x08196894 in funcall_lambda (fun=<value optimized out>, nargs=<value optimized out>, arg_vector=0x1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3174
+    #53 0x08196bb3 in Ffuncall (nargs=3, args=0x23fed10) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3047
+    #54 0x081ce8e1 in Fbyte_code (bytestr=139638617, vector=140190309, maxdepth=32) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:679
+    #55 0x08196894 in funcall_lambda (fun=<value optimized out>, nargs=<value optimized out>, arg_vector=0x1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3174
+    #56 0x08195bff in apply_lambda (fun=141815293, args=139024998, eval_flag=1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3100
+    #57 0x08195ef4 in Feval (form=139025038) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:2412
+    #58 0x08198ec2 in internal_lisp_condition_case (var=138727490, bodyform=139025038, handlers=138994086) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:1407
+    #59 0x081cdb3a in Fbyte_code (bytestr=141397873, vector=139422605, maxdepth=12) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:869
+    #60 0x08196894 in funcall_lambda (fun=<value optimized out>, nargs=<value optimized out>, arg_vector=0x1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3174
+    #61 0x08196bb3 in Ffuncall (nargs=2, args=0x23ff150) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3047
+    #62 0x081ce8e1 in Fbyte_code (bytestr=141396361, vector=138448733, maxdepth=20) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:679
+    #63 0x08196894 in funcall_lambda (fun=<value optimized out>, nargs=<value optimized out>, arg_vector=0x1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3174
+    #64 0x08196bb3 in Ffuncall (nargs=1, args=0x23ff2d0) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3047
+    #65 0x081ce8e1 in Fbyte_code (bytestr=136699577, vector=136699597, maxdepth=40) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:679
+    #66 0x08196894 in funcall_lambda (fun=<value optimized out>, nargs=<value optimized out>, arg_vector=0x1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3174
+    #67 0x08196bb3 in Ffuncall (nargs=2, args=0x23ff460) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3047
+    #68 0x081ce8e1 in Fbyte_code (bytestr=136685793, vector=136685813, maxdepth=28) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:679
+    #69 0x08196894 in funcall_lambda (fun=<value optimized out>, nargs=<value optimized out>, arg_vector=0x1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3174
+    #70 0x08196bb3 in Ffuncall (nargs=1, args=0x23ff5e0) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3047
+    #71 0x081ce8e1 in Fbyte_code (bytestr=136683265, vector=136683285, maxdepth=24) at /home/tschwinge/tmp/emacs/trunk/src/bytecode.c:679
+    #72 0x08196894 in funcall_lambda (fun=<value optimized out>, nargs=<value optimized out>, arg_vector=0x1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3174
+    #73 0x08195bff in apply_lambda (fun=136683245, args=138364586, eval_flag=1) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:3100
+    #74 0x08195ef4 in Feval (form=138740766) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:2412
+    #75 0x0812dd83 in top_level_2 () at /home/tschwinge/tmp/emacs/trunk/src/keyboard.c:1336
+    #76 0x081951dc in internal_condition_case (bfun=0x812dd70 <top_level_2>, handlers=138394034, hfun=0x8132020 <cmd_error>)
+	at /home/tschwinge/tmp/emacs/trunk/src/eval.c:1460
+    #77 0x08131de5 in top_level_1 (ignore=138364586) at /home/tschwinge/tmp/emacs/trunk/src/keyboard.c:1344
+    #78 0x081952a9 in internal_catch (tag=138392170, func=0x8131d80 <top_level_1>, arg=138364586) at /home/tschwinge/tmp/emacs/trunk/src/eval.c:1204
+    #79 0x08131e53 in command_loop () at /home/tschwinge/tmp/emacs/trunk/src/keyboard.c:1299
+    #80 0x0813220a in recursive_edit_1 () at /home/tschwinge/tmp/emacs/trunk/src/keyboard.c:929
+    #81 0x08132332 in Frecursive_edit () at /home/tschwinge/tmp/emacs/trunk/src/keyboard.c:991
+    #82 0x0812727b in main (argc=<value optimized out>, argv=0x23ffad8) at /home/tschwinge/tmp/emacs/trunk/src/emacs.c:1718
+
+Next: restarted from scratch, rebuilt without optimizations.
+`--prefix=$PWD.install --build=i686-pc-gnu --enable-asserts
+--enable-checking=all CFLAGS=-g`
+
+    $ make
+    [...]
+    Dumping under the name emacs [sits here for a long time]
+
+    $ vmstat
+    pagesize:          4K
+    size:            324M
+    free:           9.16M
+    active:           56M
+    inactive:        242M
+    wired:          17.6M
+    zero filled:    8.75G
+    reactivated:       0 
+    pageins:         289M
+    pageouts:        371M
+    page faults: 12508128
+    cow faults:   1411724
+    memobj hit ratio: 99%
+    swap size:       512M
+    swap free:       512M
+
+Apparently low memory, but doesn't swap out.
+
+Uses a lot of CPU time, as observed with `xm top`.
+
+Creating another `screen` window as user tschwinge doesn't get to the shell
+prompt.
+
+Running `vmstat` works in a `screen` window that is already open, but running
+`ps -Af` just hangs; adding `-M` helps.
+
+Perhaps the /media/data/ file system (which backs /home/) is in a inconsistent
+state / deadlocked?
+
+More specifically, this does not work / does not exit:
+
+    login> syncfs -s -c /media/data/ &
+    [2] 10785
+
+But this works:
+
+    login> syncfs -s -c / &
+    [3] 10786
+    login> 
+    [3]+  Done                    syncfs -s -c /
+
+Thus, the rootfs still is responsive; /media/data/ is not.
+
+    login> ps -F hurd-long -T -M -w -A &
+    [4] 10796
+    login>   PID TH#  UID  PPID  PGrp  Sess TH  Vmem   RSS %CPU     User   System Args
+        0        0     1     1     1 16  132M    1M  0.0  0:04.84  0:54.84 /hurd/proc
+            0                                        0.0  0:00.00  0:00.13 
+            1                                        0.0  0:00.30  0:03.55 
+            2                                        0.0  0:00.30  0:04.21 
+            3                                        0.0  0:00.65  0:06.88 
+            4                                        0.0  0:00.02  0:00.31 
+            5                                        0.0  0:00.32  0:03.72 
+            6                                        0.0  0:00.00  0:00.23 
+            7                                        0.0  0:00.00  0:00.03 
+            8                                        0.0  0:00.30  0:03.17 
+            9                                        0.0  0:00.47  0:04.69 
+           10                                        0.0  0:00.62  0:06.42 
+           11                                        0.0  0:00.40  0:05.91 
+           12                                        0.0  0:00.47  0:04.18 
+           13                                        0.0  0:00.10  0:00.73 
+           14                                        0.0  0:00.56  0:05.97 
+           15                                        0.0  0:00.26  0:04.61 
+        1        0     1     1     1  1  146M  368K  0.0  0:00.00  0:00.03 /hurd/init root=device:hd0
+            0                                        0.0  0:00.00  0:00.03 
+        2        -     1     1     1  7  418M 19.5M  0.0  0:00.00  0:12.16 root=device:hd0
+            0                                        0.0  0:00.00  0:00.00 
+            1                                       92.6  0:00.00 46:33.66 
+            2                                        0.0  0:00.00  0:12.07 
+            3                                        0.0  0:00.00  0:00.05 
+            4                                        0.0  0:00.00  0:00.02 
+            5                                        0.0  0:00.00  0:00.00 
+            6                                        0.0  0:00.00  0:00.01 
+        3        0     1     1     1 173 409M 15.7M  0.2  4:39.39 34:08.86 ext2fs -A --multiboot-command-line=root=device:hd0 --host-priv-port=1 --device-master-port=2 --
+    [165CM-exec-server-task=3 -T typed device:hd0
+            0                                        0.0  0:00.00  0:00.02 
+            1                                        0.0  0:21.78  2:32.67 
+            2                                        0.0  0:00.15  0:01.33 
+            3                                        0.0  0:00.07  0:01.13 
+            4                                        0.0  0:22.09  2:32.56 
+            5                                        0.0  0:00.11  0:01.30 
+            6                                        0.0  0:21.57  2:32.78 
+            7                                        0.2  0:04.10  0:54.37 
+            8                                        0.0  0:00.00  0:00.01 
+            9                                        0.0  0:20.96  2:30.00 
+           10                                        0.0  0:00.09  0:01.05 
+           11                                        0.0  0:00.09  0:00.94 
+           12                                        0.0  0:21.59  2:32.40 
+           13                                        0.0  0:21.50  2:32.02 
+           14                                        0.0  0:00.00  0:00.92 
+           15                                        0.0  0:00.07  0:00.60 
+           16                                        0.0  0:00.09  0:00.86 
+           17                                        0.0  0:00.04  0:00.88 
+           18                                        0.0  0:00.13  0:00.91 
+           19                                        0.0  0:00.04  0:00.91 
+           20                                        0.0  0:00.02  0:00.89 
+           21                                        0.0  0:00.08  0:00.97 
+           22                                        0.0  0:00.05  0:00.84 
+           23                                        0.0  0:00.04  0:00.86 
+           24                                        0.0  0:00.09  0:00.86 
+           25                                        0.0  0:00.11  0:00.88 
+           26                                        0.0  0:00.04  0:00.64 
+           27                                        0.0  0:21.10  2:32.22 
+           28                                        0.0  0:20.32  2:29.92 
+           29                                        0.0  0:20.58  2:31.51 
+           30                                        0.0  0:20.50  2:32.72 
+           31                                        0.0  0:21.05  2:30.05 
+           32                                        0.0  0:19.78  2:33.40 
+           33                                        0.0  0:20.55  2:31.88 
+           34                                        0.0  0:00.00  0:00.06 
+           35                                        0.0  0:00.00  0:00.07 
+           36                                        0.0  0:00.00  0:00.02 
+           37                                        0.0  0:00.01  0:00.05 
+           38                                        0.0  0:00.00  0:00.03 
+           39                                        0.0  0:00.00  0:00.02 
+           40                                        0.0  0:00.00  0:00.06 
+           41                                        0.0  0:00.02  0:00.02 
+           42                                        0.0  0:00.00  0:00.03 
+           43                                        0.0  0:00.00  0:00.05 
+           44                                        0.0  0:00.00  0:00.07 
+           45                                        0.0  0:00.00  0:00.02 
+           46                                        0.0  0:00.00  0:00.02 
+           47                                        0.0  0:00.00  0:00.04 
+           48                                        0.0  0:00.00  0:00.03 
+           49                                        0.0  0:00.00  0:00.03 
+           50                                        0.0  0:00.00  0:00.05 
+           51                                        0.0  0:00.00  0:00.05 
+           52                                        0.0  0:00.00  0:00.04 
+           53                                        0.0  0:00.00  0:00.04 
+           54                                        0.0  0:00.00  0:00.02 
+           55                                        0.0  0:00.00  0:00.03 
+           56                                        0.0  0:00.01  0:00.01 
+           57                                        0.0  0:00.03  0:00.01 
+           58                                        0.0  0:00.01  0:00.00 
+           59                                        0.0  0:00.00  0:00.00 
+           60                                        0.0  0:00.00  0:00.00 
+           61                                        0.0  0:00.00  0:00.03 
+           62                                        0.0  0:00.00  0:00.00 
+           63                                        0.0  0:00.00  0:00.08 
+           64                                        0.0  0:00.00  0:00.06 
+           65                                        0.0  0:00.01  0:00.00 
+           66                                        0.0  0:00.00  0:00.07 
+           67                                        0.0  0:00.00  0:00.01 
+           68                                        0.0  0:00.02  0:00.02 
+           69                                        0.0  0:00.01  0:00.02 
+           70                                        0.0  0:00.01  0:00.01 
+           71                                        0.0  0:00.01  0:00.04 
+           72                                        0.0  0:00.00  0:00.01 
+           73                                        0.0  0:00.01  0:00.00 
+           74                                        0.0  0:00.00  0:00.06 
+           75                                        0.0  0:00.00  0:00.04 
+           76                                        0.0  0:00.02  0:00.05 
+           77                                        0.0  0:00.00  0:00.03 
+           78                                        0.0  0:00.00  0:00.02 
+           79                                        0.0  0:00.00  0:00.05 
+           80                                        0.0  0:00.01  0:00.00 
+           81                                        0.0  0:00.00  0:00.02 
+           82                                        0.0  0:00.00  0:00.03 
+           83                                        0.0  0:00.00  0:00.00 
+           84                                        0.0  0:00.00  0:00.00 
+           85                                        0.0  0:00.00  0:00.04 
+           86                                        0.0  0:00.00  0:00.04 
+           87                                        0.0  0:00.00  0:00.02 
+           88                                        0.0  0:00.01  0:00.00 
+           89                                        0.0  0:00.00  0:00.04 
+           90                                        0.0  0:00.00  0:00.04 
+           91                                        0.0  0:00.00  0:00.05 
+           92                                        0.0  0:00.00  0:00.02 
+           93                                        0.0  0:00.00  0:00.03 
+           94                                        0.0  0:00.00  0:00.02 
+           95                                        0.0  0:00.00  0:00.01 
+           96                                        0.0  0:00.00  0:00.02 
+           97                                        0.0  0:00.00  0:00.03 
+           98                                        0.0  0:00.00  0:00.05 
+           99                                        0.0  0:00.00  0:00.04 
+          100                                        0.0  0:00.00  0:00.03 
+          101                                        0.0  0:00.00  0:00.01 
+          102                                        0.0  0:00.00  0:00.01 
+          103                                        0.0  0:00.00  0:00.05 
+          104                                        0.0  0:00.00  0:00.06 
+          105                                        0.0  0:00.01  0:00.04 
+          106                                        0.0  0:00.00  0:00.00 
+          107                                        0.0  0:00.01  0:00.02 
+          108                                        0.0  0:00.00  0:00.00 
+          109                                        0.0  0:00.00  0:00.02 
+          110                                        0.0  0:00.00  0:00.01 
+          111                                        0.0  0:00.00  0:00.02 
+          112                                        0.0  0:00.01  0:00.04 
+          113                                        0.0  0:00.01  0:00.01 
+          114                                        0.0  0:00.00  0:00.02 
+          115                                        0.0  0:00.01  0:00.02 
+          116                                        0.0  0:00.01  0:00.03 
+          117                                        0.0  0:00.00  0:00.03 
+          118                                        0.0  0:00.01  0:00.01 
+          119                                        0.0  0:00.00  0:00.01 
+          120                                        0.0  0:00.00  0:00.05 
+          121                                        0.0  0:00.00  0:00.02 
+          122                                        0.0  0:00.00  0:00.02 
+          123                                        0.0  0:00.00  0:00.04 
+          124                                        0.0  0:00.00  0:00.04 
+          125                                        0.0  0:00.00  0:00.02 
+          126                                        0.0  0:00.00  0:00.02 
+          127                                        0.0  0:00.01  0:00.01 
+          128                                        0.0  0:00.00  0:00.01 
+          129                                        0.0  0:00.01  0:00.03 
+          130                                        0.0  0:00.01  0:00.05 
+          131                                        0.0  0:00.00  0:00.02 
+          132                                        0.0  0:00.00  0:00.03 
+          133                                        0.0  0:00.00  0:00.03 
+          134                                        0.0  0:00.00  0:00.02 
+          135                                        0.0  0:00.00  0:00.00 
+          136                                        0.0  0:00.00  0:00.01 
+          137                                        0.0  0:00.01  0:00.03 
+          138                                        0.0  0:00.00  0:00.03 
+          139                                        0.0  0:00.00  0:00.02 
+          140                                        0.0  0:00.01  0:00.01 
+          141                                        0.0  0:00.01  0:00.02 
+          142                                        0.0  0:00.00  0:00.00 
+          143                                        0.0  0:00.00  0:00.02 
+          144                                        0.0  0:00.01  0:00.00 
+          145                                        0.0  0:00.00  0:00.01 
+          146                                        0.0  0:00.00  0:00.00 
+          147                                        0.0  0:00.00  0:00.00 
+          148                                        0.0  0:00.00  0:00.03 
+          149                                        0.0  0:00.00  0:00.00 
+          150                                        0.0  0:00.00  0:00.01 
+          151                                        0.0  0:00.00  0:00.00 
+          152                                        0.0  0:00.00  0:00.01 
+          153                                        0.0  0:00.00  0:00.00 
+          154                                        0.0  0:00.00  0:00.00 
+          155                                        0.0  0:00.00  0:00.00 
+          156                                        0.0  0:00.00  0:00.00 
+          157                                        0.0  0:00.00  0:00.01 
+          158                                        0.0  0:00.00  0:00.00 
+          159                                        0.0  0:00.00  0:00.01 
+          160                                        0.0  0:00.00  0:00.01 
+          161                                        0.0  0:00.00  0:00.00 
+          162                                        0.0  0:00.00  0:00.00 
+          163                                        0.0  0:00.00  0:00.00 
+          164                                        0.0  0:00.00  0:00.01 
+          165                                        0.0  0:00.00  0:00.00 
+          166                                        0.0  0:00.00  0:00.00 
+          167                                        0.0  0:00.00  0:00.00 
+          168                                        0.0  0:00.00  0:00.00 
+          169                                        0.0  0:00.00  0:00.00 
+          170                                        0.0  0:00.00  0:00.00 
+          171                                        0.0  0:00.00  0:00.00 
+          172                                        0.0  0:00.00  0:00.00 
+        4        0     3     1     1  6  131M 1.32M  0.0  0:02.20  0:26.26 /hurd/exec
+            0                                        0.0  0:00.43  0:05.32 
+            1                                        0.0  0:00.41  0:05.54 
+            2                                        0.0  0:00.44  0:05.38 
+            3                                        0.0  0:00.00  0:00.00 
+            4                                        0.0  0:00.45  0:05.05 
+            5                                        0.0  0:00.44  0:04.95 
+        5        0     1     1     1  6  130M  580K  0.0  0:01.17  0:14.92 /hurd/auth
+            0                                        0.0  0:00.20  0:02.99 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.24  0:03.03 
+            3                                        0.0  0:00.18  0:02.86 
+            4                                        0.0  0:00.22  0:03.01 
+            5                                        0.0  0:00.31  0:03.01 
+        6        0     1     6     6  2  147M 1.09M  0.0  0:00.01  0:00.13 /bin/bash /libexec/runsystem root=device:hd0
+            0                                        0.0  0:00.01  0:00.13 
+            1                                        0.0  0:00.00  0:00.00 
+        7        0     3     1     1  7  130M  880K  0.1  0:00.35  0:10.10 /hurd/term /dev/console device console
+            0                                        0.0  0:00.07  0:01.15 
+            1                                        0.0  0:00.00  0:00.01 
+            2                                        0.0  0:00.14  0:03.10 
+            3                                        0.1  0:00.10  0:01.87 
+            4                                        0.0  0:00.01  0:00.50 
+            5                                        0.0  0:00.00  0:01.54 
+            6                                        0.0  0:00.02  0:01.91 
+        9        0     3     1     1 19  131M 1.13M  0.0  0:05.41  1:17.29 /hurd/pflocal
+            0                                        0.0  0:00.06  0:00.48 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.05  0:00.48 
+            3                                        0.0  0:00.78  0:09.10 
+            4                                        0.0  0:00.49  0:06.13 
+            5                                        0.0  0:00.56  0:07.07 
+            6                                        0.0  0:00.30  0:03.41 
+            7                                        0.0  0:00.47  0:05.58 
+            8                                        0.0  0:00.27  0:06.00 
+            9                                        0.0  0:00.04  0:00.47 
+           10                                        0.0  0:00.43  0:06.17 
+           11                                        0.0  0:00.70  0:09.21 
+           12                                        0.0  0:00.00  0:00.04 
+           13                                        0.0  0:00.59  0:10.75 
+           14                                        0.0  0:00.14  0:01.86 
+           15                                        0.0  0:00.04  0:01.49 
+           16                                        0.0  0:00.02  0:00.76 
+           17                                        0.0  0:00.22  0:05.59 
+           18                                        0.0  0:00.16  0:02.62 
+       12        0     1    12    12  6  129M  1.2M  0.0  0:00.00  0:00.06 /hurd/mach-defpager
+            0                                        0.0  0:00.00  0:00.06 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+            3                                        0.0  0:00.00  0:00.00 
+            4                                        0.0  0:00.00  0:00.00 
+            5                                        0.0  0:00.00  0:00.00 
+       14        0     3     1     1  3  131M  504K  0.0  0:00.00  0:00.05 /hurd/storeio hd1
+            0                                        0.0  0:00.00  0:00.05 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+       18        0     3     1     1  3  131M  512K  0.0  0:00.39  0:06.71 /hurd/storeio hd0
+            0                                        0.0  0:00.13  0:01.66 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.25  0:05.04 
+       19        0     3     1     1  3  131M  656K  0.0  0:00.27  0:04.89 /hurd/storeio hd2
+            0                                        0.0  0:00.10  0:01.48 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.16  0:03.41 
+       21        0     3     1     1  4  130M  648K  0.0  0:00.55  0:06.94 /hurd/null
+            0                                        0.0  0:00.24  0:02.09 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.08  0:02.16 
+            3                                        0.0  0:00.22  0:02.68 
+       22        0     3     1     1  4  130M  820K  0.0  0:00.00  0:00.05 /hurd/procfs
+            0                                        0.0  0:00.00  0:00.04 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+            3                                        0.0  0:00.00  0:00.00 
+       71        1     1    71    71  2  146M  728K  0.0  0:00.00  0:00.03 /usr/sbin/atd
+            0                                        0.0  0:00.00  0:00.02 
+            1                                        0.0  0:00.00  0:00.00 
+       77        0     3     1     1  4  130M  896K  0.0  0:00.00  0:00.02 /hurd/streamio kmsg
+            0                                        0.0  0:00.00  0:00.02 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+            3                                        0.0  0:00.00  0:00.00 
+      117        0     1   117   117  2  146M 1.02M  0.0  0:00.00  0:00.04 /usr/sbin/cron
+            0                                        0.0  0:00.00  0:00.04 
+            1                                        0.0  0:00.00  0:00.00 
+      122      101     1   122   122  2 7.75M 1.07M  0.0  0:00.00  0:00.05 /usr/bin/dbus-daemon --system
+            0                                        0.0  0:00.00  0:00.05 
+            1                                        0.0  0:00.00  0:00.00 
+      128        0     3     1     1  4  130M  908K  0.0  0:00.00  0:00.02 /hurd/fifo
+            0                                        0.0  0:00.00  0:00.02 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+            3                                        0.0  0:00.00  0:00.00 
+      131        8     1     6     6  2  147M  880K  0.0  0:00.01  0:00.07 /usr/sbin/nullmailer-send -d
+            0                                        0.0  0:00.01  0:00.07 
+            1                                        0.0  0:00.00  0:00.00 
+      139        0     3     1     1 19  133M 2.19M  0.3  0:18.66  1:17.98 /hurd/pfinet -i eth0 -a 192.168.10.63 -g 192.168.10.1 -m 255.255.255.0
+            0                                        0.0  0:00.01  0:00.03 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.1  0:12.72  0:14.56 
+            3                                        0.2  0:01.65  0:12.23 
+            4                                        0.0  0:01.67  0:18.56 
+            5                                        0.0  0:00.50  0:05.93 
+            6                                        0.0  0:00.40  0:06.16 
+            7                                        0.0  0:00.57  0:05.95 
+            8                                        0.0  0:00.30  0:04.15 
+            9                                        0.0  0:00.15  0:01.92 
+           10                                        0.0  0:00.13  0:01.45 
+           11                                        0.0  0:00.14  0:01.47 
+           12                                        0.0  0:00.07  0:01.06 
+           13                                        0.0  0:00.08  0:01.23 
+           14                                        0.0  0:00.08  0:00.92 
+           15                                        0.0  0:00.03  0:00.63 
+           16                                        0.0  0:00.03  0:00.45 
+           17                                        0.0  0:00.05  0:00.72 
+           18                                        0.0  0:00.03  0:00.49 
+      140        0     3     1     1  3  131M 1.16M  0.0  0:00.00  0:00.05 /hurd/storeio --no-cache time
+            0                                        0.0  0:00.00  0:00.05 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+      142        0     1   142   142  2 10.5M 1.23M  0.0  0:00.00  0:00.05 /usr/sbin/sshd
+            0                                        0.0  0:00.00  0:00.05 
+            1                                        0.0  0:00.00  0:00.00 
+      157        0     3     1     1  6  130M    1M  0.0  0:00.02  0:00.01 /hurd/term /dev/tty1 hurdio /dev/vcs/1/console
+            0                                        0.0  0:00.00  0:00.00 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+            3                                        0.0  0:00.00  0:00.00 
+            4                                        0.0  0:00.00  0:00.01 
+            5                                        0.0  0:00.01  0:00.00 
+      158        0     6   158   158  2  146M  824K  0.0  0:00.00  0:00.01 /libexec/runttys
+            0                                        0.0  0:00.00  0:00.01 
+            1                                        0.0  0:00.00  0:00.00 
+      159        0     3     1     1 15  133M 1.67M  0.0  0:00.01  0:00.06 /hurd/console
+            0                                        0.0  0:00.01  0:00.02 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+            3                                        0.0  0:00.00  0:00.00 
+            4                                        0.0  0:00.00  0:00.01 
+            5                                        0.0  0:00.00  0:00.00 
+            6                                        0.0  0:00.00  0:00.00 
+            7                                        0.0  0:00.00  0:00.02 
+            8                                        0.0  0:00.00  0:00.00 
+            9                                        0.0  0:00.00  0:00.00 
+           10                                        0.0  0:00.00  0:00.00 
+           11                                        0.0  0:00.00  0:00.00 
+           12                                        0.0  0:00.00  0:00.01 
+           13                                        0.0  0:00.00  0:00.00 
+           14                                        0.0  0:00.00  0:00.00 
+      160        -   158   160   160  2  147M 1.82M  0.0  0:00.02  0:00.16 -login prompt (bash)
+            0                                        0.0  0:00.02  0:00.14 
+            1                                        0.0  0:00.00  0:00.02 
+      161        -   158   161   161  2  147M 1.78M  0.0  0:00.00  0:00.07 -login prompt (bash)
+            0                                        0.0  0:00.00  0:00.07 
+            1                                        0.0  0:00.00  0:00.00 
+      162        -   158   162   162  2  147M 1.78M  0.0  0:00.01  0:00.07 -login prompt (bash)
+            0                                        0.0  0:00.01  0:00.07 
+            1                                        0.0  0:00.00  0:00.00 
+      163        -   158   163   163  2  147M 1.78M  0.0  0:00.00  0:00.03 -login prompt (bash)
+            0                                        0.0  0:00.00  0:00.03 
+            1                                        0.0  0:00.00  0:00.00 
+      164        -   158   164   164  2  147M 1.78M  0.0  0:00.02  0:00.03 -login prompt (bash)
+            0                                        0.0  0:00.02  0:00.03 
+            1                                        0.0  0:00.00  0:00.00 
+      165        -   158   165   165  2  147M 1.78M  0.0  0:00.00  0:00.08 -login prompt (bash)
+            0                                        0.0  0:00.00  0:00.08 
+            1                                        0.0  0:00.00  0:00.00 
+      166        -   158   166   166  2  147M 1.78M  0.0  0:00.01  0:00.01 -login prompt (bash)
+            0                                        0.0  0:00.01  0:00.01 
+            1                                        0.0  0:00.00  0:00.00 
+      167        0     3     1     1  6  130M 1016K  0.0  0:00.01  0:00.11 /hurd/term /dev/tty2 hurdio /dev/vcs/2/console
+            0                                        0.0  0:00.01  0:00.06 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+            3                                        0.0  0:00.00  0:00.01 
+            4                                        0.0  0:00.00  0:00.03 
+            5                                        0.0  0:00.00  0:00.00 
+      168        0     3     1     1  6  130M 1016K  0.0  0:00.00  0:00.04 /hurd/term /dev/tty3 hurdio /dev/vcs/3/console
+            0                                        0.0  0:00.00  0:00.02 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+            3                                        0.0  0:00.00  0:00.01 
+            4                                        0.0  0:00.00  0:00.00 
+            5                                        0.0  0:00.00  0:00.01 
+      169        0     3     1     1  6  130M 1016K  0.0  0:00.00  0:00.04 /hurd/term /dev/tty5 hurdio /dev/vcs/5/console
+            0                                        0.0  0:00.00  0:00.00 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+            3                                        0.0  0:00.00  0:00.00 
+            4                                        0.0  0:00.00  0:00.04 
+            5                                        0.0  0:00.00  0:00.00 
+      170        0     3     1     1  6  130M 1016K  0.0  0:00.00  0:00.05 /hurd/term /dev/tty4 hurdio /dev/vcs/4/console
+            0                                        0.0  0:00.00  0:00.04 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+            3                                        0.0  0:00.00  0:00.00 
+            4                                        0.0  0:00.00  0:00.01 
+            5                                        0.0  0:00.00  0:00.00 
+      171        0     3     1     1  6  130M 1016K  0.0  0:00.00  0:00.01 /hurd/term /dev/tty6 hurdio /dev/vcs/6/console
+            0                                        0.0  0:00.00  0:00.01 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+            3                                        0.0  0:00.00  0:00.00 
+            4                                        0.0  0:00.00  0:00.00 
+            5                                        0.0  0:00.00  0:00.00 
+      172        0     3     1     1  4  130M  892K  0.0  0:00.00  0:00.01 /hurd/password
+            0                                        0.0  0:00.00  0:00.01 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+            3                                        0.0  0:00.00  0:00.00 
+      173        0   142   173   173  3 10.7M 3.09M  0.0  0:02.09  0:12.63 /usr/sbin/sshd -R
+            0                                        0.0  0:02.09  0:12.63 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+      174        0     3     1     1 632 2.99G 27.6M 100.3 16:43.18 52:54.41 /hurd/ext2fs /dev/hd2
+            0                                        0.0  0:00.01  0:00.03 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  1:34.24  6:26.66 
+            3                                        0.0  0:00.04  0:00.31 
+            4                                        0.0  0:00.13  0:00.47 
+            5                                        0.0  0:00.05  0:00.57 
+            6                                        0.0  1:36.91  6:26.41 
+            7                                        0.0  0:12.98  0:34.83 
+            8                                        0.0  1:37.85  6:26.20 
+            9                                        0.0  1:35.07  6:17.07 
+           10                                        0.0  0:00.05  0:00.50 
+           11                                        0.0  0:00.04  0:00.48 
+           12                                        0.0  0:00.07  0:00.55 
+           13                                        0.0  0:00.03  0:00.46 
+           14                                        0.0  0:00.03  0:00.42 
+           15                                        0.0  0:00.06  0:00.32 
+           16                                        0.0  0:00.05  0:00.56 
+           17                                        0.0  0:00.05  0:00.50 
+           18                                        0.0  0:00.05  0:00.48 
+           19                                        0.0  0:00.03  0:00.37 
+           20                                        0.0  0:00.08  0:00.48 
+           21                                        0.0  0:00.01  0:00.52 
+           22                                        0.0  0:00.02  0:00.44 
+           23                                        0.0  0:00.02  0:00.44 
+           24                                        0.0  0:00.03  0:00.31 
+           25                                        0.0  0:00.05  0:00.32 
+           26                                        0.0  0:00.04  0:00.37 
+           27                                        0.0  0:00.00  0:00.31 
+           28                                        0.0  0:00.03  0:00.23 
+           29                                        0.0  0:00.05  0:00.33 
+           30                                        0.0  0:00.04  0:00.31 
+           31                                        0.0  0:00.01  0:00.29 
+           32                                        0.0  0:00.07  0:00.27 
+           33                                        0.0  0:00.05  0:00.28 
+           34                                        0.0  0:00.04  0:00.23 
+           35                                        0.0  0:00.04  0:00.46 
+           36                                        0.0  0:00.02  0:00.31 
+           37                                        0.0  0:00.02  0:00.38 
+           38                                        0.0  0:00.06  0:00.29 
+           39                                        0.0  0:00.03  0:00.22 
+           40                                        0.0  0:00.02  0:00.28 
+           41                                        0.0  0:00.03  0:00.26 
+           42                                        0.0  0:00.05  0:00.39 
+           43                                        0.0  0:00.06  0:00.37 
+           44                                        0.0  0:00.03  0:00.36 
+           45                                        0.0  0:00.04  0:00.20 
+           46                                        0.0  0:00.02  0:00.28 
+           47                                        0.0  0:00.01  0:00.29 
+           48                                        0.0  0:00.03  0:00.23 
+           49                                        0.0  0:00.04  0:00.22 
+           50                                        0.0  0:00.07  0:00.25 
+           51                                        0.0  0:00.00  0:00.33 
+           52                                        0.0  0:00.05  0:00.49 
+           53                                        0.0  0:00.02  0:00.31 
+           54                                        0.0  0:00.00  0:00.27 
+           55                                        0.0  0:00.06  0:00.25 
+           56                                        0.0  0:00.05  0:00.35 
+           57                                        0.0  0:00.01  0:00.28 
+           58                                        0.0  0:00.06  0:00.25 
+           59                                        0.0  0:00.05  0:00.30 
+           60                                        0.0  0:00.03  0:00.36 
+           61                                        0.0  0:00.04  0:00.31 
+           62                                        0.0  0:00.05  0:00.18 
+           63                                        0.0  0:00.02  0:00.31 
+           64                                        0.0  0:00.00  0:00.27 
+           65                                        0.0  0:00.02  0:00.26 
+           66                                        0.0  0:00.00  0:00.31 
+           67                                        0.0  0:00.00  0:00.15 
+           68                                        0.0  0:00.04  0:00.32 
+           69                                        0.0  0:00.04  0:00.21 
+           70                                        0.0  0:00.01  0:00.31 
+           71                                        0.0  0:00.05  0:00.22 
+           72                                        0.0  0:00.01  0:00.28 
+           73                                        0.0  0:00.04  0:00.31 
+           74                                        0.0  0:00.06  0:00.20 
+           75                                        0.0  0:00.04  0:00.38 
+           76                                        0.0  0:00.03  0:00.37 
+           77                                        0.0  0:00.06  0:00.32 
+           78                                        0.0  0:00.04  0:00.22 
+           79                                        0.0  0:00.04  0:00.25 
+           80                                        0.0  0:00.04  0:00.29 
+           81                                        0.0  0:00.07  0:00.31 
+           82                                        0.0  0:00.04  0:00.27 
+           83                                        0.0  0:00.04  0:00.23 
+           84                                        0.0  0:00.02  0:00.37 
+           85                                        0.0  0:00.03  0:00.24 
+           86                                        0.0  0:00.01  0:00.29 
+           87                                        0.0  0:00.03  0:00.24 
+           88                                        0.0  0:00.01  0:00.31 
+           89                                        0.0  0:00.03  0:00.39 
+           90                                        0.0  0:00.00  0:00.30 
+           91                                        0.0  0:00.03  0:00.32 
+           92                                        0.0  0:00.00  0:00.24 
+           93                                        0.0  0:00.03  0:00.32 
+           94                                        0.0  0:00.04  0:00.30 
+           95                                        0.0  0:00.00  0:00.33 
+           96                                        0.0  0:00.02  0:00.24 
+           97                                        0.0  0:00.01  0:00.26 
+           98                                        0.0  0:00.04  0:00.33 
+           99                                        0.0  0:00.03  0:00.26 
+          100                                        0.0  0:00.05  0:00.29 
+          101                                        0.0  0:00.05  0:00.34 
+          102                                        0.0  0:00.04  0:00.38 
+          103                                        0.0  0:00.00  0:00.22 
+          104                                        0.0  0:00.03  0:00.38 
+          105                                        0.0  0:00.01  0:00.43 
+          106                                        0.0  0:00.03  0:00.37 
+          107                                        0.0  0:00.05  0:00.31 
+          108                                        0.0  0:00.02  0:00.31 
+          109                                        0.0  0:00.00  0:00.26 
+          110                                        0.0  0:00.03  0:00.27 
+          111                                        0.0  0:00.03  0:00.25 
+          112                                        0.0  0:00.02  0:00.30 
+          113                                        0.0  0:00.05  0:00.23 
+          114                                        0.0  0:00.02  0:00.32 
+          115                                        0.0  0:00.02  0:00.29 
+          116                                        0.0  0:00.04  0:00.22 
+          117                                        0.0  0:00.04  0:00.26 
+          118                                        0.0  0:00.02  0:00.36 
+          119                                        0.0  0:00.03  0:00.31 
+          120                                        0.0  0:00.04  0:00.26 
+          121                                        0.0  0:00.05  0:00.28 
+          122                                        0.0  0:00.01  0:00.27 
+          123                                        0.0  0:00.03  0:00.34 
+          124                                        0.0  0:00.03  0:00.36 
+          125                                        0.0  0:00.02  0:00.33 
+          126                                        0.0  0:00.04  0:00.36 
+          127                                        0.0  0:00.00  0:00.41 
+          128                                        0.0  0:00.02  0:00.33 
+          129                                        0.0  0:00.07  0:00.32 
+          130                                        0.0  0:00.03  0:00.29 
+          131                                        0.0  0:00.00  0:00.34 
+          132                                        0.0  0:00.04  0:00.28 
+          133                                        0.0  0:00.04  0:00.24 
+          134                                        0.0  0:00.03  0:00.35 
+          135                                        0.0  0:00.04  0:00.38 
+          136                                        0.0  0:00.04  0:00.37 
+          137                                        0.0  0:00.04  0:00.26 
+          138                                        0.0  0:00.00  0:00.26 
+          139                                        0.0  0:00.06  0:00.40 
+          140                                        0.0  1:23.58  6:28.86 
+          141                                        0.0  0:25.74  1:55.97 
+          142                                        0.0  0:00.00  0:00.00 
+          143                                        0.0  0:00.00  0:00.00 
+          144                                        0.0  0:00.00  0:00.00 
+          145                                        0.0  0:00.00  0:00.00 
+          146                                        0.0  0:00.00  0:00.00 
+          147                                        0.0  0:00.00  0:00.00 
+          148                                        0.0  0:00.00  0:00.00 
+          149                                        0.0  0:00.00  0:00.00 
+          150                                        0.0  0:00.00  0:00.00 
+          151                                        0.0  0:00.00  0:00.00 
+          152                                        0.0  0:00.00  0:00.00 
+          153                                        0.0  0:00.00  0:00.00 
+          154                                        0.0  0:00.00  0:00.00 
+          155                                        0.0  0:00.00  0:00.00 
+          156                                        0.0  0:00.00  0:00.00 
+          157                                        0.0  0:00.00  0:00.00 
+          158                                        0.0  0:00.00  0:00.00 
+          159                                        0.0  0:00.00  0:00.00 
+          160                                        0.0  0:00.00  0:00.00 
+          161                                        0.0  0:00.00  0:00.00 
+          162                                        0.0  0:00.00  0:00.00 
+          163                                        0.0  0:00.00  0:00.00 
+          164                                        0.0  0:00.00  0:00.00 
+          165                                        0.0  0:00.00  0:00.00 
+          166                                        0.0  0:00.00  0:00.00 
+          167                                        0.0  0:00.00  0:00.00 
+          168                                        0.0  0:00.00  0:00.00 
+          169                                        0.0  0:00.00  0:00.00 
+          170                                        0.0  0:00.00  0:00.00 
+          171                                        0.0  0:00.00  0:00.00 
+          172                                        0.0  0:00.00  0:00.00 
+          173                                        0.0  0:00.00  0:00.00 
+          174                                        0.0  0:00.00  0:00.00 
+          175                                        0.0  0:00.00  0:00.00 
+          176                                        0.0  0:00.00  0:00.00 
+          177                                        0.0  0:00.00  0:00.00 
+          178                                        0.0  0:00.00  0:00.00 
+          179                                        0.0  0:00.00  0:00.00 
+          180                                        0.0  0:00.00  0:00.00 
+          181                                        0.0  0:00.00  0:00.00 
+          182                                        0.0  0:00.00  0:00.00 
+          183                                        0.0  0:00.00  0:00.00 
+          184                                        0.0  0:00.00  0:00.00 
+          185                                        0.0  0:00.00  0:00.00 
+          186                                        0.0  0:00.00  0:00.00 
+          187                                        0.0  0:00.00  0:00.00 
+          188                                        0.0  0:00.00  0:00.00 
+          189                                        0.0  0:00.00  0:00.00 
+          190                                        0.0  0:00.00  0:00.00 
+          191                                        0.0  0:00.00  0:00.00 
+          192                                        0.0  0:00.00  0:00.00 
+          193                                        0.0  0:00.00  0:00.00 
+          194                                        0.0  0:00.00  0:00.00 
+          195                                        0.0  0:00.00  0:00.00 
+          196                                        0.0  0:00.00  0:00.00 
+          197                                        0.0  0:00.00  0:00.00 
+          198                                        0.0  0:00.00  0:00.00 
+          199                                        0.0  0:00.00  0:00.00 
+          200                                        0.0  0:00.00  0:00.00 
+          201                                        0.0  0:00.00  0:00.00 
+          202                                        0.0  0:00.00  0:00.00 
+          203                                        0.0  0:00.00  0:00.00 
+          204                                        0.0  0:00.00  0:00.00 
+          205                                        0.0  0:00.00  0:00.00 
+          206                                        0.0  0:00.00  0:00.00 
+          207                                        0.0  0:00.00  0:00.00 
+          208                                        0.0  0:00.00  0:00.00 
+          209                                        0.0  0:00.00  0:00.00 
+          210                                        0.0  0:00.00  0:00.00 
+          211                                        0.0  0:00.00  0:00.00 
+          212                                        0.0  0:00.00  0:00.00 
+          213                                        0.0  0:00.00  0:00.00 
+          214                                        0.0  0:00.00  0:00.00 
+          215                                        0.0  0:00.00  0:00.00 
+          216                                        0.0  0:00.00  0:00.00 
+          217                                        0.0  0:00.00  0:00.00 
+          218                                        0.0  0:00.00  0:00.00 
+          219                                        0.0  0:00.00  0:00.00 
+          220                                        0.0  0:00.00  0:00.00 
+          221                                        0.0  0:00.00  0:00.00 
+          222                                        0.0  0:00.00  0:00.00 
+          223                                        0.0  0:00.00  0:00.00 
+          224                                        0.0  0:00.00  0:00.00 
+          225                                        0.0  0:00.00  0:00.00 
+          226                                        0.0  0:00.00  0:00.00 
+          227                                        0.0  0:00.00  0:00.00 
+          228                                        0.0  0:00.00  0:00.00 
+          229                                        0.0  0:00.00  0:00.00 
+          230                                        0.0  0:00.00  0:00.00 
+          231                                        0.0  0:00.00  0:00.00 
+          232                                        0.0  0:00.00  0:00.00 
+          233                                        0.0  0:00.00  0:00.00 
+          234                                        0.0  0:00.00  0:00.00 
+          235                                        0.0  0:00.00  0:00.00 
+          236                                        0.0  0:00.00  0:00.00 
+          237                                        0.0  0:00.00  0:00.00 
+          238                                        0.0  0:00.00  0:00.00 
+          239                                        0.0  0:00.00  0:00.00 
+          240                                        0.0  0:00.00  0:00.00 
+          241                                        0.0  0:00.00  0:00.00 
+          242                                        0.0  0:00.00  0:00.00 
+          243                                        0.0  0:00.00  0:00.00 
+          244                                        0.0  0:00.00  0:00.00 
+          245                                        0.0  0:00.00  0:00.00 
+          246                                        0.0  0:00.00  0:00.00 
+          247                                        0.0  0:00.00  0:00.00 
+          248                                        0.0  0:00.00  0:00.00 
+          249                                        0.0  0:00.00  0:00.00 
+          250                                        0.0  0:00.00  0:00.00 
+          251                                        0.0  0:00.00  0:00.00 
+          252                                        0.0  0:00.00  0:00.00 
+          253                                        0.0  0:00.00  0:00.00 
+          254                                        0.0  0:00.00  0:00.00 
+          255                                        0.0  0:00.00  0:00.00 
+          256                                        0.0  0:00.00  0:00.00 
+          257                                        0.0  0:00.00  0:00.00 
+          258                                        0.0  0:00.00  0:00.00 
+          259                                        0.0  0:00.00  0:00.00 
+          260                                        0.0  0:00.00  0:00.00 
+          261                                        0.0  0:00.00  0:00.00 
+          262                                        0.0  0:00.00  0:00.00 
+          263                                        0.0  0:00.00  0:00.00 
+          264                                        0.0  0:00.00  0:00.00 
+          265                                        0.0  0:00.00  0:00.00 
+          266                                        0.0  0:00.00  0:00.00 
+          267                                        0.0  0:00.00  0:00.00 
+          268                                        0.0  0:00.00  0:00.00 
+          269                                        0.0  0:00.00  0:00.00 
+          270                                        0.0  0:00.00  0:00.00 
+          271                                        0.0  0:00.00  0:00.00 
+          272                                        0.0  0:00.00  0:00.00 
+          273                                        0.0  0:00.00  0:00.00 
+          274                                        0.0  0:00.00  0:00.00 
+          275                                        0.0  0:00.00  0:00.00 
+          276                                        0.0  0:00.00  0:00.00 
+          277                                        0.0  0:00.00  0:00.00 
+          278                                        0.0  0:00.00  0:00.00 
+          279                                        0.0  0:00.00  0:00.00 
+          280                                        0.0  0:00.00  0:00.00 
+          281                                        0.0  0:00.00  0:00.00 
+          282                                        0.0  0:00.00  0:00.00 
+          283                                        0.0  0:00.00  0:00.00 
+          284                                        0.0  0:00.00  0:00.00 
+          285                                        0.0  0:00.00  0:00.00 
+          286                                        0.0  0:00.00  0:00.00 
+          287                                        0.0  0:00.00  0:00.00 
+          288                                        0.0  0:00.00  0:00.00 
+          289                                        0.0  0:00.00  0:00.00 
+          290                                        0.0  0:00.00  0:00.00 
+          291                                        0.0  0:00.00  0:00.00 
+          292                                        0.0  0:00.00  0:00.00 
+          293                                        0.0  0:00.00  0:00.00 
+          294                                        0.0  0:00.00  0:00.00 
+          295                                        0.0  0:00.00  0:00.00 
+          296                                        0.0  0:00.00  0:00.00 
+          297                                        0.0  0:00.00  0:00.00 
+          298                                        0.0  0:00.00  0:00.00 
+          299                                        0.0  0:00.00  0:00.00 
+          300                                        0.0  0:00.00  0:00.00 
+          301                                        0.0  0:00.00  0:00.00 
+          302                                        0.0  0:00.00  0:00.00 
+          303                                        0.0  0:00.00  0:00.00 
+          304                                        0.0  0:00.00  0:00.00 
+          305                                        0.0  0:00.00  0:00.00 
+          306                                        0.0  0:00.00  0:00.00 
+          307                                        0.0  0:00.00  0:00.00 
+          308                                        0.0  0:00.00  0:00.00 
+          309                                        0.0  0:00.00  0:00.00 
+          310                                        0.0  0:00.00  0:00.00 
+          311                                        0.0  0:00.00  0:00.00 
+          312                                        0.0  0:00.00  0:00.00 
+          313                                        0.0  0:00.00  0:00.00 
+          314                                        0.0  0:00.00  0:00.00 
+          315                                        0.0  0:00.00  0:00.00 
+          316                                        0.0  0:00.00  0:00.00 
+          317                                        0.0  0:00.00  0:00.00 
+          318                                        0.0  0:00.00  0:00.00 
+          319                                        0.0  0:00.00  0:00.00 
+          320                                        0.0  0:00.00  0:00.00 
+          321                                        0.0  0:00.00  0:00.00 
+          322                                        0.0  0:00.00  0:00.00 
+          323                                        0.0  0:00.00  0:00.00 
+          324                                        0.0  0:00.00  0:00.00 
+          325                                        0.0  0:00.00  0:00.00 
+          326                                        0.0  0:00.00  0:00.00 
+          327                                        0.0  0:00.00  0:00.00 
+          328                                        0.0  0:00.00  0:00.00 
+          329                                        0.0  0:00.00  0:00.00 
+          330                                        0.0  0:00.00  0:00.00 
+          331                                        0.0  0:00.00  0:00.00 
+          332                                        0.0  0:00.00  0:00.00 
+          333                                        0.0  0:00.00  0:00.00 
+          334                                        0.0  0:00.00  0:00.00 
+          335                                        0.0  0:00.00  0:00.00 
+          336                                        0.0  0:00.00  0:00.00 
+          337                                        0.0  0:00.00  0:00.00 
+          338                                        0.0  0:00.00  0:00.00 
+          339                                        0.0  0:00.00  0:00.00 
+          340                                        0.0  0:00.00  0:00.00 
+          341                                        0.0  0:00.00  0:00.00 
+          342                                        0.0  0:00.00  0:00.00 
+          343                                        0.0  0:00.00  0:00.00 
+          344                                        0.0  0:00.00  0:00.00 
+          345                                        0.0  0:00.00  0:00.00 
+          346                                        0.0  0:00.00  0:00.00 
+          347                                        0.0  0:00.00  0:00.00 
+          348                                        0.0  0:00.00  0:00.00 
+          349                                        0.0  0:00.00  0:00.00 
+          350                                        0.0  0:00.00  0:00.00 
+          351                                        0.0  0:00.00  0:00.00 
+          352                                        0.0  0:00.00  0:00.00 
+          353                                        0.0  0:00.00  0:00.00 
+          354                                        0.0  0:00.00  0:00.00 
+          355                                        0.0  0:00.00  0:00.00 
+          356                                        0.0  0:00.00  0:00.00 
+          357                                        0.0  0:00.00  0:00.00 
+          358                                        0.0  0:00.00  0:00.00 
+          359                                        0.0  0:00.00  0:00.00 
+          360                                        0.0  0:00.00  0:00.00 
+          361                                        0.0  0:00.00  0:00.00 
+          362                                        0.0  0:00.00  0:00.00 
+          363                                        0.0  0:00.00  0:00.00 
+          364                                        0.0  0:00.00  0:00.00 
+          365                                        0.0  0:00.00  0:00.00 
+          366                                        0.0  0:00.00  0:00.00 
+          367                                        0.0  0:00.00  0:00.00 
+          368                                        0.0  0:00.00  0:00.00 
+          369                                        0.0  0:00.00  0:00.00 
+          370                                        0.0  0:00.00  0:00.00 
+          371                                        0.0  0:00.00  0:00.03 
+          372                                        0.0  0:00.00  0:00.00 
+          373                                        0.0  0:00.00  0:00.00 
+          374                                        0.0  0:00.00  0:00.00 
+          375                                        0.0  0:00.00  0:00.00 
+          376                                        0.0  0:00.00  0:00.00 
+          377                                        0.0  0:00.00  0:00.00 
+          378                                        0.0  0:00.00  0:00.00 
+          379                                        0.0  0:00.00  0:00.00 
+          380                                        0.0  0:00.00  0:00.00 
+          381                                        0.0  0:00.00  0:00.00 
+          382                                        0.0  0:00.00  0:00.00 
+          383                                        0.0  0:00.00  0:00.00 
+          384                                        0.0  0:00.00  0:00.00 
+          385                                        0.0  0:00.00  0:00.00 
+          386                                        0.0  0:00.00  0:00.00 
+          387                                        0.0  0:00.00  0:00.00 
+          388                                        0.0  0:00.00  0:00.00 
+          389                                        0.0  0:00.00  0:00.00 
+          390                                        0.0  0:00.00  0:00.00 
+          391                                        0.0  0:00.00  0:00.00 
+          392                                        0.0  0:00.00  0:00.00 
+          393                                        0.0  0:00.00  0:00.00 
+          394                                        0.0  0:00.00  0:00.00 
+          395                                        0.0  0:00.00  0:00.00 
+          396                                        0.0  0:00.00  0:00.00 
+          397                                        0.0  0:00.00  0:00.00 
+          398                                        0.0  0:00.00  0:00.00 
+          399                                        0.0  0:00.00  0:00.00 
+          400                                        0.0  0:00.00  0:00.00 
+          401                                        0.0  0:00.00  0:00.00 
+          402                                        0.0  0:00.00  0:00.00 
+          403                                        0.0  0:00.00  0:00.00 
+          404                                        0.0  0:00.00  0:00.00 
+          405                                        0.0  0:00.00  0:00.00 
+          406                                        0.0  0:00.00  0:00.00 
+          407                                        0.0  0:00.00  0:00.00 
+          408                                        0.0  0:00.00  0:00.00 
+          409                                        0.0  0:00.00  0:00.00 
+          410                                        0.0  0:00.00  0:00.00 
+          411                                        0.0  0:00.00  0:00.00 
+          412                                        0.0  0:00.00  0:00.00 
+          413                                        0.0  0:00.00  0:00.00 
+          414                                        0.0  0:00.00  0:00.00 
+          415                                        0.0  0:00.00  0:00.00 
+          416                                        0.0  0:00.00  0:00.00 
+          417                                        0.0  0:00.00  0:00.00 
+          418                                        0.0  0:00.00  0:00.00 
+          419                                        0.0  0:00.00  0:00.00 
+          420                                        0.0  0:00.00  0:00.00 
+          421                                        0.0  0:00.00  0:00.00 
+          422                                        0.0  0:00.00  0:00.00 
+          423                                        0.0  0:00.00  0:00.00 
+          424                                        0.0  0:00.00  0:00.00 
+          425                                        0.0  0:00.00  0:00.00 
+          426                                        0.0  0:00.00  0:00.00 
+          427                                        0.0  0:00.00  0:00.00 
+          428                                        0.0  0:00.00  0:00.00 
+          429                                        0.0  0:00.00  0:00.00 
+          430                                        0.0  0:00.00  0:00.00 
+          431                                        0.0  0:00.00  0:00.00 
+          432                                        0.0  0:00.00  0:00.00 
+          433                                        0.0  0:00.00  0:00.00 
+          434                                        0.0  0:00.00  0:00.00 
+          435                                        0.0  0:00.00  0:00.00 
+          436                                        0.0  0:00.00  0:00.00 
+          437                                        0.0  0:00.00  0:00.00 
+          438                                        0.0  0:00.00  0:00.00 
+          439                                        0.0  0:00.00  0:00.00 
+          440                                        0.0  0:00.00  0:00.00 
+          441                                        0.0  0:00.00  0:00.00 
+          442                                        0.0  0:00.00  0:00.00 
+          443                                        0.0  0:00.00  0:00.00 
+          444                                        0.0  0:00.00  0:00.00 
+          445                                        0.0  0:00.00  0:00.00 
+          446                                        0.0  0:00.00  0:00.00 
+          447                                        0.0  0:00.00  0:00.00 
+          448                                        0.0  0:00.00  0:00.00 
+          449                                        0.0  0:00.00  0:00.00 
+          450                                        0.0  0:00.00  0:00.00 
+          451                                        0.0  0:00.00  0:00.00 
+          452                                        0.0  0:00.00  0:00.00 
+          453                                        0.0  0:00.00  0:00.00 
+          454                                        0.0  0:00.00  0:00.00 
+          455                                        0.0  0:00.00  0:00.00 
+          456                                        0.0  0:00.00  0:00.00 
+          457                                        0.0  0:00.00  0:00.00 
+          458                                        0.0  0:00.00  0:00.00 
+          459                                        0.0  0:00.00  0:00.00 
+          460                                        0.0  0:00.00  0:00.00 
+          461                                        0.0  0:00.00  0:00.00 
+          462                                        0.0  0:00.00  0:00.00 
+          463                                        0.0  0:00.00  0:00.00 
+          464                                        0.0  0:00.00  0:00.00 
+          465                                        0.0  0:00.00  0:00.00 
+          466                                        0.0  0:00.00  0:00.00 
+          467                                        0.0  0:00.00  0:00.00 
+          468                                        0.0  0:00.00  0:00.00 
+          469                                        0.0  0:00.00  0:00.00 
+          470                                        0.0  0:00.00  0:00.00 
+          471                                        0.0  0:00.00  0:00.00 
+          472                                        0.0  0:00.00  0:00.00 
+          473                                        0.0  0:00.00  0:00.00 
+          474                                        0.0  0:00.00  0:00.00 
+          475                                        0.0  0:00.00  0:00.00 
+          476                                        0.0  0:00.00  0:00.00 
+          477                                        0.0  0:00.00  0:00.00 
+          478                                        0.0  0:00.00  0:00.00 
+          479                                        0.0  0:00.00  0:00.00 
+          480                                        0.0  0:00.00  0:00.00 
+          481                                        0.0  0:00.00  0:00.00 
+          482                                        0.0  0:00.00  0:00.00 
+          483                                        0.0  0:00.00  0:00.00 
+          484                                        0.0  0:00.00  0:00.00 
+          485                                        0.0  0:00.00  0:00.00 
+          486                                        0.0  0:00.00  0:00.00 
+          487                                        0.0  0:00.00  0:00.00 
+          488                                        0.0  0:00.00  0:00.00 
+          489                                        0.0  0:00.00  0:00.00 
+          490                                        0.0  0:00.00  0:00.00 
+          491                                        0.0  0:00.00  0:00.00 
+          492                                        0.0  0:00.00  0:00.00 
+          493                                        0.0  0:00.00  0:00.00 
+          494                                        0.0  0:00.00  0:00.00 
+          495                                        0.0  0:00.00  0:00.00 
+          496                                        0.0  0:00.00  0:00.00 
+          497                                        0.0  0:00.00  0:00.00 
+          498                                        0.0  0:00.00  0:00.00 
+          499                                        0.0  0:00.00  0:00.00 
+          500                                        0.0  0:00.00  0:00.00 
+          501                                        0.0  0:00.00  0:00.00 
+          502                                        0.0  0:00.00  0:00.00 
+          503                                        0.0  0:00.00  0:00.00 
+          504                                        0.0  0:00.00  0:00.00 
+          505                                        0.0  0:00.00  0:00.00 
+          506                                        0.0  0:00.00  0:00.00 
+          507                                        0.0  0:00.00  0:00.00 
+          508                                        0.0  0:00.00  0:00.00 
+          509                                        0.0  0:00.00  0:00.00 
+          510                                        0.0  0:00.00  0:00.00 
+          511                                        0.0  0:00.00  0:00.00 
+          512                                        0.0  0:00.00  0:00.00 
+          513                                        0.0  0:00.00  0:00.00 
+          514                                        0.0  0:00.00  0:00.00 
+          515                                        0.0  0:00.00  0:00.00 
+          516                                        0.0  0:00.00  0:00.00 
+          517                                        0.0  0:00.00  0:00.00 
+          518                                        0.0  0:00.00  0:00.00 
+          519                                        0.0  0:00.00  0:00.00 
+          520                                        0.0  0:00.00  0:00.00 
+          521                                        0.0  0:00.00  0:00.00 
+          522                                        0.0  0:00.00  0:00.00 
+          523                                        0.0  0:00.00  0:00.00 
+          524                                        0.0  0:00.00  0:00.00 
+          525                                        0.0  0:00.00  0:00.00 
+          526                                        0.0  0:00.00  0:00.00 
+          527                                        0.0  0:00.00  0:00.00 
+          528                                        0.0  0:00.00  0:00.00 
+          529                                        0.0  0:00.00  0:00.00 
+          530                                        0.0  0:00.00  0:00.00 
+          531                                        0.0  0:00.00  0:00.00 
+          532                                        0.0  0:00.00  0:00.00 
+          533                                        0.0  0:00.00  0:00.00 
+          534                                        0.0  0:00.00  0:00.00 
+          535                                        0.0  0:00.00  0:00.00 
+          536                                        0.0  0:00.00  0:00.00 
+          537                                        0.0  0:00.00  0:00.00 
+          538                                        0.0  0:00.00  0:00.00 
+          539                                        0.0  0:00.00  0:00.00 
+          540                                        0.0  0:00.00  0:00.00 
+          541                                        0.0  0:00.00  0:00.00 
+          542                                        0.0  0:00.00  0:00.00 
+          543                                        0.0  0:00.00  0:00.00 
+          544                                        0.0  0:00.00  0:00.00 
+          545                                        0.0  0:00.00  0:00.00 
+          546                                        0.0  0:00.00  0:00.00 
+          547                                        0.0  0:00.00  0:00.00 
+          548                                        0.0  0:00.00  0:00.00 
+          549                                        0.0  0:00.00  0:00.00 
+          550                                        0.0  0:00.00  0:00.00 
+          551                                        0.0  0:00.00  0:00.00 
+          552                                        0.0  0:00.00  0:00.00 
+          553                                        0.0  0:00.00  0:00.00 
+          554                                        0.0  0:00.00  0:00.00 
+          555                                        0.0  0:00.00  0:00.00 
+          556                                        0.0  0:00.00  0:00.00 
+          557                                        0.0  0:00.00  0:00.00 
+          558                                        0.0  0:00.00  0:00.00 
+          559                                        0.0  0:00.00  0:00.00 
+          560                                        0.0  0:00.00  0:00.00 
+          561                                        0.0  0:00.00  0:00.00 
+          562                                        0.0  0:00.00  0:00.00 
+          563                                        0.0  0:00.00  0:00.00 
+          564                                        0.0  0:00.00  0:00.00 
+          565                                        0.0  0:00.00  0:00.00 
+          566                                        0.0  0:00.00  0:00.00 
+          567                                        0.0  0:00.00  0:00.00 
+          568                                        0.0  0:00.00  0:00.00 
+          569                                        0.0  0:00.00  0:00.00 
+          570                                        0.0  0:00.00  0:00.00 
+          571                                        0.0  0:00.00  0:00.00 
+          572                                        0.0  0:00.00  0:00.00 
+          573                                        0.0  0:00.00  0:00.00 
+          574                                        0.0  0:00.00  0:00.00 
+          575                                        0.0  0:00.00  0:00.00 
+          576                                        0.0  0:00.00  0:00.00 
+          577                                        0.0  0:00.00  0:00.00 
+          578                                        0.0  0:00.00  0:00.00 
+          579                                        0.0  0:00.00  0:00.00 
+          580                                        0.0  0:00.00  0:00.00 
+          581                                        0.0  0:00.00  0:00.00 
+          582                                        0.0  0:00.00  0:00.00 
+          583                                        0.0  0:00.00  0:00.00 
+          584                                        0.0  0:00.00  0:00.00 
+          585                                        0.0  0:00.00  0:00.00 
+          586                                        0.0  0:00.00  0:00.00 
+          587                                        0.0  0:00.00  0:00.00 
+          588                                        0.0  0:00.00  0:00.00 
+          589                                        0.0  0:00.00  0:00.00 
+          590                                        0.0  0:00.00  0:00.00 
+          591                                        0.0  0:00.00  0:00.00 
+          592                                        0.0  0:00.00  0:00.00 
+          593                                        0.0  0:00.00  0:00.00 
+          594                                        0.0  0:00.00  0:00.00 
+          595                                        0.0  0:00.00  0:00.00 
+          596                                        0.0  0:00.00  0:00.00 
+          597                                        0.0  0:00.00  0:00.00 
+          598                                        0.0  0:00.00  0:00.00 
+          599                                        0.0  0:00.00  0:00.00 
+          600                                        0.0  0:00.00  0:00.00 
+          601                                        0.0  0:00.00  0:00.00 
+          602                                        0.0  0:00.00  0:00.00 
+          603                                        0.0  0:00.00  0:00.00 
+          604                                        0.0  0:00.00  0:00.00 
+          605                                        0.0  0:00.00  0:00.00 
+          606                                        0.0  0:00.00  0:00.00 
+          607                                        0.0  0:00.00  0:00.00 
+          608                                        0.0  0:00.00  0:00.00 
+          609                                        0.0  0:00.00  0:00.00 
+          610                                        0.0  0:00.00  0:00.00 
+          611                                        0.0  0:00.00  0:00.00 
+          612                                        0.0  0:00.00  0:00.00 
+          613                                        0.0  0:00.00  0:00.00 
+          614                                        0.0  0:00.00  0:00.00 
+          615                                        0.0  0:00.00  0:00.00 
+          616                                        0.0  0:00.00  0:00.00 
+          617                                        0.0  0:00.00  0:00.00 
+          618                                        0.0  0:00.00  0:00.00 
+          619                                        0.0  0:00.00  0:00.00 
+          620                                        0.0  0:00.00  0:00.00 
+          621                                        0.0  0:00.00  0:00.00 
+          622                                        0.0  0:00.00  0:00.00 
+          623                                        0.0  0:00.00  0:00.00 
+          624                                        0.0  0:00.00  0:00.00 
+          625                                        0.0  0:00.00  0:00.00 
+          626                                        0.0  0:00.00  0:00.00 
+          627                                        0.0  0:00.00  0:00.00 
+          628                                        0.0  0:00.00  0:00.00 
+          629                                        0.0  0:00.00  0:00.00 
+          630                                        0.0  0:00.00  0:00.00 
+          631                                       100.3 8:11.86 17:35.07 
+      175        0     3     1     1  6  130M 1.08M  0.0  0:03.06  0:33.84 /hurd/term /dev/ptyp0 pty-master /dev/ttyp0
+            0                                        0.0  0:00.80  0:07.55 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.56  0:05.97 
+            3                                        0.0  0:00.50  0:06.99 
+            4                                        0.0  0:00.56  0:06.99 
+            5                                        0.0  0:00.62  0:06.32 
+      176     1000   173   176   176  2  148M 2.19M  0.0  0:00.08  0:00.54 -bash
+            0                                        0.0  0:00.08  0:00.47 
+            1                                        0.0  0:00.00  0:00.07 
+      284     1000     1   284   284  2 20.5M  700K  0.0  0:00.00  0:00.00 ssh-agent
+            0                                        0.0  0:00.00  0:00.00 
+            1                                        0.0  0:00.00  0:00.00 
+      302     1000   176   302   176  3  148M 1.37M  0.0  0:00.03  0:00.14 screen -S S_main
+            0                                        0.0  0:00.02  0:00.07 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.01  0:00.06 
+      304     1000   302   304   304  3  148M 2.45M  0.0  0:02.86  0:13.03 SCREEN -S S_main
+            0                                        0.0  0:02.86  0:12.97 
+            1                                        0.0  0:00.00  0:00.03 
+            2                                        0.0  0:00.00  0:00.02 
+      305     1000     3     1     1  5  130M  960K  0.0  0:01.57  0:15.62 /hurd/fifo
+            0                                        0.0  0:00.31  0:04.04 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.31  0:03.95 
+            3                                        0.0  0:00.45  0:03.78 
+            4                                        0.0  0:00.49  0:03.84 
+      306        0     3     1     1  5  130M 1.02M  0.0  0:01.42  0:16.72 /hurd/term /dev/ptyp1 pty-master /dev/ttyp1
+            0                                        0.0  0:00.43  0:06.13 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.40  0:04.77 
+            3                                        0.0  0:00.00  0:00.14 
+            4                                        0.0  0:00.59  0:05.67 
+      309     1000   304   309   309  2  148M 2.12M  0.0  0:00.02  0:00.09 /bin/bash
+            0                                        0.0  0:00.02  0:00.09 
+            1                                        0.0  0:00.00  0:00.00 
+      319     1000   309   319   309  2  153M 7.29M  0.0  0:00.33  0:00.74 emacs
+            0                                        0.0  0:00.33  0:00.74 
+            1                                        0.0  0:00.00  0:00.00 
+      320        0     3     1     1  6  130M 1.48M  0.0  0:03.25  0:38.79 /hurd/term /dev/ptyp2 pty-master /dev/ttyp2
+            0                                        0.0  0:00.60  0:07.07 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.69  0:08.43 
+            3                                        0.0  0:00.78  0:07.78 
+            4                                        0.0  0:00.55  0:07.98 
+            5                                        0.0  0:00.60  0:07.52 
+      323     1000   304   323   323  2  148M 2.19M  0.0  0:00.12  0:00.60 /bin/bash
+            0                                        0.0  0:00.12  0:00.54 
+            1                                        0.0  0:00.00  0:00.06 
+      411        0     3     1     1  5  130M 1.02M  0.0  0:01.17  0:16.40 /hurd/term /dev/ptyp3 pty-master /dev/ttyp3
+            0                                        0.0  0:00.42  0:03.74 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.15  0:02.70 
+            3                                        0.0  0:00.24  0:05.48 
+            4                                        0.0  0:00.33  0:04.45 
+      414     1000   304   414   414  2  148M 2.13M  0.0  0:00.05  0:00.23 /bin/bash
+            0                                        0.0  0:00.04  0:00.21 
+            1                                        0.0  0:00.00  0:00.02 
+      425        0     3     1     1  3  130M  872K  0.0  0:00.02  0:00.05 /hurd/proxy-defpager
+            0                                        0.0  0:00.02  0:00.04 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.01 
+     3087        0     3     1     1  5  130M 1.02M  0.0  0:00.23  0:01.39 /hurd/term /dev/ptyp4 pty-master /dev/ttyp4
+            0                                        0.0  0:00.05  0:00.39 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.07  0:00.43 
+            3                                        0.0  0:00.07  0:00.31 
+            4                                        0.0  0:00.04  0:00.26 
+     3648        0     3     1     1  3  130M  876K  0.0  0:00.00  0:00.05 /hurd/crash --kill
+            0                                        0.0  0:00.00  0:00.05 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+     5512        0     3     1     1  5  130M 1.01M  0.0  0:00.05  0:00.70 /hurd/term /dev/ptyp5 pty-master /dev/ttyp5
+            0                                        0.0  0:00.00  0:00.26 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.03  0:00.16 
+            3                                        0.0  0:00.02  0:00.14 
+            4                                        0.0  0:00.00  0:00.14 
+    10286     1000   323 10286   323  2  135M 1.28M  0.0  0:00.06  0:00.20 make
+            0                                        0.0  0:00.06  0:00.20 
+            1                                        0.0  0:00.00  0:00.00 
+    10287     1000   323 10286   323  2  147M  884K  0.0  0:00.00  0:00.33 tee standard output L_ LC_PAPER=en_US.utf8 LC_ADDRESS=en_US.utf8 SSH_AGENT_PID=284 LC_MONETARY=
+    [165CM=en_US.utf8 SP_REPLACE_LINKS=n SHELL=/bin/bash TERM=screen SP_STOP_AFTER=build HISTSIZE=10000 SSH_CLIENT=192.168.10.60 55972 22 LC_NUMERIC=en_US.utf8 OLDPWD=/home/tsch
+    [165CMhwinge SSH_TTY=/dev/ttyp0 USER=tschwinge HISTFILESIZE=10000 LD_LIBRARY_PATH= LC_TELEPHONE=en_US.utf8 SP_COMPAT=n LS_COLORS=rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;
+    [165CM;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arj=01;31:*.taz=01;31:*.lzh=0
+    [165CM01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.zip=01;31:*.z=01;31:*.Z=01;31:*.dz=01;31:*.gz=01;31:*.lz=01;31:*.xz=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:
+    [165CM:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.rar=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.jpg=01;35:*.jpeg=01;35:*.gif=01;35:*.bmp=01;35
+    [165CM5:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=0
+    [165CM01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm
+    [165CMm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.axv=01;35:*.an
+    [165CMnx=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.
+    [165CM.axa=00;36:*.oga=00;36:*.spx=00;36:*.xspf=00;36: SSH_AUTH_SOCK=/home/tschwinge/.ssh/auth_sock.grubber.bddebian.com TERMCAP=SC|screen|VT 100/ANSI X3.64 virtual terminal
+    [165CMl:\^K^J:DO=\E[%dB:LE=\E[%dD:RI=\E[%dC:UP=\E[%dA:bs:bt=\E[Z:\^K^J:cd=\E[J:ce=\E[K:cl=\E[H\E[J:cm=\E[%i%d;%dH:ct=\E[3g:\^K^J:do=^J:nd=\E[C:pt:rc=\E8:rs=\Ec:sc=\E7:st=\EH
+    [165CMH:up=\EM:\^K^J:le=^H:bl=^G:cr=^M:it#8:ho=\E[H:nw=\EE:ta=^I:is=\E)0:\^K^J:li#50:co#166:am:xn:xv:LP:sr=\EM:al=\E[L:AL=\E[%dL:\^K^J:cs=\E[%i%d;%dr:dl=\E[M:DL=\E[%dM:dc=\E
+    [165CME[P:DC=\E[%dP:\^K^J:im=\E[4h:ei=\E[4l:mi:IC=\E[%d@:ks=\E[?1h\E=:\^K^J:ke=\E[?1l\E>:vi=\E[?25l:ve=\E[34h\E[?25h:vs=\E[34l:\^K^J:ti=\E[?1049h:te=\E[?1049l:us=\E[4m:ue=\E
+    [165CME[24m:so=\E[3m:\^K^J:se=\E[23m:mb=\E[5m:md=\E[1m:mr=\E[7m:me=\E[m:ms:\^K^J:Co#8:pa#64:AF=\E[3%dm:AB=\E[4%dm:op=\E[39;49m:AX:\^K^J:vb=\Eg:G0:as=\E(0:ae=\E(B:\^K^J:ac=\1
+    [165CM140\140aaffggjjkkllmmnnooppqqrrssttuuvvwwxxyyzz{{||}}~~..--++,,hhII00:\^K^J:po=\E[5i:pf=\E[4i:k0=\E[10~:k1=\EOP:k2=\EOQ:k3=\EOR:\^K^J:k4=\EOS:k5=\E[15~:k6=\E[17~:k7=\E
+    [165CME[18~:k8=\E[19~:\^K^J:k9=\E[20~:k;=\E[21~:F1=\E[23~:F2=\E[24~:F3=\E[1;2P:\^K^J:F4=\E[1;2Q:F5=\E[1;2R:F6=\E[1;2S:F7=\E[15;2~:\^K^J:F8=\E[17;2~:F9=\E[18;2~:FA=\E[19;2~:k
+    [165CMkb=\177:K2=\EOE:\^K^J:kB=\E[Z:kF=\E[1;2B:kR=\E[1;2A:*4=\E[3;2~:*7=\E[1;2F:\^K^J:#2=\E[1;2H:#3=\E[2;2~:#4=\E[1;2D:%c=\E[6;2~:%e=\E[5;2~:\^K^J:%i=\E[1;2C:kh=\E[1~:@1=\E[
+    [165CM[1~:kH=\E[4~:@7=\E[4~:\^K^J:kN=\E[6~:kP=\E[5~:kI=\E[2~:kD=\E[3~:ku=\EOA:kd=\EOB:\^K^J:kr=\EOC:kl=\EOD:km: have_bash_profile=y SPF_SOURCE_DEBUG=y PATH=/home/tschwinge/c
+    [165CMcommand:/home/tschwinge/shared/command:/usr/sbin:/sbin:/usr/local/bin:/usr/bin:/bin:/usr/bin/X11:/usr/games MAIL=/var/mail/tschwinge LC_MESSAGES=en_US.utf8 SP_TARDIR=/
+    [165CM/home/tschwinge/tmp/source/package STY=304.S_main LC_COLLATE=C LC_IDENTIFICATION=en_US.utf8 SP_FOREIGN_DIR=/home/tschwinge/shared.old/package/host/schwinge.homeip.net/
+    [165CM/sp-foreign-snippets/snippets PWD=/home/tschwinge/tmp/emacs/trunk.build _LD_LIBRARY_PATH= EDITOR=emacsclient  LANG=en_US.utf8 TZ=Europe/Berlin LC_MEASUREMENT=en_US.utf
+    [165CMf8 KRB5CCNAME=/tmp/krb5cc.tschwinge HISTCONTROL=ignoreboth HOME=/home/tschwinge SHLVL=2 SPF_COMPAT=n LOGNAME=tschwinge LESS=-M -R CVS_RSH=ssh WINDOW=1 SSH_CONNECTION=1
+    [165CM192.168.10.60 55972 192.168.10.63 22 LC_CTYPE=en_US.utf8 LESSOPEN=| /usr/bin/lesspipe %s EMAIL=thomas@schwinge.name ALTERNATE_EDITOR=joe LC_TIME=en_US.utf8 LESSCLOSE=/
+    [165CM/usr/bin/lesspipe %s %s SPF_SOURCE_DATA_DIR=/home/tschwinge/shared.old/source/package/misc/spf LC_NAME=en_US.utf8 _=/usr/bin/tee
+            0                                        0.0  0:00.00  0:00.33 
+            1                                        0.0  0:00.00  0:00.00 
+    10377     1000 10286 10286   323  2  146M  828K  0.0  0:00.00  0:00.00 /bin/sh -c boot=bootstrap-emacs;                         \^Kif [ ! -x "src/$boot" ]; then      
+    [165CM                                \^K    cd src; make all                                    \^K      CC='gcc' CFLAGS='-g' CPPFLAGS='-DXASSERTS=1'         \^K      LDFLA
+    [165CMAGS='-Wl,-znocombreloc ' MAKE='make' BOOTSTRAPEMACS="$boot"; \^Kfi;
+            0                                        0.0  0:00.00  0:00.00 
+            1                                        0.0  0:00.00  0:00.00 
+    10378     1000 10377 10286   323  2  135M 1.65M  0.0  0:00.71  0:02.12 make all CC=gcc CFLAGS=-g CPPFLAGS=-DXASSERTS=1 LDFLAGS=-Wl,-znocombreloc  MAKE=make BOOTSTRAPE
+    [165CMEMACS=bootstrap-emacs
+            0                                        0.0  0:00.71  0:01.92 
+            1                                        0.0  0:00.00  0:00.19 
+    10770     1000 10378 10286   323  2  146M  852K  0.0  0:00.00  0:00.03 /bin/sh -c if test "no" = "yes"; then \^K  ln -f temacs bootstrap-emacs; \^Kelse \^K  `/bin/pwd
+    [165CMd`/temacs --batch --load loadup bootstrap || exit 1; \^K  mv -f emacs bootstrap-emacs; \^Kfi
+            0                                        0.0  0:00.00  0:00.03 
+            1                                        0.0  0:00.00  0:00.00 
+    10772     1000 10770 10286   323  3  180M 38.8M  0.0  1:16.35  0:05.27 /media/data/home/tschwinge/tmp/emacs/trunk.build/src/temacs --batch --load loadup bootstrap
+            0                                        0.0  1:16.35  0:05.27 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  0:00.00  0:00.00 
+    10778     1000   304   304   304  2  148M  396K  0.0  0:00.00  0:00.00 SCREEN -S S_main
+            0                                        0.0  0:00.00  0:00.00 
+            1                                        0.0  0:00.00  0:00.00 
+    10784        -   160 10784   160  2  146M  672K  0.0  0:00.00  0:00.01 syncfs -s
+            0                                        0.0  0:00.00  0:00.01 
+            1                                        0.0  0:00.00  0:00.00 
+    10785        -   160 10785   160  2  146M  672K  0.0  0:00.00  0:00.02 syncfs -s -c /media/data/
+            0                                        0.0  0:00.00  0:00.02 
+            1                                        0.0  0:00.00  0:00.00 
+    10787        0   160 10787   160  2  146M  876K  0.0  0:00.00  0:00.06 ps -Af
+            0                                        0.0  0:00.00  0:00.06 
+            1                                        0.0  0:00.00  0:00.00 
+    10795        8   131     6     6  2  147M 1.38M  0.1  0:00.02  0:00.04 /usr/lib/nullmailer/qmqp -d -s mail.schwinge.homeip.net
+            0                                        0.1  0:00.02  0:00.04 
+            1                                        0.0  0:00.00  0:00.00 
+    10796        0   160 10796   160  2  146M 1.23M  0.0  0:00.00  0:00.08 ps -F hurd-long -T -M -w -A
+            0                                        0.0  0:00.00  0:00.03 
+            1                                        0.0  0:00.00  0:00.00 
+
+    [4]+  Done                    ps -F hurd-long -T -M -w -A
+    login> 
+
+TH# 631 of PID 174 (which is indeed ext2fs for /media/data) looks very
+suspicious, likely together in combination with TH# 1 of PID 2 (GNU Mach), so
+likely some IPC ping-pong?
+
+      PID TH#  UID  PPID  PGrp  Sess TH  Vmem   RSS %CPU     User   System Args
+        0        0     1     1     1 16  132M    1M  0.0  0:04.84  0:54.84 /hurd/proc
+    [...]
+        2        -     1     1     1  7  418M 19.5M  0.0  0:00.00  0:12.16 root=device:hd0
+            0                                        0.0  0:00.00  0:00.00 
+            1                                       92.6  0:00.00 46:33.66 
+            2                                        0.0  0:00.00  0:12.07 
+            3                                        0.0  0:00.00  0:00.05 
+            4                                        0.0  0:00.00  0:00.02 
+            5                                        0.0  0:00.00  0:00.00 
+            6                                        0.0  0:00.00  0:00.01 
+    [...]
+      174        0     3     1     1 632 2.99G 27.6M 100.3 16:43.18 52:54.41 /hurd/ext2fs /dev/hd2
+            0                                        0.0  0:00.01  0:00.03 
+            1                                        0.0  0:00.00  0:00.00 
+            2                                        0.0  1:34.24  6:26.66 
+            3                                        0.0  0:00.04  0:00.31 
+    [...]
+          630                                        0.0  0:00.00  0:00.00 
+          631                                       100.3 8:11.86 17:35.07 
+    [...]
+
+Attaching GDB hangs.  Should have used noninvasive mode...
+
+Having a look again after an hour or two, GNU Mach's thread 1's (system) time
+count has gone up to nearly 120 minutes, and ext2fs' thread 631's is up to 12
+minutes user and 26 minutes system time.
+
+I was able to get another root shell via plain `ssh root@grubber`, and I'm able
+to attach GDB in noninvasive mode.  Hopefully the first unsuccessful (but still
+running) GDB didn't cause any interference.
+
+Due to differences in [[thread_numbering_of_ps_and_gdb]], GDB's thread 632
+(which is the last one anyways) should be the offending one.  GDB's thread 631
+and earlier ones (manually checked down to 600) are sitting in `mach_msg_trap`.
+
+    (gdb) thread apply 632 bt
+
+    Thread 632 (Thread 174.632):
+    #0  0x010e408c in syscall_vm_allocate () at /build/buildd-eglibc_2.11.2-6+b1-hurd-i386-sWVQAp/eglibc-2.11.2/build-tree/hurd-i386-libc/mach/syscall_vm_allocate.S:2
+    #1  0x010e423a in __vm_allocate (target_task=1, address=0xbfffbde0, size=65536, anywhere=0)
+	at /build/buildd-eglibc_2.11.2-6+b1-hurd-i386-sWVQAp/eglibc-2.11.2/build-tree/hurd-i386-libc/mach/vm_allocate.c:54
+    #2  0x010b023a in alloc_stack (p=0x83774a8) at /home/sthibaul-guest/hurd-debian/./libthreads/stack.c:397
+    #3  0x010ae9b3 in cproc_create () at /home/sthibaul-guest/hurd-debian/./libthreads/cprocs.c:724
+    #4  0x010afe5a in cthread_fork (func=0x133ff42, arg=0x0) at /home/sthibaul-guest/hurd-debian/./libthreads/cthreads.c:341
+    #5  0x010b505d in internal_demuxer (inp=0xbfffdf20, outheadp=0xbfffbf10) at /home/sthibaul-guest/hurd-debian/./libports/manage-multithread.c:72
+    #6  0x010e4dc6 in __mach_msg_server_timeout (demux=0x133ff38, max_size=8192, rcv_name=18, option=2048, timeout=0) at msgserver.c:109
+    #7  0x010b4eb0 in thread_function (master=0) at /home/sthibaul-guest/hurd-debian/./libports/manage-multithread.c:136
+    #8  0x010b0058 in cthread_body (self=0x8376c50) at /home/sthibaul-guest/hurd-debian/./libthreads/cthreads.c:300
+    #9  0x00000000 in ?? ()
+
+    (gdb) thread apply 632 bt full
+
+    Thread 632 (Thread 174.632):
+    #0  0x010e408c in syscall_vm_allocate () at /build/buildd-eglibc_2.11.2-6+b1-hurd-i386-sWVQAp/eglibc-2.11.2/build-tree/hurd-i386-libc/mach/syscall_vm_allocate.S:2
+    No locals.
+    #1  0x010e423a in __vm_allocate (target_task=1, address=0xbfffbde0, size=65536, anywhere=0)
+        at /build/buildd-eglibc_2.11.2-6+b1-hurd-i386-sWVQAp/eglibc-2.11.2/build-tree/hurd-i386-libc/mach/vm_allocate.c:54
+            err = <value optimized out>
+    #2  0x010b023a in alloc_stack (p=0x83774a8) at /home/sthibaul-guest/hurd-debian/./libthreads/stack.c:397
+            base = 321454080
+    #3  0x010ae9b3 in cproc_create () at /home/sthibaul-guest/hurd-debian/./libthreads/cprocs.c:724
+            child = 0x83774a8
+            n = <value optimized out>
+    #4  0x010afe5a in cthread_fork (func=0x133ff42, arg=0x0) at /home/sthibaul-guest/hurd-debian/./libthreads/cthreads.c:341
+            t = 0x8377430
+    #5  0x010b505d in internal_demuxer (inp=0xbfffdf20, outheadp=0xbfffbf10) at /home/sthibaul-guest/hurd-debian/./libports/manage-multithread.c:72
+            status = <value optimized out>
+            pi = 0x0
+            link = {thread = 2050, next = 0x0, prevp = 0x2000, notifies = 0x12, interrupted_next = 0x0}
+            __PRETTY_FUNCTION__ = "internal_demuxer"
+            lock = -1073758644
+            nreqthreads = -1073750240
+            totalthreads = 137852072
+            bucket = 0x10b1c64
+            demuxer = 0x10b01eb <alloc_stack+11>
+    #6  0x010e4dc6 in __mach_msg_server_timeout (demux=0x133ff38, max_size=8192, rcv_name=18, option=2048, timeout=0) at msgserver.c:109
+            request = 0xbfffdf20
+            reply = 0xbfffbf10
+            mr = 3
+            __PRETTY_FUNCTION__ = "__mach_msg_server_timeout"
+    #7  0x010b4eb0 in thread_function (master=0) at /home/sthibaul-guest/hurd-debian/./libports/manage-multithread.c:136
+            timeout = 0
+            err = <value optimized out>
+            hook = 0
+            global_timeout = 0
+            thread_timeout = 0
+            bucket = 0x805f6c0
+            lock = 0
+            totalthreads = 497
+            nreqthreads = 1
+    #8  0x010b0058 in cthread_body (self=0x8376c50) at /home/sthibaul-guest/hurd-debian/./libthreads/cthreads.c:300
+            t = 0x8376bd8
+    #9  0x00000000 in ?? ()
+    No symbol table info available.
+
+May this simply be an out-of-memory situation where Mach won't / can't satisfy
+libports / libthreads demand?  (Looks like the latter library is currently
+creating a new thread.)  If yes, should the code be prepared for that?  Is it
+perhaps prepared (I did not yet have a look), and re-tries again and again?
+Why doesn't Mach page out some pages to make memory available?
+
+This is stock GNU Mach from Git, no patches, configured for Xen domU usage.
