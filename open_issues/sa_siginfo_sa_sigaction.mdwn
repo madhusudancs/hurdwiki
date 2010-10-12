@@ -1,0 +1,45 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="SA_SIGINFO, SA_SIGACTION"]]
+
+[[!tag open_issue_glibc]]
+
+IRC, #hurd, August / September 2010:
+
+    <giselher> Hy, I came across SA_SIGINFO in cherokee, I have the void sighandler(int num) prototype but how do I add the sa_handler field?
+    <pinotree> if SA_SIGACTION is not defined, then you use sa_handler instead of sa_sigaction, and not add SA_SIGINFO in the sa_flags
+    <giselher> SA_SIGINFO is not defined
+    <pinotree> s/SA_SIGACTION/SA_SIGINFO/ above, yes
+    <giselher> K
+    <giselher> I am not sure if I fully understand this, there is the  line "act.sa_flags = SA_SIGINFO" and how do I have to change that >_>
+    <pinotree> can you paste the source in a pastebin?
+    <giselher> k
+    <giselher> http://archhurd.pastebin.com/N8BCnG6g at line 790
+    <pinotree> something along the lines of http://www.archhurd.pastebin.com/tdpcFD5G
+    <pinotree> note that in the handler the siginfo_t parameter is used, which cannot be done if SA_SIGINFO is not defined
+    <pinotree> (that code still won't compile, yet)
+    <giselher> btw: is there a reason why SA_SIGINFO is not implemented?
+    <giselher> the guildlines only say "It's not implemented"
+    <azeem> 09:43 < azeem> signal stuff is tricky :-/
+    <azeem> basically it was pending on a complete rewrite by Roland, which never occured
+    <youpi> I have an almost complete implementation, just not finished yet
+    <youpi> (only the siginfo part)
+    <azeem> nobody really groked that code for years until youpi showed up, but he added partial support AFAIK, not having much time on his hand
+    <azeem> ah, he's here
+    <azeem> :)
+    <giselher> oh, should I just wait ?
+    <youpi> no
+    <giselher> k
+    <youpi> there are OSes which don't have SA_SIGINFO
+    <youpi> just cope with them: use sa_handler instead of sa_sigaction, and don't set SA_SIGINFO
+    <youpi> (i.e. replace with 0 in your example)
+    <giselher> ok
+    <youpi> when SA_SIGINFO becomes available, it'll just be used
