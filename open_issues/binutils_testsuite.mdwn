@@ -15,7 +15,7 @@ cdf7c161ebd4a934c9e705d33f5247fd52975612 sources, 2010-10-24, run on
 kepler.SCHWINGE and grubber.
 
     $ export LC_ALL=C
-    $ ../master/configure 2>&1 | tee log_build
+    $ ../hurd/configure 2>&1 | tee log_build
     [...]
     $ make SHELL=/bin/bash 2>&1 | tee log_build_
     [...]
@@ -23,22 +23,25 @@ kepler.SCHWINGE and grubber.
 (kepler.SCHWINGE defaults to using /bin/sh for libtool, grubber to /bin/bash;
 thus harmonized.)
 
-Differences between GNU/Linux and GNU/Hurd, both on x86: [[log_build-diff]].
-
-Mask out most differences that are due to GNU/Linux defining `-DTRAD_CORE`,
-`-DHAVE_i386linux_vec` (`-DSELECT_VECS='[...],&i386linux_vec[...]`),
-`-DHAVE_i386pei_vec` (`-DSELECT_VECS='[...],&i386pei_vec[...]`).
+x86 GNU/Linux and GNU/Hurd's configurations are [[slightly
+different|binutils]], thus mask out most of the differences that are due to
+GNU/Linux defining `-DTRAD_CORE`, `-DHAVE_i386linux_vec`
+(`-DSELECT_VECS='[...],&i386linux_vec[...]`), `-DHAVE_i386pei_vec`
+(`-DSELECT_VECS='[...],&i386pei_vec[...]`).
 
     $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/binutils/hurd.build/ && cat log_build* | sed -e "s%${PWD}%[...]%g" -e s%-DTRAD_CORE%% -e s%-DHAVE_i386linux_vec%% -e s%-DHAVE_i386pei_vec%% -e s%-DSELECT_VECS=\\\('\\\''\\\?\\\)\&bfd_elf32_i386_vec,\&i386linux_vec,\&i386pei_vec,\&bfd_elf32_little_generic_vec,\&bfd_elf32_big_generic_vec'\\\''\\\?%-DSELECT_VECS=\\\1\\\&bfd_elf32_i386_vec,\\\&bfd_elf32_little_generic_vec,\\\&bfd_elf32_big_generic_vec\\\1%') <(ssh grubber 'cd tmp/binutils/hurd.build/ && cat log_build* | sed "s%${PWD}%[...]%g"') > open_issues/binutils_testsuite/log_build-diff
+
+[[log_build-diff]].
 
     $ make -k check
     [...]
 
-Comparing the results files, [[sum_linux]] to [[sum_hurd]]:
-
     $ ssh kepler.SCHWINGE 'cd tmp/source/binutils/ && cat hurd.build/*/*.sum hurd.build/*/*/*.sum | sed "s%${PWD}%[...]%g"' > open_issues/binutils_testsuite/sum_linux
     $ ssh grubber 'cd tmp/binutils/ && cat hurd.build/*/*.sum hurd.build/*/*/*.sum | sed "s%${PWD}%[...]%g"' > open_issues/binutils_testsuite/sum_hurd
-    $ diff -u open_issues/binutils_testsuite/sum_linux open_issues/binutils_testsuite/sum_hurd
+
+Comparing the results files, [[sum_linux]] to [[sum_hurd]]:
+
+    $ diff -u -F ^Running open_issues/binutils_testsuite/sum_linux open_issues/binutils_testsuite/sum_hurd
     --- open_issues/binutils_testsuite/sum_linux	2010-10-24 20:33:04.000000000 +0200
     +++ open_issues/binutils_testsuite/sum_hurd	2010-10-24 20:41:53.000000000 +0200
     @@ -1,5 +1,5 @@
