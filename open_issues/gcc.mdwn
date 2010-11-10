@@ -9,7 +9,9 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled
 [[GNU Free Documentation License|/fdl]]."]]"""]]
 
-[[!tag open_issue_porting open_issue_gcc fixed_in_debian]]
+[[!tag open_issue_gcc]]
+
+Includes an older variant of [[boehm-gc]] with own patches, etc.
 
 For GCC trunk:
 
@@ -52,3 +54,65 @@ Additionally:
 
   * Might [`-fsplit-stack`](http://nickclifton.livejournal.com/6889.html) be
     worthwhile w.r.t. our multithreaded libraries?
+
+
+---
+
+<http://gcc.gnu.org/install/configure.html>
+
+  * `--enable-languages=[...]`
+
+    GNAT is not yet ported / bootstrapped?
+
+  * `--enable-frame-pointer`
+
+    `gcc/configure.ac`: `enable_frame_pointer=no`
+
+  * `--with-dwarf2`?
+
+  * `--enable-werror`
+
+  * `--enable-checking`
+
+  * `--enable-build-with-cxx`
+
+  * `--enable-decimal-float`, `--enable-fixed-point`, `--with-long-double-128`
+
+    `configure: WARNING: decimal float is not supported for this target, ignored`
+
+  * `--enable-linker-build-id`
+
+  * `--enable-gnu-unique-object`
+
+  * `--enable-lto`, `--enable-gold`
+
+    [[binutils_gold]]
+
+  * `--enable-indirect-function`
+
+    [[IFUNC]]
+
+---
+
+Here's a log of a GCC build run; this is from
+f07666e1203a50ae445025050b7e12311db6bbd0 (2010-11-04)
+[[sources|source_repositories/gcc]], run on kepler.SCHWINGE and grubber.
+
+    $ export LC_ALL=C
+    $ ../hurd/configure --prefix="$PWD".install 2>&1 | tee log_build
+    [...]
+    $ make SHELL=/bin/bash 2>&1 | tee log_build_
+    [...]
+
+(kepler.SCHWINGE defaults to using /bin/sh, grubber to /bin/bash; thus
+harmonized.)
+
+On grubber, this takes roughly TODO minutes.
+
+    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gcc/hurd.build/ && cat log_build* | sed -e "s%${PWD}%[...]%g"') <(ssh grubber 'cd tmp/gcc/hurd.build/ && cat log_build* | sed "s%${PWD}%[...]%g"') > open_issues/gcc/log_build-diff
+
+[[log_build-diff]].
+
+Build failure in boehm-gc.  [[Working on this|boehm-gc]]; will need to backport
+upstream patches / also have a look at Debian patches, and [[boehm_gc]].  Then
+resume here.
