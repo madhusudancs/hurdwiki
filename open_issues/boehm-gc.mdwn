@@ -14,8 +14,11 @@ License|/fdl]]."]]"""]]
 
 It is used by [[GCC]], for example.
 
-[[tschwinge]] reviewed its GNU/Hurd port / configuration on 2010-11-10,
-based on CVS HEAD sources from 2010-11-04, converted to Git:
+
+# Configuration
+
+[[tschwinge]] reviewed its GNU/Hurd port's configuration on 2010-11-10, based
+on CVS HEAD sources from 2010-11-16, converted to Git:
 9abb37b2e581b415bb1f482085891a289c2c0be1.
 
   * `configure.ac`
@@ -34,53 +37,22 @@ based on CVS HEAD sources from 2010-11-04, converted to Git:
                 keep_back_ptrs=true
                 AC_DEFINE([DBG_HDRS_ALL], 1,
                           [Define to force debug headers on all objects.])
+                case $host in
+                  x86-*-linux* | i586-*-linux* | i686-*-linux* | x86_64-*-linux* )
                     AC_DEFINE(MAKE_BACK_GRAPH)
                     AC_MSG_WARN("Client must not use -fomit-frame-pointer.")
                     AC_DEFINE(SAVE_CALL_COUNT, 8)
+                  ;;
             AM_CONDITIONAL([KEEP_BACK_PTRS], [test x"$keep_back_ptrs" = xtrue])
 
   * `configure.host`
 
     Nothing.
 
-  * `Makefile.am`, `include/include.am`, `cord/cord.am`, `doc/doc.am`
+  * `Makefile.am`, `include/include.am`, `cord/cord.am`, `doc/doc.am`,
+    `tests/tests.am`
 
     Nothing.
-
-  * `tests/tests.am`
-
-        if KEEP_BACK_PTRS
-        TESTS += tracetest$(EXEEXT)
-        check_PROGRAMS += tracetest
-        tracetest_SOURCES = tests/trace_test.c
-        tracetest_LDADD = $(test_ldadd)
-        endif
-        
-        if THREADS
-        TESTS += threadleaktest$(EXEEXT)
-        check_PROGRAMS += threadleaktest
-        threadleaktest_SOURCES = tests/thread_leak_test.c
-        threadleaktest_LDADD = $(test_ldadd)
-        endif
-        
-        if CPLUSPLUS
-        TESTS += test_cpp$(EXEEXT)
-        check_PROGRAMS += test_cpp
-        test_cpp_SOURCES = tests/test_cpp.cc
-        if AVOID_CPP_LIB
-        test_cpp_LDADD = gc_cpp.o $(test_ldadd)
-        else
-        test_cpp_LDADD = libgccpp.la $(test_ldadd)
-        endif
-        endif
-
-  * `doc/README.macros`
-
-    TODO.
-
-  * `doc/porting.html`
-
-    TODO.
 
   * `include/gc_config_macros.h`
 
@@ -205,12 +177,12 @@ based on CVS HEAD sources from 2010-11-04, converted to Git:
                 /* We tried ...                                             */
             #endif
 
-        Being on [[glibc]], we could perhaps do similar as
-        `USE_LIBC_PRIVATES` instead of `HEURISTIC2`.  Pro: avoid
-        `SIGSEGV` (and general fragility) during probing at startup (if
-        I'm understanding this correctly).  Con: rely on glibc internals.
-        Or we instead add support to parse `/proc/` (can even use the
-        same as Linux?), or use some other interface.
+        Being on [[glibc]], we could perhaps do similar as `USE_LIBC_PRIVATES`
+        instead of `HEURISTIC2`.  Pro: avoid `SIGSEGV` (and general fragility)
+        during probing at startup (if I'm understanding this correctly).  Con:
+        rely on glibc internals.  Or we instead add support to parse
+        [[`/proc/`|hurd/translator/procfs]] (can even use the same as Linux?),
+        or use some other interface.  [[!tag open_issue_glibc]]
 
       * `#define SIG_SUSPEND SIGUSR1`, `#define SIG_THR_RESTART SIGUSR2`
 
@@ -221,11 +193,25 @@ based on CVS HEAD sources from 2010-11-04, converted to Git:
 
   * `mach_dep.c`
 
-    TODO.
+      * `#define NO_GETCONTEXT`
+
+        [[!taglink open_issue_glibc]], but this is not a real problem here,
+        because we can use the following GCC internal function without much
+        overhead:
+
+      * `GC_with_callee_saves_pushed`
+
+        The `HAVE_BUILTIN_UNWIND_INIT` case is ours.
 
   * `os_dep.c`
 
-    TODO.
+      * `read`
+
+        Sure that it doesn't internally (in [[glibc]]) use `malloc`.  Probably
+        only / mostly (?) a problem for `--enable-redirect-malloc`
+        configurations?  Linux with threads uses `readv`.
+
+      * TODO.
 
   * `dyn_load.c`
 
@@ -250,9 +236,20 @@ based on CVS HEAD sources from 2010-11-04, converted to Git:
 
         Nothing.
 
----
 
-Other TODOs:
+# Testsuite
+
+There are different configurations possible, but in general, the testsuite
+restults of GNU/Linux and GNU/Hurd look very similar.
+
+## `--enable-cplusplus --enable-gc-debug`
+
+  * GNU/Hurd is missing *Call chain at allocation: [...] output*.
+
+    `os_dep.c`:`GC_print_callers`
+
+
+# TODO
 
   * [[gcc/boehm_gc]]
 
