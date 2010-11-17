@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2008, 2009, 2010 Free Software Foundation,
+[[!meta copyright="Copyright © 2007, 2008, 2009, 2010 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -11,29 +11,46 @@ is included in the section entitled
 
 [[!tag open_issue_gcc]]
 
-Includes an older variant of [[/Boehm_GC]] with own patches, etc.
+Here's what's to be done for maintaining GCC.
 
-For GCC trunk:
-
-Debian package has patches (for 4.3).  Some have been forwarded upstream.  (And
-have been ignored.)  [[Thomas_Schwinge|tschwinge]] is working on getting them
-integrated.
-
-  * [\[meta-bug\] bootstrap bugs for
-    \*-gnu\*](http://gcc.gnu.org/bugzilla/show_bug.cgi?id=21824)
-
-  * [build system: gcc\_cv\_libc\_provides\_ssp and
-    NATIVE\_SYSTEM\_HEADER\_DIR](http://gcc.gnu.org/ml/gcc/2008-10/msg00130.html)
-
-  * [-fstack-protector shouldn't use TLS in freestanding
-    mode](http://gcc.gnu.org/bugzilla/show_bug.cgi?id=29838)
-
-  * [Tool chain configuration: GNU/\* sharing stuff with
-    GNU/Linux](http://gcc.gnu.org/ml/gcc/2007-11/msg00289.html)
+Apart from the target-specific configuration machinery, there shouldn't be any
+major differences within GCC between the GNU/Hurd and GNU/Linux ports, for
+example.  Especially all the compiler magic is all the same.
 
 
+# [[General information|/gcc]]
 
-Additionally:
+
+# [[Sources|source_repositories/gcc]]
+
+
+## Boehm GC
+
+GCC includes an own variant of [[/Boehm_GC]] that is based on an upstream
+version, but with own patches, etc.  This is used for Java.  (There are patches
+(apparently not committed) that GCC itself can use it, too:
+<http://gcc.gnu.org/wiki/Garbage_collection_tuning>.)
+
+Patches to GCC's fork should be contributed back to upstream [[/Boehm_GC]].
+
+[[tschwinge]] reviewed (but only briefly for large parts) the differences on
+2010-11-17, based on 5be7963446247204245c954641290f0e5ce238c6 (2010-10-28) of
+[[source_repositories/GCC]] and for [[source_repositories/Boehm_GC]] CVS HEAD
+sources from 2010-11-16, converted to Git:
+9abb37b2e581b415bb1f482085891a289c2c0be1.
+
+[[tschwinge]] reviewed the Debian GCC Boehm GC changes, compared them to the
+upstream code, and put it into the local *hurd/boehm-gc/config_backport*
+branch, planning to submit it to gcc-patches after testing with the GCC
+[[testsuite]].
+
+
+# Configuration
+
+Last checked against b8ba44e77a9fdde48ce0b7c6792736996704501e (2010-11-17).
+
+<http://gcc.gnu.org/install/configure.html> has documentation for the
+`configure` switches.
 
   * Configure fragments that have `*linux*` cases might/should often contain
     those for us (and GNU/k*BSD) as well.
@@ -50,15 +67,8 @@ Additionally:
 
   * [[`libmudflap`|libmudflap]].
 
-  * [[Boehm_GC]].
-
   * Might [`-fsplit-stack`](http://nickclifton.livejournal.com/6889.html) be
     worthwhile w.r.t. our multithreaded libraries?
-
-
----
-
-<http://gcc.gnu.org/install/configure.html>
 
   * `--enable-languages=[...]`
 
@@ -78,7 +88,8 @@ Additionally:
 
   * `--enable-decimal-float`, `--enable-fixed-point`, `--with-long-double-128`
 
-    `configure: WARNING: decimal float is not supported for this target, ignored`
+    `configure: WARNING: decimal float is not supported for this target,
+    ignored`
 
   * `--enable-linker-build-id`
 
@@ -92,27 +103,24 @@ Additionally:
 
     [[IFUNC]]
 
----
 
-Here's a log of a GCC build run; this is from
-f07666e1203a50ae445025050b7e12311db6bbd0 (2010-11-04)
-[[sources|source_repositories/gcc]], run on kepler.SCHWINGE and grubber.
+# [[Testsuite]]
 
-    $ export LC_ALL=C
-    $ ../hurd/configure --prefix="$PWD".install 2>&1 | tee log_build
-    [...]
-    $ make SHELL=/bin/bash 2>&1 | tee log_build_
-    [...]
 
-(kepler.SCHWINGE defaults to using /bin/sh, grubber to /bin/bash; thus
-harmonized.)
+# TODO
 
-On grubber, this takes roughly TODO minutes.
+Debian's GCC package has Hurd-specific patches.  Some have been forwarded
+upstream (and have been ignored).  [[Thomas_Schwinge|tschwinge]] is working on
+getting them integrated.
 
-    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gcc/hurd.build/ && cat log_build* | sed -e "s%${PWD}%[...]%g"') <(ssh grubber 'cd tmp/gcc/hurd.build/ && cat log_build* | sed "s%${PWD}%[...]%g"') > open_issues/gcc/log_build-diff
+  * [\[meta-bug\] bootstrap bugs for
+    \*-gnu\*](http://gcc.gnu.org/bugzilla/show_bug.cgi?id=21824)
 
-[[log_build-diff]].
+  * [build system: gcc\_cv\_libc\_provides\_ssp and
+    NATIVE\_SYSTEM\_HEADER\_DIR](http://gcc.gnu.org/ml/gcc/2008-10/msg00130.html)
 
-Build failure in Boehm GC.  Working on this; will need to backport
-upstream patches / also have a look at Debian patches, and [[boehm_gc]].  Then
-resume here.
+  * [-fstack-protector shouldn't use TLS in freestanding
+    mode](http://gcc.gnu.org/bugzilla/show_bug.cgi?id=29838)
+
+  * [Tool chain configuration: GNU/\* sharing stuff with
+    GNU/Linux](http://gcc.gnu.org/ml/gcc/2007-11/msg00289.html)
