@@ -23,12 +23,123 @@ fe3e43c5e4ac1225921be12c32dbb48151af1f66 (2010-11-17)
 (kepler.SCHWINGE defaults to using /bin/sh, grubber to /bin/bash; thus
 harmonized.)
 
-On grubber, this takes roughly TODO minutes, and takes up 2.5 GiB.
+On grubber, this takes roughly 27 hours, and takes up 2.5 GiB.
 
-    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gcc/hurd.build/ && cat log_build* | sed -e "s%${PWD}%[...]%g"') <(ssh grubber 'cd tmp/gcc/hurd.build/ && cat log_build* | sed "s%${PWD}%[...]%g"') > open_issues/gcc/log_build-diff
+    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd.build/log_build* | sed -e "s%${PWD}%[...]%g"' | sed -f open_issues/gcc/testsuite/log_build-linux.sed) <(ssh grubber 'cd tmp/gcc/ && cat hurd.build/log_build* | sed "s%${PWD}%[...]%g"' | sed -f open_issues/gcc/testsuite/log_build-hurd.sed) > open_issues/gcc/testsuite/log_build-diff
 
 [[log_build-diff]].
 
-TODO.
+Analysis of most issues:
+
+  * [*checking if gcc static flag -static
+    works... no*|glibc_madvise_vs_static_linking]
+
+  * DFP
+
+        +configure: WARNING: decimal float is not supported for this target, ignored
+
+    ... and later on:
+
+        -checking for decimal floating point... bid
+        +checking for decimal floating point... configure: WARNING: decimal float is not supported for this target, ignored
+        +dpd
+
+    ... and later on:
+
+        -checking whether decimal floating point is supported... yes
+        +checking whether decimal floating point is supported... no
+        +configure: WARNING: decimal float is not supported for this target, ignored
+
+  * `host-linux.c` vs. `host-default.c`
+
+  * *fixincludes* stuff
+
+  * malloc?
+
+        -cat ../../hurd/gcc/config/i386/pmm_malloc.h > mm_malloc.h
+        +cat ../../hurd/gcc/config/i386/gmm_malloc.h > mm_malloc.h
+
+  * *libgomp*
+
+      * `libgomp/config/linux/`, `libgomp/config/linux/x86`
+
+      * `-ftls-model=initial-exec -march=i486 -mtune=i686`
+
+  * `-static` vs. `dlopen`
+
+        -checking whether a statically linked program can dlopen itself... no
+        +checking whether a statically linked program can dlopen itself... yes
+
+  * ISO/IEC TR 24733
+
+        -checking for ISO/IEC TR 24733 ... yes$
+        +checking for ISO/IEC TR 24733 ... no$
+
+  * `basic_file.cc`
+
+        +basic_file.cc: In member function 'std::streamsize std::__basic_file<char>::showmanyc()':
+        +basic_file.cc:344:33: warning: enumeral and non-enumeral type in conditional expression [enabled by default]
+
+  * `libtool: link: ar rc .libs/libstdc++.a [...]`
+
+    Just different order of object files, or another problem?
+
+  * `gcc/gthr-posix.h`
+
+        +In file included from ../.././gcc/gthr-default.h:1:0,
+        +                 from [...]/hurd/libobjc/../gcc/gthr.h:162,
+        +                 from [...]/hurd/libobjc/thr.c:43:
+        +[...]/hurd/libobjc/../gcc/gthr-posix.h: In function '__gthread_objc_thread_set_priority':
+        +[...]/hurd/libobjc/../gcc/gthr-posix.h:384:41: warning: unused parameter 'priority' [-Wunused-parameter]
+
+  * `java-signal.h`, `java-signal-aux.h`
+
+        -config.status: linking ../../../hurd/libjava/include/i386-signal.h to include/java-signal.h
+        -config.status: linking ../../../hurd/libjava/include/i386-signal.h to include/java-signal-aux.h
+        +config.status: linking ../../../hurd/libjava/include/default-signal.h to include/java-signal.h
+        +config.status: linking ../../../hurd/libjava/include/default-signal.h to include/java-signal-aux.h
+
+  * `jni_md.h`
+
+        -checking jni_md.h support... yes
+        +checking jni_md.h support... configure: WARNING: no
+
+  * *default library search path*
+
+        -checking for the default library search path... /lib /usr/lib /lib/i486-linux-gnu /usr/lib/i486-linux-gnu /usr/local/lib 
+        +checking for the default library search path... /lib /usr/lib
+
+  * `./classpath/[...]/*.properties`
+
+    Just different order of files, or another problem?
+
+  * `libjava/gnu/gcj/util/natGCInfo.cc`
+
+        +../../../hurd/libjava/gnu/gcj/util/natGCInfo.cc:440:1: warning: unused parameter 'name' [-Wunused-parameter]
+        +../../../hurd/libjava/gnu/gcj/util/natGCInfo.cc:446:1: warning: unused parameter 'name' [-Wunused-parameter]
+        +../../../hurd/libjava/gnu/gcj/util/natGCInfo.cc:452:1: warning: unused parameter 'name' [-Wunused-parameter]
+  * `gnu/java/net/natPlainSocketImpl.cc`
+
+        +gnu/java/net/natPlainSocketImpl.cc: In member function 'virtual jint gnu::java::net::PlainSocketImpl::available()':
+        +gnu/java/net/natPlainSocketImpl.cc:515:27: warning: enumeral and non-enumeral type in conditional expression [enabled by default]
+
+  * `gnu/java/nio/channels/natFileChannelImpl.cc`
+
+        +gnu/java/nio/channels/natFileChannelImpl.cc: In member function 'jint gnu::java::nio::channels::FileChannelImpl::available()':
+        +gnu/java/nio/channels/natFileChannelImpl.cc:388:20: warning: enumeral and non-enumeral type in conditional expression [enabled by default]
+
+  * `libgcj.la`, `.libs/libgcj.a`
+
+    Just different order of object files, or another problem?
+
+    Is there a pattern that GNU/Hurd hands out the files alphabetically sorted
+    where it wouldn't need to ([[!taglink open_issue_hurd]])?
+
+  * `libjvm.la`, `.libs/libjvm.so`, `libgij.la`, `.libs/libgij.so.12.0.0`
+
+    `-Wl,-Bsymbolic` vs. `-Wl,-Bsymbolic-functions`
 
 <http://gcc.gnu.org/install/test.html>
+
+    $ make SHELL=/bin/bash -k check 2>&1 | tee log_check
+    [...]
