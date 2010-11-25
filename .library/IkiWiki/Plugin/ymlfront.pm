@@ -10,11 +10,11 @@ IkiWiki::Plugin::ymlfront - add YAML-format data to a page
 
 =head1 VERSION
 
-This describes version B<0.03> of IkiWiki::Plugin::ymlfront
+This describes version B<1.20100808> of IkiWiki::Plugin::ymlfront
 
 =cut
 
-our $VERSION = '0.03';
+our $VERSION = '1.20101116';
 
 =head1 PREREQUISITES
 
@@ -50,6 +50,31 @@ sub import {
 					       call=>\&yml_get_value,
 					       first=>1);
 }
+
+# ------------------------------------------------------------
+# Package Vars
+# --------------------------------
+my $ymlfront_regex = qr{
+	    (\\?)		# 1: escape?
+		\[\[(!)		# directive open; 2: prefix
+		(ymlfront)	# 3: command
+		(		# 4: the parameters..
+				\s+	# Must have space if parameters present
+				(?:
+				 (?:[-\w]+=)?		# named parameter key?
+				 (?:
+				  """.*?"""	# triple-quoted value
+				  |
+				  "[^"]*?"	# single-quoted value
+				  |
+				  [^"\s\]]+	# unquoted value
+				 )
+				 \s*			# whitespace or end
+				 # of directive
+				)
+				*)?		# 0 or more parameters
+		\]\]		# directive closed
+	}sx;
 
 # ------------------------------------------------------------
 # Hooks
@@ -300,27 +325,6 @@ sub parse_yml {
     }
     elsif ($content)
     {
-	my $regex = qr{
-	    (\\?)		# 1: escape?
-		\[\[(!)		# directive open; 2: prefix
-		(ymlfront)	# 3: command
-		(		# 4: the parameters..
-				\s+	# Must have space if parameters present
-				(?:
-				 (?:[-\w]+=)?		# named parameter key?
-				 (?:
-				  """.*?"""	# triple-quoted value
-				  |
-				  "[^"]*?"	# single-quoted value
-				  |
-				  [^"\s\]]+	# unquoted value
-				 )
-				 \s*			# whitespace or end
-				 # of directive
-				)
-				*)?		# 0 or more parameters
-		\]\]		# directive closed
-	}sx;
 	my $ystart = $config{ymlfront_delim}[0];
 	my $yend = $config{ymlfront_delim}[1];
 	if ($ystart eq '---'
@@ -335,7 +339,7 @@ sub parse_yml {
 	    $yml_str = $2;
 	    $rest_of_content = $1 . $3;
 	} 
-	elsif ($content =~ /$regex/)
+	elsif ($content =~ $ymlfront_regex)
 	{
 	    my $escape=$1;
 	    my $prefix=$2;
