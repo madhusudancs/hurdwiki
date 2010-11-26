@@ -391,6 +391,10 @@ sub parse_yml {
 		    $content =~ /^(.*?)\[\[!ymlfront.*?\]\](.*?)$/s;
 		    $start_of_content = $1;
 		    $rest_of_content = $2;
+                    # TODO: This breaks if the YAML string itself contains ]].
+                    # Workaround: all [[!ymlfront [...]]] directives shall be
+                    # at the end of the files.
+		    $rest_of_content = '';
 		}
 	    }
 	}
