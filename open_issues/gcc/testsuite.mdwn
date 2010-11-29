@@ -11,11 +11,11 @@ License|/fdl]]."]]"""]]
 [[!tag open_issue_gcc]]
 
 Here's a log of a GCC build run; this is from
-fe3e43c5e4ac1225921be12c32dbb48151af1f66 (2010-11-17)
+1fb531df5602228c903ff640ab6ecac3b8107a1a (2010-11-27)
 [[sources|source_repositories/gcc]], run on kepler.SCHWINGE and grubber.
 
     $ export LC_ALL=C
-    $ ../hurd/configure --prefix="$PWD".install 2>&1 | tee log_build
+    $ ../master/configure --prefix="$PWD".install 2>&1 | tee log_build
     [...]
     $ make SHELL=/bin/bash 2>&1 | tee log_build_
     [...]
@@ -23,9 +23,9 @@ fe3e43c5e4ac1225921be12c32dbb48151af1f66 (2010-11-17)
 (kepler.SCHWINGE defaults to using /bin/sh, grubber to /bin/bash; thus
 harmonized.)
 
-On grubber, this takes roughly 27 hours, and takes up 2.5 GiB.
+On grubber, this needs roughly 24 hours, and takes up around 2.5 GiB.
 
-    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd.build/log_build* | sed -e "s%${PWD}%[...]%g"' | sed -f open_issues/gcc/testsuite/log_build-linux.sed) <(ssh grubber 'cd tmp/gcc/ && cat hurd.build/log_build* | sed "s%${PWD}%[...]%g"' | sed -f open_issues/gcc/testsuite/log_build-hurd.sed) > open_issues/gcc/testsuite/log_build-diff
+    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd/master.build/log_build* | sed -e "s%${PWD}%[...]%g"' | sed -f open_issues/gcc/testsuite/log_build-linux.sed) <(ssh grubber 'cd tmp/gcc/ && cat hurd/master.build/log_build* | sed "s%${PWD}%[...]%g"' | sed -f open_issues/gcc/testsuite/log_build-hurd.sed) > open_issues/gcc/testsuite/log_build-diff
 
 [[log_build-diff]].
 
@@ -72,8 +72,8 @@ Analysis of most issues:
 
   * ISO/IEC TR 24733
 
-        -checking for ISO/IEC TR 24733 ... yes$
-        +checking for ISO/IEC TR 24733 ... no$
+        -checking for ISO/IEC TR 24733 ... yes
+        +checking for ISO/IEC TR 24733 ... no
 
   * `basic_file.cc`
 
@@ -118,6 +118,7 @@ Analysis of most issues:
         +../../../hurd/libjava/gnu/gcj/util/natGCInfo.cc:440:1: warning: unused parameter 'name' [-Wunused-parameter]
         +../../../hurd/libjava/gnu/gcj/util/natGCInfo.cc:446:1: warning: unused parameter 'name' [-Wunused-parameter]
         +../../../hurd/libjava/gnu/gcj/util/natGCInfo.cc:452:1: warning: unused parameter 'name' [-Wunused-parameter]
+
   * `gnu/java/net/natPlainSocketImpl.cc`
 
         +gnu/java/net/natPlainSocketImpl.cc: In member function 'virtual jint gnu::java::net::PlainSocketImpl::available()':
@@ -134,6 +135,11 @@ Analysis of most issues:
 
     Is there a pattern that GNU/Hurd hands out the files alphabetically sorted
     where it wouldn't need to ([[!taglink open_issue_hurd]])?
+
+    Why does the GNU Hurd's `lib_build_` repeatedly contain a long series
+    (several KiB) of NUL (0) characters after the 5319th column in the
+    `/bin/bash ./libtool --tag=CXX --mode=link [...] -o libgcj.la [...]`
+    command line?  Is that only in the log?
 
   * `libjvm.la`, `.libs/libjvm.so`, `libgij.la`, `.libs/libgij.so.12.0.0`
 
