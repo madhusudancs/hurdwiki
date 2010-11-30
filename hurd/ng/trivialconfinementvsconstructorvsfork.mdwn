@@ -34,15 +34,15 @@ This mechanism is targeted at a specific use pattern, namely that a process is c
 # <a name="POSIX_Fork"> </a> POSIX Fork
 
 POSIX fork, or rather fork+exec, is how things are done on many current
-systems. It may be insightful to see it included in the comparison, especially
-for people who are new to the subject. There are two [[system call]]s, fork and
-exec. Fork will create a clone of the current process, including all the
-capabilities (that is, file descriptors) of the parent (except the ones which
-have explicitly been excluded). Exec is a [[system call]] which really goes to
-the filesystem, not the kernel (although on systems which use it, the
-filesystem usually resides in the kernel), and asks it to spawn a new process
-from the contents of a certain path in place of the caller. This passes all
-capabilities to the new process. The procedure is:
+systems.  It may be insightful to see it included in the comparison, especially
+for people who are new to the subject.  There are two [[system call]]s, fork
+and exec.  Fork will create a clone of the current process, including all the
+capabilities (that is, [[unix/file_descriptor]]s) of the parent (except the
+ones which have explicitly been excluded).  Exec is a [[system call]] which
+really goes to the filesystem, not the kernel (although on systems which use
+it, the filesystem usually resides in the kernel), and asks it to spawn a new
+process from the contents of a certain path in place of the caller.  This
+passes all capabilities to the new process.  The procedure is:
 
 * P calls fork(), creating P'.
 * P' drops B.
@@ -62,7 +62,11 @@ In contrast, the other two options don't pass anything by default. If there is a
 
 The problem of fork+exec can be solved. It is if the default would be to not pass capabilities to the new process, but specify a list of capabilities that it should keep, or (like in the other cases) pass them over a new channel which is implicitly created during the fork. However, in that case the only difference with trivial confinement is that P' dies in the process (and thus must be created to prevent P from dying). Almost any use of exec is in practice preceded by a fork for this purpose. It would be easier to make trivial confinement the default operation and let P die directly after it in the rare case that it should.
 
-The only reason for continuing to use fork+exec would be that it is what existing programs do. However, they break anyway if they need to specify which file descriptors to pass. So they need to be adapted. Therefore, it's better to make the usual spawning method the primitive one, and emulate the other.
+The only reason for continuing to use fork+exec would be that it is what
+existing programs do.  However, they break anyway if they need to specify which
+[[unix/file_descriptor]]s to pass.  So they need to be adapted. Therefore, it's
+better to make the usual spawning method the primitive one, and emulate the
+other.
 
 # <a name="Trivial_Confinement_vs_Construct"> Trivial Confinement vs Constructor </a>
 
