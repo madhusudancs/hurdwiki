@@ -10,6 +10,9 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_gcc]]
 
+
+# Build
+
 Here's a log of a GCC build run; this is from our [[Git repository's
 5ac39af7792ba0dc363cc199060faf53dfa9dc1a (2010-12-08)
 sources|source_repositories/gcc]], run on kepler.SCHWINGE and grubber.
@@ -29,7 +32,8 @@ On grubber, this needs roughly 24 hours, and takes up around 2.5 GiB.
 
 [[log_build-diff]].
 
-Analysis of most issues:
+
+## Analysis
 
   * [[`checking if gcc static flag -static
     works... no`|glibc_madvise_vs_static_linking]]
@@ -144,6 +148,33 @@ Analysis of most issues:
   * `libjvm.la`, `.libs/libjvm.so`, `libgij.la`, `.libs/libgij.so.12.0.0`
 
     `-Wl,-Bsymbolic` vs. `-Wl,-Bsymbolic-functions`
+
+
+# Install
+
+    $ make SHELL=/bin/bash install 2>&1 | tee log_install
+    [...]
+
+(kepler.SCHWINGE defaults to using /bin/sh, grubber to /bin/bash; thus
+harmonized.)
+
+On grubber, this needs roughly 15 minutes, and takes up around 0.7 GiB.
+
+    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd/master.build/log_install | sed -e "s%${PWD}%[...]%g" -e "s%i686-pc-linux-gnu%[ARCH]%g"') <(ssh grubber 'cd tmp/gcc/ && cat hurd/master.build/log_install | sed -e "s%${PWD}%[...]%g" -e "s%i686-unknown-gnu0\.3%[ARCH]%g"') > open_issues/gcc/testsuite/log_install-diff
+
+[[log_install-diff]].
+
+
+## Analysis
+
+  * `libtool: finish`: `ldconfig` is not run for the Hurd.
+
+  * `libjvm.la`, `.libs/libjvm.so`, `libgij.la`, `.libs/libgij.so.12.0.0`
+
+    `-Wl,-Bsymbolic` vs. `-Wl,-Bsymbolic-functions` (as above)
+
+
+# Testsuite
 
 <http://gcc.gnu.org/install/test.html>
 
