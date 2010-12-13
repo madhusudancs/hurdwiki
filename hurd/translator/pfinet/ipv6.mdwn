@@ -1,0 +1,57 @@
+[[!meta copyright="Copyright © 2007, 2008, 2010 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+[[Stefan_Siegl|stesie]] has added IPv6 support to the pfinet [[translator]].
+This was [Savannah task #5470](http://savannah.gnu.org/task/?5470).
+
+
+# Implementation
+
+Because the IPv4 and IPv6 protocols are
+quite related to each other (think of mapped IPv4 addresses, etc.), there is no
+separate [[server|translator]] for IPv6 but support for the latter has been
+incorporated into the common pfinet.  Unfortunately it's a little bit clumsy
+now to set the [[translator]] up, since it has to be bound to
+*/servers/socket/2* (like before) as well as */servers/socket/26* (for IPv6).
+
+To achieve this, you can tell pfinet to install [[active_translators|active]]
+on specified nodes, using **-4** and **-6** options.  This is, you have to
+install a [[passive_translator|passive]] on */servers/socket/2* that also binds
+the IPv6 port and vice versa.
+
+
+# Examples
+
+Normal IPv4 network setup, address 192.168.7.23/24 and gateway 192.168.7.1.
+IPv6 address shall be assigned using IPv6 auto-configuration.
+
+    settrans -fgp /servers/socket/2 ↩
+      /hurd/pfinet -6 /servers/socket/26 ↩
+      -i eth0 -a 192.168.7.23 -m 255.255.255.0 -g 192.168.7.1
+    settrans -fgp /servers/socket/26 ↩
+      /hurd/pfinet -4 /servers/socket/2 ↩
+      -i eth0 -a 192.168.7.23 -m 255.255.255.0 -g 192.168.7.1
+
+Quite the same, but with static IPv6 address assignment:
+
+    settrans -fgp /servers/socket/2 ↩
+      /hurd/pfinet -6 /servers/socket/26 ↩
+      -i eth0 -a 192.168.7.23 -m 255.255.255.0 -g 192.168.7.1 ↩
+      -A 2001:4b88:10e4:0:216:3eff:feff:4223/64 -G 2001:4b88:10e4::1
+    settrans -fgp /servers/socket/26 ↩
+      /hurd/pfinet -4 /servers/socket/2 ↩
+      -i eth0 -a 192.168.7.23 -m 255.255.255.0 -g 192.168.7.1 ↩
+      -A 2001:4b88:10e4:0:216:3eff:feff:4223/64 -G 2001:4b88:10e4::1
+
+
+# Missing Functionality
+
+Amongst other things, support for [[IOCTL]]s is missing.

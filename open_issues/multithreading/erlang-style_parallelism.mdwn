@@ -1,0 +1,201 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+IRC, #hurd, 2010-10-05
+
+    <sdschulze> antrik: Erlang-style parallelism might actually be interesting
+      for Hurd translators.
+    <sdschulze> There are certain similarities between Erlang's message boxes
+      and Mach ports.
+    <sdschulze> The problem is that all languages that implement the Erlang
+      actor model are VM-based.
+    <antrik> sdschulze: I guess that's because most systems don't offer this
+      kind of message passing functionality out of the box... perhaps on Hurd
+      it would be possible to implement an Erlang-like language natively?
+    <sdschulze> That would be quite attractive -- having the same API for
+      in-process parallelism and IPC.
+    <sdschulze> But I don't see why Erlang needs a VM...  It could also be
+      implemented in a library.
+    [...]
+    <sdschulze> BTW, Scala doesn't require a VM by design.  Its Erlang
+      implementation is a binary-compatible abstraction to Java.
+    [...]
+    <sdschulze> My point was that Erlang employs some ideas that might be
+      usable in the Hurd libraries.
+    <sdschulze> concerning multithreading stuff
+    <sdschulze> Unfortunately, it will not contribute to readability if done in
+      C.
+    <antrik> perhaps it's worth a look :-)
+    <sdschulze> Actually, a Mach port is pretty close to an Erlang actor.
+    <sdschulze> Currently, your I/O callbacks have to block when they're
+      waiting for something.
+    <sdschulze> What they should do is save the Mach port and respond as soon
+      as they can.
+    <sdschulze> So there should be a return status for "call me later, when I
+      tell you to" in the callbacks.
+    <sdschulze> Then the translator associates the Mach port with the summary
+      of the request in some data structure.
+    <sdschulze> As soon as the data is there, it tells the callback function to
+      appear again and fulfills the request.
+    <sdschulze> That's -- very roughly -- my idea.
+    <sdschulze> Actually, this eliminates the need for multithreading
+      completely.
+    <antrik> sdschulze: not sure whether you are talking about RPC level or
+      libc level here...
+    <sdschulze> It should be transparent to libc.
+    <sdschulze> If the client does a read() that cannot be answered immediatly,
+      it blocks.
+    <sdschulze> The difference is that there is no corresponding blocking
+      thread in the translator.
+    <antrik> ah, so you are talking about the server side only
+    <sdschulze> yes
+    <antrik> you mean the callback functions provided by the translator
+      implementation should return ASAP, and then the dispatcher would call
+      them again somehow
+    <sdschulze> allowing the server to be single-threaded, if desired
+    <sdschulze> exactly
+    <sdschulze> like: call_again (mach_port);
+    <antrik> but if the functions give up control, how does the dispatcher know
+      when they are ready to be activated again? or does it just poll?
+    <sdschulze> The translator knows this.
+    <sdschulze> hm...
+    <antrik> well, we are talking about the internal design of the translator,
+      right?
+    <antrik> I'm not saying it's impossible... but it's a bit tricky
+    <antrik> essentially, the callbacks would have to tell the dispatcher,
+      "call me again when there is an incoming message on this port"
+    <sdschulze> Say we have a filesystem translator.
+    <antrik> (or rather, it probably should actually call a *different*
+      callback when this happens)
+    <sdschulze> The client does a "read(...)".
+    <sdschulze> => A callback is called in the translator.
+    <antrik> let's call it disfs_S_io_read() ;-)
+    <antrik> err... diskfs
+    <sdschulze> The callback returns: SPECIAL_CALL_ME_LATER.
+    <sdschulze> yes, exactly that :)
+    <sdschulze> But before, it saves the position to be read in its internal
+      data structure.
+    <sdschulze> (a sorted tree, whatever)
+    <sdschulze> The main loop steps through the data structure, doing a read()
+      on the underlying translator (might be the disk partition).
+    <sdschulze> "Ah, gotcha, this is what the client with Mach port number 1234
+      wanted!  Call his callback again!"
+    <sdschulze> Then we're back in diskfs_S_io_read() and supply the data.
+    <antrik> so you want to move part of the handling into the main loop? while
+      I'm not fundamentally opposed to that, I'm not sure whether the
+      dispatcher/callback approach used by MIG makes much sense at all in this
+      case...
+    <antrik> my point is that this probably can be generalised. blocking
+      operations (I/O or other) usually wait for a reply message on a port --
+      in this case the port for the underlying store
+    <antrik> so the main loop would just need to wait for a reply message on
+      the port, without really knowing what it means
+    <sdschulze> on what port?
+    <antrik> so disfs_S_io_read() would send a request message to the store;
+      then it would return to the dispatcher, informing it to call
+      diskfs_S_io_read_finish() or something like that when there is a message
+      on the reply port
+    <antrik> main loop would add the reply port to the listening port bucket
+    <antrik> and as soon as the store provides the reply message, the
+      dispatcher would then call diskfs_S_io_read_finish() with the reply
+      message
+    <sdschulze> yes
+    <antrik> this might actually be doable without changes to MIG, and with
+      fairly small changes to libports... though libdiskfs etc. would probably
+      need major rewrites
+    <sdschulze> What made me think about it is that Mach port communication
+      doesn't block per se.
+    <antrik> all this is however ignoring the problem I mentioned yesterdays:
+      we need to handle page faults as well...
+    <sdschulze> It's MIG and POSIX that block.
+    <sdschulze> What about page faults?
+    <antrik> when the translator has some data mapped, instead of doing
+      explicit I/O, blocking can occur on normal memory access
+    <sdschulze> antrik: Well, I've only been talking about the server side so
+      far.
+    <antrik> sdschulze: this *is* the server side
+    <antrik> sdschulze: a filesystem translator can map the underlying store
+      for example
+    <antrik> (in fact that's what the ext2 translator does... which is why we
+      had this 2G partition limit)
+    <sdschulze> antrik: Ah, OK, so in other words, there are requests that it
+      can answer immediatly and others that it can't?
+    <antrik> that's not the issue. the issue is the the ext2 translator doesn't
+      issue explicit blocking io_read() operations on the underlying
+      store. instead, it just copies some of it's own address space from or to
+      the client; and if the page is not in physical memory, blocking occurs
+      during the copy
+    <antrik> so essentially we would need a way to return control to the
+      dispatcher when a page fault occurs
+    <sdschulze> antrik: Ah, so MIG will find the translator unresponsive?  (and
+      then do what?)
+    <antrik> sdschulze: again, this is not really a MIG thing. the main loop is
+      *not* in MIG -- it's provided by the tranlator, usually through libports
+    <sdschulze> OK, but as Mach IPC is asynchronous, a temporarily unresponsive
+      translator won't cause any severe harm?
+    <sdschulze> antrik: "Easy" solution: use a defined number of worker
+      threads.
+    <antrik> sdschulze: well, for most translators it doesn't do any harm if
+      they block. but if we want to accept that, there is no point in doing
+      this continuation stuff at all -- we could just use a single-threaded
+      implementation :-)
+    <sdschulze> Hard solution: do use explicit I/O and invent a
+      read_no_pagefault() call.
+    <antrik> not sure what you mean exactly. what I would consider is something
+      like an exception handler around the copy code
+    <antrik> so if an exception occurs during the copy, control is returned to
+      the dispatcher; and once the pager informs us that the memory is
+      available, the copy is restarted. but this is not exacly simple...
+    <sdschulze> antrik: Ah, right.  If the read() blocks, you haven't gained
+      anything over blocking callbacks.
+    * sdschulze adopted an ML coding style for his C coding...
+    <sdschulze> antrik: Regarding it on the Mach level, all you want to do is
+      some communication on some ports.
+    <sdschulze> antrik: Only Unix's blocking I/O makes you want to use threads.
+    <sdschulze> Unless you have a multicore CPU, there's no good reason why you
+      would *ever* want multithreading.
+    <sdschulze> (except poor software design)
+    <sdschulze> antrik: Is there a reason why not to use io_read?
+    <antrik> sdschulze: I totally agree about multithreading...
+    <antrik> as for not using io_read(): some things are easier and/or more
+      efficient with mapping
+    <antrik> the Mach VM is really the most central part of Mach, and it's
+      greatest innovation...
+    <sdschulze> antrik: If you used explicit I/O, it would at least shift the
+      problem somewhere else...
+    <antrik> sure... but that's a workaround, not a solution
+    <sdschulze> I'm not sure how to deal with page faults then -- I know too
+      little about the Hurd's internal design.
+    <sdschulze> Non-blocking io_read only works if we address the client side,
+      too, BTW.
+    <sdschulze> which would be quite ugly in C IMHO
+    <sdschulze> announce_read (what, to, read, when_ready_callback);
+    <antrik> sdschulze: POSIX knows non-blocking I/O
+    <antrik> never checked how it works though
+    <sdschulze> Yes, but I doubt it does what we want.
+    <antrik> anyways, it's not too hard to do non-blocking io_read(). the
+      problem is that then you have to use MIG stubs directly, not the libc
+      function
+    <sdschulze> And you somehow need to get the answer.
+    <sdschulze> resp. get to know when it's ready
+    <antrik> the Hurd actually comes with a io_request.defs and io_reply.defs
+      by default. you just need to use them.
+    <sdschulze> oh, ok
+    <antrik> (instead of the usual io.defs, which does a blocking send/receive
+      in one step)
+    <sdschulze> I'd be interested how this works in Linux...
+    <antrik> what exactly?
+    <sdschulze> simultaneous requests on one FS
+    <antrik> ah, you mean the internal threading model of Linux? no idea
+    <sdschulze> if it uses threading at all
+    <antrik> youpi probably knows... and some others might as well
+    <sdschulze> Callbacks are still ugly...

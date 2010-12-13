@@ -1,0 +1,191 @@
+# <a name="Remote_Debug_GNUmach"> </a> Remote Debug GNUmach
+
+# <a name="Booting_oskit_mach_with_a_serial"> Booting oskit-mach with a serial console </a>
+
+**Original Author:** Igor Khavkine  **Last Updated:** Mon Jul 30 17:58:55 EDT 2001
+
+----
+
+## <a name="Introduction"> Introduction </a>
+
+This document now has a wider audience. The OSKit branch of GNUmach has been merged with the main branch, HEAD. Please note that the instructions here are not tested with the latest stable release, GNUmach 1.3.
+
+Here you will find out how to access, build, bootstrap and debug the latest CVS version of the GNUmach kernel (the OSKit based 2.x series of GNUmach).
+
+## <a name="Why_"> Why? </a>
+
+Because it's covenient. If you have a second computer, but not a second monitor or keyboard, you can connect your second box to your main one using null-modem serial cables. Once that is done, you can configure the GRUB bootloader to use the serial port when starting up and boot [GNUmach](http://savannah.gnu.org/cgi-bin/viewcvs/hurd/gnumach/?only_with_tag=HEAD) (a.k.a [[OskitMach]]) without having to switch monitor cables or type blindly at a second keyboard.
+
+Also, [[OskitMach]] supports the GDB remote debugging protocol over a serial line. This way it is now possible to debug the running kernel relatively unobtrusively, because the debugger will not be running on the same machine.
+
+## <a name="How_"> How? </a>
+
+First you need some equipment: two computers, each one should have at least one (two is preferable) free serial port(s) and one (or two) null-modem serial cable(s).
+
+While developing the kernel it might also be a good idea to use grub to get the Mach kernel via tftp from the same server you do the remote debugging and building on. This way you don't need to reboot the target to copy or build a new kernel on its hard drive. See the [[AdvancedGrubUsage]] document for more information on this.
+
+Last you need to follow the instructions given below.
+
+1. The first step is to the get source for oskit-mach and OSKit.
+    Currently the [St. Patrick's day release](ftp://flux.cs.utah.edu/flux/oskit/oskit-20020317.tar.gz), 2002-03-17, of the OSKit is the latest. Get the sources and compile them yourself, compile OSKit with debugging symbols if that is what you need. If you encounter errors while compiling, try removing anything that has to do with `unix` or `examples` from the file `modules.x86.pc`.
+    Then you need to get the sources for oskit-mach version of the GNU Mach kernel, available from the GNU CVS repository[3]. Previously you needed to check out the `gnumach` module with the flag `-roskit-branch`. Today the 2.0 branch of GNU Mach resides on the HEAD branch, so you don't have to provide any specifc branch information to get the correct version. Use the update command with `-rHEAD` to move from the oskit-branch to the HEAD branch.
+    Again now is your chance to compile oskit-mach with debugging symbols.
+    (More detailed instructions can be found in [[BuildingOskitMach]].)
+2. Now you need to setup GRUB on your second box so it accepts input from a serial port while booting up. This is simple to do by adding the following lines to your `menu.lst` file, before any of the menu entries:
+          serial --unit=0 --speed=9600
+          terminal serial
+    Unit refers to the serial port you wish to use (0 is COM1), and speed is optional. For more information see the GRUB documentation.
+3. You need to make sure that your main box has the necessary utilities to communicate with your second box over a serial line. You can use a terminal emulator like _minicom_(1), _seyon_(1), _tip_(1), or a simple serial communication program _cu_(1) which comes with the GNU uucp package. Or if you feel really lazy you can use this hack:
+          stty raw
+          cat > /dev/ttyS1 # in one terminal window
+          cat /dev/ttyS1   # in a second terminal window
+4. Now you have to make sure your computer has an at least partially setup Hurd partition. You can find instructions how to do that here [4,5]. Copy the oskit-mach kernel binary compressed with gzip to `/boot/oskit-mach.gz` and use the following command line[1] to boot it from GRUB:
+      kernel /boot/oskit-mach.gz -h CONS_COM=1 -d GDB_COM=2 BAUD=9600 root=device:hd0s2 --
+<dl>
+  <p>
+  </p>
+  <dt><tt>-h</tt></dt>
+  <dd>use serial console:<ul>
+      <li><tt>CONS_COM=1</tt> (COM1)</li>
+      <li><tt>CONS_COM=2</tt> (COM2)</li>
+      <li><tt>CONS_COM=3</tt> (COM3)</li>
+      <li><tt>CONS_COM=4</tt> (COM4)</li>
+    </ul>
+  </dd>
+  <p>
+  </p>
+  <dt><tt>-d</tt></dt>
+  <dd>enable serial port debugging, optional</dd>
+  <p>
+  </p>
+  <dt><tt>GDB_COM=2</tt></dt>
+  <dd>use a different port other then <tt>CONS_COM</tt>, default is to use the same as <tt>CONS_COM</tt></dd>
+  <p>
+  </p>
+  <dt><tt>BAUD=9600</tt></dt>
+  <dd>use this baud rate, optional, default is 9600</dd>
+  <p>
+  </p>
+  <dt><tt>--</tt></dt>
+  <dd>delimits the arguments passed to the oskit from those to the kernel</dd>
+  <p>
+  </p>
+  <dt><tt>root=device:hd0s2</tt></dt>
+  <dd>tell gnumach which is your root partition, in this case it's <tt>hd0s2</tt></dd>
+  <p>
+  </p>
+</dl>
+5. Now I suggest that you familiarize yourself with [the GDB documentation](http://vmlinux.org/doc/gdb/), especially on remote debugging. If you pass the `-d` boot flag to oskit-mach, then it will automatically insert a breakpoint at main() and wait for further instructions from GDB over the serial line. Here's a simple example of how to attach GDB to a remote target over a serial line:
+          $ script # record the debugging session
+          $ gdb # assume you're in the oskit-mach build dir.
+          (gdb) file kernel
+          (gdb) set remotebaud 9600
+          (gdb) target remote /dev/ttyS1
+             [...gdb attached, blah, blah, blah...]
+          (gdb) break panic
+          (gdb) continue
+          (gdb) continue
+             [...]
+          (gdb) quit
+          $ ^D # finish recording the session
+    This way you can catch any kernel panics (except for the really nasty ones and try to debug them).
+    I've noticed that once Mach is running under GDB, pressing C-c from GDB will not suspend it, this makes it hard to set additional breakpoints after the kernel is running. So optionally you can modify Mach to add a dummy system call that will be used only for setting breakpoints, and make a small program that calls it, you can use it whenever you want to pause the kernel and examine something under GDB. An example of how to do this is attached in Appendix A.
+
+TODO: OSKit overrides interrupts 1 and 3 in kern/x86/gate\_init.c:gate\_init. A patch that skips src-&gt;vector `= 1 || =` 3 have to be prepared and attached to this page. More robust solution is to make OSKit/GNUMach recognize when it's debugged and change vector table accordingly.
+
+Now you're all set to do some serious kernel hacking. I hope more people will take advantage of this opportunity.
+
+## <a name="Appendix_A"> Appendix A </a>
+
+TODO: Move inline diff and code into 2 attached files: one for patching GNU Mach, and one for gdb-break.c.
+
+Apply this patch to oskit-mach to add a dummy system call:
+
+    --- gdb-stub.diff ---
+    Index: kern/syscall_sw.c
+    ===================================================================
+    RCS file: /cvs/gnumach/kern/syscall_sw.c,v
+    retrieving revision 1.1.1.1.2.2
+    diff -u -r1.1.1.1.2.2 syscall_sw.c
+    --- kern/syscall_sw.c   2001/04/05 06:52:47   1.1.1.1.2.2
+    +++ kern/syscall_sw.c   2001/07/30 21:45:14
+    @@ -98,6 +98,8 @@
+     extern kern_return_t   syscall_fipc_recv();
+     #endif /* FIPC */
+
+    +/*XXX*/extern kern_return_t gdb_break_stub ();
+    +
+     mach_trap_t   mach_trap_table[] = {
+        MACH_TRAP(kern_invalid, 0),      /* 0 */      /* Unix */
+        MACH_TRAP(kern_invalid, 0),      /* 1 */      /* Unix */
+    @@ -283,7 +285,14 @@
+        MACH_TRAP(kern_invalid, 0),      /* 126 */
+        MACH_TRAP(kern_invalid, 0),      /* 127 */
+        MACH_TRAP(kern_invalid, 0),      /* 128 */
+    -   MACH_TRAP(kern_invalid, 0),      /* 129 */
+    +   MACH_TRAP(gdb_break_stub, 1),      /* 129 */
+     };
+
+    +volatile int gdb_break_stub (void *addr) /*XXX*/
+    +{
+    +   void *dummy;
+    +   dummy = addr;
+    +   return 0;
+    +}
+    +
+     int   mach_trap_count = (sizeof(mach_trap_table) / sizeof(mach_trap_table[0]));
+    --- end ---
+
+When starting an oskit-mach debug session with GDB set a break point at `gdb_break_stub`. Then use this program to invoke the system call when desired:
+
+    --- gdb-break.c ---
+    /* Compile with: gcc -o gdb-break gdb-break.c gdb-break-stub.S */
+
+    #include <mach.h>
+
+    #include <stdio.h>
+    #include <string.h>
+
+    extern int gdb_break_stub (void *addr);
+
+    int main ()
+    {
+       kern_return_t err;
+
+       err = gdb_break_stub (&main);
+       printf ("result from syscall: %s\n", strerror(err));
+
+       return 0;
+    }
+    --- end ---
+    --- gdb-break-stub.S ---
+    #include <mach/syscall_sw.h>
+
+    kernel_trap(gdb_break_stub,-129,1)
+    --- end ---
+
+## <a name="References"> References </a>
+
+* [1] OSKit documentation, section 1.6.3.
+* [2] <http://www.cs.utah.edu/flux/oskit/>
+* [3] <http://www.gnu.org/software/devel.html>
+* [4] <http://www.walfield.org/papers/hurd-installation-guide/>
+* [5] <http://www.pick.ucam.org/~mcv21/hurd.html>
+
+     vim:ts=8:tw=72:sw=8:
+
+----
+
+This HowTo is (C) Copyright 2001 Igor Khavkine.
+
+Minor additions and grammatical fixups by [[JoachimNilsson]].
+
+-- [[Main/JoachimNilsson]] - 14 May 2002
+
+Additions on booting GNU Mach via TFTP
+
+-- [[Main/JoachimNilsson]] - 13 Jun 2002
+
+Text formatting.
+
+-- [[Main/OgnyanKulev]] - 16 Dec 2002

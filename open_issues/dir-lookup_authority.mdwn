@@ -1,0 +1,68 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+IRC, unknown channel, unknown date.
+
+    <cfhammar> I have discovered a bug in the dir-lookup protocol though
+    <cfhammar> Currently, I'm investigating the bug a bit further
+    <cfhammar> when doing dir-lookups with several path components, the look-up is done with the authority of the user who opened the directory, as opposed to the user doing the lookup
+    <cfhammar> e.g, consider foo/bar/baz, where bar can only be used by its owner and foo and baz are world readable
+    <cfhammar> if foo is opened, then transferred to another user, he can open baz, which he shouldn't be able to
+    <cfhammar> this is possible where foo/bar/baz is within a single translator, and the lookup is done in a single dir-lookup
+    <antrik> cfhammar: I'm not sure this is a bug
+    <cfhammar> I have a test case that triggers the bug, and another that doesn't which currently confuses me
+    <antrik> cfhammar: it's probably not very usual to pass around open directory ports; but if somebody does it, it's probably actually desired that it keeps the authority
+    <antrik> it's kinda consistent with passing normal FDs
+    <cfhammar> antrik: it should only allow accesses to entries not sub-entries
+    <cfhammar> antrik: it isn't allowed in Linux atleast, and I'm guessing it's mandated by posix
+    <cfhammar> also note that a more common scenario is a process that opens a directory and then drops authority
+    <cfhammar> probably more common, that is
+    <antrik> cfhammar: I'm not really familiar with directory access functions... I wasn't even aware that it's possible to pass around directory FDs
+    <antrik> but if it is, it would indeed be good to know what POSIX says about this
+    <antrik> cfhammar: I don't see how this is related?...
+    <cfhammar> antrik: after the process has dropped authority it can still make lookups in directories that it should no longer be able to
+    <antrik> cfhammar: interesting point...
+    <antrik> cfhammar: do you think this is fixable?
+    <cfhammar> antrik: Not without (defacto) changing the interface
+    <cfhammar> e.g only looking up a singe path component at a time
+    <cfhammar> or doing the auth check lazily on io_reauthenticate
+    <antrik> cfhammar: yeah, obviously it's not possible without an API change. I just wonder whether it's possible without throwing the current auth/lookup mechanism overboard alltogether...
+    <cfhammar> antrik: both my solutions are only minor changes to the API, but fairly major in the sense that we need to change all callers :-(
+    <cfhammar> diskfs_S_dir_lookup is a very large function, for example
+    <antrik> cfhammar: OK
+    <antrik> cfhammar: I wonder whether there is a possible transition path without breaking all existing installations...
+    <cfhammar> we could provide a new RPC while supporting the old one
+    <cfhammar> note that changing fs.defs only affects glibc and the Hurd, normal apps should be fine
+    <antrik> cfhammar: have you posted your findings to the ML yet?
+    <cfhammar> No, I'm still investigating why my second test-case doesn't trigger the bug
+    <cfhammar> Intrestingly it's the one using all POSIX functions...
+    <cfhammar> Perhaps its a bug that maskes the lookup bug ;-)
+    <antrik> I guess there is some quirk which you do not fully understand yet :-)
+    <cfhammar> Oh, there's always a new quirk to find in the Hurd :-)
+    <cfhammar> antrik: seems that dir_lookup isn't buggy after all
+    <cfhammar> antrik: as all FDs are reauthenticated on setauth
+    <antrik> ah
+    <cfhammar> antrik: and (presumably) ports are unauthenticated and reauthenticated when transfered
+    <antrik> yeah, that's the idea behind the auth protocol...
+    <antrik> users obtain specific capabilities by authenticating generic ports against their own ID
+    <cfhammar> I didn't really have a coherent view on how open flags are handled on reauth
+    <cfhammar> it seems open flags always win, so that a O_READ port that is unauthed is still readable
+    <antrik> not sure what you mean
+    <cfhammar> if I open a file to read it, then reauth it with a user that isn't permitted to read it, I can still read from it
+    <cfhammar> (as it should be)
+    <cfhammar> by contrast permission to do lookups in a directory is determined by who authed it
+    <cfhammar> so I won't be able to do lookups after a reauth, if it's not permitted by the file bits
+    <youpi> Mmm, openat should however be able to
+    <youpi> since you've first opened the directory with the auth
+    <cfhammar> it isn't since open FDs are reauthed on setauth
+    <cfhammar> not sure whether it should though, Linux behaves the same way atleast
+    <cfhammar> though it could be done with POSIX.2008's O_SEARCH open flag

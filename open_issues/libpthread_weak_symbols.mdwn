@@ -1,0 +1,50 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_glibc open_issue_libpthread]]
+
+IRC, unknown channel, unknown date.
+
+    <youpi> btw, the issue with pthread_cancel is tricky
+    <youpi> I'm afraid there might be no fix
+    <youpi> clean fix, I mean
+    <pinotree> oh, hm
+    <pinotree> where it the problem located, actually?
+    <youpi> it's a lot more than just one place
+    <youpi> in some c++ header there is a weak reference to pthread_cancel
+    <youpi> libpthreadstubs0 provides a weak definition of pthread_cancel, which can suit well
+    <youpi> problem comes when also linking with a library which pulls libpthread
+    <youpi> oops no libpthreadstubs0 doesn't provide a weak definition of pthread_cancel
+    <youpi> it couldn't implement it anyway
+    <youpi> and the problem here is that the linker seems to be looking for pthread_cancel in the libpthreadstubs0 library, not libpthread
+    <youpi> and can't find it
+    <youpi> I don't know how this translate to english, but we're “walking on eggs
+    <youpi> ” on this issue
+    <pinotree> i see
+    <youpi> i.e. we already know we're not respecting the ELF standard
+    <youpi> we need a feature that is not in the standard to make pthread symbols working
+    <youpi> the solution would be to integrate libpthread into the glibc
+    <pinotree> you mean in the sources, but still providing separate libc.so and libpthread.so?
+    <youpi> yes
+    <pinotree> would that be difficult/tricky?
+    <youpi> because that permits to put pthread_* functions forwarding directly in the glibc, as is done on linux
+    <youpi> problem is upstream, you know...
+    <youpi> if we put libpthread there, it'll be difficult for us to maintain it
+    <pinotree> ah, the friendly ulrich mate?
+    <youpi> we already have difficults to get almost trivial patches commited
+    <youpi> and the "yes I'll handle it someday" Roland mate
+    <youpi> Roland is supposed to be the GNU part maintainer, but he doesn't have a box running at the moment
+    <youpi> what we could do is to do it in Debian for the moment
+    <pinotree> yeah
+    <pinotree> iirc eglibc is maintained within git, isn't it?
+    <pinotree> maybe you could do a hurd branch, putting all the hurd patches and the pthread sources, and then releasing from that
+    <youpi> we're already moving to something like that, yes
+    <youpi> at least for all the other glibc patches we have
+    <youpi> maybe we'll just do that on sourceware actually

@@ -1,0 +1,766 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="Details on implementing libcap"]]
+
+
+This is the proposal submitted by David Hedberg for GSoC 2010 (who opted
+to go with another mentoring organization), adapted from an initial
+proposal and several amendments into a single document, but the idea
+is to further adapt it to a more neutral design document over time.
+
+
+# The proposal
+
+### Quick description of POSIX capabilities
+
+The original suggestion can be found [[here|libcap]].
+POSIX capabilities never actually entered the POSIX standard but was
+left as a draft.  Linux has nevertheless implemented this draft, and
+there are reasons for doing the same in the Hurd - a more fine grained
+control of rights leading to increased security being one of them.
+
+POSIX capabilities are give on a per-process basis, and basically allows
+splitting up those rights usually granted to root into smaller and more
+specific rights.  Examples of capabilities are CAP_CHOWN and CAP_KILL,
+overriding certain restrictions on chown and allowing the process to
+kill processes with different UID's, respectively.
+
+Each process is given three sets with capabilities: the Permitted set
+(P), the Effective set (E) and the Inheritable set (I).  The effective
+set contains the capabilities that are currently active.  The permitted
+set contains the capabilities that the process has the right to use.
+The inheritable set contains the capabilities that can be inherited
+by children to the process.  A process can drop capabilities from its
+permitted set, but not set them.  The effective set and the inheritable
+set can be changed freely as long as they stay subsets of the permitted
+set.
+
+Capabilities can also be set on executables.  When executed, the resulting
+process is given the capabilities both as defined by the parent process
+and by the capabilities set on the file (formula below), resulting in
+what might be explained as a fine-grained setuid.  Implementing this
+requires support for *xattr* or similar.
+
+Some applications that are currently using capabilities are samba, ntp,
+vsftp, pure-ftpd, proftpd, squid, asterisk and dovecot.
+
+
+### A quick description of capabilities in Linux
+
+Each process has a three bit fields representing each of the three
+sets (P, E and I).  Each bit field is currently built up of two (32
+bit) integers to be able to hold the 33 currently defined capabilities
+(see linux/capability.h).  Each process further has a bounding set which
+bounds the permitted set.  Two [[system call]]s handles the setting and getting
+of capabilities; *capset* and *capget*.  Some related functionality
+can also be controlled by calling *prctl*: the right to read/drop the
+bounding capabilities (PR_CAPBSET_READ/PR_CAPBSET_DROP) and whether
+or not the process should keep its capabilities when a change is made
+to the threads UID's (PR_SET_KEEPCAPS/PR_GET_KEEPCAPS).  User space
+applications are expected(recommended?) to use libcap to take advantage
+of the functionality provided.  Some applications also use libcap-ng
+which is "intended to make programming with POSIX capabilities much
+easier than  the traditional libcap library".  Most applications seem
+to be using the original libcap, however.
+
+
+## Implementing libcap
+
+The exercise for this assignment was to get the libcap used in
+Linux to compile under the Hurd.  This was accomplished using the
+latest git version of libcap from (..), corresponding to libcap
+2.19.  The changes were simple and amounted to simply removing the
+dependency on some Linux-specific headers and creating stubs for
+capset, capget and prctl described above.  This suggests that porting
+this library to the Hurd once the proper functionality is in place
+could be relatively simple.  The patch is available
+[here](https://alioth.debian.org/tracker/index.php?func=detail&aid=312442&amp;group_id=30628&atid=410472 "Alioth").
+One could also consider implementing the three missing functions in the
+Hurd (or Hurd glibc) which would allow the usage of the Linux libcap
+without modifications.  As the Linux libcap maintainer might or might
+not be interested in making libcap multi platform, this approach might
+be preferable.
+
+
+## Implementing POSIX capabilities in the Hurd
+
+As I am still reading up on how things fit together in the Hurd this is
+very likely to contain some misunderstandings and be at least partly off
+the mark.  I intend to have grasped this by the time I start working on
+it however, if I were to be given the chance.  Below are two possible
+approaches as I have understood them after some reading and discussions
+on #hurd@freenode.
+
+
+### The basics, Approach 1: Special UID's
+
+Let each capability be represented by a specific UID.  One could imagine
+reserving a range of the possible uid_t's for this purpose.  The euids
+vector in the authhandle struct could perhaps hold the effective set while
+the auids vector could hold the permitted set as these seem to roughly
+correspond to eachother in intent.  This leaves the Inheritable set.
+One solution could be to store the inheritable set in the agids vector,
+but that does not seem to be a very natural nor nice solution.  One could
+extend the authhandle struct with an additional vector, but one would then
+need to also extend the auth interface with RPC's to be able to modify
+and access it.  Another possibility is to store all the capabilities
+in the same idvec and use separate defines for the the different sets
+(CAP_P_CHMOD, CAP_E_CHMOD, CAP_I_CHMOD).  This does not seem like a
+good solution.
+
+Storing each capability in its own uid_t might also arguably be somewhat
+wasteful, although this is probably of secondary concern (if at all).
+One could also imagine that legacy applications might be confused,
+although I am not sure I can see any obvious problems.  What happens
+when a process have only capability id's?
+
+
+### The basics, Approach 2: Extend the auth interface
+
+This approach would expand the auth interface and extend
+the auth server with another set of RPC's for capabilities
+(*auth_getcaps*, *auth_makecaps*, *auth_user_authenticate* and
+*auth_server_authenticate*), mirroring those currently declared for id's.
+This would obviously require changes to more parts of the Hurd for
+processes to be able to take advantage of capabilities, but as the logic
+behind handling capabilities and that behind handling user id's might
+not be completely comparable, this might make for a cleaner solution.
+It would also remove the problem of having to sensibly map all the
+three capability sets onto semantically differing sets of user/group
+ids, something that might be even more important if we were to also
+implement something like the bounding sets used in Linux or perhaps
+other related functionality.  We are also not limited to having to store
+the capabilities as id vectors, although doing so would perhaps still
+make sense.
+
+
+### The individual capabilities
+
+Implementing the individual capabilities will probably have to be thought
+of on a case-by-case basis.  Taking chown (in *libdiskfs*) as an example,
+the exact approach would differ slightly depending on how the approach
+taken to implement capabilities.  If the first approach were to be taken,
+the UID's (and thus the capabilities) of the caller would already be
+available to the function through the *iouser* struct contained in the
+*protid* struct given as the first argument.  Implementing capabilities
+would then simply be a matter of checking for the special UID's.  If the
+second approach were to be taken, one would need to perhaps expand the
+iouser struct to contain information about the capabilities.
+
+Just like Linux has defined many Linux-specific capabilities - some of
+which could certainly be useful also applied to the Hurd - one could
+also imagine extending the POSIX capability system also for Hurd specific
+purposes.
+
+
+## Some applications using capabilities
+
+#### Samba 3
+
+Uses CAP_MKNOD and CAP_LEASE in smbd to only keep the necessary abilities.
+Documentation mentions CAP_LINUX_IMMUTABLE as a way to protect files
+from being deleted.  Can also use a couple of IRIX specific capabilities
+(CAP_NETWORK_MGT and CAP_DEVICE_MGT) as alternatives to the Linux-specific
+ones if running on IRIX.
+
+
+#### ntpd
+
+Checks if capabilities are supported, more precisely if CAP_SYS_TIME,
+CAP_SETUID, CAP_SETGID, CAP_SYS_CHROOT and CAP_NET_BIND_SERVICE are
+supported.  If they are supported, it uses prctl with PR_SET_KEEPCAPS
+to keep privileges across setuid() and then drops root.  After done with
+CAP_SETUID, CAP_SETGID, CAP_SYS_CHROOT it drops every capability except
+CAP_SYS_TIME and, if needed, CAP_NET_BIND_SERVICE.
+
+
+#### vsftpd
+
+Uses CAP_CHOWN, CAP_NET_BIND_SERVICE when using the "one process"
+security model (typically disabled by default).
+
+
+#### proftpd-basic
+
+Provides support for capabilities from mod_cap.  Uses CAP_USE_CHOWN,
+CAP_USE_DAC_OVERRIDE, CAP_USE_DAC_READ_SEARCH and CAP_USE_AUDIT_WRITE.
+Distribution contains README.capabilities with some explanations.
+Also ships with their own libcap for some reason, based on libcap 1.10.
+
+
+#### dovecot
+
+Keeps CAP_CHOWN, CAP_SYS_CHROOT, CAP_SETUID, CAP_SETGID,
+CAP_NET_BIND_SERVICE, CAP_DAC_OVERRIDE for proper operations, drops
+the rest.
+
+
+#### bind9
+
+Reasons for each capability are clearly noted in comments in update.c
+in linux_initialprivs() and linux_minprivs().  initialprivs drops all
+capabilities and proceeds to set CAP_NET_BIND_SERVICE, CAP_SYS_CHROOT,
+CAP_SETUID, CAP_SETGID, CAP_DAC_READ_SEARCH and CAP_CHOWN.  minprivs only
+sets CAP_NET_BIND_SERVICE and CAP_SYS_RESOURCE.
+
+
+#### pulseaudio
+
+Mentions CAP_NICE (CAP_SYS_NICE), but does not appear to be using it
+(anymore?).  Seems to use libcap to drop caps, however.
+
+
+#### pinentry
+
+Checks if CAP_IPC_LOCK is available and "uses it" to gain only the
+ability to lock memory when needed.
+
+
+#### zsh
+
+Comes with a module "caps" which contains "[b]uiltins for manipulating
+POSIX.1e (POSIX.6) capability (privilege) sets." Most useful here is the
+"cap" builtin, which makes it possible to change the shell's process
+capability sets.  This might be useful for testing.
+
+
+#### inetutils (ping,traceroute)
+
+Does not use capabilities explicitly, but is nevertheless a useful
+example of how file capabilities could be used.  ping and traceroute
+are currently installed suid root since they need to be able to open
+raw sockets.  With file capabilities, this could be accomplished by
+instead setting the capability CAP_NET_RAW on the two executables,
+thus giving the utilities almost only the specific rights they need.
+
+
+## The capabilities
+
+The above might give some hint as to what capabilities should be
+prioritized.  One assumption I have made is that the goal of this project
+is to implement, as far as possible, the same functionality as what is
+present in Linux.  No effort has (so far) been made to look into possible
+applications specific to the Hurd.
+
+A few of the above mentioned applications also explicitly uses
+PR_SET_KEEPCAPS (through prctl()) to specify that capabilities should
+be passed on to children.  This means that the implementation in the
+Hurd should take this into account.
+
+I have below done a preliminary classification of the capabilities
+as defined in Linux capability.h into four "classes": Network, File
+management, "glibc -> mach" and Other.  There are also some capabilities
+that either depend on functionality not implemented or are too Linux
+specific.  I have not described each capability in detail as looking
+at the comments in capability.h and reading in capabilities(7) are
+better sources.
+
+
+### The Networking Class
+
+These would mostly affect pfinet.  The general picture seem to be that
+pfinet currently uses a boolean (int) isroot in struct sock_user to keep
+track of the credentials of the caller.  This would need to be expanded
+somehow to keep track of the separate capabilities.
+
+CAP_NET_BIND_SERVICE: Allow binding to TCP/UDP sockets below 1024  
+CAP_NET_RAW: Allow use of RAW and PACKET sockets.  
+CAP_NET_BROADCAST: "Allow broadcasting, listen to multicast"  
+CAP_NET_ADMIN: This seem to be a bit of a "catch-all" for network-related
+administration.  
+
+
+### The Files Management Class
+
+The description of CAP_CHOWN in the original proposal should apply to
+(most of?) these.  That is, modify the iouser struct.  At least libdiskfs
+should be modified, but the same or similar modifications might need to
+be made to several servers (libnetfs..? The actual servers implementing
+the filesystem?)
+
+CAP_CHOWN: "Make arbitrary changes to file UIDs and GIDs"  
+CAP_FOWNER: allow chmod, utime, ..  for files not owned.  
+CAP_FSETID: Don't clear setuid/setgid when a file is modified.  
+CAP_DAC_OVERRIDE and  
+CAP_DAC_READ_SEARCH: Bypasses file/directory read/write/execute permission
+checks.  ( hurdexec.c, file-access.c, ..  ? )  
+CAP_MKNOD: allows usage of "the privileged aspects of mknod()".  Does this
+one make sense in the Hurd?  
+
+
+### The (glibc -> gnumach) Class
+
+These seem to be implemented in glibc by direct calls to gnumach.
+If they should be implemented, maybe a proxy in the Hurd is needed?
+
+CAP_SYS_TIME: manipulate the system clock, set real-time clock.  
+CAP_IPC_LOCK: mlock, mlockall, mmap, shmctl  
+CAP_KILL: No permission checks for killing processes  
+CAP_SYS_NICE: setpriority/getpriority for arbitrary processes.  
+
+
+### The Rest Class
+
+CAP_SYS_CHROOT: Allows usage of chroot().  
+It's either really simple (not needed in the case of the Hurd) or really
+difficult.  Needs some figuring out.  One of the calls that should be
+high-priority.  
+CAP_SYS_ADMIN: General administration rights.  Seemingly sprinkled out
+into just about everything.  Quick grep through the Linux sources gives
+440 hits in .c-files.  
+CAP_SYS_BOOT: Allow use of reboot().  
+glibc calls init:startup_reboot..    
+CAP_SETGID: Allows usage of setgid,setgroups and "forged gids on socket
+credentials passing"  
+CAP_SETUID: Allows usage of set*uid and "forged pids on socket credentials
+passing"  
+CAP_SYS_TTY_CONFIG: vhangup, some other places.  vhangup() is a stub in
+the Hurd, but maybe the console server is otherwise affected?  
+CAP_SYS_RESOURCE: Override various limits.  (quota, reserved space etc.
+on ext2, interrupt frequencies, consoles,...).  According to "The Critique"
+mach performs no resource accounting so some of these might be moot to
+implement, while others still apply.  
+CAP_SYS_RAWIO Allow raw input/output.  Sprinkled in many places,
+device drivers among others.  Many of these will probably be difficult
+to implement.  
+CAP_SETPCAP: This one has (or had?) two different usages in Linux:
+If file capabilities are not supported it gives the right to grant
+or remove capabilities from the permitted set of arbitrary processes.
+If file capabilities are supported, it allows for removing capabilities
+from the bounding set of the current process.  As the Hurd implementation
+won't have file capabilities initially it might make sense to implement
+this if possible.  If bounding sets are implemented this should probably
+be the way provided to modify them.  
+
+
+### Unimplementable
+
+*(At this point in time, as far as I can determine)*
+
+CAP_LINUX_IMMUTABLE: depends on chattr etc. working.  
+CAP_SETFCAP: depends on xattr's  
+CAP_SYS_PACCT: acct() missing in the Hurd.  
+CAP_SYS_MODULE, CAP_SYS_PTRACE, CAP_MAC_OVERRIDE, CAP_MAC_ADMIN,
+CAP_AUDIT_WRITE, CAP_AUDIT_CONTROL, CAP_LEASE  
+
+
+## Priority when implementing
+
+The two most used capabilities as unscientifically judged from
+the selection of applications above are CAP_NET_BIND_SERVICE and
+CAP_CHOWN, suggesting that implementing the "network class" and the
+"file management" class of capabilities as classified above might be a
+good start.  These also, to me, seem to be easier classes to implement.
+CAP_NET_ADMIN might need some extra work.
+
+Second most common were CAP_SYS_CHROOT, CAP_SETGID and CAP_SETUID. I am
+not completely clear on how these should be handled.
+
+Assuming those are out of the way, CAP_IPC_LOCK, CAP_SYS_TIME, CAP_KILL
+and CAP_SYS_NICE might be a good choice to tackle if possible. This
+might, if I have understood things correctly, involve writing a proxy
+Hurd server for these calls in mach.
+
+CAP_SYS_ADMIN, CAP_SYS_RESOURCE and CAP_SYS_RAWIO. These contains a bit
+of "everything" (ADMIN being the worse one), meaning that experience
+and infrastructure gained from implementing the previous capabilities
+might come in handy. CAP_SYS_RAWIO might be difficult; it can be found
+inside many drivers in the Linux source.
+
+
+## Additional general details
+
+[This article](http://www.ibm.com/developerworks/library/l-posixcap.html)
+contains a good general description of how capabilities in Linux
+works.  As there will be no file capabilities in the Hurd initially,
+an approach emulating the behavior Linux exhibits when SECURE_NOROOT
+and SECURE_NO_SETUID_FIXUP are *not* set seems to be a good start.
+This is called the "root-user-is-privileged" model in the article,
+and somewhat simplified it means that processes started by root, or
+setuid-root, is given all capabilities no matter what capabilities the
+parent might or might not hold at the time of execution.  Quoting verbatim
+from the article:
+
+> * When SECURE_NOROOT is not set, then when a process executes a file,
+>  the new capability sets may be calculated as though the file had some
+>  file capability sets set fully populated.  In particular:
+>
+>  * The file inheritable and permitted sets will be full on if the
+>    process's real or effective uid is 0 (root) or the file is setuid
+>    root.
+>
+>  * The file effective set will be full on if the process's effective
+>    uid is root or the file is setuid root.
+>
+>
+> * When SECURE_NO_SETUID_FIXUP is not set, then when a process switches
+>   its real or effective uids to or from 0, capability sets are further
+>   shifted around:
+>
+>   * If a process switches its effective uid from 0 to non-0, then its
+>     effective capability set is cleared.
+>
+>   * If a process switches its real, effective, or saved uids from at
+>     least one being 0 to all being non-zero, then both the permitted
+>     and effective capabilities are cleared.
+>
+>   * If a process sets its effective uid from non-zero to 0, then the
+>     effective capabilities are set equal to the permitted capabilities.
+
+The capabilities of the resulting process are determined by the following
+formulas, again taken from the article, with p for Process and f for file:
+
+> pI' = pI  
+> pP' = fP | (fI & pI)  
+> pE' = pP' & fE  
+
+The security under the above described model, being what at least some
+of the applications I listed in my last comment employs, is basically
+the following (also detailed somewhat in the same article):
+
+* Execute process as root (or setuid) to gain all capabilities.
+
+* Use the prctl [[system call]] to enable keepcaps for the process
+  (same(?) effect as enabling SECURE_NO_SETUID_FIXUP for the process).
+  keepcaps should be off by default.
+
+* setuid to a non-root user, and by doing so losing the possibility to
+  regain capabilities by simply starting a new process.
+
+* Drop all the capabilities except those few actually needed.
+
+
+## Infrastructure details - Special UIDs approach
+
+The auth server must somehow keep track of three sets of capabilities.
+I suggest keeping these three sets in three additional idvec's in the
+authhandle struct, and will for the purpose of this description name
+these pcaps (permitted), ecaps (effective) and icaps (inheritable).
+This will simplify keeping track of the internal logic somewhat.
+In addition to this, there is a need to keep track of the "keepcaps" flag
+as described above.  I suggest representing this with an int keepcaps
+in the same struct.
+
+1. Expand authhandle struct with three additional idvecs and one integer.
+Fix static functions handling the struct, such as destroy_authhandle.
+
+2. Implement the necessary logic in auth_makeauth to handle capabilities.
+
+Problems:  
+Assume that all capabilities are mapped onto uids, given names on the form
+uid_<capability>, for example uid_cap_net_raw.  Assume that the presence
+of an uid in euids suggest that the capability is in the effective set
+of the process, that the presence of this uid in auids suggests that it
+is in the permitted set of the process, and that the presence of this
+uid in aguids suggest that it is in the inheritable set of the process.
+That they are internally stored in separate idvec's can be ignored as
+an implementation detail.
+
+* The UID's have as it is different meanings depending on where in the
+  array they are positioned, and certain clients seem to rely on this.
+  The first UID in euids is the effective uid, and the first and second
+  UIDs in auids are the real and saved UIDS respectively.  At least
+  some users of makeauth would need to made aware of capabilities,
+  for example setuid in glibc.
+
+* Setting/getting the keepcaps-flag is also a bit of a problem.  To avoid
+  changing the auth interface yet another special UID could be used
+  for this purpose, although that seems to be really stretching it.
+  The cleaner solution would probably be to expand the interface with
+  something along the lines of auth_setkeepcaps/auth_getkeepcaps.
+  This interface would only be used by prctl.
+
+Another problem with this approach is that it seems a bit difficult
+to oversee the affects that using other RPC's like fsys_getroot and
+io_restrict_auth might have on capabilities.
+
+
+## Infrastructure details - "extend-interfaces" approach
+
+This approach has started to seem like the better way to me, as the
+usage of capabilities becomes more explicit through the entire "chain",
+perhaps making it somewhat more easy to understand all the interactions.
+
+I suggest something like the following new interface methods:
+
+***
+
+
+### The auth interface
+
+	routine auth_getauth_caps (
+		handle: auth_t;
+		out euids: idarray_t;
+		out auids: idarray_t;
+		out egids: idarray_t;
+		out agids: idarray_t;
+		out ecaps: idarray_t;
+		out pcaps: idarray_t;
+		out icaps: idarray_t);
+
+	routine auth_makeauth_caps (
+		handle: auth_t;
+		other_handles: portarray_t;
+		euids: idarray_t;
+		auids: idarray_t;
+		egids: idarray_t;
+		agids: idarray_t;
+		ecaps: idarray_t;
+		pcaps: idarray_t;
+		icaps: idarray_t;
+		flags: int;   /* keepcaps.. ? */
+		out newhandle: mach_port_make_send_t);
+
+	routine auth_server_authenticate_caps (
+		handle: auth_t;
+		sreplyport reply: mach_port_poly_t;
+		rendezvous: mach_port_send_t;
+		newport: mach_port_poly_t;
+		out euids: idarray_t;
+		out auids: idarray_t;
+		out egids: idarray_t;
+		out agids: idarray_t;
+		out ecaps: idarray_t;
+		out pcaps: idarray_t;
+		out icaps: idarray_t);
+
+
+### The io interface
+
+	routine io_restrict_auth_caps (
+		io_object: io_t;
+		RPT
+		out new_object: mach_port_send_t;
+		uids: idarray_t SCP;
+		gids: idarray_t SCP;
+		ecaps: idarray_t SCP);
+
+
+### The fsys interface
+
+	routine fsys_getroot_caps (
+		fsys: fsys_t;
+		RPT
+	#ifdef  FSYS_GETROOT_UREPLY
+		ureplyport ureply: mig_reply_port_t;
+	#endif
+		dotdot_node: mach_port_send_t;
+		gen_uids: idarray_t;
+		gen_gids: idarray_t;
+		out ecaps: idarray_t;
+		out pcaps: idarray_t;
+		out icaps: idarray_t;
+		flags: int;
+		out do_retry: retry_type;
+		out retry_name: string_t;
+		out file: mach_port_send_t);
+
+***
+
+These are meant to be able to replace the old methods with
+capability-aware methods, instead of merely complementing them.
+The replacing work could then be made a more gradual process.  Steps:
+
+* Extend authhandle with the same data members as in the UID-case.
+
+* Implement new _caps-functions according to described interface
+  extensions above, refactor code a bit to share common uid-handling
+  logic.  Both makeauth's should drop all capabilities if switching from
+  uid 0 without having keepcaps.  For example, keepcaps should be unset
+  by default.
+
+* Fix glibc.  Extend hurd_id_data in hurd/id.h to store capabilities,
+  switch to capability aware functions where necessary.
+
+* io-reauthenticate.  Fix implementations to use
+  auth_server_authenticate_caps instead.  For this we also need somewhere
+  to save the caps, so it ties in with for example the extension of
+  iouser as mentioned in the details.
+
+* fsys_getroot.  Implement fsys_getroot_caps in libdiskfs, trans,
+  libtreefs, libtrivs, libnetfs.  Fix users of function in libdiskfs,
+  libfshelp, settrans, libtreefs, clookup.
+
+* io_restrict_auth.  Implement io_restrict_auth_caps in libdiskfs,
+  libtreefs, libtrivfs, libnetfs, boot.  Fix users in utils(symlink,
+  firmlink), libtrivs, term, clookup
+
+Among the problems might be that there are a lot of arguments that
+needs to be passed around, and that it seems somewhat ugly to end up
+with function names referencing caps in particular.
+
+Below some more about the specific capabilities.  This should in large
+be common to the two approaches above.
+
+
+## Actually handing out the capabilities to process
+
+This seems like a good job for the file_exec route in the fs interface.
+Quoting from the comments above the definition in fs.defs: "*Necessary
+initialization, including authentication changes associated with set[ug]id
+execution must be handled by the filesystem*".  The capability-granting
+functionality should to be added in at least the implementations in
+libdiskfs and libnetfs as far as I can determine, and should be "easy
+enough" once the infrastructure for implementing the file-related
+capabilities (CAP_CHOWN etc.) are in place.  This also seem to make
+sense considering the future possibility for file capabilities.
+
+
+## Some implementation details of individual capabilities.
+
+### Net-related capabilities.
+
+This turned out to be a bit less work than I had thought, as the
+imported Linux code already seem to contain all the necessary checks.
+What remains to do to implement all of these capabilities is mostly a
+matter of putting some infrastructure in place.
+
+* In struct sock_user (pfinet.h), change isroot for idvec
+  caps.  Alternatively, add idvec caps.
+
+* Change the function make_sock_user in socket.c to take an idvec caps
+  as a parameter and properly set the given caps to the corresponding
+  idvec in sock_user.
+
+* Fix users of make_sock_user: S_io_reauthenticate, S_io_restrict_auth,
+  S_socket_create, S_socket_accept.  This should be doable with the
+  current infrastructure.  For example, S_socket_create currently
+  sets isroot in the new sock_user from the corresponding member in
+  the trivfs_protid struct.  This does not present a problem however,
+  as the latter struct also provides access to an iouser (iohelp.h)
+  from which the needed uids of the user should be available.
+
+* Fix up parts of source from Linux, modify task_struct add idvec,
+  modify prepare_current to take the caps idvec instead of isroot.
+  Re-implement the existing function capable(int cap) to actually check
+  for the capability passed as an argument instead of just return isroot.
+
+* Change a few isroot's at 3 other places in the code to check for
+  capabilities.  Since these places all have access to isroot and thus by
+  implication the sock_user, they also have access to the new capability
+  information; no restructuring necessary.
+
+
+### File-related capabilities
+
+While there are a lot of servers in the Hurd, I am not sure all of these
+capabilities actually make sense to implement in all of them.
+
+
+#### CAP_CHOWN
+
+Implementing this in libdiskfs should take care of it where it makes
+sense.  Servers using libdiskfs uses iouser from libiohelp to hold
+user credentials.  As noted above, this struct is already capable of
+holding our capabilities as uid's or is otherwise extended to contain
+the necessary idvecs if using the second general approach.  Adding a
+check along the lines of *idvec_contains(uid_cap_chown)* in function
+diskfs_S_file_chown (file-chown.c) should be all that's needed.
+
+In libnetfs, netfs_attempt_chown is declared as a function that the
+server using the library must implement.  Any checks for chown rights
+are however most likely performed on the server side, suggesting that
+there is nothing we can do here to implement CAP_CHOWN.  Even if we do
+need to add something, an iouser containing the necessary information
+to implement the checks in a manner analogous to that in libdiskfs seems
+to be passed to each important function.
+
+
+#### CAP_DAC_*
+
+These might actually make sense to implement in more servers, and the
+logic seems somewhat involved. Need to add the necessary checks to
+at least file_check_access, file_exec in libdiskfs.  file_exec also in
+libnetfs, probably.  Possibly changes also in other places.
+
+The main difficulties overall seem to lie in getting the infrastructure
+properly in place rather than implementing most of the individual
+capabilities, and I have updated the schedule a bit in an attempt to
+reflect this.
+
+
+## Schedule updating
+
+The more I look into this the less time it seems likely to take to
+do the work.  Below is my best estimation at the moment, and I have
+basically adjusted everything to what I think is more likely estimations.
+If this is correct I would be more or less around midterm.  I haven't
+gone completely to the individual level as that doesn't seem to make
+sense, but what is clustered together are either related capabilities
+or a collection of capabilities classified roughly with regards to how
+much I know about the area and how many different rights they control.
+It's not my intention to "slack off" or anything, so if this estimation
+were to be correct I could perhaps take a look at the xattrs-patch,
+or spend the rest of my time fixing PATH_MAX-issues.  Then again, maybe
+there is some great difficulty hidden somewhere.
+
+
+#### Some justifications:
+
+Dummy libcap, more or less done.  
+*1 day* (making sure it "fails gracefully" shouldn't really take longer than this)
+
+Application for testing, the beginnings of a fairly extensive "test suit" on Linux.  
+*2 days*
+
+Basic infrastructure.  
+*5 days*, depends on the chosen approach, but it is probably wise to
+reserve at least a bunch of days for this.
+
+Implementations of prctl/capset/capget in libshouldbeinlibc,
+or a port of libcap to the Hurd in any other way.  
+*5 days*
+
+CAP_NET_BIND_SERVICE, CAP_NET_RAW, CAP_NET_BROADCAST, CAP_NET_ADMIN  
+*4 days*, as noted above this should be easy, but it might uncover bugs
+in the newly implemented infrastructure for example.
+
+CAP_CHOWN,CAP_FOWNER,CAP_FSETID  
+*2 days*, I think these only needs to be done in libdiskfs
+
+CAP_DAC_OVERRIDE,CAP_DAC_READ_SEARCH  
+*4 days*, these might need changes to various servers
+
+CAP_SYS_TIME,CAP_IPC_LOCK,CAP_KILL
+CAP_SYS_NICE,CAP_SYS_CHROOT,CAP_SYS_BOOT  
+*2 weeks*, these are varied and I'm not that sure exactly how each should
+be tackled so some research is needed.
+
+CAP_SETGID,CAP_SETUID,CAP_SYS_TTY_CONFIG  
+*4 days*
+
+CAP_SYS_ADMIN,CAP_SYS_RESOURCE,CAP_SYS_RAWIO  
+*2 weeks*, these too are pretty varied and some might need some individual
+researching
+
+CAP_SETPCAP  
+*1 day*
+
+
+## Schedule
+
+24/5 Start coding  
+25/5 Dummy libcap ready for use.  
+27/5 The beginnings of a "test suite", written on Linux.  
+ 1/6 Basic infrastructure in place  
+ 6/6 Dummy libcap extended with real functionality to make use of
+     implemented capability and infrastructure, or the Hurd adapted for
+     compatibility with Linux libcap.  
+10/6 The "network class" of capabilities implemented.  
+12/6 CAP_CHOWN, CAP_FOWNER, CAP_FSETID  
+16/6 CAP_DAC_OVERRIDE, CAP_DAC_READ_SEARCH  
+30/6 CAP_SYS_TIME, CAP_IPC_LOCK, CAP_KILL, CAP_SYS_NICE,
+     CAP_SYS_CHROOT, CAP_SYS_BOOT  
+ 4/7 CAP_SETGID,CAP_SETUID,CAP_SYS_TTY_CONFIG  
+12/7 "Mentors and students can begin submitting mid-term evaluations"  
+16/7 GSoC Mid-term evaluations deadline.  
+18/7 CAP_SYS_ADMIN, CAP_SYS_RESOURCE, CAP_SYS_RAWIO  
+19/7 CAP_SETPCAP

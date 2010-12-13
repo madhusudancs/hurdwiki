@@ -1,0 +1,120 @@
+[[!meta copyright="Copyright © 2009, 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_porting]]
+
+Typing `C-c` (*SIGINT*) in a *screen* session (Debian package 4.0.3-14; -11 is
+fine):
+
+  * shell prompt: no reaction (nothing printed)
+  * `sleep 10` running: `^C` printed, but SIGINT is not sent.
+    
+[[!debbug 522689#38]].
+
+---
+
+Revisit this issue: [[!debbug 97343]] -- special handling of `TIOCSCTTY`
+depending on `__GNU__`.
+
+---
+
+`#ifdef linux` and friends are used in quite a number of places.
+
+---
+
+All diffs are GNU/Linux vs. GNU/Hurd.
+
+     /*
+      * If your system supports BSD4.4's seteuid() and setegid(), define
+      * HAVE_SETEUID.
+      */
+    -/* #undef HAVE_SETEUID */
+    +#define HAVE_SETEUID 1
+
+TODO: check.
+
+---
+
+     /*
+      * define HAVE_SVR4_PTYS if you have a /dev/ptmx character special
+      * device and support the ptsname(), grantpt(), unlockpt() functions.
+      */
+    -#define HAVE_SVR4_PTYS 1
+    +/* #undef HAVE_SVR4_PTYS */
+     
+     /*
+      * define HAVE_GETPT if you have the getpt() function.
+      */
+     #define HAVE_GETPT 1
+     
+     /*
+      * define HAVE_OPENPTY if your system has the openpty() call.
+      */
+    -/* #undef HAVE_OPENPTY */
+    +#define HAVE_OPENPTY 1
+     
+     /* 
+      * define PTYRANGE0 and or PTYRANGE1 if you want to adapt screen
+      * to unusual environments. E.g. For SunOs the defaults are "qpr" and 
+      * "0123456789abcdef". For SunOs 4.1.2 
+      * #define PTYRANGE0 "pqrstuvwxyzPQRST" 
+      * is recommended by Dan Jacobson.
+      */
+    -/* #undef PTYRANGE0 */
+    -/* #undef PTYRANGE1 */
+    +#define PTYRANGE0 "pq"
+    +#define PTYRANGE1 "0123456789abcdefghijklmnopqrstuv"
+
+TODO: check: `HAVE_SVR4_PTYS` is due to `configure.in` doing `test -c
+/dev/ptmx`.  But: even if we don't have that file, we still have `ptsname`,
+`grantpt`, `unlockpt`.
+
+---
+
+     gcc -c -I. -I.    -g -O2 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers pty.c
+    +pty.c: In function 'OpenPTY':
+    +pty.c:323: warning: implicit declaration of function 'openpty'
+    +pty.c: At top level:
+    +pty.c:75: warning: 'PtyName' defined but not used
+    +pty.c:86: warning: 'PtyProto' defined but not used
+    +pty.c:87: warning: 'TtyProto' defined but not used
+
+TODO: check.
+
+---
+
+    --- linux/osdef.h       2009-10-06 18:43:53.000000000 +0200
+    +++ screen-4.0.3/osdef.h        2009-10-06 18:49:49.000000000 +0200
+    @@ -42,13 +42,19 @@
+     #endif
+     
+     #ifdef SYSV
+    +extern char *strchr __P((char *, int));
+    +extern char *strrchr __P((char *, int));
+    +extern char *memset __P((char *, int, int));
+    +extern int   memcmp __P((char *, char *, int));
+     #else
+     #endif
+     
+     #ifndef USEBCOPY
+     # ifdef USEMEMCPY
+    +extern void  memcpy __P((char *, char *, int));
+     # else
+     #  ifdef USEMEMMOVE
+    +extern void  memmove __P((char *, char *, int));
+     #  else
+     #  endif
+     # endif
+
+TODO: check.
+
+---
+
+  * [[screen_dead_session]]

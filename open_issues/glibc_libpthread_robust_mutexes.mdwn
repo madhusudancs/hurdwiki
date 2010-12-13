@@ -1,0 +1,54 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_glibc open_issue_libpthread]]
+
+libpthread: glibc 44e2ad5ab8c21dbfed3e384ba2ed31d7a8fc4744
+998e5fc14595229101561d76282036839e5b66ab -- The robust mutex functions are in
+POSIX 2008.
+
+---
+
+IRC, #hurd, unknown date.
+
+    <youpi> neal: bad news: you remember the PTHREAD_RECURSIVE_MUTEX_INITIALIZER that points to a global __pthread_recursive_mutexattr?
+    <youpi> that doesn't work
+    <youpi> because some libraries like libstdc++ do not link against libpthread, while still using pthread_mutex_lock/unlock (counting on them being provided by either libc or libpthread-stubs)
+    <CIA-1> sthibaul-guest * r626 pkg-hurd/hurd/trunk/debian/ (changelog patches/series): 
+    <CIA-1> * debian/patches/libpthread_rwlock_initializer.patch: Disable patch for now:
+    <CIA-1> our initializer does not work when the application does not link against
+    <CIA-1> libpthread.
+
+    <CIA-1> sthibaul-guest * r629 pkg-hurd/hurd/trunk/debian/ (changelog patches/series): do not disable adding PTHREAD_RWLOCK_INITIALIZER, that's not the one that poses problems
+    <CIA-1> sthibaul-guest * r630 pkg-hurd/hurd/trunk/debian/ (3 files in 2 dirs): 
+    <CIA-1> * debian/patches/libpthread_no_recursive_mutex_initializer.patch: New patch
+    <CIA-1> to drop undefined references to __pthread_recursive_mutexattr.
+
+    <youpi> I'm thinking about how to fix the PTHREAD_RECURSIVE_MUTEX_INITIALIZER
+    <youpi> instead of a pointer to a static attribute variable, which posed problem
+    <youpi> could we perhaps consider that page 0 is never mapped
+    <youpi> and thus not only pointer 0 but also 1 2, etc. are invalid
+    <neal> I think that is a good solution
+    <youpi> and use them as special values
+    <neal> alternatively, we could assume that -PAGESIZE is never valid
+    <youpi> that makes us test it in all pthread_mutex_* functions, but it's not so bad
+    <neal> I'm not sure which is better
+    <youpi> why isn't it?
+    <neal> because the kernel is mapped there normally
+    <youpi> the kernel could be elsewhere
+    <neal> true
+    <youpi> in a 64bit adressing space for instance
+    <neal> I think your solution is a good one
+    <youpi> ok
+
+    <CIA-1> sthibault * r633 pkg-hurd/hurd/trunk/debian/ (3 files in 2 dirs): 
+    <CIA-1> * debian/patches/libpthread_recursive_mutex_initializer.patch: New patch
+    <CIA-1> to fix the recursive mutex initializers usage in libraries not linking
+    <CIA-1> against libpthread.

@@ -1,0 +1,124 @@
+[[!meta copyright="Copyright © 2008 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+Name: Flávio Cruz
+
+Email: flaviocruz at gmail dot com
+
+Some [Hurd stuff](http://opensvn.csie.org/leic/hurd/)
+
+And code: [cl-hurd](http://git.savannah.gnu.org/cgit/hurd/incubator.git/log/?h=clisp)
+
+## Summer session
+
+Creating an extensible translator library in lisp using the mig generated stubs.
+
+### What's done
+
+- The library for writing translators is mostly written.
+- This library is intended to implement virtual filesystems. Examples are: translators were data is located in a local file (like zipfs, tarfs, rarfs, ...), single file translators (that do content filtering, output of a command, etc), network based filesystems (ftpfs, httpfs, ...), proxy filesystems (like hostmux, usermux, etc..)
+- It's possible to specialize the basic translator library and implement new translator classes. This is done using CLOS.
+- There is a tree-translator class that makes the managing of a node tree very easy, doing all the work for us, through a simple directory API and implementing the directory callbacks for us.
+- There is a simple example (something like zipfs) translator that can expose the directories and file contents of a ZIP file.
+- More translator examples include:
+  - /dev/null translator.
+  - /dev/zero translator.
+  - translator that creates a symlink node.
+  - tmpfs like translator.
+  - a translator that does proxying between clients and the underlying translator returning all data in upper-case.
+  - a translator that watches for changes in a file describing the file system structure.
+  - an IRC translator.
+  - a categorizer translator: creates a virtual directory containing files listed in a file, each file is categorized with a script. For example, a script can output the music author (in an mp3 file) and then all files will be categorized by author.
+- Translator options (manipulated through fsysopts) have a simple and easy to use API.
+- All the Mach port manipulation API is available.
+- It's possible to send and receive messages. Simple example:
+<pre>
+  (let* ((spec-mixed (make-message-spec :fields '(:string :integer :char :string :integer :real)))
+         (msg-mixed (make-message :spec spec-mixed))
+         (port (port-allocate :right-receive)))
+    (send-message msg-mixed :remote port :data (list "abc" 42 #\b "cba" 314 3.14))
+    (receive-message msg-mixed :source port) ; This returns T on success.
+    (get-message msg-mixed))) ; Returns '("abc" 42 #\b "cba" 314 3.14)
+</pre>
+- New message types (like :string, :integer) can be implemented, providing a powerful extension mechanism.
+- Creation of symlinks and symlink path resolution.
+- Creation of character/block devices, fifos and sockets.
+- Patch that opens stdin + stdout to /dev/null.
+- Project has been separated into 5 ASDF installable systems:
+  - hurd-common
+  - mach
+  - hurd
+  - hurd-translator
+  - tree-translator
+- Test cases are now written.
+
+
+### What needs to be done
+
+- Fix fsys-getroot (block happens in trivfs based translators, when they do RPC's to me when I call fsys_getroot to them) and fetch-root (for passive translators).
+- Make the library multithreaded (blocked by the pthread conversion project and the unavailable thread support in CLISP)
+- Use the socket stubs?
+- More documentation
+
+
+### Project dependencies
+
+- CLISP
+- [CFFI](http://common-lisp.net/project/cffi/) (apt-get installable)
+- [Flexi streams](http://www.weitz.de/flexi-streams/) (apt-get installable)
+- [Trivial garbage](http://www.cliki.net/trivial-garbage) (not in debian repositories)
+- [cl-zip](http://common-lisp.net/project/zip/) (only needed for the zip translator)
+- [cl-irc](http://common-lisp.net/project/cl-irc/) (for the irc translator)
+
+
+## To do
+
+### Documentation
+- Manually Bootstrapping a Translator
+
+### Translation
+- Translate the Hurd website to Portuguese?
+
+## Completed tasks
+
+### Patches
+- http://alioth.debian.org/tracker/index.php?group_id=30628&atid=410472
+   - libsvg patch accepted.
+- Adapted glibc patch (http://www.schwinge.homeip.net/~thomas/tmp/glibc-patches/0009-2007-07-22-version-of-init-first.c_vs._GCC_4.1.patch.patch)
+   - http://opensvn.csie.org/leic/hurd/patches/glibc-init-first.patch
+- Patch to remove some GNUMach IPC warnings and minor cleanup:
+   - http://opensvn.csie.org/leic/hurd/patches/gnumach-ipc-warnings.patch
+- Website patches that correct some encountered typos:
+   - http://opensvn.csie.org/leic/hurd/patches/hurd-talk-typo.patch
+
+### Documentation read
+
+- GNU/Hurd User's Guide, an introduction to the important concepts and software of the GNU system, written for new users, AKA "GNUbies."
+- Towards a New Strategy of OS Design, an architectural overview by Thomas Bushnell, BSG.
+- The Hurd, a presentation by Marcus Brinkmann.
+- The Hurd Hacking Guide.
+- The GNU Mach Reference Manual
+- The GNU Hurd Reference Manual
+- The Unofficial GNU Mach IPC beginner's guide
+- Mach IPC without MIG
+- CFFI User's Manual
+
+### Before selection
+
+- Uptime program in C and Lisp using CFFI.
+- Hello translator.
+
+## Misc
+
+### Lisp implementations that run on Hurd
+
+- Clisp
+- ECL
+- ?

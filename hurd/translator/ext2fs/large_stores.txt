@@ -1,0 +1,520 @@
+[[!meta copyright="Copyright © 2005, 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+This is -*- mode: outline -*-
+
+* Introduction
+
+Here is a try to describe the ext2fs patch for the Hurd.  This patch
+allows using partitions/stores larger that approximately 1.5G by not
+memory mapping the whole store to address space.
+
+As a guideline, the changelog of RC1 (Release Candidate 1) is
+followed, so I hope nothing is missed.  During writing of this text,
+some questions arised and they are marked with XXX.  An effort will be
+made to fix all these for RC2.
+
+					Ognyan Kulev <ogi@fmi.uni-sofia.bg>
+
+* The block layer and its purpose
+
+The basic unit of ext2 filesystem is "block".  All filesystem
+operation work on blocks which are read, and sometimes modified and
+written back.  Possible block sizes are 1K, 2K and 4K, but current
+implementation works reliably only on 4K blocks (= page size of i386).
+
+So the two basic operations on blocks are "reading" block and
+"writing" block.
+
+* Current implementation
+
+** Reading
+
+Currently, the whole store is memory mapped into address space of
+ext2fs process.  The is called "disk image", although "store image"
+would be more accurate.  The address of the start of the disk image is
+stored in pager.c:disk_image.  So "reading" block is easy: just
+calculate byte offset of block and add it to disk_image.  The resulting
+address points to the start of the desired block.
+
+The macro ext2fs.h:bptr has exactly this purpose: given block number,
+it returns pointer to block.  Sometimes we have pointer somewhere in
+the block, and we want the block number.  This is calculated by
+ext2fs.h:bptr_block.
+
+There is another set of macros that use byte offsets instead of block
+numbers.  These are boffs_ptr (store offset -> memory pointer) and
+bptr_offs (memory pointer -> store offset).
+
+Converting between store offset and block number is easy with macros
+boffs (block -> offset) and boffs_block (offset -> block).  Other
+useful macros are trunc_block and round_block.
+
+** Writing
+
+Modifying block and saving it is not that straight-forward as
+reading.  For writing, you need to use "pokel" ("poked elements").
+Pokel interface is in ext2fs.h.  Implementation is in pokel.c.
+
+The problem is that generally multiple blocks are modified and we want
+all these changes to hit disk at relatively same time.  So we can't
+just change block and leave decision when it's going to be written to
+the microkernel.
+
+So there is a pokel for each set of changes and each change should be
+reported to the pokel by calling pokel_add.  When this set of changes
+is completed, pokel_sync of pokel_flush is called.  (The latter is
+used to ignore changes.)
+
+In practice, there is one indir_pokel for each ext2fs.h:disknode,
+which is used for indirect blocks of ext2fs.  The only other pokel
+used is ext2fs.h:global_pokel, where all other changes to metadata are
+registered.
+
+* Proposed implementation
+
+First one must realize that the idea of mapping the whole store is to
+be thrown away.  So only parts of the store should be mapped.  These
+currently mapped parts of store are collectively called "cache".
+
+In the proposed implementation, the cache has fixed size of
+ext2fs.h:DISK_CACHE_BLOCKS.  In RC1, it's 100, but this is only to
+easily catch bugs.  In practice, it can be, for example, 512M, or
+(512*1024/4) blocks of 4K.  pager.c:disk_cache_size and
+pager.c:disk_cache_blocks are additional variables about that
+information.
+
+The cached blocks are mapped in ext2fs.h:disk_cache and span
+disk_cache_size bytes (= disk_cache_blocks blocks).  As in the
+original implementation, this part of address space is handled by
+custom pager.
+
+** Data structures
+
+Blocks in cache aren't consecutive, so we need data structure to hold
+which part of address space represents what block.  This is the
+purpose of pager.c:disk_cache_info.  Index in this array is "cached
+block index".  But this array doesn't help in finding if specific
+block is mapped, and where.  This is the purpose of the
+pager.c:disk_cache_bptr ihash which finds cached block index from
+given block number.  Both data structures are guarded by
+pager.c:disk_cache_lock.
+
+** Public interface
+
+"Public" interface to the cache are functions disk_cache_block_ref,
+disk_cache_block_ref_ptr, disk_cache_block_deref,
+disk_cache_block_is_ref.  disk_cache_block_ref takes block number and
+return pointer to block content.  Reference count of this cached block
+is incremented.  After finishing work with block,
+disk_cache_block_deref should be called.
+
+In converting original ext2fs code to use this functions, usually call
+to bptr is turned into call to disk_cache_block_ref.  In addition,
+after pointer to block content is not used anymore,
+disk_cache_block_deref is called.  This simple scheme is only for
+reading from block.  For modifying block, see about pokels below.
+
+disk_cache_block_ref_ptr just increments reference count of specified
+block.  It's used when we give pointer to block content to somebody
+else that will dereference it (e.g. pokel) and we want to continue to
+use this content.
+
+disk_cache_block_is_ref checks if specified block has reference count
+greater than zero.  It's used in assert:s.
+
+*** bptr* and boffs* macros
+
+These macros continue to work as before, but they don't deal with
+reference counting and this should be taken into consideration.  In
+addition, bptr_index returns cached block index from given pointer to
+block content.  (This function is used internally.)
+
+*** Pokels
+
+When pokel_add is called with pointer to block content, this
+"consumes" reference of block.  It's not consumed (decremented by 1)
+immediately, but when pokel_sync or pokel_flush is called.  (Reference
+is consumed immediately if the block is already in the pokel.  The
+important thing is that you always lose one reference of the block.)
+
+So we have the following code when we read from block:
+
+	char *bh = disk_cache_block_ref (block);
+	...
+	disk_cache_block_deref (bh);
+
+And the following code when we modify block:
+
+	char *bh = disk_cache_block_ref (block);
+	...
+	pokel_add (pokel, bh, block_size);
+
+**** Indirect calls to pokel_add
+
+Some functions indirectly call pokel_add, so this should be taken into
+consideration.  These are:
+
+   * record_global_poke
+   * record_indir_poke
+
+So these functions should be treated in the same scheme as pokel_add.
+For example:
+
+	char *bh = disk_cache_block_ref (block);
+	...
+	record_indir_poke (node, bh);
+
+**** Modifying SBLOCK in diskfs_set_hypermetadata
+
+SBLOCK is global variable that points to superblock content.  There is
+one reference count for superblock, so before we call
+record_global_poke (which consumes reference),
+disk_cache_block_ref_ptr is called.
+
+**** Modifying GDP
+
+When group descriptor is wanted, usuall group_desc is called and
+result is stored in local variable GDP.  After modifying GDP,
+record_global_poke is called.  But because record_global_poke is used,
+we need call to disk_cache_block_ref_ptr:
+
+	gdp = group_desc (i);
+	...
+	disk_cache_block_ref_ptr (gdp);
+	record_global_poke (gdp);
+
+*** More complex use of pointer to block content
+
+In ext2_new_block and ext2_alloc_inode functions, we have local
+pointer variable BH that sometimes points to block content and
+sometimes points to nothing.  In order to reduce possible errors, when
+BH points to nothing it's always 0.  In some points (goto labels),
+there is assertion if BH is what's expected (pointer to nothing or
+pointer to something).
+
+*** dino
+
+dino function return pointer to struct ext2_inode for given ino_t.
+This uses reference, so corresponding disk_cache_block_deref should be
+called after finishing work with ext2_inode.  For convenience, dino is
+renamed to dino_ref, and dino_deref just calls disk_cache_block_deref.
+
+	struct ext2_inode *di = dino_ref (np->cache_id);
+	...
+	dino_deref (di);
+
+Or
+
+	struct ext2_inode *di = dino_ref (np->cache_id);
+	...
+	sync_global_ptr (di, 1);
+	dino_deref (di);
+
+Or
+
+	struct ext2_inode *di = dino_ref (np->cache_id);
+	...
+	record_global_poke (di);
+
+* Internals of the proposed implementation
+
+As said earlier, instead of mapping the whole store of filesystem to
+address space, only part of it is mapped.  This part is called "cache"
+or "disk cache" (although "store cache" would be more appropriate).
+Currently, the cache is contiguous area in address space that starts
+at disk_cache.  Its size is disk_cache_size which is disk_cache_blocks
+number of blocks of size block_size.
+
+Mapped blocks in disk cache are not fixed -- each block in the cache
+can be replaced at any time with another block.  So we need to know
+which blocks are cached currently and where.  Information about each
+cached block is stored in disk_cache_info[].  Index is from 0 to
+disk_cache_blocks-1.  In this information the block number is stored
+(among some other things, discussed later).  The reverse direction,
+getting the index of cached block from block number, is achieved by
+using disk_cache_bptr ihash.  Both these data structures are guarded
+by disk_cache_lock.
+
+** Requesting a block
+
+When ext2 code requests block, it calls disk_cache_block_ref.  First,
+this block is search with disk_cache_bptr.  If its there, the
+reference count is incremented and pointer to block content is
+returned.  In this case, there is a call to disk_cache_wait_remapping,
+which is explained a bit later.
+
+It's more interesting when block is not found in disk_cache_bptr.  In
+this case, disk_cache_map is called.  Again, disk_cache_bptr is
+consulted, because in the meantime another could already have mapped
+this block.  If this is the case, the code is essentially the same as
+those in disk_cache_block_ref.
+
+When it's assured that block is not in the cache, we have no choice
+but throw away an already mapped/cached block and put our block in its
+place.  Such block has to meet the following conditions:
+
+- Its reference count being 0
+- Not in the core
+- Not being remapped (explained later)
+- Not being forbidden to be remapped ("fixed", explained later)
+
+The last three conditions are actually flags in disk_cache_info:
+DC_INCORE, DC_REMAPPING and DC_FIXED.  DC_DONT_REUSE collectively
+gives the condition in which block is not suitable for
+reusing/remapping.
+
+Searching suitable place in cache is linear.  As an optimisation, this
+search doesn't start from the beginning, but starts from where last
+time it has ended.  This last index is stored in disk_cache_hint.  So
+new candidate blocks for replacement are searched "circular".
+
+If suitable place is found, the old mapping is removed, and the new
+mapping is initialized.  But we are still not ready to return pointer
+to block content, because this content is not available yet.  We mark
+the block as DC_REMAPPING, which makes disk_cache_block_ref for that
+block in other threads to wait until page is completely remapped.
+
+In both cases, when we have found place and when suitable place is not
+found, disk_cache_hint is updated so that next disk_cache_map
+continues searching from where we ended.
+
+When not suitable place is found, we have to use force.  First all
+pages in disk cache are touched.  This is workaround because of some
+bug in GNU Mach.  The patch relies on "precious page" features of
+Mach.  Marking a page as precious instructs Mach to always inform us
+about evicting this page.  If page is modified, it seems that we are
+always informed.  But if page is unmodified and page is evicted,
+sometimes Mach forgets to tell us.  It's true that with large disk
+cache, e.g. 512M, this potentially will re-read the whole cache from
+disk.  But if we reach this point, the microkernel is telling us that
+all is already read :-)
+
+This is preparation for following calls to pager_return_some.  This
+libpager function is called only on cached blocks that has reference
+count of 0.  These are the potential candidates for replacement --
+there is no sense in calling pager_return_some when reference count is
+1 or more.  One final case is when there is no cached block that has
+reference count of 0.  This is bad and we can't do anything about it.
+In this case, we just wait one second hoping that some other thread
+will drop reference count of block to 0.  (XXX Currently (in RC1)
+sleep(1) is always executed.  It should be executed only when disk
+cache is starving.  There is some rationale behind calling sleep(1) even when
+disk cache is not starving.  Although pager_return_some(,,,1)
+guarantees that upon return of this function the page is returned, I'm
+not sure that it's guaranteed that pager_notify_pageout is called.
+This is because pager_return_some and
+libpager/data-return.c:_pager_do_write_request are executed in
+different threads and pager_return_some is confirmed before calling
+pager_notify_pageout.  This issue is open.)
+
+So, after forcibly evicting all pages (blocks) that can potentially be
+reused, disk_cache_map is called again.
+
+In the case when suitable place is found and all data structures
+(disk_cache_info and disk_cache_bptr) are changed accordingly,
+pager_return_some(,,,1) is called and we wait for pager_read_page to
+clear DC_REMAPPING.  The purpose of this flag (DC_REMAPPING) is solely
+this: to forbid any use of this block until we are absolutely sure
+that this page contains exactly the wanted block.  If NDEBUG is not
+defined (so we include debug code), flags of the blocks are checked if
+DC_REMAPPING is really cleared.
+
+Is DC_REMAPPING really needed?  Is there possibility that between last
+"mutex_unlock (&disk_cache_lock)" and "return bptr" something could go
+wrong?  Actually, disk cache just follows protocol set by
+pager_notify_pageout: that between pager_return_some and changing
+internal structures for the remapping no thread may touch the page.
+This is achieved by marking the page as DC_REMAPPING.  For
+convenience, function disk_cache_wait_remapping is defined which waits
+for cached block while it's marked as DC_REMAPPING.
+
+XXX XXX: Actually, the sequence used in RC1 is: remap block and
+pager_return_some.  The latter seems redundant, as only blocks that
+are evicted are candidates for remapping.  I'll try to fix that for
+RC2.
+
+** Modifying blocks and pokels
+
+After block is modified, it should be registered with pokel_add to
+some pokel.  Pokel contains list of ranges of cached blocks.  All this
+blocks should have reference count at least 1.  In pokel_flush and
+pokel_sync, this reference is consumed.
+
+So in pokel_add if added blocks are already in the pokel, their
+references are consumed, because only 1 reference is consumed in
+pokel_{sync,flush}.  It's checked if pokel is for disk_cache, because
+pokels are used in file access too, where disk cache layer is not
+used.
+
+pokel_{flush,sync} both use _pokel_exec, so this is the place where
+block references are consumed.  (XXX: In RC1, they are consumed
+always, but it's better to check if these pages are in disk_cache.
+Although calling disk_cache_block_deref on non-disk_cache page does no
+harm.)
+
+*** Indirect use of pokel_add
+
+record_global_poke and record_indir_poke use indirectly pokel_add.
+These functions are slightly changed to use public interface of
+disk_cache.  Only new precondition is added for them: caller should
+supply "reference" that will be consumed later by pokel_{flush,sync}.
+
+*** Modifying block without using pokels
+
+sync_global_ptr synchronizes given block immediately.  No reference is
+consumed.  (XXX: This should be changed in RC2 to consuming reference.
+This will make the function similar in use to
+record_{global,indir}_poke and will make the code more nice-looking.)
+
+** Initialization
+
+*** The superblock
+
+To create disk cache, we need the block size of the filesystem.  This
+information is in superblock, so we need to read superblock without
+using disk cache.  For this purpose get_hypermetadata is changed to
+read the superblock with store_read instead of old bptr.  New function
+map_hypermetadata is created that sets sblock global variable to point
+to the already mapped superblock.  So to get behavior of old
+get_hypermetadata, first new get_hypermetadata should be called, and
+then map_hypermetadata.
+
+In ext2fs.c:main, instead of calling get_hypermetadata,
+map_hypermetadata is called.  The call to get_hypermetadata is in
+pager.c:create_disk_pager.
+
+In ext2fs.c:diskfs_reload_global_state, along with get_hypermetada,
+map_hypermetadata is called.
+
+*** disk_cache
+
+Disk cache data structures are initialized in
+pager.c:create_disk_pager called from ext2fs.c:main.  Disk pager is
+still initialized with diskfs_start_disk_pager, but due to block_size
+variable we call get_hypermetadata.  Basic parameters of disk cache
+like disk_cache_blocks and disk_cache_size are initialized here.  The
+rest of the initialization process is delegated to disk_cache_init.
+
+disk_cache_init initializes the rest of disk cache data structures:
+disk_cache_lock, disk_cache_remapping, disk_cache_bptr,
+disk_cache_info and disk_cache_hint.  After that superblock and group
+descriptors are mapped into the cached and are marked as DC_FIXED.
+This forbids reusing those blocks, because Hurd's ext2 code relies on
+these blocks being mapped into fixed location in address space.
+
+** Pager callbacks
+
+disk_pager_read_page and disk_pager_write_page just use disk cache
+data structures to get the right pointers to blocks.
+disk_pager_read_page requests notification of page-out and updates
+DC_INCORE and DC_REMAPPING too.  DC_INCORE is set and DC_REMAPPING is
+cleared (because reading the new block finishes its remapping).
+
+disk_pager_notify_pageout just clears DC_INCORE, making that page
+available for remapping.
+
+* libpager changes
+
+Here memory_object_data_ prefix is shorten to m_o_d_.  And when it's
+talked about m_o_d_function Mach function, usually its libpager
+handler is meant.
+
+** Notification on eviction
+
+The most important change that is wanted from libpager is supporting
+notification when page is evicted.  Mach already has partial support
+for notification on eviction by argument "kcopy" of m_o_d_return.  If
+kcopy is 0, then Mach doesn't have copy of this page anymore, so the
+page is "evicted".  The problem is that m_o_d_return is usually called
+only when page is modified, and if it's not modified, it's silently
+dropped.
+
+The solutions is marking page as "precious".  This has the exact
+semantics we need: when page is evicted, m_o_d_return callback is
+always called with kcopy=0.
+
+*** Implementation details
+
+New argument is added to user callback pager_read_page:
+notify_on_pageout.  If it's non-zero and the page is evicted, user
+callback pager_notify_pageout(pager,page) is called.  This change ABI
+requires all libpager clients in the Hurd to be changed according to
+the new API.
+
+m_o_d_request stores notify_on_pageout as flag PM_NOTIFY_PAGEOUT.
+
+m_o_d_return no longer just skips non-dirty pages.  Local array
+notified[] is build and at the end of the function,
+pager_notify_pageout is called for all pages that are evicted
+(kcopy=0).
+
+** Avoiding libpager optimization
+
+Unfortunately, there is one more problem, this time specific to
+libpager, not Mach.  There is an optimization in m_o_d_request when
+page is being paged out.  In the beginning of m_o_d_return, all pages
+being return are marked as PM_PAGINGOUT.  This mark is cleared after
+m_o_d_supply (which supplies page content to Mach) is called.  If
+m_o_d_request is called on page that is marked as PM_PAGINGOUT, this
+page is marked with PM_PAGEINWAIT, and m_o_d_supply inside
+m_o_d_return is not called for this page.  This is possible because
+neither of these functions hold pager->interlock during the whole
+execution of function.  This lock is temporarily unlocked during call
+to user callbacks pager_read_page and pager_write_page.
+
+So what is the implication of this optimization to our page eviction
+notification?  When page is paged out, we get notified and we can
+decide to reuse it.  After arranging disk_cache_info, etc, page is
+touched, but if this happens fast enough, the optimization is
+triggered and we get the old content!  Reading the page is "optimized"
+and pager_read_page is not called, but instead the content of old
+block is used.
+
+This is solved by marking flushed and synced pages (via
+pager_{flush,sync}{,_some} with PM_FORCEREAD.  (These functions call
+lock-object.c:_pager_lock_object which marks pages with PM_FORCEREAD
+if they are already marked with PM_NOTIFY_PAGEOUT.)  In handling
+m_o_d_request, pages marked as PM_FORCEREAD are not optimized in this
+way.  XXX: Currently, this fine-grained logic is disabled (with #if),
+as it needs more testing.  Probably RC2 will use it.  For now, all
+pages are considered PM_FORCEREAD and this particular optimization
+never happens.
+
+*** Technical details
+
+As said above, we need guarantee that after pager_{sync,flush}*,
+pager_read_page callback is called.  The most convenient place to mark
+these pages as being forced to re-read is
+lock-object.c:_pager_lock_object, because this function is used by all
+pager_{sync,flush}* functions.  So there we just mark page as
+PM_FORCEREAD if it's already marked as PM_NOTIFY_PAGEOUT.
+
+First, this mark influences behaviour of m_o_d_request.  If page is
+marked with PM_FORCEREAD and PM_PAGINGOUT, then we set PM_PAGEINWAIT
+and wait until related m_o_d_return finishes (unmarks PM_PAGEINWAIT).
+Then we continue with pager_read_page, etc.  If page is not marked
+with PM_FORCEREAD and is marked with PM_PAGINGOUT, then old logic is
+used and pager_read_page is not called (because m_o_d_return handler
+will call m_o_d_supply instead of us).  (XXX: Again, this logic is
+inside #if 0.  Currently, all pages are considered as marked with
+PM_FORCEREAD.)
+
+The other place where PM_FORCEREAD is taken into consideration is
+handler of m_o_d_return.  The original code checks if page is marked
+with PM_PAGEINWAIT, and if it is, m_o_d_supply is called for the just
+written page.  PM_PAGEINWAIT is used as "delegator" of the
+m_o_d_supply call to Mach.
+
+In patched libpager, there is one more condition for when to call
+m_o_d_supply.  It's called when page is marked as PM_PAGEINWAIT and
+not marked as PM_FORCEREAD.  If it's marked as PM_FORCEREAD, then we
+leave m_o_d_supply to m_o_d_request handler which gets notified by
+condition pager->wakeup.

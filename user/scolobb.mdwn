@@ -1,0 +1,364 @@
+[[!meta copyright="Copyright © 2008, 2009 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+
+Sergiu Ivanov
+
+Mail: <mailto:unlimitedscolobb@gmail.com>
+
+# Current Activity
+
+I am currently busy finishing the university semester, this is why I
+am rather passive.
+
+## Roadmap
+
+* **Build `nsmux` under the Hurd tree** -- **antrik** has been urging
+  me to do this for a long time, so I definitely have to give it a
+  try.
+
+* **Try Thomas's `nsmux-notify` branch** -- To support his stance
+  against including `nsmux` in the Hurd source tree, Thomas added to
+  `nsmux` the ability to listen to port notification (as I understand
+  it).  I have to try that, too.
+
+* **Make proxy nodes go away when the proxied translator goes away**
+  -- This should be done by listening to notifications on the ports to
+  the proxied translators.  A similar functionality is already
+  implemented in `unionmount`, but it was decided that `nsmux` should
+  use standard notification interfaces, as opposed to the custom
+  demuxer and handler implemented in `unionmount`.
+
+* **Don't attach anonymous translators** -- There is no special point
+  in attaching anonymous (formerly known as dynamic) translators to
+  specific nodes.  Keeping them orphan should simplify the design of
+  `nsmux` by eliminating the need for shadow nodes, whose main purpose
+  was to serve as virtual locations to attach translators to.
+
+* **Setup a list of nodes proxying static translators** -- This list
+  is needed when for the filter, which should also be able to go down
+  the static translator stack, not only the stack of anonymous
+  translators.
+
+* **Cleanup `nsmux`** -- When I was writing `nsmux` my acquaintance
+  with good coding and code formatting practices was very basic, which
+  resulted in messy and sometimes ugly code.
+
+* **Implement recursive propagation of translators down directories**
+  -- This task was planned long ago and is fascinating, but I won't be
+  working on it in the near future.
+
+---
+
+# Google Summer of Code: 2009 Project
+
+**Unionmount**: The goal of this project is to make it possible to set
+translators in unionmount mode, which means that the filesystem
+published by the mounted translator will get merged with the directory
+tree of the node the translator is mounted onto.
+
+For documentation, see [[hurd/translator/unionmount]].
+
+At the Final Evaluation, this project was given a passing evaluation
+by **antrik**.  This means that the union-mount functionality is
+working and has been tested normally to collaborate with
+`eth-multiplexer`.
+
+---
+
+## Roadmap
+
+### DONE
+
+(Dates in brackets show the completion date)
+
+* **Make `unionfs` build.** *(24 May)* For reasons unknown to me,
+  `unionfs` Makefile was configured to search for include files from
+  under `$(prefix)/include`, while `$(prefix)` was never
+  defined. Setting `$(prefix)` to `/usr` solved the problem.
+
+* **Change the command line parsing in `unionfs` to comply with the
+  requirements of `unionmount`.** *(25 May)* Although the core
+  functionality of `unionmount` heavily relies on `unionfs`, the
+  command line interface of these two programs is completely
+  different: `unionfs` operates on directories, the list of which is
+  explicitly specified, while `unionmount` *always* merges the
+  underlying filesystem and the filesystem published by the
+  mountee. Therefore, options like `--add`, `--remove`, `--underlying`
+  (specific to `unionfs`) make little sense in `unionmount`
+  context. These options have been removed. Also, `unionmount` must be
+  able to pass some switches to the mountee, which means that it
+  should stop parsing the command line arguments immediately after
+  having encountered the path to the mountee (very similar to how
+  `settrans` works). This functionality has also been implemented.
+
+* **Make `unionmount` capable of starting the mountee.** *(28 May)*
+  The idea behind implementation of this goal is that `unionmount`
+  should provide a proxy node on which to set the mountee. The main
+  issue about this goal was the fact that the mountee *cannot* be
+  started during the initialization of `unionmount`, because in this
+  phase `unionmount` is not capable of responding to RPCs, while many
+  translators try to `io_stat` their underlying node or do other
+  interesting things on startup. The solution to this problem is,
+  obviously, *lazy* startup, i.e. the mountee is started at the first
+  attempt to access (via `dir_lookup` or `dir_readdir`) the merged
+  filesystem published by `unionmount`.
+
+* **Include the filesystem published by the mountee in the list of
+  merged filesystems.** *(1 Jun)* `unionfs` operates on a list of
+  ports to the underlying filesystems, therefore, to finish the
+  unionmount functionality, I had to include the port to the mountee
+  in this list.
+
+* **Learn Texinfo.** *(Jun 4)* In order to produce canonical
+  documentation I had to learn the Texinfo documentation format.
+
+* **Write documentation for `unionmount`.** *(Jun 5)* The basic
+  unionmount functionality being finished, it has to be documented
+  properly, lest it should lag behind and remain unfinished
+  eventually.
+
+* **Write documentation for `unionfs`.** *(Jun 5)* `unionfs` is not
+  exactly well-documented at the moment, the only help being provided
+  by the comments in the sources. The goal is to write a more coherent
+  documentation.
+
+* **Start with a clean unionfs and implement the `--mount` argument**
+  *(11 Jun)* It was suggested to implement the union mount
+  functionality first, instead of doing some partial adaptation of
+  `unionfs` to `unionmount` and leaving the complete adaptation for
+  the future.
+
+* **Compile GNU/Hurd from source to be able to study
+  eth-multiplexer.** *(16 Jun)* On my way to getting a working
+  instance of eth-multiplexer I learnt how I could compile GNU/Hurd in
+  a Debian GNU/Hurd system.
+
+* **Setup the `devnode`--`eth-multiplexer`--`pfinet chain`.** *(30
+  Jun)* Due to the fact that I was trying to build everything using
+  `gcc-4.3`, I got strange behaviour of pfinet and spend a week trying
+  to figure out the reason.
+
+* **Try to start the mountee during initialization of `unionfs`** *(4
+  Jul)* Initially the mountee was started at the first lookup. Now it
+  is started immediately after initialization of `unionmount`.
+
+* **Fix the patches in `--mount` option series** *(5 Jul)* The patches
+  have been reviewed by **antrik**. I corrected them and posted them
+  to the ML for final reviews.
+
+* **Orphan the mountee after starting it** *(7 Jul)* Orphaning the
+  mountee after starting it up seems to be a nice work-around for the
+  necessity of keeping a proxy node in unionmount in simple
+  use-cases. It is possible that this functionality will provided as a
+  separate patch (without inclusion in master) should it turn out that
+  orphaning the mountee is a bad idea.
+
+* **Decide which RPCs should be forwarded to the mountee and how this
+  should happen** *(10 Jul)* This is the primary requirement in being
+  able to proxy the control port of `unionmount`.
+
+* **Fix the patches the have already been commented on** *(14 Jul)*
+  The new patches I have submitted have been reviewed; also, the older
+  patches have been reviewed again, which required correcting them.
+
+* **Add the `--no-mount` option** *(14 Jul)* Using the `--no-mount`
+  and `--mount` options, the user can decide whether unionmount should
+  be completely transparent (i.e. most control-port RPCs forwarded to
+  the mountee) or not.
+
+* **Make `unionmount` go away when the mountee goes away** *(14 Jul)*
+  `unionmount` makes sense only while the mountee is running, so it
+  has to go away as soon as the mountee has been shut down for some
+  reason.
+
+* **Proxy the control port of `unionmount`** *(14 Jul)* For
+  `unionmount` to become transparent, most of the RPCs invoked on the
+  its control port should be forwarded to the mountee.
+
+* **Fix adding filesystems to `unionmount`** *(16 Jul)* `settrans -a
+  foo unionfs -a <dir> -u -t <translator>` worked, but `settrans -a
+  foo unionfs -u -t <translator> -a <dir>` didn't.  The problem was
+  that in a series of rebase operations I accidentally left the
+  "Orphan the mountee" commit out and the problem appeared when the
+  `start_mountee` function tried to attach the mountee.  Of course,
+  this is not the definite solution, since I don't know why should the
+  attempt to attach the mountee work in the former case and fail in
+  the latter, but I will leave the investigation for some future time.
+
+* **Create the patch for supplying the mountee with a port to the
+  underlying node of unionfs** *(17 Jul)* Such functionality makes
+  `unionmount` even more transparent.
+
+* **Try to make `eth-multiplexer` work with static instances of
+  `devnode`** *(3 Aug)* A static `devnode` translator is a `devnode`
+  translator which is told to use the eth-multiplexer's pseudo master
+  device port via the "-M" option.  Technically it looks like
+  `settrans -a <node> devnode -M <dir> <device-name>`, where `<dir>`
+  is the node on which eth-multiplexer is running.
+
+  The problem was in the fact that the root node of `eth-multiplexer`
+  was not treated completely similarly as other nodes; specifically no
+  device port was created for it.  Minor modifications to some
+  conditions solved the problem.
+
+* **Add the `MASTER` node to `eth-multiplexer`** *(5 Aug)* The
+  `MASTER` node, published by eth-multiplexer, allows creating any
+  number of virtual devices.  This node is mainly accessed by static
+  instances of `devnode` to setup their corresponding virtual devices.
+
+* **Add support for priorities** *(6 Aug)* Now the mountee's
+  filesystem can be configured to "lie" beneath other filesystems.
+
+* **Use `unionmount` to merge the virtual filesystem of
+  `eth-multiplexer` with its underlying filesystem** *(7 Aug)*
+  `eth-multiplexer` can is unionmounted to "lie beneath" it's
+  underlying filesystem.  If, for example, the multiplexer is
+  unionmounted on `veth/`, the user can both set (static) `devnode`
+  translator on the nodes shown in `veth/` and belonging to the
+  underlying filesystem and create normal virtual multiplexer devices
+  by accessing any node (not present in the underlying filesystem) and
+  opening a device using the port to the node as a pseudo device port.
+
+* **Rename the `MASTER` node into `.MASTER`** (7 Aug) This name seems
+  more natural for a special-purpose node.
+
+* **Set the stat information for `eth-multiplexer` nodes in
+  `netfs_validate_stat`** (9 Aug) In the initial version the stat
+  information was set up properly only at device creation.  Before
+  that the stat information was copied from the underlying node, which
+  baffled `unionmount`.  Now the stat information is setup in
+  `netfs_validate_stat`.
+
+* **Supply the mountee with the real root.** *(14 Aug)* Since the
+  mountee is *not attached* to its underlying node, it is okay to
+  supply it with the real root node of `unionfs`.  The mountee's
+  filesystem will not obscure the `unionfs`'s one because the mountee
+  is *not attached* to the root node.
+
+---
+
+# Google Summer of Code: 2008 Project: Namespace-based translator selection
+
+---
+
+## Current Task
+
+Write the filesystem proxy for namespace-based translator selection (*nsmux*).
+
+The code is at <http://github.com/scolobb/nsmux/tree/master>.
+
+---
+
+###Did this week
+
+* Modified the node cache so that it maintains shadow nodes alive.
+
+###Plans for the next week
+
+* Implement the shutting down of translator stacks when *nsmux* is asked to go away (in case **antrik** considers that necessary).
+
+* Make *nsmux* provide the access to the translator stack of the real node, in case a translator (mainly, a filter) should ask for its underlying node to be opened in O_NOTRANS mode.
+
+---
+
+###Current Status
+
+####DONE:
+
+* The skeleton which mirrors the filesystem.
+
+* Provide proxy nodes (modify the standard version of netfs_S_dir_lookup).
+
+####TODO:
+
+* Create the generic filtering translator.
+
+* Create the translator '0' (providing the untranslated version of the
+  node).
+
+* Create the "recursive wrappers" for one-node translators.
+
+* Create special translators for the main proxy so that its functionality
+  should be complete.
+
+* Implement sharing of dynamic translator stacks where possible.
+
+* Make dynamic translators go away as soon as they are not required.
+
+* Refine the skeleton in several places so that it should become faster
+  and more reliable.
+
+* Kill bugs.
+
+* Integrate nsmux upstream.
+
+* Solve the libtrivfs stacking issue.
+
+* Patch libnetfs (it does not support file_get_translator_cntl, for
+  instance).
+
+---
+
+###Progress
+
+####8: Fri Sep 19:
+
+> Modified the ncache so that it now maintains shadow nodes (and directory nodes too, it is a side effect at the moment) alive.
+
+####7: Sat Aug 30 - Fri Sep 5:
+
+> Added the code for shutting down dynamic translator stacks.
+
+####6: Mon Aug 4 - Fri Aug 29:
+
+> Implemented the proxy nodes.
+
+####5: Thu Jul 24 - Thu Jul 24:
+
+> Created a *libnetfs*-based one-node translator, working exactly like the *libtrivfs*-based translator I had written before; the former, however, can be included in a translator stack.
+
+####4: Tue Jul 22 - Thu Jul 24:
+
+> Attempted to make a *libtrivfs*-based translator to be able to be stacked upon itself (to be able to receive a translator on top of itself, more exactly); attempted to   borrow some code from *libnetfs* but this didn't bring any results.
+
+####3: Sun Jul 20 - Tue Jul 22:
+
+> Implemented the possibility to propagate a translator on all files belonging to a directory 'dir' in the request of the type 'dir,,x/'.
+
+####2: Thu Jul 17 - Fri Jul 18:
+
+> Extended the lookup code in *nsmux* to allow for looking up nodes like 'file,,x' and added the possibility to escape the double-comma in the following way: ',,,'.
+
+####1: Mon Jul 12 - Tue Jul 13:
+
+> Implemented a simple *libtrivfs*-based translator to test the lookup code for *nsmux*.
+
+####0: Sat Jul 12 - Sat Jul 12:
+
+> Made small changes to the code of *filterfs* to fit the needs of *nsmux*.
+
+---
+
+## Completed Tasks
+
+####2: Sat May 3 - Fri Jul 17:
+
+> Write a translator that should filter the contents of the directory it is set on according to some property. The property can be an arbitrary command.
+
+> The code is at <http://github.com/scolobb/filterfs/tree/master>.
+
+####1: Mon Apr 28 - Wed Apr 30:
+
+> Wrote a Python extension module in C for retreiving the uptime. The module is based on the code of *w*.
+
+####0: Sun Apr 27:
+
+> Followed the code of *dmesgd* (<http://www.bddebian.com/junk/dmesgd/>) kindly offered by **bddebian** and rewrote it from scratch as a tutorial.

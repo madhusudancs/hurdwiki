@@ -1,0 +1,184 @@
+[[!meta copyright="Copyright © 2002, 2007, 2008, 2010 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="Hurd-specific glibc API"]]
+
+These functions have meaning only under Hurd.  They are needed to get port
+names that are used in native Hurd API (the [[RPC]]s to servers).  The `.defs`
+and `.h` files can be found in `/include/hurd` when all development files are
+installed (Debian package `hurd-dev`.)  Note that `.defs` are not included in C
+programs -- they are used to produce `.h` files.
+
+<!-- TODO.  Need to convert this to a proper table.  --tschwinge -->
+
+<dl>
+  <p>
+  </p>
+  <dt><tt>file_t</tt></dt>
+  <dt><tt><b>getcwdir</b> (void);</tt></dt>
+  <p>
+  </p>
+  <dd>Get <tt>file_t</tt> port name of current working directory. See <tt>&amp;lt;hurd/fs.defs&amp;gt;</tt> and <tt>&amp;lt;hurd/fs.h&amp;gt;</tt>.</dd>
+  <p>
+  </p>
+  <dt><tt>int</tt></dt>
+  <dt><tt><b>setcwdir</b> (file_t);</tt></dt>
+  <dd>Set current working directory.</dd>
+  <p>
+  </p>
+  <dt><tt>file_t</tt></dt>
+  <dt><tt><b>getcrdir</b> (void);</tt></dt>
+  <dd>Get <tt>file_t</tt> port name of current root directory.</dd>
+  <p>
+  </p>
+  <dt><tt>int</tt></dt>
+  <dt><tt><b>setcrdir</b> (file_t);</tt></dt>
+  <p>
+  </p>
+  <dd>Set current root directory.</dd>
+  <p>
+  </p>
+  <dt><tt>file_t</tt></dt>
+  <dt><tt><b>file_name_lookup</b> (const char *file, int flags, mode_t mode);</tt></dt>
+  <dd>Open a port to FILE with the given FLAGS and MODE (see <tt>&amp;lt;fcntl.h&amp;gt;</tt>). The file lookup uses the current root and working directory. Returns a port to the file if successful; otherwise sets <tt>errno</tt> and returns <tt>MACH_PORT_NULL</tt>.</dd>
+  <p>
+  </p>
+  <dt><tt>file_t</tt></dt>
+  <dt><tt><b>file_name_lookup_under</b> (file_t startdir, const char *file, int flags, mode_t mode);</tt></dt>
+  <dd>Open a port to FILE with the given FLAGS and MODE (see <tt>&amp;lt;fcntl.h&amp;gt;</tt>). The file lookup uses the current root directory, but uses STARTDIR as the "working directory" for file relative names. Returns a port to the file if successful; otherwise sets <tt>errno</tt> and returns <tt>MACH_PORT_NULL</tt>.</dd>
+  <p>
+  </p>
+  <dt><tt>file_t</tt></dt>
+  <dt><tt><b>file_name_path_lookup</b> (const char *file_name, const char *path, int flags, mode_t mode, char **prefixed_name);</tt></dt>
+  <dd>Lookup FILE_NAME and return the node opened with FLAGS &amp;amp; MODE (see <tt>hurd_file_name_lookup</tt> for details), but a simple file name (without any directory prefixes) will be consecutively prefixed with the pathnames in the <tt>:</tt> separated list PATH until one succeeds in a successful lookup. If none succeed, then the first error that wasn't ENOENT is returned, or ENOENT if no other errors were returned. If PREFIXED_NAME is non-NULL, then if the result is looked up directly, *PREFIXED_NAME is set to NULL, and if it is looked up using a prefix from PATH, *PREFIXED_NAME is set to malloc'd storage containing the prefixed name.</dd>
+  <p>
+  </p>
+  <dt><tt>file_t</tt></dt>
+  <dt><tt><b>file_name_split</b> (const char  file, char **name);</tt></dt>
+  <dd>Split FILE into a directory and a name within the directory. The directory lookup uses the current root and working directory. If successful, stores in *NAME a pointer into FILE where the name within directory begins and returns a port to the directory; otherwise sets <tt>errno</tt> and returns <tt>MACH_PORT_NULL</tt>.</dd>
+  <p>
+  </p>
+  <dt><tt>file_t</tt></dt>
+  <dt><tt><b>directory_name_split</b> (const char *file, char **name);</tt></dt>
+  <p>
+  </p>
+  <dd>Split DIRECTORY into a parent directory and a name within the directory. This is the same as <tt>file_name_split</tt>, but ignores trailing slashes.</dd>
+  <p>
+  </p>
+  <dt><tt>FILE *</tt></dt>
+  <dt><tt><b>fopenport</b> (io_t port, const char *mode);</tt></dt>
+  <dd>Open a stream on a port. MODE is as for <tt>fopen</tt>. If successful, this consumes a user reference for PORT (which will be deallocated on fclose).</dd>
+  <p>
+  </p>
+  <dt><tt>int</tt></dt>
+  <dt><tt><b>openport</b> (io_t port, int flags);</tt></dt>
+  <p>
+  </p>
+  <dd>Open a [[unix/file_descriptor]] on a [[microkernel/mach/port]].  FLAGS
+    are as for <tt>open</tt>; flags affected by <tt>io_set_openmodes</tt> are
+    not changed by this.  If successful, this consumes a user reference for
+    PORT (which will be deallocated on close.) See
+    <tt>&amp;lt;hurd/io.defs&amp;gt;</tt> and
+    <tt>&amp;lt;hurd/io.h&amp;gt;</tt>.
+  </dd>
+  <p>
+  </p>
+  <dt><tt>task_t</tt></dt>
+  <dt><tt><b>pid2task</b> (pid_t pid);</tt></dt>
+  <p>
+  </p>
+  <dd>Return the task control port of process PID. On error, sets <tt>errno</tt> and returns <tt>MACH_PORT_NULL</tt>.</dd>
+  <p>
+  </p>
+  <dt><tt>pid_t</tt></dt>
+  <dt><tt><b>task2pid</b> (task_t task);</tt></dt>
+  <dd>Return the PID of the task whose control port is TASK. On error, sets <tt>errno</tt> and returns -1. </dd>
+  <p>
+  </p>
+  <dt><tt>int</tt></dt>
+  <dt><tt><b>geteuids</b> (int n, uid_t *uidset);</tt></dt>
+  <dd>Get the effective UID set.</dd>
+  <p>
+  </p>
+  <dt><tt>int</tt></dt>
+  <dt><tt><b>seteuids</b> (int n, const uid_t *uidset);</tt></dt>
+  <dd>Set the effective UID set.</dd>
+  <p>
+  </p>
+  <dt><tt>auth_t</tt></dt>
+  <dt><tt><b>getauth</b> (void);</tt></dt>
+  <dd>Get port name of current authentication server. See <tt>&amp;lt;hurd/auth.defs&amp;gt;</tt> and <tt>&amp;lt;hurd/auth.h&amp;gt;</tt>.</dd>
+  <p>
+  </p>
+  <dt><tt>int</tt></dt>
+  <dt><tt><b>setauth</b> (auth_t);</tt></dt>
+  <p>
+  </p>
+  <dd>Set current authentication server.</dd>
+  <p>
+  </p>
+  <dt><tt>process_t</tt></dt>
+  <dt><tt><b>getproc</b> (void);</tt></dt>
+  <dd>Get port name of current process server. See <tt>&amp;lt;hurd/process.defs&amp;gt;</tt> and <tt>&amp;lt;hurd/process.h&amp;gt;</tt>.</dd>
+  <p>
+  </p>
+  <dt><tt>int</tt></dt>
+  <dt><tt><b>setproc</b> (process_t);</tt></dt>
+  <p>
+  </p>
+  <dd>Set current process server.</dd>
+  <p>
+  </p>
+  <dt><tt>mach_port_t</tt></dt>
+  <dt><tt><b>getcttyid</b> (void);</tt></dt>
+  <dd>Get the CTTY port.</dd>
+  <p>
+  </p>
+  <dt><tt>int</tt></dt>
+  <dt><tt><b>setcttyid</b> (mach_port_t);</tt></dt>
+  <dd>Set the CTTY port.</dd>
+  <p>
+  </p>
+  <dt><tt>kern_return_t</tt></dt>
+  <dt><tt><b>get_privileged_ports</b> (host_priv_t *host_priv_ptr, device_t *device_master_ptr);</tt></dt>
+  <dd>Fetch the host privileged port and device master port from the process server.</dd>
+  <p>
+  </p>
+  <dt><tt>mode_t</tt></dt>
+  <dt><tt><b>getumask</b> (void);</tt></dt>
+  <dd>Get the current `umask' value without changing it (this glibc functions is available only under GNU Hurd.)</dd>
+  <p>
+  </p>
+  <dt><tt>int</tt></dt>
+  <dt><tt><b>vpprintf</b> (io_t port, const char *format, va_list arg);</tt></dt>
+  <dd>Write formatted output to PORT, a Mach port supporting the i/o protocol, according to the format string FORMAT, using the argument list in ARG.</dd>
+  <p>
+  </p>
+  <dt><tt>thread_t</tt></dt>
+  <dt><tt><b>hurd_thread_self</b> (void);</tt></dt>
+  <dd>Return the current thread's thread port. This is a cheap operation (no [[system call]]), but it relies on Hurd signal state being set up.</dd>
+  <p>
+  </p>
+  <dt><tt>error_t</tt></dt>
+  <dt><tt><b>hurd_thread_cancel</b> (thread_t thread);</tt></dt>
+  <p>
+  </p>
+  <dd>Cancel pending operations on THREAD. If it is doing an interruptible RPC, that RPC will now return EINTR; otherwise, the "cancelled" flag will be set, causing the next <tt>hurd_check_cancel</tt> call to return nonzero or the next interruptible RPC to return <tt>EINTR</tt> (whichever is called first).</dd>
+  <p>
+  </p>
+  <dt><tt>int</tt></dt>
+  <dt><tt><b>hurd_check_cancel</b> (void);</tt></dt>
+  <p>
+  </p>
+  <dd>Test and clear the calling thread's "cancelled" flag.</dd>
+  <p>
+  </p>
+</dl>

@@ -1,0 +1,298 @@
+[[!meta copyright="Copyright © 2007, 2008, 2010 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+#libnetfs
+
+##What This Is
+
+This document is an attempt at a short overview of the main concepts
+used in the process of development of translators using
+*libnetfs*. You will **not** find here a detailed description of the
+required callbacks (for this take a look at
+<http://www.debian.org/ports/hurd/reference-manual/hurd.html>). You
+will **not** find a complete example of code either (usually,
+*unionfs* is suggested as an example)
+
+##What libnetfs Is
+
+*libnetfs* is a Hurd library used in writing translators providing
+some virtual directory structures. For example, if you would like to
+create a translator which shows a *.tar* archive in a unpacked way,
+you will definitely want to use *libnetfs*. However, it is important
+to understand one thing: real filesystem servers (like *ext3* and
+such) do **not** use *libnetfs*, instead, they rely on *libdiskfs*,
+which is, generally speaking, seriously different from *libnetfs*.
+
+All in all, *libnetfs* is the library you would choose when you want
+to write a translator which will show a file (or a directory) in a
+modified way (for example, if you'd like to show only *.sh* files or
+make an archive look unpacked). As different from *[[libtrivfs]]*, using
+*libnetfs*, you can show to your clients not just a single file, but a
+whole directory tree.
+
+##How It Works: Short Description
+
+With the aid of *libnetfs* a translator (supposedly) publishes a
+directory tree. All lookups in this directory tree are directed to the
+translator and the latter is free to provide whatever (consistent)
+information as the result of the lookup. Of course, all other usual
+requests like reading, writing, setting a translator, etc. are
+directed to the translator, too. The translator has either to
+implement the required functionality in the corresponding callback or
+just return an appropriate error code (for example, EOPNOTSUPP), if
+the callback is compulsory.
+
+##The Main Concepts: Nodes
+
+The most fundamental thing to understand about *libnetfs* is the
+notion of a **node**. Nearly always there are two types of nodes in a
+*libnetfs*-based translator:
+
+* Generic **node**, defined in *&lt;hurd/netfs.h&gt;*. This node contains
+  information read and written by the programmer (like field
+  *nn_stat*), as well as some internal information (like fields
+  *references* and *transbox*). Of course, the programmer is free to
+  use these fields at will, but they should know what they are doing.
+
+* Custom **netnode**, defined by the programmer and containing only
+  the information valuable for the programmer, but not for *libnetfs*.
+
+The generic node is probably the most important primitive introduced
+by *libnetfs*. Callbacks receive the nodes they should work with as
+parameters; some of them return nodes as the result of their
+operation. To some extent of certainty, a *libnetfs* node can be
+perceived similarly to a filesystem node -- the building-brick out of
+which everything is composed.
+
+As it can be seen from the definition in *&lt;hurd/netfs.h&gt;*, a reference
+to a netnode is stored in each generic node. In a way, a netnode can
+be perceived as the custom attachment to the information contained in
+a generic node. The link between these is quite strong. At first this
+might not look like a very important thing, but let's analyze a simple
+example: you would like to show the contents of a directory in a
+filtered way. As a filtering criterion you would like to use the
+result of the execution of a command specified as a command line
+argument to the translator. If a client looks up a 'file' in the
+directory tree provided by the translator, the latter should feed the
+name of the file to the filtering command and decide whether to hide
+this file or not upon receiving the result.
+
+To avoid trouble, the translator had better use the *absolute* name of
+'file'. Obviously, the translator would like to organize all of the
+nodes in a hierarchy. To make things work more or less fast, it is a
+reasonable decision to construct the absolute path to a node at
+creation and store it inside the netnode (which, in turn, is inside
+the node). However, such an approach is not a good one when using
+*libnetfs*. Generally speaking, a *new* generic node is created at
+each lookup, and, together with it, a new netnode is constructed. The
+conclusion is that a *libnetfs* node is a rather transient phenomenon,
+and when we want to store some information which is relatively
+expensive to obtain, we need something more than a generic node +
+netnode. At this moment most of the translators (like *unionfs*,
+*ftpfs*, etc.) introduce the concept of a **light node**.
+
+A **light node** is a user-defined node which contains some
+information expensive to obtain, which had better not be stored
+directly in a netnode. All netnodes, contained in generic nodes which
+resulted in lookups of the same file, share references (pointers,
+actually) to a single light node. Light nodes are created when the
+first attempt to lookup a file is done, and they are destroyed when no
+netnodes reference them. It is very important to understand that
+*libnetfs* does **not** enforce the programmer to define light
+nodes. Everything can be stored within netnodes inside generic
+nodes. Light nodes are just a matter of organizing data in an
+efficient way.
+
+Probably, you are already thinking ``Why cannot *netnodes* be shared?
+Why do we need yet another notion?''. The answer is that the link
+between a netnode and a *libnetfs* node should be one-to-one, because
+netnodes usually store information specific of *only one* node, whilst
+light nodes contain information common to several nodes. If one chose
+to share netnodes, one would not be able to store additional
+information per a *libnetfs* node, and this is quite a serious problem
+in most practical problems.
+
+##Why a libnetfs Node Is Not Quit a Filesystem Node
+
+The most demonstrative argument in this case is the definition of
+*struct node* in *&lt;hurd/netfs.h&gt;*. If you try to find in this
+definition some reference to other generic node called *parent*, or an
+array of references called *children* (which would be quite classical
+for a member of a hierarchy), you will fail. There are fields *next*
+and *prevp*, but these are for internal use and only include the node
+in an internally maintained *list*, not a tree. Surprisingly enough,
+*libnetfs* does **not** manage the tree-like structure for you. You
+have to do that *on you own*. This is another moment when light nodes
+come triumphantly to light. Most *libnetfs*-based translators organize
+their light nodes in the tree-like structure reflecting the directory
+tree shown to the user. When a lookup is performed, a light node is
+either created or reused (if it has already been created in a previous
+lookup). The result of the lookup is a *libnetfs* node created basing
+on the information contained in the found light node.
+
+From the point of view of a *libnetfs* programmer, light nodes are the
+conceptual filesystem nodes. A translator knows who is the parent of
+who *only* from studying the links between light nodes. And a light
+node does contain a reference to its parent and an array of references
+to children. When a translator is asked to fetch a file, it finds this
+file in the tree of light nodes firstly, creates a *libnetfs* node
+based on the found light node, and returns the latter as the
+result. Therefore, it is not quite right to perceive *libnetfs* nodes
+as filesystem nodes. Instead, the focus of attention should stay upon
+light nodes.
+
+##How It Works: A More Verbose Description
+
+At first let us see how the a *libnetfs*-based translator responds to
+lookup requests. At the beginning the *netfs_attempt_lookup* callback
+is called. It knows the generic *libnetfs* node corresponding to the
+directory under which the lookup shall take place, the name it has to
+lookup, and the information about the user requesting the lookup. This
+callback is supposed to create a new *libnetfs* node corresponding to
+the requested file or return an error. As it has been said before,
+usually translators browse their hierarchy of light nodes to know
+whether a file exists within a directory or not. Note that
+*netfs_attempt_lookup* does not know the flags with which a
+*file_name_lookup* call is done, what it has to do is just to provide
+a new node or return an error.
+
+Then *netfs_validate_stat* callback is called and a node and
+information about the user is passed inside. This callback is a rather
+simple one: it has to assure that the *nn_stat* field of the supplied
+node is valid and up to date. Translators which mirror parts of real
+filesystem, like *unionfs*, usually treat the node corresponding to the
+root of their node hierarchy in a specific way. The reason is that the
+root node is not a mirror of a real file -- it is almost always a
+directory in translators of this kind.
+
+The third stage is an invocation of
+*netfs_check_open_permissions*. This callback is, probably, one of the
+simplest in most cases. It knows some information about the user
+requesting the open, about the node that is about to be returned to
+the user, and about the flags supplied by the user in the call to
+*file_name_lookup*. Besides that, this callback is provided with the
+information whether the requested lookup ended in creating a new file
+or whether the requested file already
+existed. *netfs_check_open_permissions* has to decide if the user has
+the right to access the resulting file under the permissions specified
+in flags. It has to return either 0 or the corresponding error.
+
+These are the most basic steps of the lookup. Note that if the file
+was requested with O_CREAT flag and *netfs_attempt_lookup* could not
+locate this file, *netfs_attempt_create_file* is called. In many ways
+a typical implementation of this callback might be similar to the
+implementation of *netfs_attempt_lookup*. However,
+*netfs_attempt_create_file* will most probably have to do less checks.
+
+Let's move to listing the contents of a directory. The corresponding
+callback, *netfs_get_dirents* is triggered when a user invokes
+*dir_readdir* upon a directory provided by the translator. The
+parameters of *netfs_get_dirents* are therefore very similar to the
+parameters of *dir_readdir*. Actually, translator *fakeroot* only
+calls *dir_readdir* in this callback and nothing more. In translators
+which need more complex handling (like filtering the contents) the
+code of this is more sophisticated. Sometimes the listing of directory
+entries happens in several stages: *netfs_get_dirents* may call
+something like *node_entries_get*, and the latter may invoke
+*dir_entries_get*. The latter function calls *dir_readdir* and
+converts the result to an array of *struct dirent*
+'s. *node_entries_get* converts the array of *struct dirent* 's to a
+linked list and decides whether a specific file shall be included in
+the result or not. Finally, *netfs_get_dirents* converts the linked
+list provided by *node_entries_get* to the format of the result of
+*dir_readdir* and returns the converted data to the user. The
+described stages are the stages of listing directory entries in
+*unionfs*, for instance.
+
+Other callbacks are, generally speaking, less sophisticated. For
+example, when the client wants to read (write) from a node provided
+by *netfs_attempt_lookup*, the callback *netfs_attempt_read*
+(*netfs_attempt_write*) is triggered. Both callbacks have sets of
+parameters to the corresponding *io_read* and *io_write* functions.
+
+While browsing the code of very many *libnetfs*-based translators, you
+might notice that they define callbacks starting with
+*netfs&#95;S&#95;*. Usually a name similar to that of one of the file
+management function follows (like netfs&#95;S&#95;*dir_lookup*). These
+callbacks are triggered when the corresponding functions are called on
+files shown by the translator. Such translators override parts of the
+core functionality provided by *libnetfs* to achieve better
+performance or to solve specific problems.
+
+##Synchronization is Crucial
+
+A *libnetfs* programmer shall always keep in mind that, as different
+from *[[libtrivfs]]*-based translators, *libnetfs*-based translators are
+always multithreaded. To guard data against damage each node
+incorporates a lock. Moreover, each light node usually contains a
+lock, too. This happens because *libnetfs* nodes and light nodes are
+loosely coupled and are often processed separately.
+
+##Node Cache
+
+Most of *libnetfs* translators organize a *node cache*. However, this
+structure is not a real cache. The idea is to hold some control over
+life and death of *libnetfs* nodes. The cache is usually a
+doubly-linked list: each netnode contains a reference to the previous
+node in the cache and a reference to the next one. When a new node is
+created (for example, as a result of invocation of
+*netfs_attempt_lookup*), it is registered in the cache and its number
+of references is increased. It means that, by putting the node in the
+cache, the translators gets hold of an extra reference to the
+node. When in subsequent lookups the same nodes will be requested, the
+translator can just reuse an already existing node.
+
+Of course, the cache is limited in size. When the cache gets
+overgrown, the nodes located at the tail of the list are removed from
+the cache and the references to them are dropped. This triggers their
+destruction (undertaken by *libnetfs*).
+
+##What Files Are Usually Created
+
+If you take into a look at the sources *ftpfs* or *unionfs* you will
+notice files with names similar to the following:
+
+* cache.{c,h} -- here the node implementation of the node cache
+  resides.
+
+* lib.{c,h}, dir.{c,h}, fs.{c,h} -- these contain the implementation
+  of some internals. For example, the function *dir_entriesget*
+  mentioned in the description of the process of listing directory
+  entries, will most probably reside in one of these files.
+
+* options.{c,h} -- here the option parsing mechanism is usually
+  placed. Argp parsers are implemented here.
+
+* &lt;*translator_name*&gt;.{c,h}, netfs.c -- the implementation of *netfs_\**
+  callbacks will most probably lie in these files.
+
+##What Netnodes and Light Nodes Usually Contain
+
+A **netnode** usually contains a reference to a light node, some flags
+describing the state of the associated generic *libnetfs* node, and
+the references to the previous and the next elements in the node
+cache.
+
+A **light node** usually contains the name of the file associated with
+this light node, the length of this name, some flags describing the
+state of this light node. To make a light node fully usable in a
+multithreaded program, a lock and a reference counter are almost
+always incorporated in it. Since light nodes are organized in a
+hierarchical way, they contain a reference to their parent, a
+reference to their first child, and references to their siblings
+(usually not very descriptively called *next* and *prevp*).
+
+##The End
+
+I very much hope this piece of text was at least a little
+helpful. Here I tried to explain the things which I understood least
+when I started learning *libnetfs* and which confused me most. Feel
+free to complete this introduction :-)

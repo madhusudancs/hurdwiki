@@ -1,0 +1,50 @@
+[[!meta copyright="Copyright © 2008 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+I boot over the network using PXE.
+
+On my build machine, I have installed a tftpserver.  Specifically, I use
+the one built into dnscache.  In /tftpboot, I have symlinks to pistachio,
+sigma0, and the root of the build tree.
+
+My build machine boots using PXE.  It gets an IP address, contacts
+my build machine and loads [grub2pxe](http://grub.enbug.org/PXEBOOT).
+Note that there is no need to use pxelinux; grub2 is a valid PXE
+executable.  Further, grub2 uses the PXE interface for accessing the
+network, so if your hardware supports PXE, then you do not need to
+worry about a network driver.  Here is how I build grub2 and the
+grub2 image:
+
+    cd ~/src
+    svn co svn://svn.savannah.gnu.org/grub/trunk/grub2
+    cd grub2
+    mkdir build
+    cd build
+    ../configure --prefix=$HOME/src/grub2/install && make && make install
+    cd ~/src/grub2/install
+    bin/grub-mkimage --output=core.img --prefix="(pxe)" pxe pxecmd help reboot serial multiboot pc configfile normal boot
+    cat lib/grub/i386-pc/pxeboot.img core.img > grub2pxe
+
+Here is my /tftpboot/grub.cfg, which sends output to the first
+[[serial_port]]:
+
+    # Timeout for menu
+    set timeout=1
+    
+    # Set default boot entry as Entry 0
+    set default=0
+    
+    menuentry "Viengoos" {
+        multiboot /viengoos/laden/laden -o serial -D
+        module /pistachio
+        module /sigma0
+        module /viengoos/viengoos/viengoos.stripped -D 3 -o serial
+        module /viengoos/hieronymus/hieronymus.stripped
+    }

@@ -1,0 +1,47 @@
+[[!meta copyright="Copyright © 2009 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_porting]]
+
+# *bash* 4.0 vs. typing `C-c` (*SIGINT*)
+
+Will show `-bash: echo: write error: (ipc/mig) wrong reply message ID` unter
+certain conditions.
+
+After having noticed that this error doesn't occur if starting *bash* with
+`--norc`, I isolated it to the following command in `.bashrc`:
+    
+    case $TERM in
+      xterm* | rxvt*)
+        PROMPT_COMMAND='echo -ne "\033]0;${USER}@${HOSTNAME}:${PWD}\007"';;
+    esac
+
+... and indeed:
+
+    tschwinge@flubber:~ $ echo "$TERM" -- "$PROMPT_COMMAND"
+    xterm -- echo -ne "\033]0;${USER}@${HOSTNAME}:${PWD}\007"
+    tschwinge@flubber:~ $ ^C
+    -bash: echo: write error: (ipc/mig) wrong reply message ID
+    tschwinge@flubber:~ $ PROMPT_COMMAND=
+    tschwinge@flubber:~ $ ^C
+    tschwinge@flubber:~ $ 
+
+    bash-4.0$ PROMPT_COMMAND='echo >&2 -n foo\ '
+    foo bash-4.0$ ^C
+
+    bash-4.0$ PROMPT_COMMAND='echo >&1 -n foo\ '
+    foo bash-4.0$ ^C
+    bash: echo: write error: (ipc/mig) wrong reply message ID
+
+    bash-4.0$ PROMPT_COMMAND='/bin/echo >&1 -n foo\ '
+    foo bash-4.0$ ^C
+    bash: start_pipeline: pgrp pipe: (ipc/mig) wrong reply message ID
+
+So, there's something different with stdout in / after the SIGINT handler.

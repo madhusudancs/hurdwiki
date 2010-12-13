@@ -1,0 +1,60 @@
+# <a name="USB_Flash_Memory_GNU_Hurd"> </a> USB Flash Memory GNU/Hurd
+
+It would be nice if we had a bootable [USB flash drive](http://en.wikipedia.org/wiki/USB_key) Hurd like [[DamnSmallLinux]]. It would be useful for those who want to try out the Hurd before they commit to installing it on their hard disks. In addition to that, a bootable Flash Hurd would enable us to have a native installer instead of relying on Linux.
+
+It could be installed in the USB using a [[hurd/running/Live_CD]] (using a script) - this is the Burned version - or directly downloading the iso files from the Internet - Unburned version -. One can use also [qemu] to run the [[hurd/running/Live_CD]] and them use the USB installation script.
+
+Here is an outline of the things that need to be done. Please add your comments and suggestions.
+
+## <a name="Requirements_Outline"> Requirements Outline </a>
+
+### <a name="1_We_need_to_be_able_get_a_bootl"> </a> 1. We need to be able get a bootloader for USBs
+
+This is not much of a problem. I have already been successful (see below) in using [Grub](http://en.wikipedia.org/wiki/GRand%20Unified%20Bootloader) and the El-Torito HD emulation to boot [[GNUmach]] off a CD. There may be some minor tweaking of Grub code necessary to detect which device to use for booting (instead of having the user select their device (hd0,hd1,etc.) from the Grub menu).
+
+Using GRUB's stage2\_eltorito seems to work fine.
+
+### <a name="2_We_need_a_bootstrap_filesystem"> 2. We need a bootstrap filesystem translator </a>
+
+This would be something like a statically linked iso9660fs translator. Compiling a statically linked iso9660fs translator is easy enough, though it doesn't boot. I don't currently know whether this is because the translator was never meant to be a bootstrap filesystem, or if there is a simple bug which has never been flushed out because the translator has never been used at boot time before. I've had trouble debugging this problem because I haven't yet figured out a way to use a remote gdb with gnumach. Theoretically you could use the "boot" command to overcome this problem, but "boot" for me mangles the terminal and exits in different manner than an actual boot.
+
+The iso9660fs translator works great, it just needs to be statically linked.
+
+### <a name="3_We_need_a_ramdisk_to_enable_wr"> 3. We need a ramdisk to enable write access </a>
+
+I think we could fake this with Farid Hajii's [memfs](http://www.fprintf.net/hurd/) translator and writing an ext2 filesystem to it.
+
+From the mem-fs README...
+
+> memfs-1 is a translator that provides a memory-based file of fixed size. This file can, just like bigfile, contain a regular filesystem.
+
+We could set a mem-fs translator anywhere on the CD you needed write access, including having softlinks to the contents of the root directory and chrooting to this new directory.
+
+For a quick and dirty memfs, you can do it right now with the following commands:
+
+       # touch ./ramdisk
+       # touch ./tmpfs
+       # settrans -a ./ramdisk /hurd/storeio -Tcopy zero:50M
+       # /sbin/mke2fs -o hurd -b 4096 -F ./ramdisk
+       # settrans -a tmpfs /hurd/ext2fs.static ./ramdisk
+       # fsysopts --writable ./tmpfs
+       # cd tmpfs
+       # touch somenewfile
+
+Here we use two files ramdisk, and tmpfs that are already created on a readonly file system. For illustration purposes, they are touched beforehand. We run an active storeio translator on the ramdisk file to give us 50MB of RAM to work with, and then we make an ext2 filesystem on it.
+
+At this point we'd could copy the contents of the `/var` directory into the tmpfs, and then symlink `/var` to `/tmpfs/var`. The same goes for all other mutable dirs.
+
+This approach of putting an entire ext2 filesystem in a copy zero'd store has some drawbacks listed [here](http://lists.gnu.org/archive/html/bug-hurd/2000-12/msg00073.html).
+
+Those are the essentials. Here is a list of the things which would be nice to have for a USB Flash Memory.
+
+* Knoppix like script for starting up X and [[GraphicEnvironment]] s ([[FluxBox]], Gnome...)
+* DHCP support for easy network setup
+* Hardware autodetection (Kudzu).
+* Knoppix like script for installing to the hard drive or to bootable USB pendrive .
+* (add your favorite feature here)
+
+Here is a mailing-list [thread](http://lists.debian.org/debian-hurd/2003/debian-hurd-200308/msg00172.html) discussing some of these issues.
+
+-- [[Main/GregBuchholz]] - 21 Oct 2003 -- [[Main/NagromNamreh]] - 29 Jan 2004

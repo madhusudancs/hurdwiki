@@ -1,0 +1,97 @@
+[[!meta copyright="Copyright © 2007, 2008 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+Creating a bootable qemu image from a root filesystem and bootloader
+
+1. Create a hard disk image
+
+        qemu-img create -f qcow <imagename.img> <size>G
+
+2. Use a live CD (better to have a lighter OS like system rescue CD to make the
+    process faster) and the image created to boot.
+
+        qemu -cdrom /dev/cdrom -hda <imagename.img> -boot d
+
+3. Once system is booted use a partition editing tool (like fdisk, cfdisk,
+    parted, gparted, qtparted ...) to partition the image.
+
+        cfdisk
+
+    create the necessary partitions (root and swap partitions boot, home ... if
+    required)
+
+4. Create a file system for the root partition
+
+        mke2fs /dev/hda1
+
+5. Mount the partition 
+
+        mkdir disk
+        mount /dev/hda1 disk
+
+6. Copy the file system from the host machine to the mounted directory (use a
+    compressed file system to make the copying faster)
+
+    Grab the GNU snapshot from ams' site
+    <http://www.update.uu.se/~ams/home/slask/GNU/>
+
+        scp <user>@<host>:<path to the compressed file system> disk
+
+7. Uncompress the files
+
+        cd disk
+        tar -jxvf <compressed filesystem>
+
+8. Unmount the mounted partition
+
+        cd .. 
+        umount disk
+
+9. power off the guest OS.
+
+        poweroff
+
+10. To make the file system bootable download a grub floppy image
+
+        <http://hurd.in/pub/Hurd/HurdOnVMware/grub.img>
+
+11. Run qemu to boot into your brand new system 
+
+        qemu -hda <hard disk image.img> -fda grub.img -boot a
+
+Happy Hacking !!
+
+
+Make your new system boot from the hard disk
+
+1. Mount your grub image
+
+        mkdir floppy
+        mount -t ext2 -o loop grub.img floppy
+
+2. Use previous steps 2 and 5 to boot from a liveCD and mount the partition
+
+        cd disk/boot
+        scp -r <user>@<host>:<path to mounted floppy image directory>/boot/grub
+
+3. Poweroff the guest
+
+        poweroff
+
+4. Boot new system using floppy image previous step 11
+
+    use install to hard disk option if you used the above grub image
+
+    or go to grub command line and type
+
+        root (hd0,0)
+        setup (hd0)
+
+    Now you have a bootable system image. Enjoy Maadi !!

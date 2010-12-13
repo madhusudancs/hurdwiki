@@ -1,0 +1,106 @@
+[[!meta copyright="Copyright © 2007, 2008, 2010 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_binutils]]
+
+Here's what's to be done for maintaining GNU Binutils.
+
+As these tools primarily deal with low-level parts of the target architecture
+and the object file format (ELF ABI), which are essentially (at least meant to
+be) the same, there shouldn't be many differences comparing the binutils
+between the GNU/Hurd and GNU/Linux ports, for example.  There are a few,
+though, as explained below.
+
+
+# [[General information|/binutils]]
+
+
+# [[Sources|source_repositories/binutils]]
+
+
+# Configuration
+
+Last reviewed against cdb2275c9ffb41cacdcee078cf43718ab66c091e (2010-11-24).
+
+  * Globally
+
+      * a.out, COFF, PE image support and 64 bit support are not interesting.
+
+      * In the [[testsuite]]s, `.exp` and `.d` files very likely should not
+        only
+        care for `*-*-linux*`, but also `*-*-gnu*`.  (If the need to be
+        conditionalized like this at all.)
+
+  * `bfd/`
+
+      * `config.bfd`
+
+          * `i[3-7]86-*-gnu*`
+
+            Comparing to `i[3-7]86-*-linux-*`:
+
+              * `i386linux_vec` -- a.out.
+
+              * `i386pei_vec` -- PE.
+
+              * 64 bit.
+
+      * `configure.host`
+
+        Souldn't need anything.  x86 Linux neither.
+
+      * `configure.in`
+
+        Linux:
+
+          * `COREFILE=trad-core.lo` with `TRAD_HEADER='"hosts/i386linux.h"'`
+
+            We don't have any such core file support configured.  TODO: should
+            we?  Where is this core file reading exactly used?  GDB?
+
+          * `i386linux_vec` -- a.out.
+
+          * `i386pei_vec` -- PE.
+
+  * `binutils/`
+
+      * `configure.tgt`
+
+  * `gas/`
+
+      * `config/te-gnu.h`
+
+        C.f. `te-linux.h`; search tree for `TE_LINUX` vs. `TE_GNU` usage.
+
+          * `tc-i386.h`
+
+            Sole `TE_LINUX` usage is for a.out.
+
+      * `configure.tgt`
+
+  * `ld/`
+
+     * `configure.host`
+
+         * `*-*-gnu*`
+
+            TODO: resolve `crt0.o` vs. `crt1.o` issue.  [[Testsuite
+            failures|testsuite#static]].
+
+      * `configure.tgt`
+
+          * `i[3-7]86-*-gnu*`
+
+            Compare to `i[3-7]86-*-linux-*`, but don't need a.out (`i386linux`)
+            and 64 bit support.
+
+
+# [[Testsuite]]

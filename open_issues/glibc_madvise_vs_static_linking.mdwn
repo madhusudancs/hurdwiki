@@ -1,0 +1,24 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_glibc]]
+
+    $ echo 'int main() {}' | gcc -o /dev/null -static -x c -
+    /usr/lib/gcc/i486-gnu/4.4.5/../../../libcrt.a(malloc.o): In function `_int_free':
+    (.text+0xdc3): warning: warning: madvise is not implemented and will always fail
+
+This is correct, but it does confuse GNU Autoconf, for example, which then
+thinks that static linking is not supported and sets a flag accordingly, which
+luckly no / not many packages use.
+
+*This call does not influence the semantics of the application (except in the
+case of MADV_DONTNEED), but may influence its performance.  The kernel is free
+to ignore the advice.* (`man madvise`), so we may simply want to turn it into a
+no-op in glibc, avoiding the link-time warning.

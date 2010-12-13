@@ -1,0 +1,101 @@
+[[!meta copyright="Copyright © 2007, 2008, 2009 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+1. to run tmpfs as a regular user, /servers/default-pager must be executable by
+    that user.  by default it seems to be set to read/write.
+
+        $ sudo chmod ugo+x /servers/default-pager
+
+    Then I get this error:
+
+        tmpfs: /build/mbanck/hurd-20060825/build-tree/hurd/tmpfs/dir.c:62: diskfs_get_directs: Assertion `__builtin_offsetof (struct tmpfs_dirent, name) >= __builtin_offsetof (struct dirent, d_name)' failed.
+
+2. i rearranged the struct tempfs_dirent in tmpfs.h to line up with the struct
+    dirent.  now the assert passes at line 62 of dir.c passes.
+
+         struct tmpfs_dirent
+         {
+           struct tmpfs_dirent *next;
+           struct disknode *dn;
+        +  char padding[3];
+           uint8_t namelen;
+           char name[0];
+         };
+
+    now ls works on an empty directory.
+    you can touch files, and run `ls' on them.
+    mkdir, rmdir works too.
+    fsysopts works
+    df works
+
+3. creating a symlink fails.
+
+    old patch to get symlinks working:
+
+        http://www.mail-archive.com/bug-hurd@gnu.org/msg11844.html
+        --- node.c.orig 2005-07-24 09:56:39.000000000 -0400
+        +++ node.c      2005-07-24 09:55:46.000000000 -0400
+        @@ -330,6 +330,7 @@
+         create_symlink_hook (struct node *np, const char *target)
+         {
+           assert (np->dn->u.lnk == 0);
+        +  np->dn_stat.st_size = strlen (target);
+           if (np->dn_stat.st_size > 0)
+             {
+               const size_t size = np->dn_stat.st_size + 1;
+        @@ -337,6 +338,7 @@
+               if (np->dn->u.lnk == 0)
+                return ENOSPC;
+               memcpy (np->dn->u.lnk, target, size);
+        +      np->dn->type = DT_LNK;
+               adjust_used (size);
+               recompute_blocks (np);
+             }
+        @@ -380,8 +382,6 @@
+         error_t
+         diskfs_truncate (struct node *np, off_t size)
+         {
+        -  if (np->allocsize <= size)
+        -    return 0;
+        
+           if (np->dn->type == DT_LNK)
+             {
+        @@ -392,6 +392,9 @@
+               return 0;
+             }
+        
+        +  if (np->allocsize <= size)
+        +    return 0;
+        +
+           assert (np->dn->type == DT_REG);
+        
+           if (default_pager == MACH_PORT_NULL)
+
+    now symlinks work.
+
+4. can't write data to a file
+
+
+---
+
+miscellaneous notes:
+
+`diskfs_disk_name` could be `NULL`, but it is `"swap"`
+
+using `default_pager_object_set_size (np->dn->u.reg.memobj, size);` to truncate and grow.
+
+why are our blocks 512?  shouldn't it something else?  or at least settable?
+or does [[libdiskfs]] demand this?
+
+`diskfs_get_filemap_pager_struct (struct node *np)` returns null.
+shouldn't it return `default_pager`?

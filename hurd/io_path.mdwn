@@ -1,0 +1,52 @@
+[[!meta copyright="Copyright © 2008, 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="I/O Path"]]
+
+
+# read
+
+  * [[glibc]]'s `read` is in `glibc/sysdeps/mach/hurd/read.c:__libc_read`.
+
+  * That calls `glibc/hurd/fd-read.c:_hurd_fd_read()`.
+
+  * That calls `__io_read`, which is an [[RPC]], i.e., that actually results
+    into the [[translator/ext2fs]] server calling
+    `hurd/libdiskfs/io-read.c:diskfs_S_io_read`.
+
+  * That calls `_diskfs_rdwr_internal`, which calls
+    `hurd/libpager/pager-memcpy.c:pager_memcpy`, which usually basically just
+    tell the kernel to virtually project the memory object corresponding to the
+    file in the caller process's memory.  No read is actually done.
+
+  * Then, when the process actually reads the data, the kernel gets the user
+    page fault (`gnumach/i386/i386/trap.c:user_trap`), which calls `vm_fault`,
+    etc., until actually getting to `gnumach/vm/vm_fault/vm_fault_page` which
+    eventually calls `memory_object_data_request`, which is an [[RPC]], i.e.,
+    that actually results into the [[translator/ext2fs]] server calling
+    `hurd/libpager/data-request.c:_pager_seqnos_memory_object_data_request`.
+
+  * That calls `hurd/ext2fs/pager.c:pager_read_page`, which looks for where the
+    data is on the disk, and eventually calls
+    `hurd/libstore/rdwr.c:store_read`, which eventually calls `device_read`,
+    which is an [[RPC]], i.e., that actually gets into the kernel calling
+    `gnumach/linux/dev/glue/block.c:device_read`.
+
+  * ext2fs eventually finishes the data_request() function, the kernel installs
+    the page into the process that got a fault.
+
+
+# Documentation
+
+  * In [*Linux kernel design patterns - part
+    3*](http://lwn.net/Articles/336262/) (2009-06-22), Neil Brown gives a
+    nice overview of the related layering inside the Linux kernel,
+    including the VFS layer, page cache and directory entry cache
+    (dcache).

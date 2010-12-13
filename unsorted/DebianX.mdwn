@@ -1,0 +1,116 @@
+# <a name="Setting_up_X_on_Debian_GNU_Hurd"> </a> Setting up X on Debian GNU/Hurd
+
+This is a brief helper on how to setup X-Windows on Debian GNU/Hurd.
+
+Obviously this text is taken from the page <http://hurd.gnufans.org/bin/view/Hurd/Xfree86> but I was making such drastic changes, I didn't want to hack up that page.
+
+### <a name="Mouse_amp_Keyboard"> Mouse &amp; Keyboard </a>
+
+See [[console]] for more details.
+
+You should instruct the Hurd console to repeat keyboard events to `/dev/cons/kbd`, and mouse events to `/dev/cons/mouse`:
+
+    # console -d vga -d pc_kbd --repeat=kbd \
+      -d pc_mouse --repeat=mouse --protocol=ps/2 -c /dev/cons /dev/vcs
+
+Symbolic links to repeaters should also be created:
+
+    # ln -s /dev/cons/kbd /dev/kbd
+    # ln -s /dev/cons/mouse /dev/mouse
+
+### <a name="Selecting_amp_Configuring_Packag"> Selecting &amp; Configuring Packages </a>
+
+You will need several X packages. The `x-window-system-core` brings you most of what you need:
+
+* `xserver-xfree86`
+* `xfonts-base`
+* `xfonts-100dpi`
+* `xfonts-75dpi`
+* `xfonts-scalable`
+* `xbase-clients`
+* `xutils`
+* `rxvt`
+* ... as well as your window manager of choice:
+  * WindowMaker, `wmaker`
+  * FVWM, `fvwm`
+  * Blackbox, `blackbox`
+  * TWM, `twm`
+
+I know that twm and Window Maker work, however, I cannot attest to the other two. Also, Michael Banck has a working package for xfce4 for those of you that are interested. The link for the package is here:
+
+    deb http://people.debian.org/~mbanck/hurd-xfce4/ ./
+
+Thanks for that Michael!!
+
+You will probably need to create a .xsession file for xfce4 with the following command:
+
+    exec /usr/bin/startxfce4 || exec xterm
+
+This will start the xfce4 desktop or dump to xterm if it fails to start.
+
+The recommended way of configuring X is using the `xserver-xfree86` debconf template, eg:
+
+    # dpkg-reconfigure xserver-xfree86
+
+It may be easier to just copy a working configuration from another operating system on the same computer and place it in `/etc/X11/XF86Config-4`, but this is discouraged as you would have to remove some sections by hand.
+
+**_IMPORTANT:_** when you configure X, make sure you do **NOT** enable the `speedo` and `dri` modules because they are currently broken.
+
+**_UPDATE 12/28/2004:_** Speedo is working on mine and is currently running. I do not have DRI enabled however.
+
+### <a name="Edit_XF86Config_4"> Edit XF86Config-4 </a>
+
+Now you have to edit the file manually to ensure that the mouse sections look like this:
+
+    Section "InputDevice"
+            Identifier      "Configured Mouse"
+            Driver          "mouse"
+            Option          "CorePointer"
+            Option          "Device"                "/dev/mouse"
+            Option          "Protocol"              "osmouse"
+    EndSection
+
+    Section "InputDevice"
+            Identifier      "Generic Mouse"
+            Driver          "mouse"
+            Option          "SendCoreEvents"        "true"
+            Option          "Device"                "/dev/mouse"
+            Option          "Protocol"              "osmouse"
+    EndSection
+
+You may also enable the Emulate3Buttons option, but nothing else will work.
+
+            Option          "Emulate3Buttons"       "true"
+
+**_WARNING:_** I cannot verify as of yet whether it was the "Emulate3Buttons" setting or the "ZAxisMapping" setting but I had to disable both in order to be able to move and resize windows.
+
+### <a name="Starting_X"> Starting X </a>
+
+Finally, run `startx`
+
+However, there are several caveats to be aware of:
+
+* `xterm` does not work correctly; try `rxvt`.
+
+**_UPDATE 12/28/2004_**: xterm works fine for me.
+
+* `update-menu` does not yet work. As such, there are no fine Debian menus.
+* GNOME can now be ported with the new pthreads, but is still being worked on. Window Maker, TWM, Blackbox and FVWM all work.
+
+**_WARNING:_** If you get an error about opening the display or a permissions issue, you may need to run the following:
+
+    # dpkg-reconfigure xserver-common
+
+change from "Console Users Only" to "Anybody"
+
+### <a name="Miscellaneous"> Miscellaneous </a>
+
+The dillo web browser does work, though it is not the greatest browser.
+
+For you xchat lovers like me, xchat will compile if you disable the python module. (The python module causes an assertion failure in pthreads if one of you guru's wants to fix and package. **hint,hint**)
+
+Good luck and enjoy!
+
+----
+
+-- [[Main/BarryDeFreese]] - 28 Dec 2004

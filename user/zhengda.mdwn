@@ -1,0 +1,132 @@
+# Zheng Da
+
+Email: zhengda1936 at gmail dot com
+
+---
+
+#Project: Porting DDE to Hurd.
+
+##The goal:
+porting DDE developed by DROPS to the Hurd, and it will still run in the user space. 
+
+##Introduction
+The introduction of DDE/DDEKit can be found in [here](http://wiki.tudos.org/DDE/DDEKit) and more information can be found [here](http://os.inf.tu-dresden.de/pipermail/l4-hackers/2009/004291.html). DDE/DDEKit is a library, and it should be compiled with the code of Linux or FreeBSD drivers. DDE Linux26 is still under development and it can now support network and block devices (but doesn't support SCSI). 
+
+##The current status
+Currently a few NIC cards work now. I tested pcnet32, e100, e1000, ne2k-pci and rtl8139 in VMWare and Qemu. But the DDE e100 driver cannot work for some e100 cards as currently DDE doesn't support firmware. Someone also reported sis900 cannot work, unfortunately, I cannot test it myself. I appreciate if someone can try some other NIC drivers and give me some feedbback. Please run DDE with GNUMach in the [master-user_level_drivers](http://git.savannah.gnu.org/cgit/hurd/gnumach.git/) branch.
+
+## My work
+I separate DDE Linux26 to 2 parts: libddekit and libdde_linux26. I also provide a library called libmachdev on the top of the Linux code to provide the Mach device interface, so it is easy for the user to compile a Linux driver and run it in the Hurd. The latest code can be found in the dde branch of the incubator repository. 
+
+There is a minor problem when we compile a Linux driver. Linux drivers use jiffies to measure time. Unfortunately, Mach doesn't provide it, so whenever we need it, we need to calculate it by ourselves. I decide to provide a macro to calculate it for the sake of performance and the cost is that the source code of Linux drivers has to include ddekit/timer.h.
+
+## Build and run DDE drivers
+
+To build a Linux driver with DDE Linux, we need libddekit, libdde_linux26, libmachdev and libhurd-slab. libddekit and libmachdev use the same Makefile system as other Hurd components but libdde_linux26 does not, so we have to build libdde_linux26 in its source file directory. DDE drivers use the same makefile system as libdde_linux26 and thus we need to build them in their source file directories as well. 
+
+The repository has all DDE drivers I have tested, but in case you want to try other drivers, the easiest way is to use dde_pcnet32 as a template. The directory of dde_pcnet32 has Makefile, Makeconf.local, default.ld, pcnet32.c and main.c. If we need to build a new driver file, we only need to replace pcnet32.c with the new file and change Makefile accordingly. You also need to change DDEKITLIBDIR, DDEKITINCDIR, DDE26LIBDIR and OBJ_BASE in Makeconf.local to indicate the path to ddekit and dde_linux26. 
+
+When all parts are ready, we can start to build DDE drivers now. In case someone hasn't installed libpciaccess, please install it first. We first build libddekit, libdde-slab, then libdde_linux26, then libmachdev and at last the DDE driver. It's better to install libddekit, libdde-slab and libmachdev to the system, so libdde_linux26 and the DDE driver find the library files and header files.
+
+To run a DDE NIC driver: It is better to disable the corresponding kernel drivers in GNU Mach. For example, if we use the pcnet card, we'd better disable lance and pcnet32 drivers in gnumach. DDE requires the pfinet with modification during my GSoC project in 2008 and that pfinet requires libpcap-dev (this pfinet is also in the dde branch). 
+
+settrans -acfg pcnet32 hurd/dde_pcnet32/dde_pcnet32
+
+settrans -acfg /dev/eth0 hurd/devnode/devnode eth0 -M pcnet32
+
+settrans -acfg /servers/socket/2 hurd/pfinet/pfinet -i /dev/eth0 -a 172.16.172.10 -g 172.16.172.2 -m 255.255.255.0
+
+---
+
+#Project: Network virtualization for subhurds etc. 
+
+The [code](http://www.assembla.com/spaces/VNetHurd/trac_subversion_tool). The [[howto]] shows the instructions of setting up the virtual network in hurd and subhurd.
+
+
+## The design and the implementation
+
+### The requirements:
+* to implement a mechanism which help pfinet servers communicate with each other. For example, if pfinet 1 has IP A and pfinet 2 has IP B, the packet sent by pfinet 1 with destination address IP B should be received by pfinet 2.
+* Sub-hurd should be able to use this mechanism to communicate with each other.
+* Meanwhile this mechanism should allow non-privileged the user to start his own pfinet.
+ 
+
+### The possible approach is to use the multiplexer and the filter.
+The multiplexer's roles are:
+
+1. to create some virtual network interface, so pfinet can send packets to it.
+2. to receive the packet from pfinet, and forward the packet to other pfinets in hurd
+3. or forward the packet to the real network device in the kernel and send it to the network.
+
+A filter translator is needed to enforce the policies between the interface and the pfinet server. For example, the filter can control which packets can be delivered to the pfinet server, and which packets can be sent to the network interface. The filter can also guard the network traffic and drop illegal packets (forged by some malicious users) from pfinet or some other programs. 
+
+ 
+### To create a virtual network interface:
+* Implement the RPC interface defined in device.defs.
+* The multiplexer works as a translator and other programs can get the port to it by calling file_name_port(). 
+* Other programs can use this port as a master device port to open the virtual interface.
+
+
+### The routing inside the multiplexer:
+* when the multiplexer gets a packet, it forwards it to every interface. 
+* BPF is ported to the multiplexer. BPF delivers the packet to the right pfinet (according to the filter set by the pfinet) just as the BPF in Mach does.
+* All packets are forwarded to the interface which the multiplexer sits on.
+
+
+### The implementation of the filter translator:
+* The filter works as a proxy, forwarding the packet between the interface and the pfinet server.
+* BPF is also ported to the filter translator. There are two filers in the translator, one for outgoing packets, the other for incoming packets.
+* Only one pfinet can connect to the translator at a time. 
+
+## TODO
+### Coding
+
+ - merge BPF rules from the filter translator and the multiplexer
+
+## Completed tasks
+
+### Coding
+
+The patch of glibc (pfinet server overriding) is [here](http://www.assembla.com/spaces/VNetHurd/documents/aJidqKp6ur3z-Nab7jnrAJ/download/A%20patch%20of%20glibc), commited to debian for 2.11.2-7 and later.
+
+The patch of pfinet (open the virtual network interface) is [here](http://www.assembla.com/spaces/VNetHurd/documents/aWqYwYATKr3BBOab7jnrAJ/download/patch%20of%20pfinet%201%20(to%20use%20the%20virtual%20interface)).
+
+The patch of pfinet (fix pfinet to use the proper filter rule) is [here](http://www.assembla.com/spaces/VNetHurd/documents/besb-qATKr3AIxab7jnrAJ/download/patch%20of%20pfinet%202%20(to%20add%20an%20IP%20filter)).
+
+The patch of pfinet (set the mach device in the promiscuous mode) is [here](http://www.assembla.com/spaces/VNetHurd/documents/bEovN6ATKr3B8uab7jnrAJ/download/patch%20of%20pfinet%203%20(to%20set%20the%20mach%20device%20into%20the%20promiscuous%20mode)), commited on 20100920.
+
+The patch of boot (open the virtual network interface) is [here](http://www.assembla.com/spaces/VNetHurd/documents/cWkeEixHar3AdKab7jnrAJ/download/A%20patch%20of%20boot), commited on 20100920.
+
+The patch of gnumach (set the network device into the promiscuous mode) is [here](http://www.assembla.com/spaces/VNetHurd/documents/b0eLzUxHmr3ymXab7jnrAJ/download/A%20patch%20of%20gnumach), commited on 20100920.
+
+the multiplexer:
+
+- Create multiple virtual network interfaces.
+- Port BPF to the multiplexer.
+- Finish the routing among the pfinet servers.
+
+the filter translator:
+
+- Forward the packet between the interface and the pfinet server.
+- Filter the packet.
+
+the proxy of the proc server:
+
+- Forward all requests from the process to its proc server.
+- The proxy doesn't do any real work except returning the host private port and the master device port of the proxy (shown as an example).
+
+the devnode translator:
+
+- Create a device file to help open the network device.
+
+### Documentation Read
+
+
+- [A Programmer's Guide to the Mach System Calls](ftp://ftp.cs.cmu.edu/afs/cs/project/mach/public/doc/unpublished/machsys.doc)
+- [Meet Mach](http://www.stepwise.com/Articles/Technical/MeetMach.html) by James Scott
+- [A Programmer's Guide to the Mach User Environment](ftp://ftp.cs.cmu.edu/afs/cs/project/mach/public/doc/unpublished/machuse.doc), the MIG part
+- Part of The GNU Mach Reference Manual and The GNU Hurd Reference Manual
+- The Hurd, a presentation by Marcus Brinkmann
+- Towards a New Strategy of OS Design, an architectural overview by Thomas Bushnell, BSG.
+- GNU/Hurd User's Guide
+- The Hurd Hacking Guide

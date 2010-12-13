@@ -1,0 +1,76 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+In August 2010, Jérémie Koenig [published another, new
+version](http://lists.gnu.org/archive/html/bug-hurd/2010-08/msg00165.html).
+This can be found in <http://git.savannah.gnu.org/cgit/hurd/procfs.git/>,
+branch *jkoenig/master*.
+
+Testing it is as simple as this:
+
+    $ git clone git://git.savannah.gnu.org/hurd/procfs.git
+    $ cd procfs/
+    $ git checkout jkoenig/master
+    $ make
+    $ settrans -ca proc procfs --compatible
+    $ ls -l proc/
+
+
+# Open Issues
+
+[[!tag open_issue_hurd]]
+
+  * IRC, #hurd, around September 2010
+
+        <youpi> jkoenig: from a quick read, your procfs implementation seems quite
+          simple, probably much more what I was expecting from Madhusudan (who probably
+          now hates you :) )
+        <youpi> jkoenig: is it not possible to provide a /proc/self which points at the
+          client's pid?
+        <pinotree> (also, shouldn't /proc/version say something else than "Linux"?)
+        <youpi> to make linux tools work, no :/
+        <youpi> kfreebsd does that too
+        <pinotree> really?
+        <youpi> yes
+        <youpi> (kfreebsd, not freebsd)
+        <pinotree> does kbsd's one print just "Linux version x.y.z" too, or something
+          more eg in a second line?
+        <pinotree> (as curiosity)
+        <youpi> % cat /proc/version
+        <youpi> Linux version 2.6.16 (des@freebsd.org) (gcc version 4.3.5) #4 Sun Dec
+          18 04:30:00 CET 1977
+        <pinotree> k
+        <giselher> I had some problems with killall5 to read the pid from /proc, Is
+          this now more reliable?
+        <youpi> I haven't tested with jkoenig's implementation
+        [...]
+        <pinotree> looks like he did 'self' too, see rootdir_entries[] in rootdir.c
+        <youpi> but it doesn't point at self
+        <antrik> youpi: there is no way to provide /proc/self, because the server
+          doesn't know the identity of the client
+        <youpi> :/
+        <antrik> youpi: using the existing mechanisms, we would need another magic
+          lookup type
+        <antrik> an alternative idea I discussed with cfhammer once would be for the
+          client to voluntarily provide it's identity to the server... but that would
+          be a rather fundamental change that requires careful consideration
+        <antrik> also, object migration could be used, so the implementation would be
+          provided by the server, but the execution would happen in the client... but
+          that's even more involved :-)
+        <youpi> but we've seen how much that'd help with a lot of other stuff
+        <antrik> I'm not sure whether we discussed this on the ML at some point, or
+          only on IRC
+        <youpi> it "just" needs to be commited :)
+        <antrik> in either case, it can't hurt to bring this up again :-)
+
+  * IRC, #hurd, around October 2010
+
+        <pinotree> the only glitch is that files/dirs have the right user as
+          owner, but always with root group

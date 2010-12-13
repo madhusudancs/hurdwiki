@@ -1,0 +1,107 @@
+[[!meta copyright="Copyright © 2007, 2008 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+# Some Quick Notes About the *TWiki to ikiwiki* Conversion
+
+/!\ Incomplete.
+
+I saw a *moin2iki* program bundle being announced from
+<http://ikiwiki.info/index/discussion/#index2h1>.
+
+    <tschwinge> JoshTriplett: On http://ikiwiki.info/users/joshtriplett.html
+      you write about a TWiki to ikiwiki conversion script.  Is that already
+      available somewhere?
+    <JoshTriplett> tschwinge: Yes, you can get it in its current state at
+      git://svcs.cs.pdx.edu/git/moin2iki.git
+    <JoshTriplett> tschwinge: That repo has scripts for converting from Moin
+      and TWiki to ikiwiki.
+    <JoshTriplett> tschwinge: Work in progress.
+    <JoshTriplett> tschwinge: For a purely TWiki setup, it should work fine.
+    <JoshTriplett> tschwinge: You need a number of depenencies, though, and we
+      haven't documented them well yet.
+    <tschwinge> JoshTriplett: Thanks, I'll have a look and report back (in some
+      days, I hope).
+    <JoshTriplett> tschwinge: In particular, you need HTML::WikiConverter with
+      our 12 ikiwiki-related patches.
+    <JoshTriplett> tschwinge:
+      http://rt.cpan.org/Public/Bug/Display.html?id=24446
+
+As I had difficulties with extracting the patches from the cpan site, they were
+also made available by the authors at
+<http://svcs.cs.pdx.edu/~jamey/wikiconverter/>.
+
+The Debian package *libhtml-wikiconverter-perl* is too old at least until
+[[!debbug 419918]] is closed.
+
+For converting from rcs files (as used by TWiki) to a git repository you'll
+need to get `git clone git://people.freedesktop.org/~keithp/parsecvs` and build
+it.  Or don't do that and install the Debian *git-cvs* package instead; see
+below.
+
+Here is the command line I used (line breaks added for readability) to create
+an *Authors* file from the TWiki files, suitable for *parsecvs* or
+*git-cvsimport* to use:
+
+    $ sort < data/Main/TWikiUsers.txt | uniq | ↩
+        while read s n r; do ↩
+          ( [ "$s" != \* ] || expr "$r" : .\*\< > /dev/null) && continue; ↩
+          echo "$n"="$(recode Latin1..UTF-8 < data/Main/"$n".txt | ↩
+            awk -v name="$n" 'BEGIN { FS = ": "; email = "web-hurd@gnu.org" } ↩
+              { sub("\r$", "") } $1 ~ /\* Name$/ { name = $2 } ↩
+              $1 ~ /\* Email$/ { email = $2 } ↩
+              END { print name " <" email ">" }')"; ↩
+        done | tee Authors
+
+The old TWiki installation had managed to corrupt one of its own rcs files,
+which both *parsecvs* and *git-cvsimport* stumbled on.  As that file was not
+essential for me, I simply deleted it.
+
+The final output (after the TWiki markup to Markdown markup conversion) was
+expected to pour out *.mdwn* files.  However the original TWiki files are named
+*.txt*.  As the *git-map* step as yet (would this be possible at all?) has no
+way to rename the files while converting, I simply adapted the input files'
+names to what was expected: I ran a the following command to rename the
+*.txt,v* files to *.mdwn,v* files before running *git-cvsimport*:
+
+    $ find ./ | grep \\.txt,v | while read f; do ↩
+        mv -vi "$f" "$(expr "$f" : \\\(.\*\\\)\\.txt,v)".mdwn,v; done
+
+Instead of using *parsecvs* (which finally even choked on the valid rcs input
+files) I eventually ended up successfully converting the old TWiki with
+*git-cvsimport*:
+
+    $ git-cvsimport -v -d "`pwd`"/../hurd-wiki/ -z 0 -a -A ../Authors data
+    [...]
+    Committed patch 4698 (origin +0000 2007-04-13 17:40:08)
+    Commit ID c33d05d0274d0d602fba835805abb9ba413c65c6
+    Generating pack...
+    Done counting 18576 objects.
+    Deltifying 18576 objects...
+     100% (18576/18576) done
+    Writing 18576 objects...
+     100% (18576/18576) done
+    Total 18576 (delta 12567), reused 16106 (delta 10886)
+    Pack pack-d38e3d55705f5d355f669aaa7d993420b50798d0 created.
+    Removing unused objects 100%...
+    Done.
+    DONE; creating master branch
+
+The only thing I had to do to make the conglomerate of rcs files a *valid* cvs
+repository (read: to satisfy *git-cvsimport*'s needs) was a `mkdir
+../hurd-wiki/CVSROOT`.
+
+Then let's convert the whole git tree from TWiki syntax to Markdown:
+
+    $ TWIKI="`pwd`"/../hurd-wiki tw_2001-12-01_2iki "`pwd`"/.git
+    [...]
+
+After that I repeated -- in a separate directory!, they can be merged later --
+the same last steps again, replacing *data* with *pub*, which contains the data
+files that had been attached to the wiki pages (like images, for example).

@@ -1,0 +1,562 @@
+[[!meta copyright="Copyright © 2001, 2002, 2003, 2004, 2005, 2008 Free Software
+Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+            Frequently Asked Questions about the GNU Hurd
+
+This document attempts to answer the questions that most often plague
+users when they are talking about, installing, using, compiling and
+developing the GNU Hurd as well as its binary distribution Debian
+GNU/Hurd.  Be sure to read this before asking for help.
+
+The GNU Hurd is under active development and a stable version has not
+yet been released.  Be aware that:  there is a lot of work yet to be
+completed; you will find bugs; your system will crash.  That said, there
+is a lot of room for contributions at all levels:  development of the
+Hurd and Mach proper, porting applications, writing documentation and,
+most importantly, user feedback.
+
+Should you have a question that is not answered by this document and you
+feel that it should be, submit it and, if possible, with an answer.
+
+Each section is copyright its respective author(s).  Permission is
+granted to copy, distribute and/or modify this document under the terms
+of the GNU Free Documentation License, Version 1.1 or any later version
+published by the Free Software Foundation; with no Invariant Sections,
+with no Front-Cover Texts and with no Back-Cover Texts.  A copy of the
+license is included in the file COPYRIGHT.
+
+                                                     Neal H Walfield
+						     neal@cs.uml.edu
+
+? Installation
+
+??	What partition type should I use for my GNU/Hurd partitions?
+
+{MB} You should use an ext2 filesystem.  Alternatively, you may use BSD
+style ufs.  The partition type number for ext2fs is 0x83 (this is the
+same as in Linux), not 0x63 (GNU HURD).  Thomas explains why 0x63 is the
+wrong choice:
+
+	One day we may have a new filesystem format, which would
+	probably be called the GNU Hurd filesystem format, and might
+	well use that partition code.
+
+Regardless, as Roland points out, it is always an error to use that code
+for an ext2fs partition, 
+
+??	How do I name partitions?
+
+{MB,NHW} I knew you would ask this.  If I had to reduce this FAQ to only
+one question, I'd choose this one.  It is pretty easy, but you have to
+know that there are actually several incompatibly naming convention.
+
+First, the Hurd:  if the disk is question is a SCSI disk, you must know
+the SCSI device number; if it is an IDE disk, you must know what
+controller the disk is on and whether it is a master or a slave.  The
+Hurd uses the BSD naming convention which, is to say, disks are ordered
+according to their physical location, numerically, starting from zero.
+This naming scheme is quite similar to that found in Linux.  There, the
+master disk on the primary controller is designated as `hda' and the
+slave as `hdb'.  On the secondary controller, the master and the slave
+are designated by `hdc' and `hdd' respectively.  Under the Hurd, `hda'
+would become `hd0', `hdb' would be referred to as `hd1', etc.
+
+In the Hurd, like in BSD, partitions are called `slices' and are
+numbered starting from one.  Thus, to name a particular partition, we
+take the disk name, append a `s' and the partition number.  Again, this
+is similar to Linux except, there is no `s'.  For instance, `hda1' would
+become `hd0s1'.
+
+GRUB, the boot loader, uses a completely different nomenclature: it
+probes the BIOS and appends each disk in turn to an array.  Both disks
+and partitions are enumerated using zero based arrays.  The format is:
+`hd (<disk>, <partition>)'.  Thus, `hd (0, 1)' refers to the second
+partition on the first drive detected by the BIOS.  As Grub now has tab
+completion, there is not a lot of guess work.
+
+??	Can I use partitions larger than 2GB?
+
+{MB} No, not currently.  The filesystem servers need to be changed to
+not map the whole store into memory, which is not too difficult.  For
+large files, some interfaces need to be changed, which is a bit harder
+but still doable.
+
+??	How much swap do I need?
+
+{NHW} Generally, a lot; once you run out, Mach panics.  I have at least
+128MB of ram and 256MB of swap on all of machines running GNU/Hurd.
+
+??	Can I share swap space between GNU/Linux and GNU/Hurd?
+
+{NHW} Yes.  The default pager recognises and respects Linux swap
+partitions.  It will also swap to a raw partition, i.e. anything that it
+does not recognize as Linux swap.  Therefore: BE CAREFUL.
+
+??	Why do I get ``Operation not permitted error''?
+
+{MB} You forgot to set the file system owner of the GNU/Hurd partition to
+``hurd''.  The Hurd uses additional information in the inodes to set
+translators.  To make this work, the partition must be marked as ``owned
+by the Hurd''.  This is normally done by passing the `-o hurd' option to
+`mke2fs' when creating ext2 system from other operating systems
+(filesystems created in GNU/Hurd automatically enable this option).
+If you failed to do this, you can still use the `e2os' script.
+
+??	After `native-install' is finished, I had to write tthhiiss
+	wwaayy.  In particular, I had to type `rreebboooott' to reboot.
+
+{MB} Funny, isn't it? In addition to the rescue `term' server in
+`/tmp/console', another `term' server got started and is clobbing the
+keyboard input.  After a reboot this problem vanishes as only one `term'
+server will remain.  If `tar' would support translator, we would not
+have this problem...  Even if you don't experience this problem right
+after the installation, reboot immediately so you don't hit this bug by
+accident.
+
+? Setup
+
+??	How do I add a swap partition?
+
+{MB} A swap partition is also called a paging file.  Usually, it is
+sufficient to add the swap partition to `/etc/fstab', just as you would
+under Linux.  You can swap to a Linux swap partition and the Hurd will
+honour the Linux swap signature (both versions).  The Hurd will just as
+happily swap to any other raw disk space and overwrite anything it
+finds.  So, be careful!
+
+If you want to swap to a file or make sure that it checks the Linux swap
+signature before, you need to edit `/boot/servers.boot'.  The syntax is
+the partition device file name plus, optionally, the swap file inside an
+ext2fs partition, followed by a space and then one of:
+`$(add-raw-paging-file)', `$(add-linux-paging-file)',
+`$(add-paging-file)'.  The first works with any partition or file and
+does not honour any swap signature or other data.  The second has a
+safety check and only uses the file if a Linux swap signature is found.
+The third looks for a swap signature first and falls back to raw paging
+if it failed to find one.  This is also the default for entries in
+`/etc/fstab'.
+
+??	How do I set up a network?
+	How do I set up a loopback device?
+
+{MB} In the former case, be sure that GNU Mach detected your network
+card.  Either way, you need to setup `pfinet'.  Documentation can be
+found at:
+
+	http://www.debian.org/ports/hurd/hurd-doc-server#pfinet
+
+Don't forget to fill in `/etc/resolv.conf', `/etc/hosts', etc.
+
+Of course, you only need to do this if the installation routine didn't
+do it for you.
+
+??	Can I use the GNU/Linux version of `e2fsck' on a GNU/Hurd partition?
+
+{MB} Yes, at least since `e2fsprogs-1.05'.  Check this with `e2fsck -V'
+first.
+
+{NHW} Do not try to defrag your partition as this utility does not know
+about translators.
+
+??	Why are pipes not working?
+
+{MB} `settrans -fgc /servers/socket/1 /hurd/pflocal' should help.
+
+? Usage
+
+??	Where is the documentation?
+
+{NHW,MM} There are neither man pages nor info nodes for the Hurd
+translators and commands.  Documentation lives inside of the binaries
+and can be found by passing the `--help' option to a given command.
+For instance:
+
+	# /hurd/ext2fs --help
+
+will tell you what types of options the ext2fs translator accepts.
+
+The GNU/Hurd User's Guide and the GNU Hurd Reference Manual both
+provide some help about the usage of and concepts behind the GNU Hurd.
+You can find them, among others, at:
+
+	http://www.gnu.org/software/hurd/docs.html
+
+??	What is a translator?
+
+{MB} There is a text about translators available at:
+
+	http://www.debian.org/ports/hurd/hurd-doc-translator
+
+Read this and ask further questions on the mailing lists.
+
+??	What is the login shell?
+
+{MB} The Hurd has the concept of a not-logged in user.  This user has
+neither user ids nor groups ids.  This stems from the fact that the Hurd
+supports uid and gid sets and one possibility is, of course, the empty
+set.  Rather than deny access in this case, filesystems in the Hurd offer a
+fourth permission triplet (i.e. rwx) which is used to determine the
+privileges for users with no credentials.  This, however, needs to be
+enabled on a file by file basis.  By default, the `other' permission
+triplet is used.
+
+The Hurd login shell is a shell running with neither uids nor gids.  To
+restrict access to your files, either enable and change the fourth
+permission triplet or change the login shell of the `login' user in the
+password file to `/bin/loginpr' which implements the standard login
+prompt.
+
+??	How do I use non-US keyboard bindings?
+
+{NHW,FH} Take a look at:
+
+	http://www.xs4all.nl/~mgerards/xkb8.tar.gz
+
+If you want a Debian package, you can add to your
+'etc/apt/sources.list'
+
+	deb http://debian.duckcorp.org/unstable/binary-hurd-i386/ ./
+
+and then run
+
+    	 apt-get install console-driver-xkb.
+
+??	How do I enable color on the console?
+
+{NHW} If you are using the GNU Mach microkernel, you can set your
+terminal to `mach-color'.  For instance:
+
+	# export TERM=mach-color
+
+??	How can I enable virtual consoles?
+
+{AMS} This can be done by running the following command:
+
+	console -d vga -d pc_kbd -d generic_speaker /dev/vcs
+
+If something went wrong, or if you just wish to exit the Hurd console
+then hitting C-A-<backspace> will exit it.
+
+??	What is the status of X?
+
+{MB} It works!  The packages are available at any Debian ftp mirror.
+XFree86 4.0.2 is available, as are some of the v3 servers.  Instructions
+on how to use the packages are in the mailing list archive (link follow
+later).
+
+??	Why does X not work?
+
+{MB} Try `export LD_LIBRARY_PATH=/usr/X11R6/lib'.  This is a linker
+issue.  GNU/Hurd expects that `RPATH' is used, however, Debian takes
+certain measures to avoid this.  Note that this does not cut it for suid
+binaries because of security implications.  We expect to rectify this
+by using `RUNPATH', which is specified in the new ELF standard.
+
+??	What are these strange pids `2' and `3'?
+
+{MB} Two is the kernel, three is the default pager and four is the root
+filesystem.
+
+??	Why does `ps aux' give me strange output?
+
+{MB,MM} Try `ps Aux'.  Indeed, under GNU/Hurd, `ps aux' doesn't list
+all processes: it omits the session and group leaders, and the
+processes without parent.
+
+??	I have a hung process that I want to kill, however, `ps' is now
+	hanging too.
+
+{MB} Interrupt it and pass it the `-M' option.
+
+{NHW} By default, `ps' gathers information from both the proc server and
+the processes themselves (via their message port).  If a process it
+hung, it will not be able respond to its message port and thus, ps will
+wait forever.  The `-M' option instructs ps to not gather information
+that would require use of the message port.
+
+??	Where are ...
+
+{MB} `fdisk' and `dmesg' are not yet ported.
+
+Instead of `free', use `vmstat' and `vminfo'.
+
+For kernel messages, read `/dev/klog' directly.  Note, once you read
+this, it is gone forever.
+
+
+??	Is there a `/proc' filesystem?
+
+{MB} No.  Maybe there will be an emulation filesystem someday for
+programs that rely it.  If you are wondering about the empty `/proc'
+directory, this is a relict from a Debian GNU/Linux package
+(specifically, `base-files').
+
+You can probe for existing hardware devices with the devprobe utility.
+
+??	Why does the command `df' not work?
+
+{NHW} It does, you just have to tell it what filesystem to query.  E.g.
+
+	# df /
+
+??	Why are my translators dying?
+
+{NHW} Try passing the `-ap' flag to settrans.  By default, settrans only
+sets a passive translator, therefore, no output will show up on your
+terminal.  Using `-ap', however, sets both the active and the passive
+translator which, means that the translator starts immediately and its
+stderr is connected to you terminal.
+
+Additionally, the biggest problem is passing relative paths to passive
+translators.  You cannot predict what the current working directory of a
+translator will be when it is setup as a passive translator.
+
+??	Why can I `read' a directory?
+
+{MB} It is important to understand that there is nothing special about a
+directory under the Hurd, it is just another file.  This fits in with
+the translator concept where a translator can appear as a directory but
+provide also as a file.
+
+? Trouble shooting
+
+??	When the APM support in the BIOS spins down my disk drives, the
+	Hurd is unable to wake up.  What's wrong?
+
+{MB} APM is not supported in the current version of GNU Mach, sorry.
+Please disable APM in your BIOS setup.
+
+??	What are these messages referring to `default pager', `paging',
+	and `pager request'?
+
+{MB} The default pager handles virtual memory allocation.  If it can't
+allocate a new memory page because you are out of memory, some terrible
+things may happen.  Whenever you get errors referring to any of these,
+you either need more memory (make sure you have swap) or you have found
+a memory leak.
+
+??	What is a gratuitous error?
+
+{MB} This comes from `strerror(EGRATUITOUS)'.  If you check glibc's
+documentation, it will say that this error code has no purpose.  This,
+however, is not quite true.  You only get this when something terrible
+happens.  Thomas explains:
+
+	More precisely `EGRATUITOUS' officially means that some server
+	has responded in an impossible or protocol-violating fashion.
+	There are some cases in the Hurd where `EGRATUITOUS' is returned
+	and probably something else should be chosen instead.
+
+If you can reproduce this error message, please report it.
+
+??	What does ``computer bought the farm'' mean ?
+
+{FH} This message is the text that corresponds to the errno code
+`EIEIO'.  Roland McGrath explains:
+
+	That message is not output by any particular servers at
+	particular times; rather it is the perror text for the errno
+	code EIEIO, which is returned by various RPCs and functions
+	for a variety of "hopeless" error conditions.
+
+
+??	What does ``/dev/hd0s1: MOUNTED READ-ONLY; MUST USE `fsysopts
+	--writable''' mean?
+
+{NHW} In this case, /dev/hd0s1 was not unmounted cleanly.  The Hurd
+will, on boot up, run ``fsck -p'' on any partitions that it finds in
+/etc/fstab, so, you may want to consider adding this partition to that
+file.  If you are sure that the partition is fine, you can run:
+
+	# fsysopts /home --writable
+
+to ask the translator sitting on /home to change from read-only to
+read/write mode.  Note that the command is being sent to the filesystem
+and not the store (e.g. /dev/hd0s1).
+
+??	When GNU/Hurd crashes, GNU Mach automatically reboots.  Is
+	there anyway I can make it pause so I can write down the error?
+
+{MB} Pass the `-H' option to init (add it to the boot command line), and
+`init' will tell Mach to enter the kernel debugger instead to rebooting
+it.  At the debugger prompt (`db>'), you can type `reboot' any time to
+reboot the system.
+
+? Porting
+
+??	What programs have been ported?
+
+{NHW} A lot, take a look at the Debian archive.  Many programs, however,
+do not necessarily need to be ported; they have just never been
+compiled.
+
+??	Is porting easy?
+
+{NHW} Porting applications to GNU/Hurd is relatively easy assuming the
+application is POSIX compliant as GNU/Hurd does its best to be a
+conforming operating system.
+
+The most common error made by programmers is assuming the MAXPATHLEN and
+PATH_MAX are defined.  On most operating systems this is set to a few
+thousand, however, on GNU/Hurd, there is no maximum and thus, this is
+not set.  The correct thing to do is to submit a patch to the upstream
+author that allocates memory dynamically.
+
+??	How can I help?
+
+{NHW} A effort to compile all of the Debian packages is underway by Jeff
+Bailey.  Take a look at: 
+
+	http://people.debian.org/~jbailey/oasis/group/Debian/index.html
+
+to see what has been done and how you can help.
+
+? Compiling
+
+??	Where can I get the source?
+
+{AMS} Instructions on how to download the CVS tree from Savanah are
+avaiable at https://savannah.gnu.org/cvs/?group=hurd
+
+{NHW} To get the source to the latest debian package, look on any
+debian mirror.
+
+??	Can I cross compile?
+
+{NHW} Yes.  If you are running Debian GNU/Linux on IA32, this is quite
+easy as there is a cheap cross compiler available; all that is required
+is installing the gcc-i386-gnu and mig-i386-gnu Debian packages.  When
+running configure, you will have to specify tools directly:
+
+	# MIG=/usr/bin/i386-gnu-mig CC=/usr/bin/i386-gnu-gcc \
+	  ../src/hurd/configure ...
+
+If you are running another distribution, you will have to do this the
+long way.  You can find instructions at the Cross Compiling HOW-TO
+available at:
+
+	http://hurddocs.sourceforge.net/howto/cross.html
+
+Farid Hajji <farid.hajji@ob.kamp.net> also talks about his experiences
+at:
+
+	http://lists.debian.org/debian-hurd-0012/msg00062.html
+
+??	Any general tips?
+
+{NHW} Yeah, building in the source tree is untested.  Try:
+
+	# ../src/hurd/configure ...
+
+? Development
+
+??	What is OSKit-Mach?
+
+{NHW,FH} There are two versions of GNU Mac that are in use: GNU Mach
+1.x and GNU Mach 2.x, formerly known as OSKit-Mach.  The former uses
+the drivers from Linux 2.0.x while the latter uses the University of
+Utah's OSKit library for drivers.  You can find out more about the
+OSKit library at:
+
+ 	http://www.cs.utah.edu/flux/oskit
+
+GNU Mach 2.x is usable, but some things are still missing or not
+working, like the serial port and scsi drivers.  This is why GNU Mach
+2.0 hasn't released yet and the two versions coexist.
+
+??	Where is the documentation?
+
+{NHW} There were several books written on the Mach kernel.  The
+information that they contain is still mostly pertinent and should be
+considered required reading for potential hackers.  They can be found
+at:
+
+	http://www.cs.cmu.edu/afs/cs/project/mach/public/www/doc/publications.html
+
+The documentation for the Hurd is quite inadequate.  The starting of a
+book, ``The GNU Hurd'' is in the doc directory in the Hurd source.  You
+can read this using:
+
+	# info hurd
+
+The authoritative place is, of course, the source code; that does not,
+however, mean that we would not welcome more documentation.  To get
+started, take a look at <hurd>/doc/navigating.
+
+??	How do I make sure that my code is POSIX compliant?
+
+{NHW} Unfortunately, you have to buy the POSIX standard from IEEE.  The
+Single Unix Specification version 2, a superset of POSIX, is available
+for free on the Internet.  Try:
+
+	http://www.unix-systems.org/online.html
+
+??	Who do I submit patches to?
+
+{NHW} If they are against the Hurd, Mach or MiG, send a patch to the
+bug-hurd mailing list.
+
+If they are against other packages, the Debian BTS is a good place.  In
+this case, be sure to advise the debian-hurd mailing list of the bug.
+
+??	In what format should patches for the Hurd and GNU Mach be?
+
+{MB} All patches should be sent in unified context diff format (option
+`-u' to GNU diff).  It is helpful for us if you also use the `-p'
+option which includes information about the function changed by a
+patch.  Changes that are similar can be grouped together in one file,
+but unrelated changes should be sent in seperate files.  The patches
+can be included in the message or as a MIME attachement.  They should
+not be compressed and/or archived unless they are very large, and if
+they are very large it is probably better to store them on-line at
+some place and only sent an URL.
+
+Write a ChangeLog entry for each change, following the format of the
+existing files.  Here is an example:
+
+	2000-12-02  Marcus Brinkmann  <marcus@gnu.org>
+
+		* ops.c (op_readlink): Before returning, check if the buffer
+	        pointed to by transp is ours.  If not, munmap it.
+	        (op_read): Likewise for bp.
+	        (op_readdir): Don't alloca a buffer here.  Instead initialize
+	        BUF and BUFSIZE to 0 and let the server (eh, MiG) do it.
+	        munmap BUF before returning.
+
+The file name and the name of the function changed should always be
+spelled out completely, and not abbreviated or otherwise mangled (like
+foo.{c,h}), because that would make searching for all changes to a
+file or function impossible.  Local variable names are all
+capitalized.  There are two spaces between sentences.  You can use
+``C-x 4 a'' in Emacs to add a new ChangeLog entry.  If you do that
+with the mark being in a function, Emacs will automatically fill in
+the file and function name for you.
+
+Do not send in a patch for the ChangeLog file.  Rather include the
+ChangeLog entries in the message that contains the patch.  Patches for
+ChangeLog files often conflict.
+
+If you have the original source tree in the directory `hurd-orig', and
+the modified source tree in the directory `hurd', the following
+command will produce a good patch (please make sure there are no extra
+files like backups in the modified tree, or leave away the option
+`-N').  You will need to collect the ChangeLog entries seperately.
+
+	# diff -x ChangeLog -Nurp hurd-orig hurd
+
+
+Answers were given by (in chronological order):
+* {NHW} Neal H Walfield  <neal@cs.uml.edu>
+* {MB} Marcus Brinkmann  <Marcus.Brinkmann@ruhr-uni-bochum.de>
+* {AMS} Alfred M. Szmidt <ams@gnu.org>
+* {OK} Ognyan Kulev	 <ogi@fmi.uni-sofia.bg>
+* {FH} Frédéric Henry	 <neryel@reveries.info>
+* {MM} Manuel Menal	 <mmenal@hurdfr.org>

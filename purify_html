@@ -1,0 +1,39 @@
+#!/bin/sh
+
+# Mangle the rendered files to cause fewer differences after re-rendering.
+
+# Written by Thomas Schwinge <thomas@schwinge.name>.
+
+# Un-mangle mailto links: convert HTML character entities to real characters.
+find ./ -name \*.html -print0 \
+  | xargs -0 --no-run-if-empty -n 1 \
+    perl -e \
+      'BEGIN {
+        $file = $ARGV[0];
+        $discard = 1;
+        $replacing = 0;
+
+        # TODO: could use a proper temporary file.
+        open(OUT, ">$file.new") or die "open: $file: $!";
+        select(OUT) or die "select: $file: $!";
+      }
+
+      while (<>) {
+        # The replacing-toggling logic is a bit rough, but so is life.
+        $replacing = 1 if /<a href="mailto:/;
+        s%\&#(x?)([^;]*);%$discard = 0; chr(length($1) ? hex($2) : $2);%eg if $replacing;
+        $replacing = 0 if /<\/a>/;
+      } continue {
+        print or die "print: $file: $!";
+      }
+
+      END {
+        if ($discard) {
+          unlink("$file.new") or die "unlink: $file: $!";
+        } else {
+          rename("$file.new", $file) or die "rename: $file: $!";
+        }
+      }'
+
+# Compared to using ``perl -p -i -l'', this solution maintains the files'
+# original timestamps unless they're actually modified.

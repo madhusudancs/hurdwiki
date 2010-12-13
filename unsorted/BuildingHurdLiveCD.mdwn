@@ -1,0 +1,70 @@
+# <a name="Recipes_for_bootable_GNU_Mach_Hu"> </a> Recipes for bootable GNU Mach/Hurd Live CD
+
+## <a name="Greg_s_recipe"> Greg's recipe </a>
+
+In my attempts to get a bootable CD for the Hurd here's the recipe I followed, your's will be similar. I needed a grub-0.92, with a patch from <http://alpha.polynum.org/misc/>, and version 1.16 of mkbimage (I don't exactly remember where I got that from).
+
+You can grab a copy of it at <http://sleepingsquirrel.org/hurd/hurdcd.iso.gz>, which is a gzipped bootable \*.iso with the copy of the patched grub and the version of mkbimage I used. Here's the recipe I followed (under linux).
+
+       # mkdir ./2.88floppy
+       # mkdir ./isodir
+       # cp grub/* 2.88floppy/boot/grub/
+       # cp grub/* isodir/boot/grub/
+       # cd 2.88floppy
+       # tar -cf ../floppyimg.tar *
+       # cd ..
+       # mkbimage -f floppyimg.tar -t 2.88
+       # cp 2.88.image isodir/
+       # mkisofs -r -b 2.88.image -c boot.catalog -o hurdcd.iso isodir/
+       # cdrecord -v speed=4 dev=0,0,0 -data hurdcd.iso
+
+That was the recipe for using a floppy image. If you use the `-t hd` switch of `mkbimage`, you'll get an ext2fs El-Torito HD emulation image that can be any size (I've got one here 300+ MB). You can then use `root (hd0,0)` in Grub to boot something. Also, invoking `mkbimage` with no parameters will give you some additional help messages.
+
+-- [[Main/GregBuchholz]] - 05 Nov 2003
+
+## <a name="Another_recipe_for_a_bootable_GN"> </a> Another recipe for a bootable GNU CD
+
+[screenshot](http:///mycelium.afraid.org/Screenshot2.png)
+
+### <a name="What_you_ll_need"> What you'll need </a>
+
+* A [stage2\_eltorito](http://mycelium.dyndns.org/stage2_eltorito) from [grub 0.95](http://www.gnu.org/software/grub)
+* A [base system](http://www.update.uu.se/~ams/gnu/gnu-2004-12-04.tar.bz2)
+* [iso9660fs.static](http:///mycelium.dyndns.org/iso9660fs.static)  (this link is bought the farm) or just build your own, it should work with CVS
+
+### <a name="HowTo"> HowTo </a>
+
+       # mkdir iso
+       ..(at this point untar or setup base system)
+       # mkdir -p iso/boot/grub
+       # cp iso9660fs.static iso/hurd
+       # cp stage2_eltorito iso/boot/grub
+       ..(edit iso/boot/grub/grub.conf)
+       # mkisofs -R -b boot/grub/stage2_eltorito -no-emul-boot \
+                 -boot-load-size 4 -boot-info-table -o livecd.iso iso/
+
+**_Note:_** The following files must **\_NOT\_** be symlinks!
+
+* `/boot/gnumach`
+* `/hurd/iso9660fs.static`
+* `/hurd/exec`
+* `/lib/ld.so.1`
+
+## <a name="Contents_of_grub_conf"> Contents of grub.conf </a>
+
+       timeout 60
+       default 0
+
+       title  GNU/Hurd CD
+       #uppermem 523648 #this may need to be set
+       #root   (cd)
+       kernel /boot/gnumach root=device:hd2  #set device to your cdrom device
+       module /hurd/iso9660fs.static --multiboot-command-line=${kernel-command-line} \
+              --host-priv-port=${host-port} --device-master-port=${device-port}      \
+              --exec-server-task=${exec-task} -T typed ${root} $(task-create)        \
+              $(task-resume)
+       module /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
+
+**_Note:_** The `root (cd)` line may prevent some computers from booting the livecd.
+
+-- [[Main/AndrewResch]] - 22 Feb 2005

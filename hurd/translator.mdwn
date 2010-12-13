@@ -1,19 +1,13 @@
-[[license text="""
-Copyright © 2007 Free Software Foundation, Inc.
+[[!meta copyright="Copyright © 2007, 2008, 2009, 2010 Free Software Foundation,
+Inc."]]
 
-Permission is granted to copy, distribute and/or modify this document under the
-terms of the GNU Free Documentation License, Version 1.2 or any later version
-published by the Free Software Foundation; with no Invariant Sections, no
-Front-Cover Texts, and no Back-Cover Texts.  A copy of the license is included
-in the section entitled [[GNU_Free_Documentation_License|/fdl.txt]].
-
-By contributing to this page, you agree to assign copyright for your
-contribution to the Free Software Foundation.  The Free Software Foundation
-promises to always use either a verbatim copying license or a free
-documentation license when publishing your contribution.  We grant you back all
-your rights under copyright, including the rights to copy, modify, and
-redistribute your contributions.
-"""]]
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
 
 A translator is simply a normal program acting as
 an object server and participating in the Hurd's
@@ -24,21 +18,128 @@ and [[pfinet]]) and thus translates object invocations
 into calls appropriate for the backing store
 (e.g., ext2 file system, nfs server, etc.).
 
+Another way of putting it is that it translates from one representation of a
+data structure into another representation, for example from the on-disk
+[[ext2|ext2fs]] data layout to a traditional file system hierarchy, or from a
+XML file to a virtual hierarchical manifestation.  This translation can be a
+bidirectional process, but it need not be.
+
+A translator is usually registered with a specific file system node by using
+the [[`settrans`|settrans]] command.
+
 Translators do not require any special privilege
 to run.  The privilege they require is simply
 that to access the indiviudal resources they use.
 This is primarily the [[backing_store]] and the node
 they attach to.  Typically, a translator can
 only be attached to a node by the node's owner.
-On Unix this is not possible because file systems
+On [[Unix]] this is not possible because file systems
 and the virtual file system are implemented in the
 kernel and thus have absolute access to the machine.
 As the protocols do not require any special privilege
 to implement, this is not an issue on the Hurd.
 
-<!-- Browse through a [[list_of_Hurd_translators|translators]]. -->
-<!-- Doesn't exist yet.  Perhaps one of the old pages could be used?  --tschwinge -->
+In Mach parlance, a *translator* is what they name a *server*: a process that
+participates in [[RPC]] interactions.  In the Hurd, a translator is a server
+that is additionally attached to a filesystem node.  Thus, it is quite common,
+even in the Hurd context, to speak about *server*s if you're stressing the RPC
+part, and on the other hand about *translator*s if you're stressing the
+filesystem part: a translator implements the [[interface/fs]] and
+[[interface/io]] interfaces.  For example: *the [[pfinet]] server implements
+the socket API calls (which are mapped by [[glibc]] to equivalent RPC calls)*,
+compared to *a [[libdiskfs]]-based translator implements a filesystem, based on
+a backing store*.
 
 To learn how to write a translator, read the code!
 It is well documented, in particular, the header files.
 The [[Hurd_Hacking_Guide]] also has a tutorial.
+
+Also there is an [[writing/example]] about how to write a simple translator.
+
+See some [[examples]] about how to use translators.
+
+Marcus Brinkmann has written a document about [[documentation/translators]].
+
+Here are some [[hints_about_debugging_translators|debugging/translator]]
+available.
+
+Read about translator [[short-circuiting]].
+
+
+# Existing Translators
+
+* [[auth]]
+* [[exec]]
+* [[pfinet]]
+* [[pflocal]]
+* [[hostmux]]
+* [[storeio]]
+* [[ext2fs]]
+* [[fatfs]]
+* [[magic]]
+* [[unionfs]]
+* [[nfs]]
+* ...
+
+
+# Translators Being Under Development
+
+* [[random]]
+* [[emailfs]] -- email as a filesystem
+* [[cvsfs]]
+* [[tmpfs]]
+* [[procfs]]
+* [[nsmux]]
+* [[netio]]
+* [[tarfs]]
+* [[gopherfs]]
+* ...
+
+# Translators (only) in Hurdextras
+
+*These Translators are available in the [hurdextras repository](http://savannah.nongnu.org/cvs/?group=hurdextras) but not yet described on this website. They are in varying stages of Development.*
+
+* [jfs](http://www.nongnu.org/hurdextras/#jfs)
+* [httpfs](http://www.nongnu.org/hurdextras/#httpfs)
+* [gopherfs](http://www.nongnu.org/hurdextras/#cvsfs)
+* [memfs](http://www.nongnu.org/hurdextras/#gopherfs)
+* [notice](http://www.nongnu.org/hurdextras/#notice)
+* [pith](http://www.nongnu.org/hurdextras/#pith)
+* [pptop](http://www.nongnu.org/hurdextras/#pptop)
+* [run](http://www.nongnu.org/hurdextras/#run)
+* [smbfs](http://www.nongnu.org/hurdextras/#smbfs)
+* [xmlfs](http://www.nongnu.org/hurdextras/#xmlfs)
+* [mboxfs](http://www.nongnu.org/hurdextras/#mboxfs)
+
+
+# Translator Wishlists
+
+  * [[wishlist_1]]
+  * [[wishlist_2]]
+  * [[open_issues/network_file_system_by_just_forwarding_RPCs]]
+  * [[libguestfs]]
+
+
+# Internally
+
+## `*_demuxer` Functions
+
+  * IRC, unknown channel, unknown date
+
+        <jim-crow> what is a main idea of _demuxer functions in translators?
+        <neal> jim-crow: Think of a web server.
+        <neal> jim-crow: A typical web server must process many different requests.
+        <neal> jim-crow: There are different types of requests.
+        <neal> jim-crow: For instance, static pages and dynamically gnereated content.
+        <neal> the static pages are processed by one function
+        <neal> and the dynamic pages by another
+        <neal> the thing that makes the decision which of these functions to pass the request to is the demuxer.
+        <jim-crow> neal: ok, I see
+        <jim-crow> but what is actually it doing in trivfs_demuxer?
+        <neal> it looks at the message id and calls the right server stub
+        <jim-crow> for example it calls trivfs_io_server function, but I can't find its implementation
+        <jim-crow> that's my main question :-)
+        <neal> look at the files mig generates
+        <jim-crow> neal: ok, thanks
+        <jim-crow> neal: is this functions where actually stubs are called?
+        <neal> I think so.

@@ -1,0 +1,183 @@
+## <a name="HowTo_Build_OSKit_Mach"> </a> HowTo Build OSKit-Mach
+
+      <h3><a name="Introduction"> Introduction </a></h3> This is a brief "<nop>HowTO build OSKit-Mach" (a.k.a GNUmach 2.0). It covers everything from getting the latest sources of both the <a href="http://www.cs.utah.edu/flux/oskit/" target="_top">OSKit</a> and the GNUmach kernel, down to building and debugging them. <p> To be able to actually make use of your recently checked out CVS version of the GNUMach kernel &amp;amp; c:o you need a GNU system of <a href="ftp://ftp.funet.fi/pub/gnu/alpha/gnu/hurd/contrib/marcus/gnu-20020816.tar.gz" target="_top">gnu-20020816.tar.gz</a> or later. See [[Distrib/TarballNotesHome]] for more info. </p></nop></td>
+
+## <a name="Getting_your_hands_on_the_source"> Getting your hands on the source </a>
+
+First you need to checkout the relevant sources. It comes in various flavours and the recommended way is to checkout from CVS.
+
+### <a name="The_OSKit_Sources"> </a> The OSKit Sources
+
+**_Note:_** The [Savannah OSKit](http://savannah.gnu.org/projects/oskit/) project is the recommended source today of the OSKit. Its CVS tree holds the official sources and all known patches, plus a few others.
+
+**_Official Sources:_**
+
+* St. Patricks day 2002 release: <ftp://flux.cs.utah.edu/flux/oskit/oskit-20020317.tar.gz>
+
+* Valentine's day 2001 release: <ftp://flux.cs.utah.edu/flux/oskit/oskit-20010214.tar.gz>
+
+**_Official Patches:_**
+
+* Download useful [[OskitPatches]] or on the nearest Debian FTP.
+
+**_Savannah CVS:_**
+
+The recommended document for accessing the Savannah OSKit CVS is <http://savannah.gnu.org/cvs?group=oskit>
+
+The following command should get the sources for you:
+
+    $ export CVS_RSH="ssh"
+    $ cvs -z3 -d:ext:anoncvs@savannah.nongnu.org:/cvsroot/oskit co oskit
+
+Note: if you get a message about RSA/DSA keys, please go check it here: <http://savannah.gnu.org/cvs?group=oskit>
+
+### <a name="GNUmach_amp_Mig_Sources"> </a> GNUmach &amp; Mig Sources
+
+The recommended document for accessing the Hurd CVS on Savannah is at <http://savannah.gnu.org/cvs/?group=hurd>
+
+Remember to set up you environment to use 'ssh' for cvs:
+
+    $ export CVS_RSH="ssh"
+
+Note: if you get a message about RSA/DSA keys when using cvs commands, please go check it here: <http://savannah.gnu.org/cvs?group=hurd>
+
+**_Gnu Mach:_**
+
+All development, apart from critical bug fixes, is done on the upcoming 2.0 release (OSKit/Mach). A potentially confusing point is that the code for OSKit/Mach (as opposed to the 1.X release, aka "GNU Mach") is now on the `TRUNK` of the 'gnumach' CVS module. In the past the trunk was 1.X (GNU Mach) and 2.0 (OSKit/Mach) was a branch.
+
+    $ cvs -z3 -d:ext:anoncvs@savannah.nongnu.org:/cvsroot/hurd co gnumach
+
+In case you have been tracking the oskit-branch and want to move to the current `HEAD` branch you can issue the following instead to update your tree.
+
+    $ cd <YOUR MACH DIR>
+    $ cvs -z3 -d:ext:anoncvs@savannah.nongnu.org:/cvsroot/hurd update -Pd -A
+
+Where `<YOUR MACH DIR>` can be `gnumach`, `oskit-mach`, or similar. The `-A` is what moves you from a branch to the default (in this case HEAD), but without forcing a specific tag. `-P` Prunes your local copy from stale directories and `-d` creates new directories for you.
+
+**_The Hurd servers:_**
+
+In case you want to build the Hurd servers as well, you can check them out with:
+
+    $ cvs -z3 -d:ext:anoncvs@savannah.nongnu.org:/cvsroot/hurd co hurd
+
+**_Inteface generator:_**
+
+See the [[microkernel/mach/MIG]] for more information.
+
+Check it out using
+
+    $ cvs -z3 -d:ext:anoncvs@savannah.nongnu.org:/cvsroot/hurd co mig
+
+## <a name="Building"> Building </a>
+
+The recommended versions of GCC are
+
+<dl>
+  <dt> For the OSKit</dt>
+  <dd> GCC 2.95.X </dd>
+  <dt> For GNUmach and <nop>MiG</nop></dt>
+  <dd> GCC 3.2 </dd>
+</dl>
+
+### <a name="The_OSKit"> </a> The OSKit
+
+Do _not_ forget to apply all known [[OskitPatches]] before starting the build! This does not apply if you use the OSKit from [Savannah](http://savannah.gnu.org/).
+
+The attached [[ATTACHURLmodulesx86pc]], or [[ATTACHURLmodules-lightx86pc]], is an example setup, your needs may vary but this one works for standard COTS PC's. Now, how to configure and build the OSKit.
+
+    $ cd oskit-20020317/
+    $ mkdir build
+    $ cd build
+    $ CC=gcc-2.95                            \
+      CFLAGS="-g"                            \
+      ../configure --prefix=/usr/local       \
+                   --enable-debug            \
+                   --enable-modulefile=modules-light.x86.pc
+    $ make
+    $ sudo make install
+
+Comment: Barry deFreese
+
+For you newbies like me, I had problems using `modules.x86.pc.full` and `modules.x86.pc`. There seems to be problems with `examples/dyntest`. Make sure you pull down and use the [[ATTACHURLmodules-lightx86pc]].
+
+Comment: Luis Miguel
+
+I needed to apply another patch that is not in CVS yet. The patch is in this [message](http://mail.gnu.org/archive/html/bug-hurd/2003-06/msg00054.html) in the bug-hurd mailing list.
+
+### <a name="Mach_Interface_Generator"> Mach Interface Generator </a>
+
+To build any Mach kernel you need an interface generator, MiG. To be on the safe side, use the CVS version. If you use Debian, you can install package [mig-i386-gnu](http://packages.debian.org/mig-i386-gnu). If you don't use Debian or want to compile MiG by yourself on Linux/\*BSD system, you must first install Mach headers. In Mach directory do:
+
+    $ mkdir build
+    $ cd build
+    $ ../configure --prefix=/usr/local      # Default prefix is / !
+    $ sudo make -k install-headers          # -k is for ignoring errors
+
+Now you are ready to compile and install MiG (commands are in Mig's source directory):
+
+    $ automake --add-missing                # sometimes it's needed
+    $ mkdir build
+    $ cd build
+    $ ../configure
+    $ make
+    $ sudo make install
+
+### <a name="GNUmach_2_0_OSKit_Mach_"> </a> GNUmach 2.0 (OSKit-Mach)
+
+Unlike its half sister, the OSKit-Mach kernel does _not_ need a cross compiler. The regular gcc for your x86 Linux system does just fine. However, you might want to use gcc 3.2 with the latest and greatest CVS version of Mach.
+
+**_Configuring:_**
+
+    $ cd gnumach
+    $ mkdir build
+    $ cd build
+    $ MIG=/usr/local/bin/mig                   \
+      CC=gcc-3.2                               \
+      CFLAGS="-g -O2"                          \
+      OSKIT_LIBDIR=/usr/local/lib/oskit        \
+      ../configure --prefix=/gnu
+
+Comment: Barry deFreese
+
+I updated `CFLAGS` to `CFLAGS="-g -O2"`. Using just `-O` I was getting errors in the `machine_init` function. For newbies like me, the `-g` is only needed if you want to enable debugging. The `-O2` is Oh 2, not Zero 2.
+
+**_Building:_**
+
+Instead of using `make kernel` to build kernel, in OSKit-Mach you have to use <code>make kernel-<var>DRIVERS</var></code>, where <var>DRIVERS</var> is <code><var>DRIVER</var>+<var>DRIVER</var>+...+<var>DRIVER</var></code> (a list of drivers separated by `+`). <var>DRIVER</var> can be one of:
+
+* `ide`
+* `floppy`
+* <code>ethernet\_<var>ETHDRV</var></code> where <var>ETHDRV</var> is taken from `oskit/oskit/dev/linux_ethernet.h`.
+* <code>scsi\_<var>SCSIDRV</var></code> where <var>SCSIDRV</var> is taken from `oskit/oskit/dev/linux_scsi.h`.
+
+Thus, to build a IDE capable kernel with 3Com Vortex Boomerang support you use the following:
+
+    $ make kernel-ide+ethernet_vortex
+    $ sudo make install
+    $ sudo gzip -f /gnu/boot/oskit-mach
+
+If the `make` command complains about missing dependencies, then you haven't passed correct `OSKIT_LIBDIR` variable to the `configure` script. Or you can use the patch below and pass something like `--with-oskit=/usr/local` to `configure`.
+
+Comment: Barry deFreese
+
+If you receive an error like `No rule to make target Kernel-ide...`, there is a patch for an issue with finding the oskit libraries. Then run `configure` on gnumach again with the option `--with-oskit=/path/to/oskit/libraries`.
+
+The patch can be found here: [gnumach-oskit-path.patch](http://www.vis.ethz.ch/~wagi/hurd/gnumach/gnumach-oskit-path.patch) Thanks wagi!!
+
+Don't use both `--with-oskit` and `OSKIT_LIBDIR`. Choose one of these methods.
+
+If you want to use tftp to download the kernel from Grub and don't care about the symbols I recommend either stripping or removing the `--enable-debug` and `-g` statements.
+
+## <a name="Debugging"> Debugging </a>
+
+See the [[Mach/RemoteDebugOskitMach]] page.
+
+## <a name="Attachments"> Attachments </a>
+
+* [[ATTACHURLmodulesx86pc]]: Configures modules to build in OSKit.
+> Compared to 21May04 CVS, this adds SMP but omits the random module which was added to CVS in Jan03.
+
+* [[ATTACHURLmodules-lightx86pc]]: Lighter version of required modules. Used for building GNUmach with OSKit, i.e. OSKit/Mach.
+> Compared to the above config, this omits the Linux, MSDOS,
+>
+> NetBoot, and PXE loader support, bootp support, OSKit on UNIX support, some thread-safe library versions, the address map manager, fsread, fsnamespace/\{fsn,fsn\_r\}, fudp, memdebug, memfs, smp, POSIX threads, svm, uvm, the Simple Process Library, realtime support, FreeBSD devices and code, linux/fs, the UDP library, **the sets of x86 and UNIX example kernels**, the testsuite, and the security server. **The new random module is also not configured.**

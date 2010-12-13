@@ -1,39 +1,68 @@
+This page discusses things for [[Unix]] systems, there is a separate page for
+[[Microsoft_Windows]] systems.
+
+
 # Readily Available Images
 
-(!) Note that these are unofficial images: they have been prepared by
+To try out the Hurd you can use the image of the Debian GNU/Hurd: 
+
+* [Official Debian GNU/Hurd QEMU image](http://ftp.debian-ports.org/debian-cd/K16/debian-hurd-k16-qemu.img.tar.gz)
+
+(!) Note that the following are unofficial images: they have been prepared by
 volunteers and may not have been tested extensively.
 
-* [Disk image](http://www.numenor.art.pl/balrog/hurd/) with an installation of
-  [[Debian_GNU/Hurd|running/debian]].
-* [Announcement](http://lists.debian.org/debian-hurd/2007/09/msg00000.html) of
-  another image.
+<!--* [Disk image](http://www.numenor.art.pl/balrog/hurd/) with an installation of
+  [[Debian_GNU/Hurd|running/debian]].-->
+
+* [Disk image](http://draketo.de/dateien/hurd/bab-hurd-qemu-2008-10-29.img.tar.bz2) 
+  with a short intro on translators. Just start it with 'qemu *disk_image.img*'. 
+  It should work without any of the configuration below. If you want to know what you can do 
+  with it, please have a look at [[its_wikipage|hurd/running/qemu/babhurd_image]]. And when 
+  you use it, please [tell me your experience with it](http://draketo.de/contact)! - [[community/weblogs/ArneBab]]
+
+Also you can use qemu to easily try one of our [[Hurd_LiveCDs|hurd/running/live_cd/]]. 
+
+<!--* [Announcement](http://lists.debian.org/debian-hurd/2007/09/msg00000.html) of  another image. - The link in the email doesn't work anymore, too old. //-->
 
 
-# What is Needed
+# What is Needed to create a QEMU image
 
-1. First thing is to install [[QEMU]].
-2. A [grub](http://www.gnu.org/software/grub/) boot disk for the floppy disk image needed for booting. The [0\.97 version](ftp://alpha.gnu.org/gnu/grub/grub-0.97-i386-pc.ext2fs) works fine. I downloaded it an renamed to `floppy.img`.
-3. You will need a [Debian/Hurd installation CD](http://www.debian.org/ports/hurd/hurd-cd). K14 works fine.
+1. First thing is to install [[/QEMU]].
+2. A [[grub]] boot disk for the floppy disk image needed for booting. The [0\.97 version](ftp://alpha.gnu.org/gnu/grub/grub-0.97-i386-pc.ext2fs) works fine. I downloaded it and renamed to `floppy.img`. Alternatively, the Debian grub-disk package (up till version 0.97-28) is fine as well.
+3. You will need a [Debian/Hurd installation CD](http://www.debian.org/ports/hurd/hurd-cd). K16 works fine.
 
 
 # Installing Debian/Hurd with QEMU
 
-First off you will need to create a disk image using `qemu-img`. I have set mine to 2 gigabytes, although you should be able to get away with less.
+First off you will need to create a disk image using `qemu-img`. I have set mine to 2 gigabytes, although you should be able to get away with less(Currently, the maximum disk image size one can create with QEMU is 4.5G).
 
     $ qemu-img create hd0.img 2G
 
 Next you will want to start up QEMU and begin the installation process. The first time you run it you will want to use the `-boot d` option to boot off the cdrom.
 
-    $ qemu -hda hd0.img -cdrom debian-K14-hurd-i386-CD1.iso -fda floppy.img  -boot d
+    $ qemu -hda hd0.img -cdrom debian-K16-hurd-i386-CD1.iso -fda floppy.img  -boot d
 
 Now at his point do the regular install using `hd0` as your harddrive. Partition it and install the base system. Once you have finished installing the base system select the reboot option as this will ensure the disk is properly un-mounted. When the Debian CD menu comes up again simply close QEMU.
 
 Now run your image with floppy booting (`-boot a`) and finish the install (`./native-install` .. etc).
+You'll want to add more memory or activate swap for `./native-install` or it will hang.
+Starting qemu with `-m 512` worked for me.
+Swap can be activated like this (replace hd0s2 with your swap partition):
+
+    $ cd /dev/
+    $ MAKEDEV hd0s2
+    $ /hurd/mach-defpager
+    $ swapon /dev/hd0s2
 
 **Important:** Older versions on gnumach needed that the `-M isapc` was passed to qemu. This is not needed anymore.
 
+Also see another text about how to [[gnu/create_an_image]] for the
+[[GNU_system|gnu]].
 
-# Mounting Disk Image on Host
+
+# Transferring Files
+
+## Mounting Disk Image on Host
 
 You may wish to mount your disk image on your host system to transfer files. To do this you will first need to find the offset of the partition you wish to mount.
 
@@ -50,18 +79,42 @@ Now take the number of sectors for the beginning of the partition and multiply i
 
     # mount -o loop,offset=32256 hd0.img /mnt/diskimage
 
+## Having QEMU create *virtual FAT disk images*
+
+[Manual](http://www.nongnu.org/qemu/qemu-doc.html#SEC25).
+
+QEMU has a facility to create FAT file systems on-the-fly:
+
+    qemu [...] -hdc fat:[somewhere]
+
+The Hurd [[`fatfs`_translator|translator/fatfs]] currently is read-only, but
+for testing executables (etc.) that is enough.  And it is much easier than
+loop-mounting the file systems images.  (Also you don't need `root' rights.)
+
+However, note that there is a bug in [[translator/fatfs]]: [[!GNU_Savannah_bug
+25961]].
+
 
 # Networking in QEMU
+
+Some further notes about [[networking]] and home hints about
+[[networking/sharing_files]].
 
 ## Internet Access
 
 If you just want to access the internet from within QEMU, you can setup pfinet for QEMU's user-networking:
 
     # settrans -afgp /servers/socket/2 /hurd/pfinet -i eth0 -a 10.0.2.15 -g 10.0.2.2 -m 255.255.255.0
+    # echo "nameserver 10.0.2.3" > /etc/resolv.conf
 
-(See also <http://fabrice.bellard.free.fr/qemu/qemu-doc.html#SEC30>.)
+(See also <http://www.nongnu.org/qemu/qemu-doc.html#SEC32>.)
 
-Outgoing internet connections should just work then, although you might have to setup nameservers in `/etc/resolv.conf` as well.
+Outgoing internet connections should just work then.
+Testing it can be difficult with a minimal installation,
+but `apt-get update` should work after you have filled out
+`/etc/apt/sources.list`.
+After that you should be able to install other network packages,
+but note that `ping` doesn't work with QEMU's user-networking stack.
 
 If you want to connect from the host system to the Hurd system running in QEMU, you need to setup something more advanced, like bridged networking.
 
@@ -117,6 +170,8 @@ system after installation.
 
 [[Image_for_L4]] -- a QEMU image for the Hurd/L4 project.
 
+<http://eyeside.net/hurd/Hurd-on-QEMU.html>
+
 
 # TODO
 
@@ -143,3 +198,4 @@ system after installation.
     <tschwinge> Yes.
 
 The problem is actually that the linux block cache doesn't make any consistency between /dev/hda and /dev/hda6, so if you give /dev/hda to qemu, qemu writings won't be consistent with mounting /dev/hda6 in linux. You can give /dev/hda6 directly to qemu and it will be fine.
+

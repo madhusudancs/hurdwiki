@@ -1,0 +1,42 @@
+[[!meta copyright="Copyright © 1998, 1999, 2007, 2008 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+[[!meta title="Running a Subhurd"]]
+
+By Roland McGrath.
+
+The most useful thing you can do when trying to troubleshoot the boot
+sequence of the Hurd is try to run your the system in a
+sub-hurd, while watching it using ps and gdb from the working hurd.  Since
+the sub-hurd is never going to make it all the way up, you don't even
+really need to make a separate filesystem for it; you can just boot the
+sub-hurd read-only on your main root filesystem if you like.
+
+The way to boot the sub-hurd is with `boot`.  I would suggest something
+like this:
+
+    boot -d -I -Tdevice /boot/servers.boot hd0s6
+
+The -d says to pause before the start-up of each server and wait for you to
+hit return, which gives you time to go attach gdb to the task before it
+starts running.  The -I says to leave the terminal signals normal, so
+hitting C-z will suspend boot rather than sending a C-z to the virtual
+console device of the sub-hurd.  (Note that suspending boot does not
+suspend the sub-hurd, just boot itself; boot acts as the server for device
+access from the sub-hurd, so the sub-hurd's attempts to write to its
+console or open devices block while boot is suspended.)
+
+When you do `ps -A` on the main hurd, the sub-hurd tasks will appear as
+unknown processes.  You can figure out which is which just by looking at
+the order of unknown processes that appear with higher PIDs than the boot
+process.  They appear in the order you see in the "bootstrap: ..."
+messages, i.e. the first unknown after boot will be ext2fs.static, the
+second exec, then init, then proc.

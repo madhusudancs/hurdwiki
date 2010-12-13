@@ -1,0 +1,153 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+If you haven't: install hurd to partition
+get grub image
+boot hurd in single user (change grub entry accordingly to the installed partition)
+
+> $ export TERM=mach
+
+> $ ./native-install
+
+reboot to other debian
+
+suppose hurd partition is hdd1
+
+as root
+
+> $ mount /dev/hdd1 /mnt -t ext2
+
+> $ cd /mnt/etc/apt
+
+> $ echo "deb http://ftp.debian-ports.org/debian unreleased main" >> sources.list
+
+> $ echo "deb-src http://ftp.debian-ports.org/debian unreleased main" >> sources.list
+
+> $ echo "deb http://ftp.uk.debian.org/debian unstable main" >> sources.list
+
+> $ echo "deb-src http://ftp.uk.debian.org/debian unstable main" >> sources.list
+
+> $ wget http://www.gnu.org/software/hurd/hurd/running/debian/DebianAptOffline/apt.conf.offline
+
+> $ cd /mnt
+
+> $ apt-get -c etc/apt/apt.conf.offline update
+
+> $ apt-get -c etc/apt/apt.conf.offline upgrade
+
+> $ apt-get -c etc/apt/apt.conf.offline install git-core
+
+> $ apt-get -c etc/apt/apt.conf.offline build-dep hurd gnumach
+
+> $ apt-get -c etc/apt/apt.conf.offline install build-essential libpciaccess-dev libpcap0.8-dev
+
+> $ cd /mnt/home
+
+> $ git clone git://git.sv.gnu.org/hurd/incubator.git -b dde hurd_dde
+
+> $ git clone git://git.sv.gnu.org/hurd/gnumach.git -b master-user_level_drivers gnumach_dde
+
+
+suppose you need forcedeth driver
+
+Download http://git.kernel.org/?p=linux/kernel/git/stable/linux-2.6.29.y.git;a=blob_plain;f=drivers/net/forcedeth.c;hb=HEAD from mozilla like
+browser to /mnt/home as forcedeth.c
+
+reboot back to hurd (multiuser)
+
+> $ apt-get update
+
+> $ apt-get upgrade
+
+> $ apt-get install git-core
+
+> $ apt-get build-dep hurd gnumach
+
+> $ apt-get install build-essential libpciaccess-dev libpcap0.8-dev
+
+
+> $ cd /home/gnumach_dde
+
+> $ autoreconf -i && ./configure --enable-kdb --enable-device-drivers=none --enable-lpr --enable-floppy --enable-ide
+
+> $ make
+
+> $ cd ../hurd_dde
+
+> $ cp -r dde_pcnet32 dde_forcedeth
+
+> $ cd dde_forcedeth
+
+> $ rm pcnet32.c
+
+> $ cp /home/forcedeth.c ./
+
+> $ sed -i 's/pcnet32/forcedeth/g' Makefile
+
+> $ sed -i 's/pcnet32/forcedeth/g' .gitignore
+
+> $ sed -i 's:-lhurd-slab:../libhurd-slab/libhurd-slab.a:' Makefile
+
+> $ sed -i 's:-I/include:-I..:' Makefile
+
+> $ nano forcedeth.c
+
+add this line after the last #include
+
+    #include <ddekit/timer.h>
+
+> $ cd ..
+
+> $ git add dde_forcedeth
+
+> $ git commit -a -m 'Add forcedeth driver'
+
+> $ autoreconf -i && ./configure
+
+> $ mkdir -p hurd/include/ddekit
+
+> $ make libddekit libmachdev devnode pfinet
+
+> $ cd libdde_linux26
+
+> $ make
+
+> $ cd ../dde_forcedeth
+
+> $ make
+
+If the make fails it might be necassary to replace some of the -l options (or all) in Makefile with the real path to the library objects (example: change *-lhurd-slab* to *../libhurd-slab/libhurd-slab.a*)
+
+> $ cp /home/gnumach_dde/gnumach /boot/gnumach_dde
+
+> $ mkdir /hurd/dde
+
+> $ cp /home/hurd_dde/devnode/devnode /hurd/dde
+
+> $ cp /home/hurd_dde/pfinet/pfinet /hurd/dde
+
+> $ cp /home/hurd_dde/dde_forcedeth/dde_forcedeth /hurd/dde/forcedeth
+
+reboot to hurd with the new gnumach_dde
+
+> $ settrans -c /dev/forcedeth /hurd/dde/forcedeth
+
+> $ settrans -c /dev/eth0 /hurd/dde/devnode -M /dev/forcedeth eth0
+
+> $ settrans -c /servers/socket/2 /hurd/dde/pfinet -i /dev/eth0 -a 192.168.1.194 -g 192.168.1.254 -m 255.255.255.0 
+
+
+replace the ip, gateway and mask with your own ones
+
+> $ nano /etc/resolv.conf
+
+add line: nameserver 192.168.1.254
+
+DONE

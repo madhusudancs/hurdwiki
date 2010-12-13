@@ -1,0 +1,118 @@
+Additional to the following text, a further [[example]] has be posted.
+
+/!\ The following information may very well be incomplete and out-dated.
+
+
+# Building the Hurd from Source
+
+If you want to build the Hurd libraries and servers (translators) yourself
+instead of just using pre-built binaries, follow these instructions.
+
+One note before we begin: the likelihood that the compiled result will actually
+do what you expect it to do is the highest if you try building from the Debian
+source packages.  This is especially true if you want to use your compilation
+within a Debian system.
+
+Note that for building code to run on GNU/Hurd systems, you need a toolchain
+for the GNU Hurd.  You can either compile on a GNU/Hurd system, or need a
+cross-compiler targeting GNU/Hurd.  Our [[toolchain page|toolchain]] has the
+details.
+
+
+## Getting the Source Code
+
+You can chose between getting the [sources from the developers's
+RCS](http://savannah.gnu.org/cvs/?group=hurd):
+
+    $ cvs -z3 -d:pserver:anonymous@cvs.savannah.gnu.org:/sources/hurd co hurd
+
+... or (if you are working on a Debian system) the ones that are used for the
+[current Debian hurd package](http://packages.debian.net/source/unstable/hurd):
+
+    $ apt-get source hurd
+
+Please see the Debian [[running/debian/FAQ]] before using `apt-get source`.
+
+The unpacked source tree is around 20 MiB, and the build tree (configured with
+`--disable-profile`) is around 100 MiB.
+
+## Preparing for the Build
+
+### ... on Debian systems
+
+Building the Hurd requires the *build-essential* and *fakeroot* packages, their
+dependencies and additional packages that are specified by the source hurd
+package:
+
+    # apt-get install build-essential fakeroot
+    # apt-get build-dep hurd
+
+### ... on non-Debian systems
+
+[TODO]
+
+## Building
+
+### Debian `.deb` Files
+
+Change into the directory with the downloaded / unpacked Hurd sources, e.g.
+
+    $ cd hurd-[TODO]
+
+If you want to work on the sources before building them, it's advisable to
+first apply the patches the Debian hurd package additionally contains:
+
+    $ debian/rules apply-patches
+
+Then edit and change whatever files you want and finally start the build
+process with
+
+    $ dpkg-buildpackage -us -uc -nc -b -rfakeroot
+
+The `.deb` packages will then drop out at the `../` directory.
+
+### Building, but not the Debian Way
+
+The Hurd has to be built in a separate directory:
+
+    $ mkdir hurd-build
+    $ cd hurd-build
+
+    $ [...]/hurd-[TODO]/configure --disable-profile
+    $ make
+    $ make install
+
+Notice that `make install` will install the Hurd in `/`, not in `/usr/local/`
+or `/local/`, so your current Hurd servers will be replaced.  [TODO: how to
+install somewhere else.]
+
+By default profiling versions of all the libraries and code are generated but
+this is useless in most of the cases, so we disable them by specifying
+`--disable-profile` on `configure`'s command line.
+
+If you just want to build a specific server or library, you can pass its name
+to `make`:
+
+    $ make ext2fs
+    $ make libtrivfs
+
+This will automatically build all libraries that are required to build the
+requested server or library.
+
+
+## RPC IDs
+
+[TODO: update / integrate somewhere.]
+
+If you want to trace the RPC calls made by some process by using `rpctrace`
+command, you will also want some more human-readable output of this
+command. This is achieved by generating `hurd.msgids` file that includes the
+mapping between the number of the RPC call and its name:
+
+    $ cd build/hurd
+    $ make hurd.msgids
+    $ cp hurd.msgids ~
+
+Now you can use this file in the following way:
+
+    $ rpctrace -i ~/hurd.msgids ls

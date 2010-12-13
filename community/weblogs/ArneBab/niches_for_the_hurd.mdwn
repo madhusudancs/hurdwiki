@@ -1,0 +1,340 @@
+Niches for the Hurd
+===================
+
+In the bug-hud mailinglist we did a search for niches where the Hurd is *the biggest 
+fish in the pond*. 
+
+This search was segmented into four distinct phases, three of them major: 
+
+- Brainstorm
+- Reality check: can already do vs. could be used for
+- Turn ideas into applications
+- Find a compromise -> About which niches should we talk in the wiki?
+
+
+Brainstorm
+----------
+
+"Which niches could there be for the Hurd?"
+
+### Basic Results
+
+The result is a mix of target groups, 
+nice features and options of the Hurd, reasons for running a Hurd and areas where 
+the Hurd offers advantages: 
+
+#### Nice features and options the Hurd offers
+
+- Give back power to users: arbitrary mounts, subhurds 
+- Nice features: dpkg -iO ftp://foo/bar/*.deb
+- Easier access to low-level functions
+- Advanced lightweight virtualization
+- operating system study purposes as its done with minix
+- The possibility to create more efficient and powerful desktop environments
+- Having a _complete_ GNU System
+- All-in-one out-of-the-box distro running a webserver for crash-proof operation. 
+
+
+#### Target groups and strong environments
+
+- Tinkerers who like its design.
+- multicore-systems
+
+
+### The keyphrases in more detail or with additional ideas
+
+#### Give back power to users: arbitrary mounts, subhurds
+
+Simpler virtual computing environments - no need to setup XEN, everyone can 
+just open up his/her computer for someone else by creating a new user account, 
+and the other one can login and easily adapt the system for his/her own needs. 
+If most systems just differ by the translators setup on them, people could 
+even transfer their whole environment from one computer to another one without 
+needing root access or more root interaction than creating a new user account. 
+"I want my tools" -> "no problem, just setup your translators". 
+
+Also it would be possible to just open an account for stuff like joining the 
+"World Community Grid" allowing for easier sharing of CPU time. 
+
+
+#### Easier access to low-level functions
+
+*"One important use is for very technical people, who don't always go with
+standard solutions, but rather use new approaches to best solve their
+problems, and will often find traditional kernels too limiting."*
+
+*"Another interesting aspect is application development: With the easily
+customized/extended system functionality, and the ability to contain
+such customizations in subenvironments, I believe that Hurd offers a
+good platform for much more efficient development of complex
+applications. Application developers can just introduce the desired
+mechanisms on a very low level, instead of building around existing
+abstractions. The extensible filesystem in particular seems extremely
+helpful as a powerful, intuitive and transparent communication
+mechanism, which allows creating truly modular applications."*
+
+
+#### Advanced lightweight virtualization
+
+*"There is also the whole area I called "advanced lightweight
+virtualization" (see
+http://tri-ceps.blogspot.com/2007/10/advanced-lightweight-virtualization.html
+), i.e. the ability to create various kinds of interesting
+subenvironments. Many use cases are covered by much bigger fish; but the
+flexibility we offer here could still be interesting: I think the middle
+grounds we cover between directly running applications, and full
+isolation through containers or VMs, are quite unique. This could
+simplify management of demanding applications for example, by partially
+isolating them from other applications and the main system, and thus
+reducing incompatibilities. Creating lightweight software appliances
+sounds like an interesting option.*"
+
+#### The possibility to create more efficient and powerful desktop environments
+
+*"While I believe this can be applied to any kind of applications, I'm
+personally most interested in more efficient and powerful desktop
+environments -- these considerations are in fact what got me seriously
+interested in the Hurd.*
+
+*Even more specifically, I've done most considerations (though by far not
+all) on modular web browsing environments. Those interested can read up
+some of my thoughts on this:*
+
+   
+http://sourceforge.net/mailarchive/message.php?msg_name=20080909073154.GB821%40alien.local
+
+*(Just skip the text mode browsing stuff -- the relevant part is the long
+monologue at the end... I really should put these ideas into my blog.)"*
+
+
+
+#### Nice features
+
+Another example of features which would be easily possible with the Hurd: 
+
+* transparent ftp (already possible!):
+	- settrans -c ftp: /hurd/hostmux /hurd/ftpfs /
+	- ls ftp://ftp.gnu.org/
+	- # -> list the files on the FTP server.  
+
+
+* media-player translator:
+ 	- settrans play /hurd/mediaplayer_play
+	- cp song1.ogg song2.ogg play
+	- # -> files get buffered and played.
+
+or even: 
+
+* cp ftp://foo/bar/ogg play
+
+that's KDEs fabled network transparency on the filesystem / shell level (where it belongs to be desktop agnostic). 
+
+* add temporary filesystems anywhere via `settrans -a NODE /hurd/ext2fs`
+
+* make everything temporarily writeable without really changing it via [[hurd/translator/unionfs]].
+
+* Read tar archives and mbox files via `ls foo.tar.gz,,tarfs` and `ls foo.mbox,,mboxfs`, respectively → [[hurd/translator/nsmux]]. 
+
+* Use stuff like the new akonady (personal information) framework in KDE more efficiently from the shell. 
+
+
+Reality check
+-------------
+
+Check which of the ideas can already be done easily with the Hurd in its current 
+state, which ones are a bit more complex but already possible, which ones need a bit 
+of coding (could be accomplished in a few months judging from the current speed of 
+development), which ones need a lot of work (or fundamental changes) and which ones 
+aren't possible. 
+
+### Already possible and easy
+
+- Sample translators: 
+	* hello world. 
+	* transparently bind FTP into the filesystem
+ 	* hostmux + ftpfs -> connect to FTP automatically via asking for a dir named after the hostname -> fully transparent FTP filesystem: "touch ftp: ; settrans ftp: /hurd/hostmux /hurd/ftpfs / "
+	* bind any filesystem at any place in the directory tree (you have access to) without needing to be root. 
+	* elegantly mount iso images and similar as unprivileged user. 
+
+- Other useful stuff: 
+	* Install deb-packages from an ftp server via 'dpkg -iO ftp://foo/bar/*.deb'
+	* remount a filesystem readonly as regular user: fsysopts /foo -r
+	* give a process additional group and user permissions at runtime:  
+	  $ groups  
+	  root  
+	  $ ps -L # gives me the PID of my login bash -> bashPID  
+	  ...  
+	  $ addauth -p bashPID -g mail  
+	  $ groups  
+	  root mail  
+
+- Having a complete GNU System (but not yet on every hardware, and only about half the software Debian offers has been ported). 
+
+### Already possible but complex or underdocumented
+
+- Easier access to low-level functions via translators. 
+
+- Operating system study purposes as it's done with minix. 
+
+- Tinkering for fun - need documentation about the fun things which can be done. 
+
+### Need a few months of coding
+
+- A filesystem-based package manager. 
+
+- subhurds for regular users
+	* A framework for confining individual applications is 
+	  really just one possible use case of the hurdish 
+	  subenvironments. Writing the tools necessary for that 
+	  should be quite doable in a few months. It's probably 
+	  not really much coding -- most of the work would be 
+	  figuring out how it should be set up exactly. 
+	* subusers
+	* "subdo":  
+	  # Example: Let a virus run free, but any effect vanishes  
+	  # once the subhurd closes.  
+	  $ subdo --no-lasting-changes ./virus
+
+- Running parts of the Hurd on different computers, maybe even with shared servers on 
+dedicated hardware (Cloud Computing when the servers can be made to migrate from 
+between computers). Maybe this should be placed in "need a lot of coding". 
+
+- subhurds for quickly adapting the whole system without bothering others. 
+
+- Define your personal environment via translators, so you can easily take it with 
+you (translators written in scripting laguages can make this easier - they could 
+also for example be taken to each computer on USB stick). 
+
+- A more powerful alternative to FUSE filesystems: While FUSE is limited to standard
+filesystem semantics, while Hurd translators can implement whatever they
+want.
+It is possible to change the behaviour in any aspect, including the way
+file name lookup works. Admittedly the only specific use case I know is
+the possibility to implement namespace-based translator selection with a
+set of normal translators, without any changes to the Hurd itself.
+It is also possible to extend the filesystem interfaces, adding new RPCs
+and options as needed. This allows using the filesystem for
+communication, yet implementing domain-specific interfaces where
+standard filesystems are too unefficient or cumbersome. A sound server
+would be one possible use case. 
+
+- Namespace based translator selection (if you for example want to quickly check the 
+contents of an iso image, just look at them via 'ls image.iso,,iso9660fs'). 
+
+### Need a lot of coding or fundamental changes
+
+- Effective resource management (For example via Viengoos on which Neal Walfield is 
+working). The idea is that we could make a virtue out of necessity: Once we have a 
+proper resource management framework, we should be able not only to catch up with 
+traditional systems in this reagard, but in fact surpass them.
+
+- The possibility to create more efficient and powerful desktop environments. 
+
+- Multicore systems (need to fixup Mach for SMP)
+
+- Currently to offer CPU time to some project (like the World Community Grid), it is 
+necessary to install a program from them, and they can then do only what that proram 
+allows them to - which leads to reinventing a processing environment instead of just 
+using the existing OS. 
+With the Hurd people could just create a user for them, give that user specific 
+permissions (like "you're always lowest priority"), add the public ssh keys of 
+the project they want to donate CPU cycles to, and the project could just turn 
+the computer into the environment it needs for the specific computation, 
+without compromising the main system in any way (needs better resource management).
+
+- A shared MMORPG game world consisting simply of files for levels and person 
+descriptions with access rights. All synchronizing is done on the translator 
+level. Programs only have to display the given files and quickly update the 
+state of their own files, so the programs stay very easy. The translator could 
+notify the program when something changes.
+
+
+
+### Unfeasible ideas
+
+
+
+Applications
+------------
+
+A minor phase, which will surely be interleaved with the others: Making the ideas 
+tangible to turn them into ways how people can use the Hurd. 
+
+*"Hey, look, this is the Hurd. You can use it like this to do that which you can't do 
+as well/easily/elegantly in any other way."*
+
+
+### Applications for private use
+
+### Applications for companies
+
+### How an application should be presented so people can easily test and digest it
+
+We need stuff which gets people to say "hey that's cool!"
+
+And it must be readily available. 
+If I have to search for arcane command line parameters before I can use it, 
+it's too hard. 
+
+From what I see, each direct cool application must be about as simple as 
+
+$ qemu hurd-is-cool.img  
+$ login root  
+$ settrans cool /hurd/cool  
+$ ls cool
+
+One main focus in this example is: No command line parameters but the ones we 
+really need. No "-a", if the example is also cool without it. 
+No "--console" if it works otherwise. 
+
+Especially no *"qemu --cd livecd --hda hurd.img ..."* - that one is great for 
+people who already know qemu or want to learn it, but the goal here isn't to teach people 
+better usage of qemu, but to show them that the Hurd is cool, and only that. 
+
+All that interesting advanced stuff just gets newcomers confused. 
+
+The translator concept in itself is enough news to faze a mind - anything else 
+can easily be too much. 
+
+If the application isn't as simple as the example above, then the best step 
+would be to see if we can make it as simple - if that involves writing trivial 
+scripts than be it so. They are trivial only to those who already understand 
+the underlying concepts. 
+
+And now enough with rambling :) 
+
+The Hurd is cool, and the complex to use applications are cool, too. 
+But they are hard to present in a way newcomers easily understand.
+
+
+Compromise
+----------
+
+For each niche: 
+
+- What do we have to do to conquer the niche? 
+- How many additional programmers can the Hurd get in this niche? 
+- How does choosing this niche limit the flexibility of further development (for example due to the goals of the people who join up)? 
+- Can we easily move on to conquering the next niche once we got this one? 
+- What should the Hurd accomplish on the long term (long term goals)? Which possible niches help that? 
+
+Each participant: 
+
+- Give your personal priorities to the niches: 
+	* Must -> all of these of all developers must be included; 
+	  remember that at most 3 to 4 ideas can be conveyed in any text. 
+	* Should -> The number of shoulds can be used for ranking and similar.
+
+("must", because in a community people can do what they perceive as important, and 
+telling someone to stop what he's doing is no option (in my opinion))
+
+
+Things to do
+------------
+
+todo-item -> niches for which it is useful. 
+
+### Easy
+
+- Port debian packages to the Hurd -> mainly tinkerers, but also any other niche. 
+

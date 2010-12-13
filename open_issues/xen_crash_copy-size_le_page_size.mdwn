@@ -1,0 +1,104 @@
+[[!meta copyright="Copyright © 2009 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_xen]]
+
+`/dev/hd2` is 2 GiB in size (backed by LVM), unformatted.
+
+    # mkfs.ext2 -o hurd /dev/hd2
+    mke2fs 1.41.7 (29-June-2009)
+    hd2 count 1
+    re-open, hd2 count 2
+    ext2fs_check_if_mount: Can't check if filesystem is mounted due to missing mtab file while determining whether /dev/hd2 is mounted.
+    re-open, hd2 count 3
+    re-open, hd2 count 4
+    re-open, hd2 count 5
+    Filesystem label=
+    OS type: Hurd
+    Block size=4096 (log=2)
+    Fragment size=4096 (log=2)
+    131072 inodes, 524288 blocks
+    26214 blocks (5.00%) reserved for the super user
+    First data block=0
+    Maximum filesystem blocks=536870912
+    16 block groups
+    32768 blocks per group, 32768 fragments per group
+    8192 inodes per group
+    Superblock backups stored on blocks: 
+            32768, 98304, 163840, 229376, 294912
+    
+    Assertion `copy->size <= PAGE_SIZE' failed in file "../gnumach-1-branch-Xen-branch/xen/block.c", line 536
+    Kernel Breakpoint trap, eip 0x20020a77
+    Stopped at  0x20020a76: int     $3
+    db> trace
+    0x20020a76(2006abc1,2006ba03,2006782c,218,2e2be8d4)
+    0x20020ace(2006ba03,2006782c,218,2e3629a0,32000)
+    0x2003e9d5(2de04764,2e2be0b8,12,0,3fff80)
+    0x200476e6(2de5ad54,2e2db010,2e30a9a0,2de3a854,2de5ad44)
+    0x20021ed4(2de5ad44,2e2bb2e0,2e2bb2a0,0,0)
+    0x2005309d(129b8f0,3,38,28,e)
+    0x20006838(129b8f0,3,38,28,e)
+    >>>>> user space <<<<<
+
+
+    $ addr2line -i -f -e /boot/gnumach-xen 0x20020a76 0x20020ace 0x2003e9d5 0x200476e6 0x20021ed4 0x2005309d 0x20006838
+    Debugger
+    /home/tschwinge/tmp/gnumach/gnumach-1-branch-Xen-branch.build/../gnumach-1-branch-Xen-branch/kern/debug.c:105
+    Assert
+    ??:0
+    device_write
+    /home/tschwinge/tmp/gnumach/gnumach-1-branch-Xen-branch.build/../gnumach-1-branch-Xen-branch/xen/block.c:537
+    _Xdevice_write
+    /home/tschwinge/tmp/gnumach/gnumach-1-branch-Xen-branch.build/device/device.server.c:253
+    ipc_kobject_server
+    /home/tschwinge/tmp/gnumach/gnumach-1-branch-Xen-branch.build/../gnumach-1-branch-Xen-branch/kern/ipc_kobject.c:201
+    mach_msg_trap
+    /home/tschwinge/tmp/gnumach/gnumach-1-branch-Xen-branch.build/../gnumach-1-branch-Xen-branch/ipc/mach_msg.c:1367
+    mach_call_call
+    /home/tschwinge/tmp/gnumach/gnumach-1-branch-Xen-branch.build/../gnumach-1-branch-Xen-branch/i386/i386/locore.S:1083
+
+GDB on `mkfs.ext2`:
+
+    raw_write_blk (channel=0x80829d8, data=0x8082a40, block=524272, count=8, buf=0x80a0a60) at ../../../git/lib/ext2fs/unix_io.c:272
+    272             actual = write(data->dev, buf, size);
+    (gdb) print size
+    $4 = 32768
+    (gdb) bt
+    #0  raw_write_blk (channel=0x80829d8, data=0x8082a40, block=524272, count=8, buf=0x80a0a60) at ../../../git/lib/ext2fs/unix_io.c:272
+    #1  0x080635fc in unix_write_blk64 (channel=0x80829d8, block=524272, count=8, buf=0x80a0a60) at ../../../git/lib/ext2fs/unix_io.c:673
+    #2  0x0806373c in unix_write_blk (channel=0x80829d8, block=524272, count=8, buf=0x80a0a60) at ../../../git/lib/ext2fs/unix_io.c:705
+    #3  0x0805e87d in ext2fs_zero_blocks (fs=0x8082940, blk=524272, num=16, ret_blk=0x15ffb1c, ret_count=0x0)
+        at ../../../git/lib/ext2fs/mkjournal.c:182
+    #4  0x0804ec56 in main (argc=131072, argv=0x80000) at ../../git/misc/mke2fs.c:2032
+
+Discussion:
+
+    <tschwinge> I had a look at the code, but unfortunately don't really know
+      how this data transfers between Xen and the domU work.
+    <tschwinge> Well, I know how it roughly works, but not the implementation
+      deatils.
+    <youpi> well here it's not about the xen/domU transfers
+    <youpi> it's about copying data to align it
+    <youpi> i.e. when offset is not aligned, I need to copy it
+    <tschwinge> Yes-
+    <youpi> I was lazy, just implemented it for things smaller than a page
+    <youpi> it just needs to be extended into copying several pages
+    <tschwinge> youpi: Hmm, do we need to copy all the data to shift away the
+      offset or is there a better way?
+    <youpi> the blkbackend needs data to be sector-aligned
+    <youpi> just aligning on a page makes offset computation simpler
+    <youpi> as it's rare that's not a problem
+    <tschwinge> And a sector is the usual 512 bytes there, I assume?
+    <tschwinge> But then we do need to copy all of it?
+    <youpi> let me check
+    <youpi> the sector is the granularity you can't go below
+    <youpi> sector is the sector_size reported by the backend
+    <youpi> but for sector_number and first/last_sect it's 512
+    <youpi> yes, that's weird

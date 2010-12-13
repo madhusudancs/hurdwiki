@@ -1,0 +1,53 @@
+[[!meta copyright="Copyright © 2007, 2008 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+Say you want to try running file system server ([[`ext2fs`|translator/ext2fs]],
+[[`jfs`|translator/jfs]], ...) against a modified version of
+[[`libpager`|libpager]] and debug the latter one using [[debugging/GDB]].
+
+Set the [[hurd/translator]] like this:
+
+    $ settrans -fgap ↩
+      jfs.img.i ↩
+      /usr/bin/env ↩
+        LD_LIBRARY_PATH=~tschwinge/tmp/hurd/hurd.ogi/build/libpager ↩
+      "$PWD"/jfs.obj/jfs ↩
+        "$PWD"/jfs.img
+
+Then, when starting GDB, start it like this (or use an equivalent method, of
+course):
+
+    $ LD_LIBRARY_PATH=~tschwinge/tmp/hurd/hurd.ogi/build/libpager ↩
+      gdb ↩
+        ~tschwinge/tmp/jfs/jfs.obj/jfs 15436
+    GNU gdb 6.5-debian
+    [...]
+    Reading symbols from /lib/libdiskfs.so.0.3...Reading symbols from /lib/debug/lib/libdiskfs.so.0.3...done.
+    done.
+    Loaded symbols for /lib/libdiskfs.so.0.3
+    Reading symbols from /devel4/tschwinge/tmp/hurd/hurd.ogi/build/libpager/libpager.so.0.3...done.
+    Loaded symbols for /devel4/tschwinge/tmp/hurd/hurd.ogi/build/libpager/libpager.so.0.3
+    Reading symbols from /lib/libstore.so.0.3...Reading symbols from /lib/debug/lib/libstore.so.0.3...done.
+    done.
+    Loaded symbols for /lib/libstore.so.0.3
+    [...]
+    (gdb) break pager_demuxer
+    Breakpoint 1 at 0x105c98d: file ../../libpager/demuxer.c, line 27.
+    [...]
+    Breakpoint 1, pager_demuxer (inp=0x12bded0, outp=0x12bbec0) at ../../libpager/demuxer.c:27
+    27      {
+    (gdb) list
+    22      /* Demultiplex a single message directed at a pager port; INP is the
+    23         message received; fill OUTP with the reply.  */
+    24      int
+    25      pager_demuxer (mach_msg_header_t *inp,
+    [...]
+
+Voilà.

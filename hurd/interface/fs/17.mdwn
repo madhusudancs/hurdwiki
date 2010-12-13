@@ -1,0 +1,41 @@
+[[!meta copyright="Copyright © 1994, 1995, 1996, 1997, 1998, 1999, 2002, 2009
+Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="file_getfh"]]
+
+    routine file_getfh (
+    	file: file_t;
+    	RPT
+    	out filehandle: data_t, dealloc);
+
+Return a file handle for this file.  This can be used by NFS and such.  It is
+not guaranteed that this call will work;  if it doesn't, then this filesystem
+cannot be NFS mounted.
+
+Currently file handles are only used by `nfsd` with the purpose of
+having some stable representation of nodes (TODO: Add references).
+The only translator library that implements `file_getfh` and the
+complementary [[`fsys_getfile`|fsys_getfile]] is `libdiskfs`, so if
+you are linking against a different library you should expect that the
+filesystem exported by your translator will not be supported by `nfsd`
+by default.
+
+If you would like your non-`libdiskfs` translator to be supported by
+`nfsd`, you should implement these two RPCs on your own.  The idea is
+that to each node exported by your translator you should put in
+correspondence a unique file handle.  A file handle is a 28-byte
+value.  The first 4 bytes are not used.  Then comes a 4-byte number
+which should identify your node somehow (`libdiskfs` uses the index
+into the internally maintained node cache).  After it there comes a
+4-byte number which should bear a similar function to the `st_gen`
+field of a `stat` structure.  Following this specification, you should
+be able to implement `file_getfh` and `fsys_getfile` in a proper way
+to get `nfsd` support.

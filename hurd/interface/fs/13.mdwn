@@ -1,0 +1,60 @@
+[[!meta copyright="Copyright © 1994, 1995, 1996, 1997, 1998, 1999, 2002, 2009
+Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="file_sync"]]
+
+    routine file_sync (
+    	file: file_t;
+    	RPT
+    	wait: int;
+    	omit_metadata: int);
+
+Sync the individual file.  If `omit_metadata` is set, then it is only necessary
+for the server to updated the actual contents of the file, not any associated
+metadata.
+
+# Implementation Examples
+
+Servers that either don't keep any unsynchronized state (or don't have a
+backing store at all) can simply `return 0`.  Examples: [[translator/nfs]].
+
+## [[libtrivfs]]
+
+Pass the call through to the underlying node.
+
+### [[storeio]] / [[streamio]]
+
+Instead of to the underlying node, pass the call through to the backend
+(device).
+
+## [[libnetfs]]
+
+Invoke `netfs_attempt_sync`.
+
+## [[libdiskfs]]
+
+Invoke `diskfs_file_update`.
+
+# Usage Examples
+
+## [[glibc]]
+
+  * `fdatasync`
+
+    `file_syncfs (FD, true, true)` -- invoke it on the passed file descriptor,
+    do wait for completion, do allow omitting to update the associated
+    metadata.
+
+  * `fsync`
+
+    `file_syncfs (FD, true, false)` -- invoke it on the passed file descriptor,
+    do wait for completion, don't allow omitting to update the associated
+    metadata.

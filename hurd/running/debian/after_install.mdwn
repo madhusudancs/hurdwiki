@@ -5,7 +5,7 @@ mode?
 
 Time to get to work.
 
-[[toc ]]
+[[!toc]]
 
 
 ### Get Networking Running
@@ -29,12 +29,13 @@ If the NIC was detected:
 
     # settrans -fgap /servers/socket/2 /hurd/pfinet -i eth0 -a 192.168.1.3 -g 192.168.1.1 -m 255.255.255.0
 
+In order to use DHCP, you need to install the `dhcp-client` package and run `dhclient eth0` etc.
 
 # Setup GRUB
 
 You surely want grub to have a nice menu entry able to boot GNU, instead of
 typing a boring arcane.  There are Debian-specific scripts that may help
-you.  See the [[GrubNotes]] for this.
+you.  See [[GRUB]]'s page for this.
 
 
 # Setup `apt-get`
@@ -44,47 +45,22 @@ put in `/etc/apt/sources.list` are (as of Jan 2007):
 
     deb http://mirrors.kernel.org/debian unstable main contrib
     deb-src http://mirrors.kernel.org/debian unstable main contrib
-    deb http://ftp.gnuab.org/debian unreleased main
-    deb-src http://ftp.gnuab.org/debian unreleased main
+    deb http://ftp.debian-ports.org/debian unreleased main
+    deb-src http://ftp.debian-ports.org/debian unreleased main
 
 `apt-get` update a couple of times if some file fails to download.
 
-<!-- As long as I am around (which is as off February 2005) I never ever had to
-do such following frobbing.  Should we remove this?  --[[tschwinge]] -->
-
-If when doing your first `apt-get`, `dpkg` complains of missing programs, [try
-to cheat it this
-way](http://lists.debian.org/debian-hurd/1999/05/msg00187.html):
-
-    # ln -s /sbin/ldconfig /bin/ldconfig
-    # ln -s /bin/true /bin/update-rc.d
-    # ln -s /bin/true /bin/start-stop-daemon
-    # ln -s /bin/true /bin/install-info
-    # ln -s /bin/true /bin/update-alternatives
+If when doing your first `apt-get`, `dpkg` complains of missing programs, get root in a login shell (`su -`).
 
 Installing packages without having a network connection is described
 [[Distrib/DebianAptOffline]].
 
-
 # [[translator/Random]]
 
-You often need `scp` and `ssh`.  Sadly the Debian GNU/Hurd does not yet come
-with any default random translator package installed.  See
-[[translator/random]] for details, the following is just a quick recap.
+You often need `scp` and `ssh`.  There is now a `random-egd` package available which uses
+a random translator by Ryan Hunter and the entropy gathering daemon as entropy source.
 
-    cd && mkdir tmp && cd tmp
-    wget http://kilobug.free.fr/hurd/random-64.tar.gz
-    tar xvfz random-64.tar.gz
-    cp random /hurd/
-
-    settrans -c /dev/random /hurd/random \
-               --seed-file /var/run/random-seed --secure
-    settrans -c /dev/urandom /hurd/random \
-               --seed-file /var/run/urandom-seed --fast
-    chmod 0644 /dev/random /dev/urandom
-
-    apt-get install ssh
-
+See [[Translator/random]] for more information.
 
 # [[Console]]
 
@@ -109,7 +85,7 @@ You first must have setup the virtual console.  See above.
 
 Assuming you've installed WindowMaker and have tried running `startx` already:
 
-    [/etc/X11/XF86Config-4]
+    [/etc/xorg.conf]
 
     Section "Module"
     #        Load           "dri"
@@ -129,9 +105,6 @@ Assuming you've installed WindowMaker and have tried running `startx` already:
 
 Make sure not to have the `Emulate3Buttons` and `ZAxisMapping` settings set, as
 they lead to problems with e.g. dragging windows around.
-
-    [/etc/profile]
-    LD_LIBRARY_PATH=/X11R6/lib:$LD_LIBRARY_PATH
 
 # What about package XYZ?
 

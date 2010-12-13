@@ -1,0 +1,104 @@
+[[!meta copyright="Copyright © 2009 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="converting from GNU arch to Git -- without direct repository
+access"]]
+
+I wanted to import an old GNU arch repository into Git, but only had HTTP
+access via ArchZoom.  I spent quite some time to try teaching `git archimport`
+to use HTTP access to that repository, but this didn't work out.  Too bad --
+but at least, using ArchZoom, I was able to get the individual revisions'
+tarballs:
+
+    $ ls -1 *.tar.gz
+    bpf--devel--0.0--base-0.tar.gz
+    bpf--devel--0.0--patch-1.tar.gz
+    bpf--devel--0.0--patch-10.tar.gz
+    bpf--devel--0.0--patch-11.tar.gz
+    bpf--devel--0.0--patch-12.tar.gz
+    bpf--devel--0.0--patch-2.tar.gz
+    bpf--devel--0.0--patch-3.tar.gz
+    [...]
+    bpf--devel--0.0--patch-9.tar.gz
+    bpf--release--0.1--base-0.tar.gz
+    bpf--release--0.1--patch-1.tar.gz
+    bpf--release--0.1--patch-2.tar.gz
+    [...]
+    bpf--release--0.1--patch-8.tar.gz
+
+I unpacked these:
+
+    $ for f in *.tar.gz; do tar -xz < "$f" || echo >&2 "$f" failed; done
+
+The last revision's tree apparently contains all previous revisions' commit
+information (author, date, message), so use that:
+
+    $ cp -a ↩
+        bpf--release--0.1--patch-8/{arch}/bpf/bpf--devel/bpf--devel--0.0/info@hurdfr.org--hurdfr/patch-log ↩
+        d-patch-log
+    $ cp -a ↩
+        bpf--release--0.1--patch-8/{arch}/bpf/bpf--release/bpf--release--0.1/info@hurdfr.org--hurdfr/patch-log ↩
+        r-patch-log
+
+... and extract the information that we need:
+
+    $ base=bpf--devel--0.0-- && ↩
+      for f in d-patch-log/*; do ↩
+        grep < "$f" ^Creator: | head -n 1 ↩
+          | { read j c && ↩
+              echo "$c" | sed s%' <.*'%% ↩
+                > "$base""$(basename "$f")".author_name && ↩
+              echo "$c" | sed -e 's%.*<%%' -e 's%>.*%%' ↩
+                > "$base""$(basename "$f")".author_email; } && ↩
+        grep < "$f" ^Standard-date: | head -n 1 | { read j d && echo "$d" ↩
+          > "$base""$(basename "$f")".author_date; } && ↩
+        { grep < "$f" ^Summary: | head -n 1 | { read j m && echo "$m"; } && ↩
+          echo && sed < "$f" '1,/^$/d'; } ↩
+          > "$base""$(basename "$f")".log ↩
+        || echo >&2 "$f" failed; ↩
+      done
+    $ base=bpf--release--0.1-- && ↩
+      for f in r-patch-log/*; [...]
+
+(Of course, I could have used something more elaborate than shell scripting...)
+
+Remove the GNU arch stuff that we don't need anymore:
+
+    $ find bpf--*/ -type d \( -name {arch} -o -name .arch-ids \) -print0 ↩
+        | xargs -0 rm -r
+
+The `base-0` revisions are actually either empty (the `devel` one) or
+equivalent to the previous revision (the `release` one), so remove these:
+
+    $ rm -rf bpf--devel--0.0--base-0 bpf--release--0.1--base-0
+
+Finally, import all the other ones:
+
+    $ mkdir g && ( cd g/ && git init )
+    $ for d in bpf--d*-? bpf--d*-?? bpf--r*; do ↩
+        test -d "$d"/ || continue && ↩
+        ( cd g/ && ↩
+          rsync -a --delete --exclude=/.git ../"$d"/ ./ && ↩
+          git add . && ↩
+          GIT_AUTHOR_NAME="$(cat ../"$d".author_name)" ↩
+            GIT_AUTHOR_EMAIL="$(cat ../"$d".author_email)" ↩
+            GIT_AUTHOR_DATE="$(cat ../"$d".author_date)" ↩
+            git commit -F ../"$d".log -a ); ↩
+      done
+
+Voilà!
+
+
+**Update 2009-06-25:**
+
+Half a day later, [[HurdFr]] published a `git archimport`-converted repository
+-- which was *identical* to my hand-crafted one (apart from having
+`git-archimport-id:` tags in the commit messages, and the first (empty) commit
+not being stripped off).  :-)

@@ -1,0 +1,74 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+IRC, unknown channel, unknown date.
+
+    <tschwinge> youpi: Did you ever review the Savannah hurd branch master-fix_extern_inline?
+    <youpi> why static inlines instead of extern lines ?
+    <youpi> +in
+    <youpi> static inlines can lead to space waste where it isn't inlined
+    <tschwinge> Are you sure about that -- I don't think so.
+    <tschwinge> At least with 99 inlining.
+    <youpi> what can the compiler do where it isn't inlined ?
+    <youpi> include a copy
+    <youpi> thus space waste
+    <youpi> 00000000004004b1 t f
+    <youpi> 00000000004004d5 t f
+    <youpi> I've juste checked
+    <youpi> two copies of my inline function
+    <youpi> one per .o
+    <tschwinge> Yes, but isn't it expected tobe that way?  ARen't these functions those that are never included in a libarary, as opposed to those which I switched to __extern_inline in the next patch?
+    <tschwinge> It's been a long time that I had a look at this...
+    <tschwinge> The problem with the patch from the Debian package is that the functions didn't end up in the libraries anymore.
+    <youpi> ah you mean these are private functions and thus shouldn't be exposed (unexpected_reply for instance)
+    <youpi> but the duplication issue still holds
+    <youpi> the functions not ending up in the library is a concern indeed
+    <tschwinge> That's what my second patch fixes, I think.
+    <youpi> grah, callisto rebooted for no reason
+    <youpi> ah, indeed the second patch fixes things correctly
+    <youpi> uh, indeed it's --dbg-package=hurd in there
+    <youpi> how odd
+    <youpi> tschwinge: for the libftpconn case, yes unexpected_reply should probably be a static inline
+    <tschwinge> Is this true:
+    <tschwinge> static inline -- either inline or emit a local symbol vs. extern inline -- either inline or emit a reference to an external symbol.
+    <youpi> so as to not expose it
+    <youpi> for other cases we can keep an extern inline as they are just programs
+    <tschwinge> Then everything that's not expected to end up in a libarary must be static inline, as otherwise, when the compiler can't inline, there wouldn't be a reference to it available.
+    <youpi> and that avoids duplicate code
+    <youpi> yes
+    <youpi> but as long as you provide the extern inlines by compiling an xinl.c there's no problem
+    <tschwinge> Sure, that'd be the alternative.
+    <youpi> for libraries you need to take care of the symbols you want to export (which can thus be in xinl.c), and those you don't want to export (and thus keep static inlines)
+    <tschwinge> So you say it'd be better to do that (xinl.c) instead of static inline?
+    <youpi> for programs, you can just keep them all extern inlines
+    <youpi> yes, it shares code
+    <youpi> it's only in the case of symbols that shouldn't be exported by the library that we need to use static inlines
+    <tschwinge> ANd in .c files that are part of programs I'd also use extern inline or static inline?
+    <youpi> for programs just always use extern lines
+    <youpi> +in
+    <youpi> as you don't care about symbol exposure
+    <youpi> unless the inline is defined in a .c file of course, in that case it's useless to make it extern
+    <tschwinge> But then I also always need xinl.c files for those, which we apparently don't have in a few places.
+    <youpi> yes
+    <tschwinge> But probably didn't notice so far, as the functions could always be inlined.
+    <youpi> probably because we used to have luck
+    <youpi> yes
+    <tschwinge> Yes, I was thinking about the term/munge.c thing.
+    <tschwinge> OK, I think I get it now.  Then I'll try to fix this accordingly.
+    <tschwinge> But not now.  Thanks for the help!
+    <youpi> ok, thanks
+    <tschwinge> It was quite a bit confusing to me.
+    <tschwinge> Due to the mostly reversed definition of extern inline in glibc (I think).
+    <youpi> inline definitely is confusing
+    <youpi> especially since the semantic has changed over time and according to standards :)
+    <tschwinge> And then GCC changing that according to C99.
+    <tschwinge> Yes.

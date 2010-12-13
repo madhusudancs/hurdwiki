@@ -1,0 +1,257 @@
+[[!meta copyright="Copyright © 2007, 2008, 2009, 2010 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+This page is meant to give some guidelines.  Please use good sense or ask on
+[[mailing_lists/bug-hurd]] if there are any questions.
+
+
+[[!toc levels=3]]
+
+
+# Git repositories on Savannah
+
+<http://git.savannah.gnu.org/cgit/hurd>
+
+  * hurd.git -- Hurd meta package; no real content yet
+  * [[hurd/glibc.git|glibc]] -- [[/glibc]] maintenance
+  * hurd/gnumach.git -- [[GNU Mach|microkernel/mach/gnumach]]
+  * hurd/hurd.git -- [[/Hurd]]
+  * [[hurd/incubator.git|incubator]] -- the great next stuff
+  * hurd/libpthread.git	-- [[POSIX threading library|libpthread]]
+  * hurd/mig.git -- [[microkernel/mach/MIG]]
+  * hurd/procfs.git -- [[hurd/translator/procfs]]
+  * hurd/unionfs.git --  -- [[hurd/translator/unionfs]]
+  * hurd/viengoos.git  -- [[microkernel/Viengoos]]
+  * hurd/web.git -- [[contributing/Web_pages]]
+
+
+## Branches
+
+Members of the [[Hurd Savannah group|rules/savannah group]] are allowed to create
+branches without formal permission:
+
+  * named `SAVANNAH_LOGIN/BASE_BRANCH[-TOPIC]` or
+    `SAVANNAH_LOGIN/TOPIC/BASE_BRANCH` for private general-purpose or
+    topic branches, respectively, or
+  * named `BASE_BRANCH-TOPIC` or `TOPIC/BASE_BRANCH` for public topic branches
+    basing on
+    `BASE_BRANCH`.
+
+`TOPIC` shall be a suitable tag describing the branch's main concern.  These
+tags can be applied recursively (`TOPIC/SUBTOPIC/BASE_BRANCH`, like
+`pfinet_rewrite/use_lwIP/master`, for example).
+
+*private* vs. *public* does, of course, in this scenario not mean visibility
+(all branches are externally visible),
+but instead authority: *private* branches are those that the user
+`SAVANNAH_LOGIN` has authority over, whereas *public* branches are open for
+every committer to install changes on.  The private branches are those that you
+would typically host on your own machine and publish through your own web
+server, but we offer that you can instead do this from the centralized Savannah
+repository, as a number of people don't have an always-accessible web server
+running on their own machines.
+
+
+### Subprojects
+
+Some repositories hold a bunch of independent subprojects, first and foremost
+the [[incubator]] repository.
+
+Even though we've been doing differently in the past, branches in there shall
+be named like this:
+
+  * `SUBPROJECT/master` for the `master` branch;
+  * `SUBPROJECT/SAVANNAH_LOGIN/BASE_BRANCH[-TOPIC]` or
+    `SUBPROJECT/SAVANNAH_LOGIN/TOPIC/BASE_BRANCH` for private general-purpose
+    or topic branches, respectively, or
+  * `SUBPROJECT/BASE_BRANCH-TOPIC` or `SUBPROJECT/TOPIC/BASE_BRANCH` for public
+    topic branches basing on `SUBPROJECT/BASE_BRANCH`.
+
+That is, we introduce a top-level `SUBPROJECT` hierarchy, where distinct
+per-subproject Git repositories could have been used instead.
+
+
+### Examples
+
+  * GNU Mach
+
+      * `master` -- the mainline branch
+      * `master-oskit` -- port to OSKit; branched off of `master` at some point
+      * `master-gdb_stubs` -- add support for GDB stubs; branched off of
+        `master` at some point
+
+  * libpthread
+
+      * `master` -- the mainline branch
+      * `master-viengoos` -- port to Viengoos; branched off of `master` at some
+        point
+      * `master-viengoos-on-bare-metal` -- port to Viengoos running on bare
+        metal; branched off of `master-viengoos` at some point
+
+  * incubator
+
+      * `master` -- not to be used
+      * `tarfs/master` -- `master` branch of the `tarfs` subproject
+
+  * unionfs
+
+      * `master` -- the mainline branch
+      * `master-unionmount` -- develop `unionmount` based on `unionfs`' master
+        branch
+
+To give a concrete example, the latter one was created like this:
+
+    $ git clone --no-checkout ssh://git.savannah.gnu.org/srv/git/hurd/unionfs.git
+    $ cd unionfs/
+    $ git checkout -b master-unionmount origin/master
+    $ ...
+    $ git push master-unionmount
+
+### Merging
+
+Merging between Git branches is trivial, at least as long as no conflicts
+arise.
+
+Due to this, you are encouraged to freely make use of separate branches for
+different working topics, as this really faciliates concentrating on one
+specific working topic.
+
+You are encouraged to regularely merge from the respective mainline branches
+(`BASE_BRANCH`; should be `master` in most cases) into your working branches,
+and ensure that your modifications are still fine in the context of new
+mainline changes.
+
+Merging from working branches into the mainline branches will usually be done
+by one of the project administrators, unless negotiated otherwise.  For this to
+happen, the copyright of your changes has to be assigned to the Free Software
+Foundation; read about the
+[[copyright assignment_process|rules/savannah group#copyright_assignment]].
+
+It is explicitly encouraged to *merge* changes from working branches into the
+mainline branches (as opposed to *rebase* them on top), as the former mode
+easily allows to determine the context under which a patch has been developed.
+
+## Tags
+
+Equivalent rules apply.
+
+## Behavior
+
+Try to not introduce spurious, unneeded changes, e.g., whitespace changes.
+
+Adhere to the coding conventions that are already used.  These are usually the
+[GNU Coding Standards](http://www.gnu.org/prep/standards/html_node/) for stuff
+written by ourselves, including new files, of course.
+
+GNU Mach code is largely based on external code.  Don't GNU-ify it, as this
+would make merging external patches unnecessarily difficult.
+
+### Commit messages
+
+We no longer maintain parallel `ChangeLog` and commit messages.  When needed,
+the `ChangeLog` files can be created automatically from the commit messages.
+
+Commit messages have this mandatory format:
+
+    One-line summary.
+    Blank line.
+    ChangeLog-like list of changes, but without leading tabs.
+
+The header line of each former `ChangeLog` snippet (DATE NAME EMAIL) is no
+longer to be included in the commit message, and instead the author and
+committer of a change, together with the dates, will be maintained natively by
+Git.
+
+Example:
+
+    commit 3054666a46e0142cacef895c13edb4391435c722
+    Author:     Some One <someone@example.com>
+    AuthorDate: Thu Jun 11 15:59:55 2005 +0000
+    Commit:     Some One <someone@example.com>
+    CommitDate: Thu Jun 11 15:59:55 2005 +0000
+    
+        Frobnicate the foo.
+        
+        * frob.c (foo): Frob it.
+        * oldfoo.c [OLD] (oldfoo): Likewise.
+        [OLD_OLD_FOO] (oofoo): Permute every second word with itself, and
+        beginning with the tenth line, every third one also.  Pure
+        nonsense.
+
+Read about how to write [GNU-style `ChangeLog`
+messages](http://www.gnu.org/prep/standards/html_node/Change-Logs.html).
+
+Don't waste time writing exhaustive `ChangeLog`-like commit messages for, e.g.,
+debugging stuff that will be removed again before merging your development
+branch into the mainline.  Sometimes the one-line summary might already
+suffice.  But please do write something.
+
+### Behavior on *private* branches
+
+Even though you are said to be the owner of branches tagged with your
+`SAVANNAH_LOGIN`, it is generally nevertheless good to not do history-rewriting
+stuff and the like (`git rebase` and friends), as others may in turn be basing
+their work on your private branches.
+
+We could establish a branch-tagging policy for branches that others should
+expect their history possibly to be rewritten.  This may be useful for branches
+that are only meant for aggregating the changes of (several) development
+branches, like an imaginary
+`rewrite_pfinet/for_master_and_proposed_for_general_testing` branch.
+
+
+# Git repositories on flubber
+
+[[flubber|public hurd boxen]] is
+[[configured|public_hurd_boxen/installation/flubber]] in a way so that users
+can publish Git repositories from their home directories.  The only thing to do
+is to put an empty `.git/git-daemon-export-ok` (cf. [*git daemon*'s manual
+page](http://www.kernel.org/pub/software/scm/git/docs/git-daemon.html)) into
+the repository, or just `git-daemon-export-ok` for
+[*bare*](http://www.kernel.org/pub/software/scm/git/docs/git-init.html)
+repositories.
+
+For example, the [[contributing/web pages]] repository is made available like
+this: `~hurd-web/hurd-web` is a bare repository; there is an empty
+`~hurd-web/hurd-web/git-daemon-export-ok` file.  Users can clone the repository
+like this:
+
+    $ git clone git://flubber.bddebian.com/~hurd-web/hurd-web
+
+Another example, [[Thomas Schwinge|tschwinge]] has a checkout of
+[[libpthread]] in `~tschwinge/tmp/hurd/libpthread/`, the
+`~tschwinge/tmp/hurd/libpthread/.git/git-daemon-export-ok` file exists.  If you
+really need to, you can clone it like this:
+
+    $ git clone git://flubber.bddebian.com/~tschwinge/tmp/hurd/libpthread
+
+## List of Interesting Repositories
+
+  * web pages: git://flubber.bddebian.com/~hurd-web/hurd-web
+
+
+# Git repositories on grubber
+
+## List of Interesting Repositories
+
+  * [[binutils]]
+  * [[Boehm_GC]]
+  * [[GCC]]
+
+
+# Debian Git repositories
+
+IRC, #hurd, 2010-07-31
+
+    <tschwinge> git-buildpackage is to be used to build these new Debian repositories, I guess?
+    <youpi> well, the Vcs-Git control header is about everything people need to know, I believe :)
+    <youpi> git-buildpackage is just mostly an easy way to build the .orig.tar.Gz from the tag
+    <youpi> http://honk.sigxcpu.org/projects/git-buildpackage/manual-html/gbp.html

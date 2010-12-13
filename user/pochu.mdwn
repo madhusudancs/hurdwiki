@@ -1,0 +1,136 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+# Emilio Pozuelo Monfort
+
+Email: pochu27@gmail.com
+
+---
+
+# GSoC 2010: Hurd: Fix Compatibility Problems Exposed by Testsuites
+
+Mentor: Carl Fredrik Hammar
+
+## Abstract
+
+This project will consist of identifiying some projects' test suite
+failures when executed on GNU/Hurd, debugging them, and if they are
+truly GNU/Hurd issues (and not problems in the projects themselves),
+fixing them.
+
+## Timeline
+* July 18th: GLib finished.
+* July 22nd: coreutils finished.
+* July 25th: All Perl failures investigated.
+* August 5th: Perl finished.
+* August 8th: All Python failures investigated.
+* August 16th: Python finished.
+* August 16th: Firm 'pencils down' date
+
+## TODO
+* Investigate why coreutils' nice test fails.
+* Analyze Perl's testsuite failures.
+
+## Documentation
+* [Towards a New Strategy of OS Design, an architectural overview by Thomas Bushnell, BSG](http://www.gnu.org/software/hurd/hurd-paper.html)
+* [The Hurd, a presentation by Marcus Brinkmann](http://www.gnu.org/software/hurd/hurd-talk.html)
+* [The Hurd Hacking Guide](http://www.gnu.org/software/hurd/hacking-guide/hhg.html)
+* [MIG - The MACH Interface Generator](http://www.cs.cmu.edu/afs/cs/project/mach/public/doc/unpublished/mig.ps)
+
+## Log
+
+### July 26th - August 1st
+* Tested /dev/fd/N patches and sent them for review.
+* Finished SCM_RIGHTS patch. Created a minimal testcase without using
+  glibc to demonstrate the socket_send/recv failure with non-socket
+  fds. Sent the testcase and the patch for review.
+* Investigated cp issues with O_NOFOLLOW & O_NOTRANS. Sent a mail to
+  bug-hurd explaining both issues and possible solutions.
+
+### July 19th - July 25th
+* Initial SCM_RIGHTS implementation. Seems to work when sending pipes, but
+  fails miserably when sending fds from an open syscall. No idea why yet.
+* Fixed memleaks in sendmsg() while implementing SCM_RIGHTS. Patch accepted
+  upstream.
+* Had to build glibc thrice because the system crashed and the fs was totally
+  corrupted. I'll build stuff in a separate partition as suggested from now on.
+  Doesn't help. It turns out the issue seems to be with kvm, or at least it's
+  only reproducible for me there. I've switched to VirtualBox and there are no
+  filesystem issues there.
+* Addressed comments in the /dev/fd/N patches. Need to test them (when I can
+  build glibc and Hurd without the system crashing).
+
+### July 14th - July 18th
+* Catched up with email.
+* Prepared a patch to implement getsockopt(fd, SOL_SOCKET, SO_TYPE, ...).
+  Patch committed to Hurd.
+* Addressed comments in the /dev/fd/N patches and resent them.
+* Investigated another glib's unix-fd failure: passing fds over a socket using
+  sendmsg() doesn't dup them. Created a minimal testcase. Prepared a preliminary
+  patch, needs testing and fixing.
+
+### May 26 - July 13th
+* Copyright assignment on file.
+* Studied a lot to finish my BSc.
+* Got the linkat patch (Savannah #29655) committed upstream.
+
+### May 19 - May 26
+* Read [MIG - The MACH Interface Generator](http://www.cs.cmu.edu/afs/cs/project/mach/public/doc/unpublished/mig.ps)
+* Worked on bug 28934. Send [patches](http://lists.gnu.org/archive/html/bug-hurd/2010-05/msg00108.html) for review.
+* Requested GNU libc copyright papers to the FSF again since they didn't arrive the first time.
+
+### May 12 - May 19
+* Read http://www.gnu.org/software/hurd/hurd-talk.html
+* Half read http://www.gnu.org/software/hurd/hacking-guide/hhg.html
+* Read many Hurd interfaces (fs.defs, auth.defs, fsys.defs, io.defs,
+  password.defs).
+
+### May 5 - May 12
+* Read http://www.gnu.org/software/hurd/hurd-paper.html
+* Improved the linkat() patch
+* Fixed the issues mentioned in bug 28934, but after doing so I realized
+  that wouldn't work well. The only good solution is to pass file_name
+  from execve() to the exec server, so we need new RPCs.
+
+### April 28 - May 5
+* Submitted a talk proposal on Hurd with Michael Banck for DebConf
+* Sent request to assign copyright to the FSF for Hurd/Mach/libc
+
+### Before April 28
+* Investigated the glib's gtester problem and tracked it down:
+  [bug 28934](https://savannah.gnu.org/bugs/?28934). Prepared a patch
+  but it's not good.
+* [glib's garray test timeouts on Hurd](https://bugzilla.gnome.org/show_bug.cgi?id=568760).
+  The tests passes if the timeout is increased. The current upstream timeout
+  (10s) is quite small (it fails on many Debian builds for some Linux arches).
+  However on Hurd it needs a very big time it seems (like more than 100s).
+  Maybe do an allocation benchmarch?
+* Investigated glib's unix-fd test failure: getsockopt() isn't implemented
+  on Hurd. Need to implement it in hurd/pflocal/socket.c.
+* Investigated coreutils' ln EIEIO, with Samuel's help. linkat() is buggy.
+  Reported as [bug 29655](https://savannah.gnu.org/bugs/?29655). Prepared a
+  patch for it.
+* Investigated coreutils' cp EACCES. Test case: 'mkfifo a && cp -R --copy-contents a b'.
+  Problem is that O_NOFOLLOW adds O_NOTRANS.
+
+## Midterm Evaluation
+### Accomplished
+* Assigned copyright to the FSF.
+* Read many documentation and source code.
+* /dev/fd/N bug fixed
+* Prepared a patch for getsockopt()
+* Fixed linkat() problems.
+* Investigated bug with O_NOFOLLOW & O_NOTRANS (needs more work).
+* Investigated a glib test failure (garray). Not a Hurd issue.
+### Downtime
+* Studied a lot to finish my BSc. Didn't work on Hurd for a month because of
+  that, so that's why I couldn't make a lot of progress (this was known in
+  advance, although in the end the downtime was a bit larger than expected).
+* There's no expected downtime from now on.

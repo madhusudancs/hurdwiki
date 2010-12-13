@@ -1,13 +1,24 @@
+[[!meta copyright="Copyright © 2007, 2008, 2010 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
 Here are some hints about how to approach testing after nontrivial changes to
 glibc have been done.
 
 ---
 
-First step is having the build a glibc complete.  This is actually more
-difficult than one might expect, as it involves (towards the end of the build
-process; unless you are cross-building, of course), that the newly created
-libraries and loader actually work: they're used to run the `rpcgen`
-program.  If that step doesn't succeed, it'll look similar to this:
+First step is having the build of glibc succeed.  This is actually more
+difficult than one might expect as it involves (towards the end of the build
+process -- unless you are cross-compiling, of course -- that the
+newly created libraries and loader actually work: they'll be used to run the
+`rpcgen` program.  If that step doesn't succeed, it'll look similar to this:
 
     [...]
     CPP='gcc -E -x c-header' [...]/build/elf/ld.so.1 --library-path [...] [...]/build/sunrpc/rpcgen [...]
@@ -15,19 +26,35 @@ program.  If that step doesn't succeed, it'll look similar to this:
 
 ---
 
-If building glibc succeeds, the next thing to try is running the test suite, or
-parts of it.
+Unless cross-compiling, the next thing you'll probably want to do
+is running the test suite, or parts of it.
 
-Here is a list of known failures:
-
-[TODO].
+There is a list of [[known failures|open_issues/glibc_testsuite]].
 
 ---
 
-Make sure static linking is working OK at all.  The `elf/sln` program (a
-stripped-down `ln` that is statically linked) in the glibc build ought to test
-that.  Also, static linking under various conditions will already have been
-tested when running the test suite, especially in `elf/` and `dlfcn/`.
+If you've been doing simple changes to glibc functions that end up in
+`libc.so`, you may test them like this (like for a `strerror_l` implementation
+in this case):
+
+    $ LD_PRELOAD=./libc.so ./ld.so ./a.out 10 1073741928 de_DE.utf8
+    1073741928 (0x40000068): Computer bought the farm
+    1073741928 (0x40000068): Der Computer hat den Bauernhof erworben
+
+You usually will only have luck using the new `libc.so` (from
+`[glibc-build]/libc.so`) in combination together with the new `ld.so` (from
+`[glibc-build]/elf/ld.so`):
+
+    $ LD_PRELOAD=./libc.so ./a.out 10 1073741928 de_DE.utf8
+    Killed
+    $ LD_PRELOAD=./libc.so /lib/ld.so ./a.out 10 1073741928 de_DE.utf8
+    Killed
+
+Make sure static linking is working OK at all.  Running the
+`[glibc-build]/elf/sln` program (a stripped-down `ln` that is statically
+linked) ought to test that.  Also, static linking under various conditions will
+already have been tested when running the test suite, especially in `elf/` and
+`dlfcn/`.
 
 Make sure static linking with cthreads is working.  If you can get an
 `ext2fs.static` compiled and linked against the new glibc, that is good.
@@ -41,8 +68,8 @@ Then debug its startup as a normal program on your working hurd.
 
 Then try its full server startup.
 
-    $ settrans -ca node [...]/ext2fs.static <BACKEND>
-    $ cd node/
+    $ settrans -ca node [...]/ext2fs.static BACKING_STORE
+    $ ls -l node/
     [...]
 
 Make sure dynamic linking for servers is working.  If you haven't broken the
@@ -51,7 +78,7 @@ glibc's `testrun.sh` does it.
 
 [TODO]: Is this the correct way to do that?
 
-    $ settrans -ca node [glibc]/build/testrun.sh /hurd/ext2fs <BACKEND>
+    $ settrans -ca node [glibc]/build/testrun.sh /hurd/ext2fs BACKING_STORE
     $ cd node/
     [...]
 
@@ -62,10 +89,3 @@ Test it in a [[subhurd]].
 ---
 
 Test it on a real system.
-
----
-
-Sources:
-
-* <http://lists.gnu.org/archive/html/bug-hurd/2007-02/msg00038.html>
-* [[Thomas_Schwinge|tschwinge]]'s mind

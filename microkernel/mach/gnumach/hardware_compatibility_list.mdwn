@@ -1,0 +1,111 @@
+[[!meta copyright="Copyright © 2007, 2008, 2009 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+# CPU Architecture
+
+GNU Mach current only supports the `x86` (alias `ia32` or `i386`) architecture.
+
+`amd64`/`ix64` should work in `32-bit` compatibility mode. However, in practice
+`amd64` systems seem to be troublesome more often than not. This is probably
+related to the same (chipset-related) problems we often see with recent
+machines; but it seems that `amd64` ones use problematic chipsets particularily
+often. So far we haven't heard of similar problems with Intel's eqivalent
+`ix64` (or `EM64T` as it used to be called) -- but maybe that just means fewer
+people tried running the Hurd on such machines :-)
+
+Support for running GNU Mach (and a complete GNU/Hurd system) in a
+[Xen](http://www.cl.cam.ac.uk/research/srg/netos/xen/) `domU` (again on `x86`
+only) is [[being_worked_on|ports/xen]].
+
+Read about further [[ports]].
+
+# Memory
+
+GNU Mach will use a maximum of 1 GiB of RAM.  If your system has more,
+the surplus will silently be ignored.  (In past times, this would hinder GNU
+Mach from booting at all, but this has been fixed, so you no longer need to
+apply GRUB's `uppermem` directive.)
+
+# Video Cards
+
+Debian distributes a version of [X.org](http://x.org/).  If your video card driver
+depends on a special kernel interface such as that provided by
+the `agpgart` kernel module for the Linux kernel, then your video
+card will only be supported by the VESA driver.
+
+Using an internal i815 videocard [won't
+work](http://lists.debian.org/debian-hurd/2007/12/msg00007.html) (at least when
+using the specialized driver), because of [missing AGP GART support in GNU
+Mach](http://lists.debian.org/debian-hurd/2007/12/msg00011.html).
+
+# Sound
+
+No sound cards are supported at this time.
+
+# USB 1.1/2.0
+
+USB is not supported at this time.
+
+However, USB-type keyboards and mice may (and have been reported to) work
+nevertheless, given that the hardware / BIOS is doing emulation to the
+supported legacy interfaces.
+
+# IEEE 1394 (Firewire)
+
+IEEE 1394 is not supported at this time
+
+# Storage
+
+All common IDE drives should work.  Some drive geometries do not work,
+e.g. drives with hundreds of GiB of storage space, see [[!GNU_Savannah_bug
+26425]].
+
+[[!toggle id="SATA" text="SATA drives may work in compatibility mode."]]
+<!-- Sure?  --[[tschwinge]] -->
+
+[[!toggleable id="SATA" text="""
+This is how booting a [[GNU/Hurd_system|hurd]] will typically fail if GNU Mach
+couldn't connect to the hard disk, e.g., in a SATA system without IDE
+compatibility mode:
+
+    start (hd0,3)/hurd/ext2fs.static: (hd0,3)/hurd/ext2fs.static
+    device:hd0s4: No such device or address
+
+There *may* be an option in the system's BIOS setup to configure enabling such
+a compatibility mode.
+"""]]
+
+# Device Drivers
+
+[GNU Mach Reference Manual,
+Configuration](http://www.gnu.org/software/hurd/gnumach-doc/Configuration.html)
+contains a list of device drivers that are included in GNU Mach and elaborates
+on the hardware devices they support.
+
+# User Success Reports
+
+These boards are known to work. Gnumach/Hurd has been installed and run on these board successfully. 
+
+* ASUS P2B motherboard with an Intel PII 450MHz CPU with Intel Pro/100 NIC in PCI slot
+* Intel SE-440BX motherboard 
+* VIA EPIA-M Mini-ITX motherboard with VIA Nehemiah C3 1Ghz processor. Onboard NIC (VIA Rhine) works good.
+* Compaq Deskpro ENS, Pentium3 (666 MHz upgraded to 1 GHz), Intel i815 chipset, chipset integrated NIC (detected twice, but works fine with eth0; trying to access eth1 confuses the driver and makes the system unusable), Matrox Mystique 220 (PCI) graphics card. Also works with rtl8029 (NE2000 PCI) NIC when onboard NIC disabled in BIOS setup.
+* Abit BX6 Rev. 2.0 with Celeron 400, after disabling "memory hole at 15MB" option in BIOS setup. (Otherwise, Mach detects only 15MiB of RAM, making Hurd run *extremely* slow and instable.) Should also work with PentiumII or Pentium3.
+
+# User Failure Reports
+
+Some people couldn't get these hardware combinations to work with Hurd.
+
+Note: The Debian GNU/Hurd installer actually runs on Linux, so it (almost) always works. The critical bit is booting after installation.
+
+* ASUS P5A motherboard and AMD K6-2 333MHz CPU - doesn't boot
+* ASUS P2B-LS motherboard with an Intel PII-MMX 400 MHz CPU - this board had a defective onboard NIC (that could not be disable in BIOS) and working 3COM Etherlink III NIC in a PCI bus slot. This combination worked with GNU/Linux. The 3COM NIC is known to work with the Hurd. However, while gnumach/Hurd will boot on this system, it is confused by the defective onboard NIC and unable to use the 3COM NIC. Attempting to start networking generates a continous stream of eth0 and eth1 reset messages on the console that renders the system unusable.
+* ASrock 775Twins-HDTV with a Pentium D 810 (533 MGz FSB/2600GHz core -- information no longer present on intel's site). Doesn't boot.

@@ -1,0 +1,69 @@
+[[!meta copyright="Copyright © 2008, 2009, 2010 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+[[!meta title="Bindings to Other Programming Languages"]]
+
+The main idea of the Hurd design is giving users the ability to easily
+modify/extend the system's functionality ([[extensible_system|extensibility]]).
+This is done by creating [[filesystem_translators|hurd/translator]] and other
+kinds of Hurd servers.
+
+However, in practice this is not as easy as it should, because creating
+translators and other servers is quite involved -- the interfaces for doing
+that are not exactly simple, and available only for C programs. Being able to
+easily create simple translators in RAD languages is highly desirable, to
+really be able to reap the [[advantages]] of the Hurd architecture.
+
+Originally Lisp was meant to be the second system language besides C in the GNU
+system; but that doesn't mean we are bound to Lisp. Bindings for any popular
+high-level language, that helps quickly creating simple programs, are highly
+welcome.
+
+Several approaches are possible when creating such bindings. One way is simply
+to provide wrappers to all the available C libraries ([[hurd/libtrivfs]], [[hurd/libnetfs]]
+etc.). While this is easy (it requires relatively little consideration), it may
+not be the optimal solution. It is preferable to hook in at a lower level, thus
+being able to create interfaces that are specially adapted to make good use of
+the features available in the respective language.
+
+These more specialized bindings could hook in at some of the lower level
+library interfaces ([[hurd/libports]], [[hurd/glibc]], etc.); use the
+[[microkernel/mach/MIG]]-provided [[microkernel/mach/RPC]] stubs directly; or
+even create native stubs directly from the interface definitions. The
+[[lisp_bindings_created_by_Flavio_Cruz|flaviocruz]] in last year's GSoC mostly
+use the latter approach, and can serve as a good example.
+
+There is another possible reason for preferring lower-level bindings:
+Presently, the Hurd server libraries use the cthreads threading library, which
+predates the pthread standard prevalent today. There is a
+[[pthread library for the Hurd|libpthread]]
+as well, but it's not possible to use both cthreads and pthreads in
+the same executable. Thus, until
+[[porting_the_Hurd_libraries_to_pthreads|community/gsoc/project_ideas/pthreads]]
+is finished, implementing bindings for any language that uses pthreads (in the
+runtime environment or the actual programs) is only possible when not using the
+standard Hurd server libraries at all -- i.e. when binding at MIG stub level or
+interface definition level.
+
+The task is to create easy to use Hurd bindings for a language of the student's
+choice, and some example servers to prove that it works well in practice. This
+project will require gaining a very good understanding of the various Hurd
+interfaces. Skills in designing nice programming interfaces are a must.
+
+Anatoly A. Kazantsev has started working on [Python
+bindings](http://savannah.nongnu.org/projects/pyhurd/) last year -- if Python
+is your language of choice, you probably should take his work and complete it.
+
+There was also some previous work on [Perl
+bindings](http://www.nongnu.org/hurdextras/#pith), which might serve as a
+reference if you want to work on Perl.
+
+Possible mentors: Anatoly A. Kazantsev (anatoly) for Python

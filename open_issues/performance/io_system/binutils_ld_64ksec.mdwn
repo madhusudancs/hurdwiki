@@ -1,0 +1,34 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+This one may be considered as a testcase for I/O system optimization.
+
+It is taken from the [[binutils testsuite|binutils/testsuite]],
+`ld/ld-elf/sec64k.exp`, where this
+test may occasionally [[trigger a timeout|binutils/testsuite#64ksec]].  It is
+extracted from cdf7c161ebd4a934c9e705d33f5247fd52975612 sources, 2010-10-24.
+
+    $ wget -O - http://www.gnu.org/software/hurd/open_issues/performance/io_system/binutils_ld_64ksec/test.tar.xz | xz -d | tar -x
+    $ cd test/
+    $ \time ./ld-new.stripped -o dump dump?.o dump??.o
+    0.00user 0.00system 2:46.11elapsed 0%CPU (0avgtext+0avgdata 0maxresident)k
+    0inputs+0outputs (0major+0minor)pagefaults 0swaps
+
+On the idle grubber, this one repeatedly takes a few minutes wall time to
+complete successfully, contrary to a few seconds on a GNU/Linux system.
+
+While processing the object files, there is heavy interaction with the relevant
+[[hurd/translator/ext2fs]] process.  Running [[hurd/debugging/rpctrace]] on
+the testee shows that (primarily) an ever-repeating series of `io_seek` and
+`io_read` is being processed.  Running the testee on GNU/Linux with strace
+shows the equivalent thing (`_llseek`, `read`) -- but Linux' I/O system isn't
+as slow as the Hurd's.

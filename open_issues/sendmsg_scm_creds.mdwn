@@ -1,0 +1,91 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_glibc]]
+
+IRC, unknown channel, unknown date.
+
+    <pinotree> Credentials: s_uid 1000, c_uid 1000, c_gid 100, c_pid 2722
+    <pinotree> 2722: Credentials: s_uid 1000, c_uid 1000, c_gid 100, c_pid 2724
+    <pinotree> \o/
+    <youpi> \o/
+    <pinotree> the patch is even short, after all: http://paste.debian.net/54795/
+    --- a/sysdeps/mach/hurd/sendmsg.c
+    +++ b/sysdeps/mach/hurd/sendmsg.c
+    @@ -18,6 +18,7 @@
+     
+     #include <errno.h>
+     #include <string.h>
+    +#include <unistd.h>
+     #include <sys/socket.h>
+     #include <sys/un.h>
+     
+    @@ -45,6 +46,7 @@
+       mach_msg_type_number_t amount;
+       int dealloc = 0;
+       int i;
+    +  struct sockaddr_storage sa;
+     
+       /* Find the total number of bytes to be written.  */
+       len = 0;
+    @@ -122,6 +124,34 @@
+       err = EIEIO;
+         }
+     
+    +  memset (&sa, 0, sizeof (struct sockaddr_storage));
+    +  if (addr)
+    +    {
+    +      memcpy (&sa, addr, addr_len);
+    +    }
+    +  else
+    +    {
+    +      getsockname (fd, (struct sockaddr *) &sa, &addr_len);
+    +    }
+    +  addr = (struct sockaddr_un *) &sa;
+    +  if (message && (addr->sun_family == AF_LOCAL))
+    +    {
+    +      struct cmsghdr *cm;
+    +      struct msghdr *m = (struct msghdr *) message;
+    +      for (cm = CMSG_FIRSTHDR (m); cm; cm = CMSG_NXTHDR (m, cm))
+    +      {
+    +        if (cm->cmsg_level == SOL_SOCKET && cm->cmsg_type == SCM_CREDS)
+    +	     {
+    +	           struct cmsgcred *cred = (struct cmsgcred *) CMSG_DATA (cm);
+    +		         cred->cmcred_pid = __getpid ();
+    +			       cred->cmcred_uid = __getuid ();
+    +			             cred->cmcred_euid = __geteuid ();
+    +				           cred->cmcred_gid = __getgid ();
+    +					         cred->cmcred_ngroups = getgroups (sizeof (cred->cmcred_groups) / sizeof (gid_t), cred->cmcred_groups);
+    +						     }
+    +						     }
+    +    }
+    +
+       err = HURD_DPORT_USE (fd,
+           	 ({
+    			  if (err)
+    <youpi> what checks that the pid is correct?
+    <youpi> and uid, etc.
+    <pinotree> hm?
+    <youpi> credential is not only about one claiming to the other his uid & such
+    <youpi> it's about the kernel or whatever authority tell to an end the identity of the other end
+    <pinotree> yep
+    <pinotree> but given that the data is then send to pflocal, this code is the last part that runs on the application side
+    <youpi> pflocal could as well just request the info from proc
+    <youpi> it will have to anyway, to check that it's true
+    <pinotree> hm
+    <pinotree> yeah, though about that, chose this approach as "quicker" (of course not definitive)
+    <youpi> well at least it shows we're able to transmit something :)
+    <pinotree> well it just manipulates the data which gets send nicely already ;)
+    <youpi> but really, it's most probably up to pflocal to check authentication from proc and give it to the other end
+    <youpi> the application sender part would be just the RPC authentication calls
+    <youpi> Mmm, just realizing: so receiver part already exists actually, right?
+    <youpi> (since it's just about letting the application reading from the message structure)
+    <pinotree> yep
+    <youpi> ok, good :)

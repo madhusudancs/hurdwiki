@@ -1,0 +1,358 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+## Hurd Debian-Installer
+
+My [proposal](http://wiki.debian.org/SummerOfCode2010/HurdDebianInstaller/JeremieKoenig)
+to work on porting d-i on Hurd
+as a [Google Summer of Code](http://code.google.com/soc/) student
+has been accepted by the Debian project.
+
+I will be keeping track of my progress on this page.
+
+### Links
+
+  * [Modified packages](http://jk.fr.eu.org/debian/unstable)
+  * [Latest images](http://jk.fr.eu.org/debian/hurd-installer)
+  * [Debian bugs](http://bugs.debian.org/cgi-bin/pkgreport.cgi?users=jk@jk.fr.eu.org&tag=gsoc2010)
+  * [BusyBox port](http://lists.debian.org/debian-bsd/2010/05/msg00048.html)
+  * [GNU Mach initrd](http://lists.gnu.org/archive/html/bug-hurd/2010-06/msg00047.html)
+
+### Roadmap
+
+* **mach**: initrd support
+    * (./) preliminary patch posted and self-built (2010-06-12)
+    * adjustments will be needed (postponed)
+    * consider the alternatives discussed on bug-hurd (postponed)
+
+* **glibc**: fix `mkdir("/")` which returned `EINVAL`
+    * (./) eglibc 2.11.2-1 includes a quick fix by youpi (2010-06-15)
+    * (./) more complete patch posted to bug-hurd,
+      since other calls return incorrect errors under some circumstances
+      (2010-06-16)
+    * more work on it will be needed to make it fix the whole thing
+      (postponed)
+
+* (./) **partman** (2010-06-23)
+    * (./) add hurd-i386 to
+      `partman-partitioning/lib/disk-label.sh`
+      (2010-06-16, commited by youpi on 2010-06-23)
+    * (./) short-circuit
+      `partman-basicfilesystems/init.d/kernelmodules_basicfilesystems`
+      (2010-06-16)
+    * (./) partman-auto recipes:
+      make the default filesystem os-dependent
+      when it has not been preseeded (ie. the *seen* flag is clear)
+    * (./) force 4k blocks and 128 bytes inodes
+    * (./) submit patches to bugs.debian.org
+      ([[!debbug 586870]] and [[!debbug 586871]])
+    * (./) rebuild with responsible version numbers and upload to my repository
+
+* (./) **libparted** (2010-06-23)
+    * (./) fix device paths ([[!debbug 586696]])
+    * (./) fix crash on exit for part:* stores ([[!debbug 586682]])
+
+* **hurd-udeb** (2010-06-23)
+    * (./) rebuild with the hack suggested by youpi for qemu network configuration
+    * (./) fix mount to accept `-o defaults`
+    * cleanup, ask youpi to commit
+
+* reloading the partition table (2010-06-25)
+    * User-space part stores
+        * (./) hurd-udeb now uses `part:N:device:X` for partition devices
+          (2010-06-23)
+        * (./) it also provides /lib/partman/commit.d/??hurd\_reloadpart,
+          which basically does `settrans -ag /dev/[hs]d*`.
+          (2010-06-24)
+    * Kernel-based partition devices
+        * (./) Mach's drivers from Linux support reloading partitions.
+          With help from youpi this has been made available through a
+          device\_set\_status() call.
+        * (./) make libparted use it
+        * Reminder:
+          I should file a bug against libparted with the patch sometime.
+
+* (./) The `/servers/exec` issue (2010-06-26)
+    * Due to /servers being inexistant,
+      the bootstrap ext2fs could not register the initial exec server,
+      meaning that non-bootstrap filesystems used a different one
+      (started from the passive translator),
+      which for some reason died on shell scripts, making them stall.
+    * Adding the `/servers` directory to hurd-udeb fixed it,
+      as well as the /hurd/proc issue
+      (failed to be run by init the first time around).
+    * Reminder: report the non-bootstrap exec servers failure on scripts.
+
+* (./) **base-installer**: (2010-06-26)
+    * Work around non-existant /proc/mounts.
+    * Firmlink /servers into /target after debootstrap
+      to make the network available.
+
+* (./) **grub-installer**
+    * (./) add hurd support (2010-06-27)
+    * /!\ grub-legacy still needs to be tested
+    * submit changes as a Debian bug
+
+**Milestone (2010-06-28):
+installer kindof works, with documented manual intervention required**
+
+* (./) Sort out the situation with dev node creation (2010-07-07):
+    * Devices and servers used to be set up by debootstrap;
+      the hurd package would add some missing nodes.
+    * New strategy implemented in hurd and debootstrap:
+        * debootstrap uses active firmlinks into the host system
+          for the target system's /dev and /servers.
+        * the hurd package now include a `setup-translators` script,
+          which is used to register the passive translators by the installer's
+          `/libexec/runsystem` and hurd's postinst script.
+
+* **busybox**: submit upstream and to [[!debbug 323670]]
+  (waiting for upstream to review)
+    * (./) I have mentioned my work on the upstream mailing list,
+    * (./) merge the recent changes from upstream,
+      notably to the build system.
+      (2010-06-23)
+    * (./) ask upstream for review and merge
+      (2010-06-25)
+    * (./) sent as patches as requested
+      (2010-07-08)
+    * backport any additional changes onto the debian branch
+    * hijack [[!debbug 323670]] and submit my patches
+
+* **aptitude**:
+    * Currently broken on hurd-i386:
+      [[!debpkg gtest]] fails to build because of a segfault in one of the test
+      cases, [[!debpkg google-mock]] and hence [[!debpkg aptitude]] are missing
+      it as a build-dep.
+      The older package is not installable anymore because it's linked against
+      an older version of libept, which has been removed.
+    * (./) I bypassed the tests and uploaded the 3 packages to my repository
+      (2010-07-08)
+    * The segfault will have to be sorted out. (postponed)
+
+* (./) "Fix" the swap situation. (2010-07-08)
+    * The device\_close() libstore patch
+      had the unfortunate effect of making swapon fail,
+      since the device it activates has to be kept open.
+    * add options for MAKEDEV and setup-devices
+      to use the libparted stores
+    * disable youpi's patch
+    * make partman-basicfilesystems re-create the device
+      as a kernel partition, which is needed for swapon
+
+* (./) netcfg-static: port to hurd (2010-07-09)
+    * There was some amount of hurd support already
+      (namely, activating the interface by replacing the socket translator)
+    * However, this code started an active translator with
+      di\_exec\_shell\_log("settrans -a ...),
+      which stalled as a consequence of it capturing libdi's pipe
+      as its standard output.
+    * Network devices must be probed by trying to open Mach devices
+      with predetermined names (currently eth%d, wl%d),
+      because getifaddrs() does not seem to work on Hurd.
+    * /!\ netcfg, and configuring the installed system, postponed.
+
+* **procps** 3.2.7-11 (current hurd-i386 version) has [[!debbug 546888]]
+    * (./) Submit [[!debbug 588677]] and upload the result to my repository.
+      (2010-07-11)
+
+* (./) Set up a Debian mirror with modified packages for installation
+    * the [mirror](http://jk.fr.eu.org/debian/hurd-install/mirror)
+      is now up and running (2010-07-06)
+    * hacked the image build script to include its public key in
+      debian-archive-keyring at image build time (2010-07-08)
+    * Apparently debootstrap does not handle multiple versions very well.
+      Fix by using dpkg-scan{package,sources} rather than apt-ftparchive
+      to create index files.
+      (2010-07-10)
+    * Use the override files from ftp.debian.org,
+      to avoid debootstrap grabbing inappropriate packages.
+    * Changed them to make [[!debpkg ifupdown]],
+      [[!debpkg dhcp3-client]] and [[!debpkg dhcp3-client]] priority extra,
+      because they're uninstallable at the moment.
+      (2010-07-12)
+
+* (./) Put together a "jk-archive-keyring" package,
+  so that the mirror is authenticated in the target system as well.
+  (2010-07-12)
+
+* (./) Fix grub for user-space partitions (2010-07-16)
+    * grub-probe detects the whole device rather than the partition
+      as the device behind /boot/grub.
+      Consequently, grub-install fails.
+    * One approach would be to replace /dev/hd* by kernel devices
+      for file systems as well as for swap partitions.
+      > {X} this makes the installer crash,
+      > possibly due to cache coherency issue between hdX and hdXsY.
+
+    * (./) GRUB2 kern/emu/getroot.c
+      [patched](http://lists.gnu.org/archive/html/bug-hurd/2010-07/msg00059.html)
+      to support part stores.
+
+* (./) Fix finish-install to skip `finish-install.d/90console` on Hurd
+  (2010-07-17)
+
+* (./) Avoid starting unnecessary /dev translators in a burst (2010-07-20)
+  * Use debootstrap use the extracted /usr/lib/hurd/setup-translators
+    to create device and server nodes in /target,
+    then firmlink the whole /target/dev and /target/servers
+    to the outer system.
+  * Make hurd.postinst not touch them on initial install.
+
+* (./) Fix mach-defpager for file and part stores on larger devices
+  * Use DEVICE\_GET\_RECORDS instead of DEVICE\_GET\_SIZE, which overflows an int
+    (2010-07-22)
+
+**Milestone (2010-07-22):
+installer works but it's still somewhat ugly and broken**
+
+* (./) Ship the UTF-8 font for the hurd console
+  (2010-07-22)
+  * Upload a version of bogl with youpi's patch for Hurd.
+    (see [[!debbug 589987]])
+  * Fix the hurd console for fonts with 16 pixels wide glyphs
+    (ie. handle the 8-wide glyph in there correclty)
+  * Support double-width glyphs (2010-07-24)
+  * {X} However the reduced font can't be loaded yet,
+    so make installer/build/Makefile
+    ship the whole `/usr/src/unifont.bgf`
+    as `/usr/share/hurd/vga-system.bgf`.
+
+* (./) Make the installer used the extended capabilities of the Hurd console
+  (2010-07-23)
+  * Set an UTF-8 locale in `/lib/debian-installer.d/S41term-hurd`.
+  * localechooser: set the language display level to 3
+    when using the hurd console.
+
+* (./) **busybox**: cross-platform package uploaded to experimental
+  (2010-08-03?)
+  * Aurelien Jarno updated the packaging to busybox 1.17.1,
+    fixed a whole lot of bugs,
+    and uploaded a new package with both our changes;
+  * most patches adopted upstream, and included in the new package;
+  * (u)mount/swaponoff ported to kFreeBSD;
+  * per-OS configuration overrides.
+
+* (./) Update custom packages to the latest versions
+  and send updated patches to the BTS
+  (2010-08-11)
+    * updated partman-base to choose a default filesystem in debian/rules
+      rather than at runtime,
+      as suggested by Aurelien Jarno in [[!debbug 586870]]
+    * patch submitted for debian-installer-utils
+      ([[!debbug 592684]]).
+    * patch submitted for locale-chooser
+      ([[!debbug 592690]]).
+    * debootstrap, grub-installer and finish-install not yet submitted,
+      since the details may still change.
+
+* (./) **partman-target**: fix fstab creation
+  (2010-08-11)
+  * See [[!debbug 592671]]
+  * debian/rules: set `partman/mount_style` to `traditional` on Hurd.
+  * finish.d/create\_fstab\_header: add a Hurd case.
+
+* **rootskel**: FTBFS on Hurd and other quirks
+  (to be fixed very soon)
+
+* **d-i/installer/build**: (expected soon)
+    * publish the patch I use
+    * sort out the changes suitable for inclusion
+      and ask youpi and/or debian-boot@l.d.o to commit them
+
+* call for testing and fix the bugs
+
+* Bug in setup-translators/MAKEDEV:
+  permissions are broken for nodes re-created through `MAKEDEV -k`,
+  because MAKEDEV's chmod/chown reaches the pre-existing translator
+    * Maybe settrans could be made to accept -o/--owner and
+      -p/--perm, to set the permissions for the underlying node?
+
+* Silence the "no kernel" warning somehow.
+
+* Investigate the wget/libc/pfinet/whatever bug which corrupts Packages.gz,
+  see the IRC log for 2010-07-23, around 1am UTC+0200 
+
+* Try to resolve problems with udebs which are uninstallable on hurd-i386,
+  such as installation-locale and partman-whatever.
+
+* Provide `/proc/cmdline -> 2/cmdline`, or something.
+
+* Prepare a NMU for genext2fs (which is orphaned),
+  and ask youpi to sponsor the upload.
+
+* **busybox**: port 
+    * fix stty/stat/ipcs on kFreeBSD,
+    * generally port more stuff,
+    * *ip* is needed (maybe) for network configuration,
+    * *mount*, *swaponoff* can be from hurd-udeb for now,
+      though the kFreeBSD people will need them
+
+* **partman**: further adjustments
+    * partman-base: handle /dev/hd?s* in lib/base.h
+    * hide irrelevant mount options? (sync, relatime)
+
+* Network configuration on the installed system.
+  This includes porting ifupdown and isc-dhcp-client,
+  which are currently uninstallable on hurd-i386.
+* Also, better DHCP support during and after installation
+
+* improve the [initrd situation](FIXME: link to bug-hurd post):
+  ajust the ramdisk support in Mach,
+  use tmpfs if possible.
+
+* mklibs{,-copy}:
+  test library reduction,
+  make it copy the ld.so -> ld.so.1 symlink.
+
+* hurd console fonts
+
+**Milestone (expected 2010-07-19):
+it works great and it's beautiful**
+
+* test, fix, document
+* support more types of installation images
+* give a shot at the graphical installer if time permits
+* integrate wireless drivers with netcfg
+* see how [[zhengda]]'s work on DDE could be integrated
+* etc..
+
+### Mostly done
+
+#### Week 1 (2010-05-24)
+
+* genext2fs: patches submitted, [[!debbug 562999]]
+  which add support for all block sizes and choosing them at runtime.
+* busybox: started porting the upstream and Debian package to Hurd and FreeBSD
+* rebuilding hurd-udeb from the pkg-hurd version
+  and adding a ld.so link to the initrd
+  fixes the exec translator crashing on startup.
+  (BTW would there be a mean to detect this from the libdiskfs bootstrap code
+  and report it ?)
+
+#### Week 2 (2010-05-31 to 2010-06-06)
+
+* *busybox*: patches [posted](http://lists.debian.org/debian-bsd/2010/05/msg00048.html).
+* *libdebian-installer4*: [[!debbug 584538]]
+* started working on mach initrd support
+* the installation images could boot into the main-menu
+  with the following changes:
+      * rebuild hurd-udeb from with the latest pkg-hurd patches
+      * use busybox from my osports-debian branch (see link above)
+      * tweak the d-i image build scripts
+      * the symlink /lib/ld.so -> ld.so.1 needs to be created somehow
+        (youpi mentionned it being the job of libc0.3-udeb I think)
+      * fix the poll() issue in libdebian-installer
+        (patch to be submitted soon),
+        also there is some hurd doxygen short-circuiting stuff
+        there which does not apply any more and prevents is to build.
+      * feed the initrd as a hard drive in qemu
+        (with some more space added to avoid it from becoming full)
+

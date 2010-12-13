@@ -1,0 +1,108 @@
+[[!meta copyright="Copyright © 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
+2009, 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+[[!meta title="Porting the Hurd to L4: Hurd/L4"]]
+
+There was an effort to port the Hurd from [[microkernel/Mach]] to the
+[[L4_microkernel_family|microkernel/L4]].
+
+The idea of using L4 as a [[microkernel]] for a [[Hurd_system|hurd]] was
+initially voiced in the [[Hurd_community|community]] by Okuji Yoshinori, who,
+for discussing this purpose, created the [[mailing lists/l4-hurd]] mailing list
+in November 2000.
+
+The project itself then was mostly lead by Marcus Brinkmann and Neal Walfield.
+Even though there was progress -- see, for example, the
+[[QEMU image for L4|hurd/running/qemu/image for l4]] -- this port never reached a
+releasable state.  Eventually, a straight-forward port of the original Hurd's
+design wasn't deemed feasible anymore by the developers, partly due to them not
+cosidering L4 suitable for implementing a general-purpose operating system on
+top of it, and because of deficiencies in the original Hurd's design, which
+they discovered along their way.  Read the [[hurd/critique]] and a
+[[hurd/ng/position paper]].
+
+By now, the development of Hurd/L4 has stopped.  However, Neal Walfield moved
+on to working on a newly designed kernel called [[microkernel/viengoos]].
+
+Over the years, a lot of discussion have been held on the
+[[mailing lists/l4-hurd]] mailing list, which today is still the right place
+for [[next-generation Hurd|hurd/ng]] discussions.
+
+Development of Hurd/L4 was done in the `hurd-l4` module of the Hurd CVS
+repository.  The `doc` directory contains a design document that is worth
+reading for anyone who wishes to learn more about Hurd/L4.
+
+
+One goal of porting the Hurd to L4 was to make the Hurd independend of Mach
+interfaces, to make it somewhat microkernel-agnostic.
+
+Mach wasn't maintained by its original authors anymore, so switching to a
+well-maintained current [[microkernel]] was expected to yield a more solid
+foundation for a Hurd system than the decaying Mach design and implementation
+was able to.
+
+L4 being a second-generation [[microkernel]] was deemed to provide for a faster
+system kernel implementation, especially in the time-critical [[IPC]] paths.
+Also, as L4 was already implemented for a bunch of different architectures
+(IA32, Alpha, MIPS; SMP), and the Hurd itself being rather archtecture-unaware,
+it was expected to be able to easily support more platforms than with the
+existing system.
+
+A design upon the lean L4 kernel would finally have moved devices drivers out
+of the kernel's [[TCB]].
+
+
+One idea was to first introduce a Mach-on-L4 emulation layer, to easily get a
+usable (though slow) Hurd-using-Mach-interfaces-on-L4 system, and then
+gradually move the Hurd servers to use L4 intefaces rather than Mach ones.
+
+
+Neal Walfield started the original Hurd/L4 port while at Karlsruhe in 2002.  He
+explains:
+
+> My intention was to adapt the Hurd to exploit L4's concepts and intended
+> [[design_pattern]]s; it was not to simply provide a Mach
+> [[compatibility_layer]] on top of L4.  When I left Karlsruhe, I no longer had
+> access to [[microkernel/l4/Pistachio]] as I was unwilling to sign an NDA.
+> Although the specification was available, the Karlsruhe group only [released
+> their code in May
+> 2003](https://lists.ira.uni-karlsruhe.de/pipermail/l4ka/2003-May/000345.html).
+> Around this time, Marcus began hacking on Pistachio.  He created a relatively
+> complete run-time.  I didn't really become involved again until the second
+> half of 2004, after I complete by Bachelors degree.
+
+> Before Marcus and I considered [[microkernel/Coyotos]], we had already
+> rejected some parts of the Hurd's design.  The
+> [[open issues/resource management problems]] were
+> what prompted me to look at L4.  Also, some of the problems with
+> [[hurd/translator]]s were already well-known to us.  (For a more detailed
+> description of the problems we have identified, see our [[hurd/critique]] in the
+> 2007 July's SIGOPS OSR.  We have also written a forward-looking
+> [[hurd/ng/position paper]].)
+
+> We visited Jonathan Shapiro at Hopkins in January 2006.  This resulted in a
+> number of discussions, some quite influential, and not always in a way which
+> aligned our position with that of Jonathan's.  This was particularly true of
+> a number of security issues.
+
+A lange number of discussion threads can be found in the archives of the
+[[mailing lists/l4-hurd]] mailing list.
+
+> Hurd-NG, as we originally called it, was an attempt to articulate the system
+> that we had come to envision in terms of interfaces and description of the
+> system's structure.  The new name was selected, if I recall correctly, as it
+> clearly wasn't the Hurd nor the Hurd based on L4.
+
+
+The source code is still available in [CVS module
+`hurd-l4`](http://savannah.gnu.org/cgi-bin/viewcvs/hurd/hurd-l4/) (note that
+this repository has in the beginning also been used for Neal's
+[[microkernel/Viengoos]]).

@@ -1,0 +1,58 @@
+[[!meta copyright="Copyright © 2009 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="fsys_syncfs"]]
+
+    routine fsys_syncfs (
+    	fsys: fsys_t;
+    	RPT
+    	wait: int;
+    	do_children: int);
+
+Synchronize the entire filesystem.
+
+This function has a companion in [[`file_syncfs`|file_syncfs]], which is
+invoked on an arbitrary node instead of the server's control port.  Both of
+them are usually implemented in equivalent ways.
+
+# Implementation Examples
+
+Servers that either don't keep any unsynchronized state (or don't have a
+backing store at all) can simply `return 0`.  Examples: [[translator/symlink]],
+[[translator/nfs]].
+
+## [[libtrivfs]]
+
+Invoke [[`file_sync`|file_sync]] on the underlying node.  Rationale: the
+underlying node represents this filesystem's backend, and once this node is
+synchronized, the whole [[libtrivfs]]-based filesystem is to be considered
+synchronized.
+
+### [[storeio]] / [[streamio]]
+
+Instead of to the underlying node, pass the call through to the backend
+(device).
+
+## [[libnetfs]]
+
+Invoke `netfs_attempt_syncfs`.
+
+## [[libdiskfs]]
+
+Invoke [[`fsys_syncfs`|fsys_syncfs]] on all active children, and invoke
+`diskfs_sync_everything` and `diskfs_set_hypermetadata`.
+
+# Usage Examples
+
+## [[libdiskfs]]
+
+In the implementations of both [[`file_syncfs`|file_syncfs]] and
+[[`fsys_syncfs`|fsys_syncfs]], [[`fsys_syncfs`|fsys_syncfs]] is invoked on all
+active children.

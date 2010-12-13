@@ -1,0 +1,87 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_documentation]]
+
+What are the benefits of a native GNU/Hurd system, now that Linux et al. can do
+so much? Think [[hurd/translator]]s: FUSE, [[hurd/subhurd]]s: User-Mode-Linux
+and other virtualization techiques, and so on.
+
+It is possible to begin [[implementing_Hurd_on_top_of_another_system]], but...
+
+IRC, #hurd, August / September 2010
+
+    <marcusb> ArneBab: but Neal and I were not happy with that alone.  We were
+      looking for deeper improvements to the system, for, I think, sound
+      reasons.  That is what brought us to the L4/Coyotos technologies
+    <marcusb> ArneBab: as you are writing a kernel in user space, you can still
+      do kernel improvements there
+    <marcusb> ArneBab: if you take it very far, you end up with a kernel that
+      runs Linux in user space (just flip the two) for the drivers
+    <marcusb> ArneBab: that is what the L4 people did with the DDE
+
+([[DDE]])
+
+    <marcusb> ArneBab: so, with these different cuts, there are different
+      opportunities. on the one end, you can run Linux as normal and get some
+      of the Hurd features such as translators in some programs.  At the other
+      end, you can do whatever you want and run some linux code for the drivers
+      or none at all.
+    <marcusb> ArneBab: one of the big questions then becomes: at which point
+      can the advantages offered by the Hurd be realized?
+    <marcusb> ArneBab: and that's not entirely clear to me
+    <marcusb> when I worked on this with Neal, we pushed further and further
+      into need-to-change-everything land
+    <marcusb> while the current efforts on the Hurd seem to be more equivalent
+      to the could-run-it-in-userspace-on-top-of-Linux camp
+    <ArneBab> marcusb: for that I think we need a way to move towards them step
+      by step. Would it be possible to get the advantages of better resource
+      allocation with a Viengoos in userspace, too?
+    <ArneBab> and when that is stable, just switch over?
+    <marcusb> ArneBab: I don't know.  I suspect these people will know before
+      us: http://lxc.sourceforge.net/
+    <ArneBab> something like implementing flip points: flip Linux with Hurd to
+      Hund with Linux. Flip Mach with L4 to L4 with Mach.
+    <ArneBab> lxc sounds interesting.
+    <marcusb> note that these efforts address security concerns more than other
+      concerns
+    <marcusb> so they will get isolation long before sharing is even considered
+    <marcusb> but some of the issues are the same
+    <marcusb> once you allow malware to do what it wants, it's a small step to
+      also allow the user to what he wants :)
+    <ArneBab> it kinda looks like hacking it where it doesn’t really fit again…
+    <ArneBab> there I ask myself when the point comes that doing a cleaner
+      design offsets the popularity
+    <ArneBab> they are pushing more and more stuff into userspace
+    <ArneBab> which is a good thing (to me)
+    <ArneBab> it’s hard to clearly describe how, but even though I like having
+      more stuff in userspace, the way it is bolted onto Linux doesn’t feel
+      good for me.
+    <ArneBab> FUSE is cool, but if I use it, I am at a disadvantage compared to
+      a non-fuse user
+    <ArneBab> while in the Hurd, these additional options are on eqal footing.
+    <marcusb> ArneBab: are they pushing more and more into user space?  I don't
+      think so.  I see more of the reverse, actually
+    <marcusb> or maybe both
+    <ArneBab> FUSE, lxd and scheduling in userspace move to userspace
+    <ArneBab> well, KMS moved to the kernel
+    <ArneBab> to avoid flickering when switching between X and the console?
+    <ArneBab> marcusb: Do you experience FUSE lxc and such being secondclass in
+      Linux, too, or is that just a strange feeling of me?
+    <ArneBab> marcusb: and that splits the users into those who can get stuff
+      into the kernel and those who can only work in userspace – which I don’t
+      really like.
+    <ArneBab> That’s one more advantage of the Hurd: eqal footing for all
+      (except the Mach hackers, but they have a very limited terrain)
+    <marcusb> ArneBab: but UML kernel module is minimal, and Linus didn't have
+      a principled objection to it (but just wanted a more general solution)
+    <marcusb> ArneBab: as a side note, although people keep complaining, the
+      linux kernel seems to be growing steadily, so getting stuff into the
+      kernel doesn't seem too hard.  8-O

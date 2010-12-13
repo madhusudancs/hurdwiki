@@ -1,0 +1,168 @@
+[[!meta copyright="Copyright © 2002, 2008 Free Software Foundation, Inc."]]
+
+[[!meta license="Verbatim copying and distribution of this entire article is
+permitted in any medium, provided this notice is preserved."]]
+
+[[!meta title="The Authentication Server, the transcript of a talk about the
+details of the authentication mechanisms in the Hurd by Wolfgang Jährling"]]
+
+<H3><A NAME="contents">Table of Contents</A></H3>
+<UL>
+  <LI><A HREF="#intro" NAME="TOCintro">Introduction</A>
+  <LI><A HREF="#ids" NAME="TOCids">How IDs are represented and used</A>
+  <LI><A HREF="#posix" NAME="TOCposix">POSIX and beyond</A>
+  <LI><A HREF="#servers" NAME="TOCservers">Related servers</A>
+</UL>
+<HR>
+
+<H3><A HREF="#TOCintro" NAME="intro">Introduction</A></H3>
+<P>
+In this text, which mostly resembles the talk I gave at Libre Software
+Meeting 2002 in Bordeaux, I will describe what the auth server does,
+why it is so important and which cool things you can do with it, both
+on the programming and the user side.  I will also describe related
+programs like the password and fakeauth servers.  Note that this text
+is targeted at programmers who want to understand the auth mechanism
+in detail and are already familiar with concepts like Remote Procedure
+Calls (RPCs) as well as the way User- and Group-IDs are used in the
+POSIX world.
+
+<P>
+The auth server is a very small server, therefore it gives a useful
+example when you want to learn how a server typically looks like.  One
+reason why it is so small is that the auth interface, which it
+implements, consists of only four RPCs.  You can find the interface in
+hurd/hurd/auth.defs and the server itself in hurd/auth/.
+
+<H3><A HREF="#TOCids" NAME="ids">How IDs are represented and used</A></H3>
+<P>
+Each process holds (usually) one port to auth (an auth_t in C source,
+which actually is a mach_port_t, of course).  The purpose of auth is
+to manage User-IDs and Group-IDs, which is the reason why users often
+will have no choice but to make use of the systems main auth server,
+which does not listen on /servers/auth; instead you inherit a port to
+auth from your parent process.  Each such port is (internally in the
+auth server) associated with a set of effective User- and Group-IDs as
+well as a set of available User- and Group-IDs.  So we have four sets
+of IDs in total.  The available IDs can be turned into corresponding
+effective IDs at any time.
+
+<P>
+When you send an auth_getids RPC on the port you hold, you will get
+information about which IDs are associated with it, so you can figure
+out which permissions you have.  But how will a server know that you
+have these permissions and therefore know which actions (e.g. writing
+into file "foo") it is supposed to do on your behalf and which not?
+The establishing of a trusted connection to a server works as follows:
+
+<P><OL>
+<LI>A user wants a server to know its IDs</LI>
+<LI>The user requests a reauthentication from the server</LI>
+<LI>In this request the user will include a port</LI>
+<LI>Both will hand this port to auth</LI>
+<LI>The user uses auth_user_authenticate</LI>
+<LI>The server uses auth_server_authenticate</LI>
+<LI>The server also passes a new port to auth</LI>
+<LI>auth matches these two requests</LI>
+<LI>The user gets the new port from auth</LI>
+<LI>The server learns about the IDs of the user</LI>
+<LI>The user uses the new port for further communication</LI>
+</OL>
+
+<P>
+We have different RPCs for users and servers because what we pass and
+what we get back differs for them: Users get a port, and servers get
+the sets of IDs, and have to specify the port which the user will get.
+
+<P>
+It is interesting to note that auth can match the requests by
+comparing two integers, because when you get the same port from two
+people, you will have the same mach_port_t (which is nothing but an
+integer).
+
+<P>
+All of this of course only works if they use the same auth server,
+which is why I said often you have no choice other than to use the
+one main auth server.  But this is no serious restriction, as the auth server has
+almost no functionality one might want to replace.  In fact, there is
+one replacement for the default auth implementation, but more on that
+later.
+
+<H3><A HREF="#TOCposix" NAME="posix">POSIX and beyond</A></H3>
+<P>
+Before we examine what is possible with this design, let us take a
+short look at how the POSIX semantics are implemented on top of this
+design.  When a program that comes out of POSIX-land asks for its own
+effective User- or Group-ID, we will tell it about the first of the
+effective IDs.  In the same sense, the POSIX real User- or Group-ID is
+the first available ID and the POSIX saved User- or Group-ID is the
+second available ID, which is why you have the same ID two times in
+the available IDs when you log into your GNU/Hurd machine (you can
+figure out which IDs you have with the program "ids", that basically
+just does an auth_getauth RPC).  When you lack one of those IDs (for
+example when you have no effective Group-ID), a POSIX program asking
+for this particular information will get "-1" as the ID.
+
+<P>
+But as you can imagine, we can do more than what POSIX specifies.  Fox
+example, we can modify our permissions.  This is always done with the
+auth_makeauth RPC.  In this RPC, you specify the IDs that should be
+associated with the new port.  All of these IDs must be associated
+with either the port where the RPC is sent to or one of the additional
+ports you can specify; an exception is the superuser root, which is
+allowed to creat ports that are associated with arbitrary IDs.
+Hereby you can convert available into effective IDs.
+
+<P>
+This opens the door to a bunch of nice features.  For example, we have
+the addauth program in the Hurd, which makes it possible to add an ID
+to either a single process or a group of processes if you hold the ID or know the
+appropriate password, and there is a corresponding rmauth program that
+removes an ID.  So when you are working on your computer with GNU
+Emacs and want to edit a system configuration file, you switch to
+Emacs' shell-mode, do an "addauth root", enter the password, edit the
+file, and when you are done switch back to shell-mode and do "rmauth
+root".  These programs have some interesting options, and there are
+various other programs, for setting the complete list of IDs (setauth)
+and so on.
+
+<H3><A HREF="#TOCservers" NAME="servers">Related servers</A></H3>
+<P>
+Finally, I want to explain two servers which are related to auth.  The
+first is the password server, which listens on /servers/password.  If
+you pass to it a User- or Group-ID and the correct password for it, it
+will return a port to auth to you which is associated with the ID you
+passed to it.  It can create such a port because it is running as
+root.  So let us assume you are an FTP server process.  You will start
+as root, because you want to use port 21 (in this case, "port" does
+not refer to a mach_port_t, of course).  But then, you can drop all
+your permissions so that you run without any ID.  This makes it far
+less dangerous to communicate with yet unknown users over the
+network.  But when someone now hands a username and password to you,
+you can ask the password server for a new auth port.  The password
+server will check the data you pass to it, for example by looking into
+/etc/shadow, and if it is valid, it will ask the auth server for a new
+port.  It receives this port from auth and then passes it on to you.
+So you have raised your permissions. (And for the very curious: Yes,
+we are well aware of the differences between this concept and
+capabilities; and we also do have some kinds of capabilities in
+various parts of the Hurd.)
+
+<P>
+My second example is the fakeauth server.  It also implements the auth
+protocol.  It is the part of the fakeroot implementation that gives a
+process the impression that it runs as root, even if it doesn't.  So
+when the process asks fakeauth about its own IDs, fakeauth will tell
+the process that it runs as root.  But when the process wants to make
+use of the authentication protocol described earlier in this text,
+fakeauth will forward the request to its own auth server, which will
+usually be the systems main auth server, which will then be able to
+match the auth_*_authenticate requests.  So what fakeauth does is
+acting as a proxy auth server that gives someone the impression to run
+as root, while not modifying what that one is allowed to do.
+
+<P>
+At this point, I have said at least most of what can be said about the
+auth server and the protocol it implements, so I will finish by saying
+that it might be an interesting task (for you) to modify some existing
+software to take advantage of the features I described here.

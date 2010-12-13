@@ -1,0 +1,100 @@
+[[!meta copyright="Copyright © 2008, 2009 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+Check out Viengoos and switch to the viengoos-on-bare-metal branch
+(all development is currently done on this branch and it will
+eventually be merged into the master branch):
+
+    $ git clone git://git.savannah.gnu.org/hurd/viengoos.git
+    $ cd viengoos
+    $ git checkout -b viengoos-on-bare-metal origin/viengoos-on-bare-metal
+
+Generate the autoconf environment (note that --force is not specified
+as we have our own version of config.guess and config.sub):
+
+    $ autoreconf -i
+
+Configure a build directory:
+
+    $ mkdir build
+    $ cd build
+    $ ../configure --host=x86_64-pc-viengoos-gnu --with-newlib
+
+Now, build Viengoos.  Running make the first time will automatically
+fetch binutils and gcc from the Internet and build a cross compiler.
+Running make again will build the Viengoos proper.  Again, the build
+process with fetch several tarballs including Newlib, the Boehm GC and
+Sqlite.
+
+    $ make
+    ...
+    The cross compiler is now set-up.  Re-run `make' and proceed as usual.
+    make[2]: Leaving directory `.../viengoos/build'
+    make[1]: Leaving directory `.../viengoos/build'
+    $ make
+
+# Booting Using QEMU
+
+To boot Viengoos, use Grub 2.  You cannot use Grub Legacy: Viengoos is
+an ELF64 executable, which Grub Legacy does not support.
+
+First, check out Grub 2 from svn:
+
+    $ svn co svn://svn.savannah.gnu.org/grub/trunk/grub2
+    $ cd grub2
+
+Before building Grub 2, you should apply the following patch, which
+makes it easy to tell Grub to load a specific grub.cfg at start up
+([details](http://lists.gnu.org/archive/html/grub-devel/2009-01/msg00099.html)).
+
+    $ wget http://www.gnu.org/software/hurd/microkernel/viengoos/grub2-config.diff -O /dev/stdout | patch -p0
+
+Next, build Grub 2:
+
+    $ ./autogen.sh
+    $ mkdir build
+    $ cd build
+    $ ../configure --prefix=`pwd`/../install
+    $ make && make install
+
+Create the boot disk:
+
+    $ cd ../install
+    $ bin/grub-mkrescue boot.img  --configfile="(hd0,1)/grub.cfg" --image-type=floppy --modules='help reboot serial multiboot pc configfile normal boot fat'
+
+Now, create /viengoos and link viengoos and hieronymus into that
+directory:
+
+    $ mkdir /viengoos
+    $ cd /viengoos
+    $ ln -s ~/viengoos/build/viengoos/viengoos.stripped viengoos
+    $ ln -s ~/viengoos/build/hieronymus/hieronymus.stripped hieronymus
+
+Also, create a grub.cfg file in /viengoos/grub.cfg:
+
+    set timeout=1
+    set default=0
+    set root=hd0,1
+    
+    menuentry "Viengoos" {
+        multiboot /viengoos -D 3 -o serial
+        module /hieronymus
+    }
+
+NB: If you edit grub.cfg and a backup file called grub.cfg~ is
+created, qemu will use grub.cfg~ instead of grub.cfg!  Thus, after
+editing grub.cfg, be sure to delete any grub.cfg~ file!
+
+Finally, boot!
+
+    $ qemu-system-x86_64 -serial stdio -fda ~/grub2/install/boot.img -hda fat:/viengoos -boot a
+
+By default, Hieronymus is configured to load ruth, a test suite.  Ruth
+can take a long time to complete.

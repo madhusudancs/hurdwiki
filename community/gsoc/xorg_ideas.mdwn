@@ -1,0 +1,67 @@
+[[!meta copyright="Copyright © 2009 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+## VT Switching for GNU Hurd
+
+While XFree86 was first ported to the Hurd more than a decade ago, and there
+are updates now and then to make newer versions of Xorg run as well,
+the support is quite rudimentary: in particular, there
+is no support for switching back to the text console while X is running.
+
+Implementing this requires creating an interface between the X server and the
+Hurd console, and implementing the necessary code on both sides.
+
+The goal of this project is to get console switching fully working on the Hurd.
+Some Hurd-specific and X-specific knowlegde will need to be obtained, but the
+task should be quite doable without previous experience with either. It
+requires implementing some pieces of code that are not quite trivial, but
+shouldn't be terribly hard either.
+
+Exercise: Try fixing <http://savannah.gnu.org/bugs/?21000>, or perhaps some
+other minor issue with X on the Hurd.
+
+
+## Initial work on porting DRM to GNU Hurd
+
+The Direct Rendering Manager (DRM) is a kernel driver component taking care of
+graphics hardware access. Originally, it only took care of the 3D acceleration
+unit, and was used mostly by the DRI (Direct Rendering Infrastructure) in Mesa.
+
+A few years ago, the developers came to the conclusion that a more robust
+and functional graphics stack requires the kernel driver to take care of other
+graphics access as well: mode setting in particular. (Essentially what the old
+KGI project proposed, see <http://www.kgi-project.org>.) Also, with the new GEM
+interface, the DRM now takes care of graphics memory management as well.
+
+With the new responsibilities, the DRM is no longer an optional addon for fast
+3D support, but a central component of the graphics stack. It needs to be
+implemented by any operating system that wants good Xorg driver support in the
+future. (Moreover, it is now also useful outside the context of Xorg.)
+
+The Hurd implementation of DRM will be somewhat special, as -- following the
+microkernel idea -- we want to run the drivers as priviledged user space server
+processes, rather than actual kernel modules.
+
+This task is about doing the first steps for porting the DRM to the Hurd. This
+can be done by taking one of the existing DRM modesetting drivers (Intel, Nouveau (Nvidia), or
+Radeon), trying to get parts of it running as a Hurd server, and
+porting/implementing necessary pieces of the general DRM framework as needed
+along the way.
+
+It is probably not realistic to get the driver fully working over the summer.
+The goal however is to get at least some parts going.
+
+This task will require obtaining a considerable amount of knowledge about the
+Hurd and Mach (especially things like virtual memory management) -- it goes
+deep into system internals. Previous experience with operating system and/or
+graphics driver development would definitely be helpful.
+
+Exercise: Try to get some part of the driver compiling on the Hurd, using stubs
+for any system-specific functionality.

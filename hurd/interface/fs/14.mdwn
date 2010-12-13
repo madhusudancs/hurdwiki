@@ -1,0 +1,67 @@
+[[!meta copyright="Copyright © 1994, 1995, 1996, 1997, 1998, 1999, 2002, 2009
+Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="file_syncfs"]]
+
+    routine file_syncfs (
+    	file: file_t;
+    	RPT
+    	wait: int;
+    	do_children: int);
+
+Synchronize the entire filesystem.
+
+This function has a companion in [[`fsys_syncfs`|fsys_syncfs]], which is
+invoked on the server's control port instead of an arbitrary node.  Both of
+them are usually implemented in equivalent ways.
+
+# Implementation Examples
+
+Servers that either don't keep any unsynchronized state (or don't have a
+backing store at all) can simply `return 0`.  Examples: [[translator/nfs]].
+
+The implementation typically doesn't care on which specific node (as exported
+by the implementing server) [[`file_syncfs`|file_syncfs]] is being invoked on.
+
+## [[libtrivfs]]
+
+Invoke [[`file_sync`|file_sync]] on the underlying node.  Rationale: the
+underlying node represents this filesystem's backend, and once this node is
+synchronized, the whole [[libtrivfs]]-based filesystem is to be considered
+synchronized.
+
+### [[storeio]] / [[streamio]]
+
+Instead of the to underlying node, pass the call through to the backend
+(device).
+
+## [[libnetfs]]
+
+Invoke `netfs_attempt_syncfs`.
+
+## [[libdiskfs]]
+
+Invoke [[`fsys_syncfs`|fsys_syncfs]] on all active children, and invoke
+`diskfs_sync_everything` and `diskfs_set_hypermetadata`.
+
+# Usage Examples
+
+## [[glibc]]
+
+  * `sync`
+
+    `file_syncfs ("/", false, true)` -- invoke it on the process' root directory
+    (`INIT_PORT_CRDIR`), don't wait for completion, do synchronize child
+    filesystems.
+
+## [[Hurd]]
+
+  * [[`syncfs`|syncfs]]

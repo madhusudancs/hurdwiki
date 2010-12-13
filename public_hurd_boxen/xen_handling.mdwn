@@ -1,0 +1,49 @@
+[[!meta copyright="Copyright © 2009 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+# listing running domUs
+
+    $ sudo xm list
+
+    $ sudo xm top
+
+# handling running domUs
+
+Forcefully killing a domU (that has crashed or is busy-looping, etc.):
+
+    $ sudo xm destroy [domU]
+
+As for (re-)starting a domU, read below in *domU consoles*.
+
+Using `xm shutdown [domU]` to gracefully shut down a running domU does not yet
+work -- this is not yet implemented in the [[Xen port of GNU
+Mach|microkernel/mach/gnumach/ports/xen]] ([[!taglink open_issue_xen]]).
+
+# domU consoles
+
+To avoid any complications with people trying to use the same console at the
+same time, please use this command for attaching to a domU's console (this
+command line will also start the domU in case that it isn't running already):
+
+    $ host=[domU] && sudo screen -DRRS console-$host sh -c "xm console $host || xm create -c $host"
+
+Otherwise, if one attaches to the same console twice, the second instance will
+in fact forward input to the domU (possibly infering with what the person is
+doing on the first instance), but the output won't be sent back to the second
+instance.
+
+After having typed this once, Bash's `reverse-search-history` (`C-r`), followed
+by typing in `host=flubber`, for example, will be enough to get access to
+that machine's console.
+
+/!\ TODO: How does one get the environment variables `COLUMNS` and `LINES` set
+properly when using `xm console`?  This is relevant for everything using
+`(n)curses` -- for interactive console applications.  Using `export COLUMNS=143
+LINES=44` does work, but is a manual process.
