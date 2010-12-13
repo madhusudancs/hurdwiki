@@ -1,41 +1,85 @@
-[[!meta copyright="Copyright © 2007, 2008 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2002, 2003, 2007, 2008, 2010 Free Software
+Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
 document under the terms of the GNU Free Documentation License, Version 1.2 or
 any later version published by the Free Software Foundation; with no Invariant
 Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
-is included in the section entitled
-[[GNU Free Documentation License|/fdl]]."]]"""]]
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
 
-Mach ports are [[capabilities|capability]].
+[[Mach]] *port*s are [[capabilities|capability]], and are also essentially
+similar to [[UNIX]] pipes.  They are communication channels, implemented by
+kernel queues.
 
-A Mach port is a kernel queue.  Each port has associated with
-it a receive right and one or more send and send-once rights.
-A queue can hold a number of messages.  Once the queue is full,
-the send blocks until their is space to enqueue the message
-(this is interruptible via a timeout mechanism).
+Each port has associated with it one *receive right* and one or more *send
+right*s and *send-once right*s.  That is, there is one receiver and one or more
+senders -- a unidirectional communication channel.  Only with the corresponding
+port right, access to a port is possible; this is enforced by Mach.
 
-A receive right designates a queue and authorizes the holder to
-dequeue messages from the queue, and to create send and send-once
-rights.
+The kernel queue can hold a number of [[message]]s.  Once the queue is full,
+the send blocks until there is space to enqueue the message (this is
+interruptible via a timeout mechanism).
 
-Send and send-once rights designate a queue and authorize the
-hold to enqueue messages (in the case of a send-once right,
-a single message).  Enqueuing a message is equivalent to
-[[invoke|invoking]] a capability.
+A receive right [[designates|designation]] a queue and authorizes the holder to
+dequeue messages from the queue, and to create send and send-once rights.
 
-Send and receive rights are named using local names.  Each
-task has associated with it a port [[address_space]].  A ports
-are addressed via this table.  Each task thus has its own
-private [[naming_context]] for ports.
+Send and send-once rights designate a queue and authorize the hold to enqueue
+messages (in the case of a send-once right, a single message).  Enqueuing a
+message is equivalent to [[invoke|invoking]] a capability.
 
-Ports can be [[delegate]]d in an [[IPC]] message.  When the
-receiver dequeues the message, the right is made available
-to it.
+Ports are automatically destroyed when there is no associated port right to
+them.
 
-A [[thread]] can only block receiving on a single port.  To work
-around this, the concept of a port set was introduced.  A receive
-right can be added to (at most) one port set.  When a thread
-receives from a port set, it dequeues from any of the ports that
-has a message available.
+Mach knows what port rights belong to each task, but [[thread]]s that running
+in the context of a task refer to ports by means of send and receive rights
+that are named using local *port names*.  These port names are plain integers,
+like [[UNIX file descriptors|unix/file_descriptor]].  Only these local names
+can be used by [[thread]]s for invoking operations on ports, threads do not
+deal with port rights directly.
+
+For that, each task has associated with it a *port address_space*, or *port
+name space*.  All ports are addressed via this table.  Each task thus has its
+own private [[naming_context]] for port rights.
+
+So, the picture is that after obtaining a port send right, the client uses a
+port name to send [[message]]s to the port, or exactly one message if it's a
+send-once right.  These messages are (probably) queued and when the server task
+tries to receive messages by having a [[thread]] use its port receive right, it
+gets the message(s).  This is called [[IPC]].
+
+Port rights themselvse can be [[delegate]]d in a [[message]], too.  When the
+receiver dequeues the message, the right is made available to it.
+
+The delivery of [[message]]s is reliable and strictly ordered.  When a
+[[thread]] sends messages *1* and *2*, it is guaranteed that the receiving
+[[task]] will catch them in the same order.  Of course, there can be
+intermediate messages that are sent by other threads.
+
+Ports are objects that are implemented by the [[kernel]], and they are
+kernel-protected resources.  There is no way for a [[task]] to do anything with
+a port unless it have corresponding port right.
+
+Due to this, ports are globally unique.  This makes them ideal for constituting
+system-wide *object references*.  For example, the [[RPC]] system as used by
+the GNU Hurd works by invoking *methods* on such object references.  The
+available methods are defined in [[hurd/interface]] files, and are processes by
+the [[MIG]] tool.
+
+Invoking an operation on a port does not transfer the current execution control
+to the receiver, but instead is an asynchronous operation.  For this, and
+especially in a [[RPC]] system, the sender may include a *reply port* using a
+send-once right, and synchronize (block) on that one.
+
+A [[thread]] can only block receiving on a single port.  To work around this,
+the concept of a *port set* was introduced.  A receive right can be added to
+(at most) one port set.  These port sets look like port receive rights, but
+cannot be passed to other tasks, and there are additional operations for adding
+and removing port receive rights.
+
+When a server process' thread receives from a port set, it dequeues exactly one
+message from any of the ports that has a message available in its queue.
+
+This concept of port sets is also the facility that makes convenient
+implementation of [[UNIX]]'s `select` [[system_call]] possible.
