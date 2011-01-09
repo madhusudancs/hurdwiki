@@ -6,8 +6,8 @@ id="license" text="Permission is granted to copy, distribute and/or modify this
 document under the terms of the GNU Free Documentation License, Version 1.2 or
 any later version published by the Free Software Foundation; with no Invariant
 Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
-is included in the section entitled
-[[GNU Free Documentation License|/fdl]]."]]"""]]
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
 
 [[!tag open_issue_gnumach open_issue_hurd open_issue_viengoos]]
 
@@ -22,8 +22,46 @@ These issues are what Neal Walfield is working on with his new kernel
 [[microkernel/viengoos]].
 
 
-# Examples
+# Kernel
+
+Inside the [[kernel]], there is commonly a need to allocate resources according
+to externally induced demand, dynamically.  For example, for memory-management
+data structures (page tables), process table entries, thread control blocks,
+[[capability]] tables, incoming network packages, blocks that are read in from
+disk, the keyboard type-ahead buffer for a in-kernel keyboard driver.  Some of
+these are due to actions driven by user-space requests, others are due to
+actions internal to the the kernel itself.  Some of these buffers can be sized
+statically (keyboard type-ahead buffer), and are thus unproblematic.  Others
+are not, and should thus be attributed to their user space entities.  In the
+latter (ideal) case, all resources -- that is, including those needed inside
+the kernel -- that a user space task needs for execution are provided by itself
+(and, in turn, provided by its parent / principal), and the kernel itself does
+not need to allocate any resources dynamically out of an its own memory pool.
+This avoids issues like [[microkernel/Mach]]'s [[zalloc_panics]] upon user
+space processes allocating too many [[microkernel/mach/port]]s, for example.
+
+[[!toggleable id=fof_plos09 text="""[[!template id=note
+text="*[[fof\_plos09|microkernel/barrelfish]]*:
+{{$microkernel/barrelfish#fof_plos09}}"]]"""]]
+
+[[!toggleable id=sel4 text="""[[!template id=note
+text="[[*sel4*|microkernel/l4]]: {{$microkernel/l4#sel4}}"]]"""]]
+
+In [[!toggle id=fof_plos09 text="[fof\_plos09]"]], the authors describe in
+section 3 how they model their [[capability]] system according to [[!toggle
+id=sel4 text="[sel4]"]] using a *retype* operation that *takes an existing
+capability and produces one or more derived capabilities [...] used to create
+new kernel-level memory objects (such as page tables or execution contexts)
+from capabilities to raw regions of RAM*.
+
+This is, of course, non-trivial to implement, and also requires changing the
+[[RPC]] interfaces, for example, but it is a valid approach, a research topic.
+
+([[!taglink open_issue_documentation]]: compare this to Linux [`vmsplice`'s
+SPLICE_F_GIFT
+flag](http://www.kernel.org/doc/man-pages/online/pages/man2/vmsplice.2.html#DESCRIPTION).)
+
+
+# Further Examples
 
   * [[configure max command line length]]
-
-  * [[zalloc_panics]]

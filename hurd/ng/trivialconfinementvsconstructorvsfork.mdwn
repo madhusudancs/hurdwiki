@@ -6,10 +6,11 @@ This comparison is about a simple situation: there is a parent process P, which 
 
 # <a name="Trivial_Confinement"> Trivial Confinement </a>
 
-For trivial confinement, there is a system call to create a process from some memory pages. P performs the following steps:
+For trivial confinement, there is a [[system call]] to create a process from
+some memory pages. P performs the following steps:
 
 * Allocate some memory and put the code image of the child into that memory. This can be done by P, or for example by the file system which then gives the resulting memory (space bank) to P.
-* Perform the system call on that memory. The result is a capability to C.
+* Perform the [[system call]] on that memory. The result is a capability to C.
 * Send A to C using the returned capability.
 
 Note that it is up to the implementation of the system what happens with P's access to the memory which holds the child. For example, it is probably a good idea if it is at least unmapped, so it cannot accidentily write things in it. It could even be revoked, so that it can't write things in it, even if it wants to.
@@ -32,7 +33,16 @@ This mechanism is targeted at a specific use pattern, namely that a process is c
 
 # <a name="POSIX_Fork"> </a> POSIX Fork
 
-POSIX fork, or rather fork+exec, is how things are done on many current systems. It may be insightful to see it included in the comparison, especially for people who are new to the subject. There are two system calls, fork and exec. Fork will create a clone of the current process, including all the capabilities (that is, file descriptors) of the parent (except the ones which have explicitly been excluded). Exec is a system call which really goes to the filesystem, not the kernel (although on systems which use it, the filesystem usually resides in the kernel), and asks it to spawn a new process from the contents of a certain path in place of the caller. This passes all capabilities to the new process. The procedure is:
+POSIX fork, or rather fork+exec, is how things are done on many current
+systems.  It may be insightful to see it included in the comparison, especially
+for people who are new to the subject.  There are two [[system call]]s, fork
+and exec.  Fork will create a clone of the current process, including all the
+capabilities (that is, [[unix/file_descriptor]]s) of the parent (except the
+ones which have explicitly been excluded).  Exec is a [[system call]] which
+really goes to the filesystem, not the kernel (although on systems which use
+it, the filesystem usually resides in the kernel), and asks it to spawn a new
+process from the contents of a certain path in place of the caller.  This
+passes all capabilities to the new process.  The procedure is:
 
 * P calls fork(), creating P'.
 * P' drops B.
@@ -52,7 +62,11 @@ In contrast, the other two options don't pass anything by default. If there is a
 
 The problem of fork+exec can be solved. It is if the default would be to not pass capabilities to the new process, but specify a list of capabilities that it should keep, or (like in the other cases) pass them over a new channel which is implicitly created during the fork. However, in that case the only difference with trivial confinement is that P' dies in the process (and thus must be created to prevent P from dying). Almost any use of exec is in practice preceded by a fork for this purpose. It would be easier to make trivial confinement the default operation and let P die directly after it in the rare case that it should.
 
-The only reason for continuing to use fork+exec would be that it is what existing programs do. However, they break anyway if they need to specify which file descriptors to pass. So they need to be adapted. Therefore, it's better to make the usual spawning method the primitive one, and emulate the other.
+The only reason for continuing to use fork+exec would be that it is what
+existing programs do.  However, they break anyway if they need to specify which
+[[unix/file_descriptor]]s to pass.  So they need to be adapted. Therefore, it's
+better to make the usual spawning method the primitive one, and emulate the
+other.
 
 # <a name="Trivial_Confinement_vs_Construct"> Trivial Confinement vs Constructor </a>
 
@@ -67,7 +81,7 @@ Except for the control, there is really only one other difference, and that's ad
 What it doesn't do is protect the code image against bugs in P. In the constructor the trusted and well-tested constructor code is handling the image, for trivial confinement the (very possibly) buggy program P. In particular, when starting a program from a file system, with trivial confinement the operation is:
 
 * Ask the file system for the code, receive a capability to a space bank with a copy (on write) of it.
-* Make the system call to turn it into a program.
+* Make the [[system call]] to turn it into a program.
 
 Now this isn't much more complicated than the constructor which does:
 

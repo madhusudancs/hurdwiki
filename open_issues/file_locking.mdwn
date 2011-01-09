@@ -1,0 +1,74 @@
+[[!meta copyright="Copyright © 2010, 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd open_issue_glibc]]
+
+IRC, #hurd, 2010-12-31.
+
+    <pinotree> youpi: i found the issue with python-apt
+    <pinotree> s/with/of/
+    <youpi> good!
+    <pinotree> lock file issue, though :/
+    <youpi> :/
+    <pinotree> this is the sample test case, derived from apt's code:
+      http://paste.debian.net/103536/
+    <pinotree> basically, it seems asking for a file lock in the same process
+      where there's already such lock on the file, fails
+    <pinotree> youpi: ↑
+    <youpi> uh, posix doesn't even define some nesting
+    <pinotree> it seems it just talks about concurrency with other processes
+    <youpi> posix tells more about it later
+    <youpi> saying that if a lock already exists, then it is replaced by the
+      new
+    <youpi> (when inside the same process)
+    <pinotree> yay, found a bug in hurd :p
+    <youpi> well, actually it's known
+    <youpi> i.e. setlk is completely bogus, based on flock
+    <youpi> and flock doesn't have the same semantic in that regard
+    <youpi> so we can't fix it without really implementing setlk
+    <pinotree> the XXX comment in glibc/sysdeps/mach/hurd/fcntl.c, by chance?
+      :)
+    <youpi> of course :)
+    <pinotree> youpi: hm, flock's man page says:
+    <pinotree> "A process may only hold one type of lock (shared or exclusive)
+      on a file. Subsequent flock() calls on an already locked file will
+      convert an existing lock to the new lock mode."
+    <pinotree> so a new lock in the same process over the original lock should
+      replace the old one?
+    <youpi> uh, that's not what I had seen
+    <pinotree> http://linux.die.net/man/2/flock
+    <youpi> An attempt to lock the file using one of these file  descrip-
+    <youpi>        tors  may  be  denied  by  a  lock that the calling process
+      has already
+    <youpi>        placed via another descriptor.
+    <youpi> so it's really not that easy
+    <pinotree> that's in case of trying to create a lock on a file with a
+      different fd than the existing lock
+    <youpi> that's what your testcase does
+    <pinotree> which, hm, is python-apt's case
+    <youpi> that being said, the sentence I pasted does not seem to appear in
+      posix
+    <pinotree> flock() does not seem posix
+    <youpi> it may have been the behavior of Linux at some point in the past
+    <youpi> it's not , but F_SETLK is
+    <youpi> and in linux world, flock <=> F_SETLK, iirc
+    <youpi> in glibc world, even
+    <youpi> (just checked it, see sysdeps/posix/flock.c
+    <youpi> pinotree: I guess your testcase works on Linux?
+    <pinotree> which means we should get a proper F_SETLK working, and then
+      just use this flock version (instead of the custom one), no?
+    <pinotree> yes, it works on linux (and on kfreebsd, see that python-apt
+      builds)
+    <youpi> no, I mean our flock() should probably be happy with locking part
+      of a file several times
+    <youpi> (that is, hurd's file_lock() RPC)
+    <youpi> ah, no, on Linux flock is its own system call
+    <youpi> (which is independant from lockf from the locking point of view,
+      iirc)

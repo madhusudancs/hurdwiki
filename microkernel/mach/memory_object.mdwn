@@ -1,0 +1,31 @@
+[[!meta copyright="Copyright © 2002, 2003, 2010 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+Mach's [[virtual_memory]] subsystem uses *memory objects* for supplying the
+content of regions of virtual memory in an [[virtual_address_space]].
+
+All of these objects are managed by *memory manager*s, that are also called
+*pager*s.  These can be implemented as user-space processes.
+
+Both the memory objects, and their managers are kernel objects, and are
+accessed by [[port]]s.
+
+A system's physical memory is conceived as a *memory cache* that contains
+*memory cache objects*.  So when a [[thread]] accesses a page in its task's
+address space, the memory object that includes this page is *cached* in the
+memory cache.  Memory objects are [[paged out and paged
+in|external_pager_mechanism]] by the aforementioned memory managers.  The
+decision when they should be paged in or paged out is left to [[Mach]].  Each
+memory object has an ordered list of memory managers that provide paging.  The
+last one tried is the *default memory manager* that resides in the microkernel,
+in contrast to most of the others.  The default memory manager is needed
+because the microkernel can't wait infinitely for someone else to free the
+memory cache: it just calls the next memory manager hoping it to succeed.

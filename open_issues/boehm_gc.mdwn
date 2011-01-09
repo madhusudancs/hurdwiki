@@ -1,0 +1,283 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+Here's what's to be done for maintaining Boehm GC.
+
+This one does need Hurd-specific configuration.
+
+It is, for example, used by [[/GCC]] (which has its own fork), so any changes
+committed upstream should very like also be made there.
+
+
+# [[General information|/boehm_gc]]
+
+
+# [[Sources|source_repositories/boehm_gc]]
+
+
+# Configuration
+
+[[tschwinge]] reviewed its GNU/Hurd port's configuration on 2010-12-08, based
+on CVS HEAD sources from 2010-12-02, converted to [[Git, correspondingly
+1c2455988a8f59a5f83b986b9156f03be395b3b6|source_repositories/boehm_gc]].
+
+  * `configure.ac`
+
+      * `PARALLEL_MARK` is not enabled; doesn't make sense so far.
+
+      * `*-*-kfreebsd*-gnu` defines `USE_COMPILER_TLS`.  What's this, and
+        why does not other config?
+
+      * TODO
+
+            [ if test "$enable_gc_debug" = "yes"; then
+                AC_MSG_WARN("Should define GC_DEBUG and use debug alloc. in clients.")
+                AC_DEFINE([KEEP_BACK_PTRS], 1,
+                          [Define to save back-pointers in debugging headers.])
+                keep_back_ptrs=true
+                AC_DEFINE([DBG_HDRS_ALL], 1,
+                          [Define to force debug headers on all objects.])
+                case $host in
+                  x86-*-linux* | i586-*-linux* | i686-*-linux* | x86_64-*-linux* )
+                    AC_DEFINE(MAKE_BACK_GRAPH)
+                    AC_MSG_WARN("Client must not use -fomit-frame-pointer.")
+                    AC_DEFINE(SAVE_CALL_COUNT, 8)
+                  ;;
+            AM_CONDITIONAL([KEEP_BACK_PTRS], [test x"$keep_back_ptrs" = xtrue])
+
+  * `configure.host`
+
+    Nothing.
+
+  * `Makefile.am`, `include/include.am`, `cord/cord.am`, `doc/doc.am`,
+    `tests/tests.am`
+
+    Nothing.
+
+  * `include/gc_config_macros.h`
+
+    Should be OK.
+
+  * `include/private/gcconfig.h`
+
+    Hairy.  But should be OK.  Search for *HURD*, compare to *LINUX*,
+    *I386* case.
+
+    See `doc/porting.html` and `doc/README.macros` (and others) for
+    documentation.
+
+    *LINUX* has:
+
+      * `#define LINUX_STACKBOTTOM`
+
+        Defined instead of `STACKBOTTOM` to have the value read from `/proc/`.
+
+      * `#define HEAP_START (ptr_t)0x1000`
+
+        May want to define it for us, too?
+
+      * `#ifdef USE_I686_PREFETCH`, `USE_3DNOW_PREFETCH` --- [...]
+
+        Apparently these are optimization that we also could use.  Have a
+        look at *LINUX* for *X86_64*, which uses `__builtin_prefetch`
+        (which Linux x86 could use, too?).
+
+      * TODO
+
+            #if defined(LINUX) && defined(USE_MMAP)
+                /* The kernel may do a somewhat better job merging mappings etc.    */
+                /* with anonymous mappings.                                         */
+            #   define USE_MMAP_ANON
+            #endif
+
+      * TODO
+
+            #if defined(GC_LINUX_THREADS) && defined(REDIRECT_MALLOC)
+                /* Nptl allocates thread stacks with mmap, which is fine.  But it   */
+                /* keeps a cache of thread stacks.  Thread stacks contain the       */
+                /* thread control blocks.  These in turn contain a pointer to       */
+                /* (sizeof (void *) from the beginning of) the dtv for thread-local */
+                /* storage, which is calloc allocated.  If we don't scan the cached */
+                /* thread stacks, we appear to lose the dtv.  This tends to         */
+                /* result in something that looks like a bogus dtv count, which     */
+                /* tends to result in a memset call on a block that is way too      */
+                /* large.  Sometimes we're lucky and the process just dies ...      */
+                /* There seems to be a similar issue with some other memory         */
+                /* allocated by the dynamic loader.                                 */
+                /* This should be avoidable by either:                              */
+                /* - Defining USE_PROC_FOR_LIBRARIES here.                          */
+                /*   That performs very poorly, precisely because we end up         */
+                /*   scanning cached stacks.                                        */
+                /* - Have calloc look at its callers.                               */
+                /*   In spite of the fact that it is gross and disgusting.          */
+                /* In fact neither seems to suffice, probably in part because       */
+                /* even with USE_PROC_FOR_LIBRARIES, we don't scan parts of stack   */
+                /* segments that appear to be out of bounds.  Thus we actually      */
+                /* do both, which seems to yield the best results.                  */
+            
+            #   define USE_PROC_FOR_LIBRARIES
+            #endif
+
+      * TODO
+
+            # if defined(GC_LINUX_THREADS) && defined(REDIRECT_MALLOC) \
+                 && !defined(INCLUDE_LINUX_THREAD_DESCR)
+                /* Will not work, since libc and the dynamic loader use thread      */
+                /* locals, sometimes as the only reference.                         */
+            #   define INCLUDE_LINUX_THREAD_DESCR
+            # endif
+
+      * TODO
+
+            # if defined(UNIX_LIKE) && defined(THREADS) && !defined(NO_CANCEL_SAFE) \
+                 && !defined(PLATFORM_ANDROID)
+                /* Make the code cancellation-safe.  This basically means that we   */
+                /* ensure that cancellation requests are ignored while we are in    */
+                /* the collector.  This applies only to Posix deferred cancellation;*/
+                /* we don't handle Posix asynchronous cancellation.                 */
+                /* Note that this only works if pthread_setcancelstate is           */
+                /* async-signal-safe, at least in the absence of asynchronous       */
+                /* cancellation.  This appears to be true for the glibc version,    */
+                /* though it is not documented.  Without that assumption, there     */
+                /* seems to be no way to safely wait in a signal handler, which     */
+                /* we need to do for thread suspension.                             */
+                /* Also note that little other code appears to be cancellation-safe.*/
+                /* Hence it may make sense to turn this off for performance.        */
+            #   define CANCEL_SAFE
+            # endif
+
+      * `CAN_SAVE_CALL_ARGS` vs. -fomit-frame-pointer now being on by
+        default for Linux x86 IIRC?  (Which is an [[!taglink
+        open_issue_gcc]] for not including us.)
+
+      * TODO
+
+            # if defined(REDIRECT_MALLOC) && defined(THREADS) && !defined(LINUX)
+            #   error "REDIRECT_MALLOC with THREADS works at most on Linux."
+            # endif
+
+
+    *HURD* has:
+
+      * `#define STACK_GROWS_DOWN`
+
+      * `#define HEURISTIC2`
+
+        Defined instead of `STACKBOTTOM` to have the value probed.
+
+        Linux also has this:
+
+            #if defined(LINUX_STACKBOTTOM) && defined(NO_PROC_STAT) \
+                && !defined(USE_LIBC_PRIVATES)
+                /* This combination will fail, since we have no way to get  */
+                /* the stack base.  Use HEURISTIC2 instead.                 */
+            #   undef LINUX_STACKBOTTOM
+            #   define HEURISTIC2
+                /* This may still fail on some architectures like IA64.     */
+                /* We tried ...                                             */
+            #endif
+
+        Being on [[glibc]], we could perhaps do similar as `USE_LIBC_PRIVATES`
+        instead of `HEURISTIC2`.  Pro: avoid `SIGSEGV` (and general fragility)
+        during probing at startup (if I'm understanding this correctly).  Con:
+        rely on glibc internals.  Or we instead add support to parse
+        [[`/proc/`|hurd/translator/procfs]] (can even use the same as Linux?),
+        or use some other interface.  [[!tag open_issue_glibc]]
+
+      * `#define SIG_SUSPEND SIGUSR1`, `#define SIG_THR_RESTART SIGUSR2`
+
+      * We don't `#define MPROTECT_VDB` (WIP comment); but Linux neither.
+
+      * Where does our `GETPAGESIZE` come from?  Should we `#include
+        <unistd.h>` like it is done for *LINUX*?
+
+  * `include/gc_pthread_redirects.h`
+
+      * TODO
+
+        Cancellation stuff is Linux-only.  In other places, too.
+
+  * `mach_dep.c`
+
+      * `#define NO_GETCONTEXT`
+
+        [[!taglink open_issue_glibc]], but this is not a real problem here,
+        because we can use the following GCC internal function without much
+        overhead:
+
+      * `GC_with_callee_saves_pushed`
+
+        The `HAVE_BUILTIN_UNWIND_INIT` case is ours.
+
+  * `os_dep.c`
+
+      * `read`
+
+        Sure that it doesn't internally (in [[glibc]]) use `malloc`.  Probably
+        only / mostly (?) a problem for `--enable-redirect-malloc`
+        configurations?  Linux with threads uses `readv`.
+
+      * TODO.
+
+  * `dyn_load.c`
+
+    For `DYNAMIC_LOADING`.  TODO.
+
+  * `pthread_support.c`, `pthread_stop_world.c`
+
+    TODO.
+
+  * TODO.
+
+    Other files also contain *LINUX* and other conditionals.
+
+  * `libatomic_ops/`
+
+      * `configure.ac`
+
+        Nothing.
+
+      * `Makefile`, `src/Makefile`, `src/atomic_ops/Makefile`,
+        `src/atomic_ops/sysdeps/Makefile`, `doc/Makefile`, `tests/Makefile`
+
+        Nothing.
+
+      * `src/atomic_ops/sysdeps/gcc/x86.h`
+
+        Nothing.
+
+
+# Testsuite
+
+There are different configurations possible, but in general, the testsuite
+restults of GNU/Linux and GNU/Hurd look very similar.
+
+It has last been run and compared on 2010-11-10, based on CVS HEAD sources from
+2010-11-04, converted to [[Git, correspondingly
+9abb37b2e581b415bb1f482085891a289c2c0be1|source_repositories/boehm_gc]].
+
+## `--enable-cplusplus --enable-gc-debug`
+
+  * GNU/Hurd is missing *Call chain at allocation: [...] output*.
+
+    `os_dep.c`:`GC_print_callers`
+
+
+# TODO
+
+  * Port stuff to [[GCC]], and test it there.
+
+  * What are other applications to test Boehm GC?  Also especially in
+    combination with [[/libpthread]] and dynamic loading of shared libraries?
+
+      * There's been some talking about it on GNU guile mailing lists, and two
+        Git branches (2010-12-15: last change 2009-09).
+
+      * <http://www.hpl.hp.com/personal/Hans_Boehm/gc/#users>

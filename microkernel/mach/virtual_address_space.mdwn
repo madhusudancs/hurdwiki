@@ -1,0 +1,36 @@
+[[!meta copyright="Copyright © 2002, 2003, 2010 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+*Virtual address space*s in Mach define the valid virtual addresses that can be
+used by [[thread]]s under execution in the [[task]] that owns that address
+space.  Each task has only one address space and each address space belongs to
+only one task.  So when we want to name an address space (for example, in the
+Mach API) we name it by the task it belongs to.
+
+These address spaces are divided into *pages*.  Each page has individual
+properties like *access rights* (*read* / *write* / *execute*), *inheritance
+attributes* (*no inheritance* / *copy* / *share*) and some other system
+properties.  Page manipulation is optimized to help moving large blocks of data
+from one address space to another, for example when one thread provides data to
+another thread -- *client / server* technology.
+
+Memory ranges of pages that can be controlled as a whole are called
+*[[memory_object]]*s.
+
+*Wired pages* are those that cannot be [[paged out|external_pager_mechanism]].
+For example, Mach itself is a task with its own address space and threads, and
+all of its pages are wired.
+
+*Precious pages* are those that must not be discarded silently when they are
+clean and memory is needed.  For example, a memory manager that shares memory
+across a network could not restore a page if it is silently discarded because
+it is unmodified.  This is not valid for the well-known [[pager
+managers|external_pager_mechanism]] that use disks as backing store.

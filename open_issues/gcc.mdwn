@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2008, 2009, 2010 Free Software Foundation,
+[[!meta copyright="Copyright © 2007, 2008, 2009, 2010 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -6,16 +6,125 @@ id="license" text="Permission is granted to copy, distribute and/or modify this
 document under the terms of the GNU Free Documentation License, Version 1.2 or
 any later version published by the Free Software Foundation; with no Invariant
 Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
-is included in the section entitled
-[[GNU Free Documentation License|/fdl]]."]]"""]]
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
 
-[[!tag open_issue_porting open_issue_gcc fixed_in_debian]]
+[[!tag open_issue_gcc]]
 
-For GCC trunk:
+Here's what's to be done for maintaining GCC.
 
-Debian package has patches (for 4.3).  Some have been forwarded upstream.  (And
-have been ignored.)  [[Thomas_Schwinge|tschwinge]] is working on getting them
-integrated.
+Apart from the target-specific configuration machinery, there shouldn't be any
+major differences within GCC between the GNU/Hurd and GNU/Linux ports, for
+example.  Especially all the compiler magic is all the same.
+
+[[!toc levels=2]]
+
+
+# [[General information|/gcc]]
+
+
+# [[Sources|source_repositories/gcc]]
+
+
+## Boehm GC
+
+GCC includes an own variant of [[/Boehm_GC]] that is based on an upstream
+version, but with own patches, etc.  This is used for Java.  (There are patches
+(apparently not committed) that GCC itself can use it, too:
+<http://gcc.gnu.org/wiki/Garbage_collection_tuning>.)
+
+Patches to GCC's fork should be contributed back to upstream [[/Boehm_GC]].
+
+[[tschwinge]] reviewed (but only briefly for large parts) the differences on
+2010-12-08, based on the [[GCC Git mirror's
+8e79e9d43f32c8852f068da91d655297d92ac0f4 (2010-11-29)
+sources|source_repositories/GCC]] and Boehm GC's CVS HEAD sources from
+2010-12-02, converted to [[Git, correspondingly
+1c2455988a8f59a5f83b986b9156f03be395b3b6|source_repositories/boehm_gc]].
+
+On 2010-11-17,
+[[tschwinge]] reviewed the Debian GCC Boehm GC changes, compared them to the
+upstream code, and put it into the local *hurd/boehm-gc/config_backport*
+branch, planning to submit it to gcc-patches after testing with the GCC
+testsuite.
+
+
+# Configuration
+
+Last reviewed up to the [[Git mirror's 3457702eb6f8ee22acaee881dc7f783c3aa2fa91
+(2010-12-08) sources|source_repositories/gcc]].
+
+<http://gcc.gnu.org/install/configure.html> has documentation for the
+`configure` switches.
+
+  * Configure fragments that have `*linux*` cases might/should often contain
+    those for us (and GNU/k*BSD) as well.
+
+      * `configure.ac`
+
+      * `libgcc/configure.ac` [might
+        need](http://gcc.gnu.org/ml/gcc-patches/2008-10/msg00315.html) to be
+        aligned for us to the `*linux*` cases.  As well as at the end of
+        `libgcc/config.host`.  Check.
+
+            checking whether decimal floating point is supported... no
+            checking whether fixed-point is supported... no
+
+      * `libgomp/configure.tgt`
+
+      * Etc.
+
+  * [[`libmudflap`|libmudflap]].
+
+  * Might [`-fsplit-stack`](http://nickclifton.livejournal.com/6889.html) be
+    worthwhile w.r.t. our multithreaded libraries?
+
+  * <http://gcc.gnu.org/ml/gcc/2007-11/msg00289.html>,
+    <http://gcc.gnu.org/ml/gcc-patches/2010-12/msg00672.html>
+
+  * `--enable-languages=[...]`
+
+      * GNAT is not yet ported / bootstrapped?
+
+      * The Google Go's libgo (introduced in
+        e440a3286bc89368b8d3a8fd6accd47191790bf2 (2010-12-03)) apparently needs
+        OS configuration / support.
+
+  * `--enable-frame-pointer`
+
+    `gcc/configure.ac`: `enable_frame_pointer=no`
+
+  * `--with-dwarf2`?
+
+  * `--enable-werror`
+
+  * `--enable-checking`
+
+  * `--enable-build-with-cxx`
+
+  * `--enable-decimal-float`, `--enable-fixed-point`, `--with-long-double-128`
+
+    `configure: WARNING: decimal float is not supported for this target,
+    ignored`
+
+  * `--enable-linker-build-id`
+
+  * `--enable-gnu-unique-object`
+
+  * `--enable-lto`, `--enable-gold`
+
+    [[binutils_gold]]
+
+  * `--enable-indirect-function`
+
+    [[IFUNC]]
+
+
+# TODO
+
+Debian's GCC package has Hurd-specific patches.  Some have been forwarded
+upstream (and have been ignored).  [[Thomas_Schwinge|tschwinge]] is working on
+getting them integrated.
 
   * [\[meta-bug\] bootstrap bugs for
     \*-gnu\*](http://gcc.gnu.org/bugzilla/show_bug.cgi?id=21824)
@@ -30,25 +139,177 @@ integrated.
     GNU/Linux](http://gcc.gnu.org/ml/gcc/2007-11/msg00289.html)
 
 
+# Build
 
-Additionally:
+Here's a log of a GCC build run; this is from our [[Git repository's
+5ac39af7792ba0dc363cc199060faf53dfa9dc1a (2010-12-08)
+sources|source_repositories/gcc]], run on kepler.SCHWINGE and grubber.
 
-  * Configure fragments that have `*linux*` cases might/should often contain
-    those for us (and GNU/k*BSD) as well.
+    $ export LC_ALL=C
+    $ ../master/configure --prefix="$PWD".install 2>&1 | tee log_build
+    [...]
+    $ make SHELL=/bin/bash 2>&1 | tee log_build_
+    [...]
 
-      * `libgcc/configure.ac` [might
-        need](http://gcc.gnu.org/ml/gcc-patches/2008-10/msg00315.html) to be
-        aligned for us to the `*linux*` cases.  As well as at the end of
-        `libgcc/config.host`.  Check.
+(kepler.SCHWINGE defaults to using /bin/sh, grubber to /bin/bash; thus
+harmonized.)
 
-            checking whether decimal floating point is supported... no
-            checking whether fixed-point is supported... no
+On grubber, this needs roughly 24 hours, and takes up around 2.5 GiB.
 
-      * `libgomp/configure.tgt`
 
-  * [[`libmudflap`|libmudflap]].
+## Analysis
 
-  * [[Boehm_GC]].
+    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd/master.build/log_build* | sed -e "s%${PWD}%[...]%g"' | sed -f open_issues/gcc/log_build-linux.sed) <(ssh grubber 'cd tmp/gcc/ && cat hurd/master.build/log_build* | sed "s%${PWD}%[...]%g"' | sed -f open_issues/gcc/log_build-hurd.sed) > open_issues/gcc/log_build-diff
 
-  * Might [`-fsplit-stack`](http://nickclifton.livejournal.com/6889.html) be
-    worthwhile w.r.t. our multithreaded libraries?
+[[log_build-diff]].
+
+  * [[`checking if gcc static flag -static
+    works... no`|glibc_madvise_vs_static_linking]]
+
+  * DFP
+
+        +configure: WARNING: decimal float is not supported for this target, ignored
+
+    ... and later on:
+
+        -checking for decimal floating point... bid
+        +checking for decimal floating point... configure: WARNING: decimal float is not supported for this target, ignored
+        +dpd
+
+    ... and later on:
+
+        -checking whether decimal floating point is supported... yes
+        +checking whether decimal floating point is supported... no
+        +configure: WARNING: decimal float is not supported for this target, ignored
+
+  * `host-linux.c` vs. `host-default.c`
+
+  * *fixincludes* stuff
+
+  * malloc?
+
+        -cat ../../hurd/gcc/config/i386/pmm_malloc.h > mm_malloc.h
+        +cat ../../hurd/gcc/config/i386/gmm_malloc.h > mm_malloc.h
+
+  * *libgomp*
+
+      * `libgomp/config/linux/`, `libgomp/config/linux/x86`
+
+      * `-ftls-model=initial-exec -march=i486 -mtune=i686`
+
+  * `-static` vs. `dlopen`
+
+        -checking whether a statically linked program can dlopen itself... no
+        +checking whether a statically linked program can dlopen itself... yes
+
+  * ISO/IEC TR 24733
+
+        -checking for ISO/IEC TR 24733 ... yes
+        +checking for ISO/IEC TR 24733 ... no
+
+  * `basic_file.cc`
+
+        +basic_file.cc: In member function 'std::streamsize std::__basic_file<char>::showmanyc()':
+        +basic_file.cc:344:33: warning: enumeral and non-enumeral type in conditional expression [enabled by default]
+
+  * `libtool: link: ar rc .libs/libstdc++.a [...]`
+
+    Just different order of object files, or another problem?
+
+  * `gcc/gthr-posix.h`
+
+        +In file included from ../.././gcc/gthr-default.h:1:0,
+        +                 from [...]/hurd/libobjc/../gcc/gthr.h:162,
+        +                 from [...]/hurd/libobjc/thr.c:43:
+        +[...]/hurd/libobjc/../gcc/gthr-posix.h: In function '__gthread_objc_thread_set_priority':
+        +[...]/hurd/libobjc/../gcc/gthr-posix.h:384:41: warning: unused parameter 'priority' [-Wunused-parameter]
+
+  * `java-signal.h`, `java-signal-aux.h`
+
+        -config.status: linking ../../../hurd/libjava/include/i386-signal.h to include/java-signal.h
+        -config.status: linking ../../../hurd/libjava/include/i386-signal.h to include/java-signal-aux.h
+        +config.status: linking ../../../hurd/libjava/include/default-signal.h to include/java-signal.h
+        +config.status: linking ../../../hurd/libjava/include/default-signal.h to include/java-signal-aux.h
+
+  * `jni_md.h`
+
+        -checking jni_md.h support... yes
+        +checking jni_md.h support... configure: WARNING: no
+
+  * *default library search path*
+
+        -checking for the default library search path... /lib /usr/lib /lib/i486-linux-gnu /usr/lib/i486-linux-gnu /usr/local/lib 
+        +checking for the default library search path... /lib /usr/lib
+
+  * `./classpath/[...]/*.properties`
+
+    Just different order of files, or another problem?
+
+  * `libjava/gnu/gcj/util/natGCInfo.cc`
+
+        +../../../hurd/libjava/gnu/gcj/util/natGCInfo.cc:440:1: warning: unused parameter 'name' [-Wunused-parameter]
+        +../../../hurd/libjava/gnu/gcj/util/natGCInfo.cc:446:1: warning: unused parameter 'name' [-Wunused-parameter]
+        +../../../hurd/libjava/gnu/gcj/util/natGCInfo.cc:452:1: warning: unused parameter 'name' [-Wunused-parameter]
+
+  * `gnu/java/net/natPlainSocketImpl.cc`
+
+        +gnu/java/net/natPlainSocketImpl.cc: In member function 'virtual jint gnu::java::net::PlainSocketImpl::available()':
+        +gnu/java/net/natPlainSocketImpl.cc:515:27: warning: enumeral and non-enumeral type in conditional expression [enabled by default]
+
+  * `gnu/java/nio/channels/natFileChannelImpl.cc`
+
+        +gnu/java/nio/channels/natFileChannelImpl.cc: In member function 'jint gnu::java::nio::channels::FileChannelImpl::available()':
+        +gnu/java/nio/channels/natFileChannelImpl.cc:388:20: warning: enumeral and non-enumeral type in conditional expression [enabled by default]
+
+  * `libgcj.la`, `.libs/libgcj.a`
+
+    Just different order of object files, or another problem?
+
+    Is there a pattern that GNU/Hurd hands out the files alphabetically sorted
+    where it wouldn't need to ([[!taglink open_issue_hurd]])?
+
+    Why does the GNU Hurd's `lib_build_` repeatedly contain a long series
+    (several KiB) of NUL (0) characters after the 5319th column in the
+    `/bin/bash ./libtool --tag=CXX --mode=link [...] -o libgcj.la [...]`
+    command line?  Is that only in the log?
+
+  * `libjvm.la`, `.libs/libjvm.so`, `libgij.la`, `.libs/libgij.so.12.0.0`
+
+    `-Wl,-Bsymbolic` vs. `-Wl,-Bsymbolic-functions`
+
+
+# Install
+
+    $ make SHELL=/bin/bash install 2>&1 | tee log_install
+    [...]
+
+(kepler.SCHWINGE defaults to using /bin/sh, grubber to /bin/bash; thus
+harmonized.)
+
+On grubber, this needs roughly 15 minutes, and takes up around 0.7 GiB.
+
+
+## Analysis
+
+    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd/master.build/log_install | sed -e "s%${PWD}%[...]%g" -e "s%i686-pc-linux-gnu%[ARCH]%g"') <(ssh grubber 'cd tmp/gcc/ && cat hurd/master.build/log_install | sed -e "s%${PWD}%[...]%g" -e "s%i686-unknown-gnu0\.3%[ARCH]%g"') > open_issues/gcc/log_install-diff
+
+[[log_install-diff]].
+
+  * `libtool: finish`: `ldconfig` is not run for the Hurd.
+
+  * `libjvm.la`, `.libs/libjvm.so`, `libgij.la`, `.libs/libgij.so.12.0.0`
+
+    `-Wl,-Bsymbolic` vs. `-Wl,-Bsymbolic-functions` (as above)
+
+
+# Testsuite
+
+<http://gcc.gnu.org/install/test.html>
+
+    $ make SHELL=/bin/bash -k check 2>&1 | tee log_check
+    [...]
+
+Blocked on [[fork_mach_port_mod_refs_ekern_urefs_owerflow]].
+
+
+## Analysis
