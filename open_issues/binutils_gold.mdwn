@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2011 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -11,3 +11,177 @@ License|/fdl]]."]]"""]]
 [[!tag open_issue_binutils]]
 
 Have a look at GOLD / port as needed.
+
+
+# teythoon's try / `mremap` issue
+
+IRC, #hurd, 2011-01-12
+
+    <teythoon> I've been looking into building gold on hurd and it built fine
+      with one minor tweak
+    <teythoon> and it's working fine according to its test suite
+    <teythoon> the only problem is that the build system is failing to detect
+      the hurdish mremap which lives in libmemusage
+    <teythoon> on linux it is in the libc so the check succeeds
+    <teythoon> any hints on how to fix this properly?
+    <antrik> hm... it's strange that it's a different library on the Hurd
+    <antrik> are the implementations compatible?
+    <teythoon> antrik: it seems so, though the declarations differ slightly
+    <antrik> I guess the best thing is to ask on the appropriate list(s) why
+      they are different...
+    <teythoon> teythoon@ganymede:~/build/gold/binutils-2.21/gold$ grep -A1
+      mremap /usr/include/sys/mman.h 
+    <teythoon> extern void *mremap (void *__addr, size_t __old_len, size_t
+      __new_len, int __flags, ...) __THROW;
+    <teythoon> vs
+    <antrik> of course it would be possible to modify the configure script to
+      check for the Hurd variant too; but first we should establish whether
+      here is actually any reason for being different, or it's just some
+      historical artefact that should be fixed...
+    <teythoon> teythoon@ganymede:~/build/gold/binutils-2.21/gold$ fgrep 'extern
+      void *mremap' mremap.c 
+    <teythoon> extern void *mremap (void *, size_t, size_t, int, ...);
+    <teythoon> the problem is that the test fails to link due to the fact that
+      mremap isn't in the libc on hurd
+    <antrik> yeah, it would be possible for the configure script to check
+      whether it works when the hurdish extra library is added explicitely
+    <antrik> but again, I don't see any good reason for being different here in
+      the first place...
+    <teythoon> so should I create a patch to move mremap?
+    <antrik> if it's not too complicated, that would be nice... it's always
+      easier to discuss when you already have code :-)
+    <antrik> OTOH, asking first might spare you some useless work if it turns
+      out there *is* some reason for being different after all...
+    so where is the right place to discuss this?
+    <antrik> bug-hurd mailing list and/or glibc mailing list. not sure which
+      one is better -- I guess it doesn't hurt to crosspost...
+
+[[mailing_lists/libc-alpha]] is the correct list, and cross-posting to
+[[mailing_lists/bug-hurd]] would be fine, too.
+
+    <teythoon> antrik: some further digging revealed that mremap belongs to
+      /lib/libmemusage.so on both hurd and linux
+    <teythoon> the only difference is that on linux there is a weak reference
+      to that function in /lib/libc-2.11.2.so
+    <teythoon> $ objdump -T /lib/libc-2.11.2.so | fgrep mremap
+    <teythoon> 00000000000cf7e0  w   DF .text  0000000000000028  GLIBC_2.2.5
+      mremap
+    <antrik> ah, it's probably simply a bug that we don't have this weak
+      reference too
+    <antrik> IIRC we had similar bugs before
+    <antrik> teythoon: can you provide a patch for that?
+    <teythoon> antrik: unfortunately I have no idea how that weak ref ended up
+      there
+
+    <guillem> teythoon: also the libmemusage.s seems to be just a debugging
+      library to be used by LD_PRELOAD or similar
+    <guillem> which override those memory functions
+    <guillem> the libc should provide actual code for those functions, even if
+      the symbol is declared weak (so overridable)
+    <guillem> teythoon: are you sure that's the actual problem? can you paste
+      somewhere the build logs with the error?
+    <teythoon> guillem: sure
+    <teythoon> http://paste.debian.net/104437/
+    <teythoon> that's the part of config.log that shows the detection (or the
+      failure to detect it) of mremap
+    <teythoon> this results in HAVE_MREMAP not being defined
+    <teythoon> as a consequence it is declared in gold.h and this declaration
+      conflicts with the one from sys/mman.h http://paste.debian.net/104438/
+    <teythoon> on linux the test for mremap succeeds
+    <guillem> teythoon: hmm oh I guess it's just what that, mremap is linux
+      specific so it's not available on the hurd
+    <guillem> teythoon: I just checked glibc and seems to confirm that
+    <braunr> CONFORMING TO This call is Linux-specific, and should not be used
+      in programs intended to be portable.
+    <teythoon> ah okay
+    <teythoon> so I guess we shouldn't ship an header with that declaration...
+    <guillem> teythoon: yeah :/ good luck telling that to drepper :)
+    <guillem> teythoon: I guess he'll suggest that everyone else needs to get
+      our own copy of sys/mman.h
+    <guillem> s/our/their/
+    <teythoon> hm, so how should I proceed?
+    <braunr> what's your goal ?
+    <braunr> detecting mremap ?
+    <teythoon> making binutils/gold compile ootb on hurd
+    <teythoon> I picked it from the open issues page ;)
+    <braunr> well, if there is no mremap, you need a replacement
+    <teythoon> gold has a replacement
+    <braunr> ok
+    <braunr> so your problem is fixing the detection of mremap right ?
+    <teythoon> yes
+    <braunr> ok, that's a build system question then :/
+    <braunr> you need to ask an autotools guy
+    <teythoon> well, actually the build system correctly detects the absence of
+      mremap
+    <braunr> (gold does use the autotools right ?)
+    <teythoon> yes
+    <braunr> oh, i'm lost now (i admit i didn't read the whole issue :/)
+    <teythoon> it is just that the declaration in sys/mman.h conflicts with
+      their own declaration
+    <braunr> ah
+    <braunr> so in the absence of mremap, they use their own builtin function
+    <teythoon> yes
+    <teythoon> and according to the test suite it is working perfectly
+    <teythoon> gold that is
+    <teythoon> the declaration in mman.h has an extra __THROW
+    <guillem> a workaround would be to rename gold's mremap to something else,
+      gold_mremap for example
+    <braunr> that's really the kind of annoying issue
+    <braunr> you either have to change glibc, or gold
+    <guillem> yeah
+    <braunr> you'll face difficulty changing glibc, as guillem told you
+    <guillem> the correct solution though IMO is to fix glibc
+    <braunr> but this may be true for gold too
+    <braunr> guillem: i agree
+    <antrik> maybe it would be easiest actually to implement mremap()?...
+    <braunr> but as this is something quite linux specific, it makes sense to
+      use another internal name, and wrap that to the linux mremap if it's
+      detected
+    <braunr> antrik: i'm nto sure
+    <antrik> braunr: I don't think using such workarounds is a good
+      idea. clearly there would be no issue if the header file wouldn't be
+      incorrect on Hurd
+    <braunr> antrik: that's why i said i agree with guillem when he says "the
+      correct solution though IMO is to fix glibc"
+    <teythoon> what exactly is the problem with getting a patch into glibc?
+    <braunr> the people involved
+    <guillem> teythoon: and touching a generic header file
+    <braunr> but feel free to try, you could be lucky
+    <teythoon> but glibc is not an linux specific piece of software, right?
+    <braunr> teythoon: no, it's not
+    <guillem> erm...
+    <braunr> teythoon: but in practice, it is
+    <guillem> supposedly not :)
+    <antrik> braunr: BTW, by "easiest" I don't mean coding alone, but
+      coding+pushing upstream :-)
+    <guillem> so the problem is, misc/sys/mman.h should be a generic header and
+      as such not include linux specific parts, which are not present on hurd,
+      kfreebsd, etc etc
+    <braunr> antrik: yes, that's why guillem and i suggested the workaround
+      thing in gold
+    <antrik> that also requires pushing upstream. and quite frankly, if I were
+      the gold maintainer, I wouldn't accept it.
+    <guillem> but the easiest (and wrong) solution in glibc to avoid maintainer
+      conflict will probably be copying that file under hurd's glibc tree and
+      install that instead
+    <braunr> antrik: implementing mremap could be relatively easy to do
+      actually
+    <braunr> antrik: IIRC, vm_map() supports overlapping
+    <antrik> well, actually the easiest solution would be to create a patch
+      that never goes upstream but is included in Debian, like many
+      others... but that's obviously not a good long-term plan
+    <antrik> braunr: yes, I think so too
+    <antrik> braunr: haven't checked, but I have a vague recollection that the
+      fundamentals are pretty much there
+    <antrik> teythoon: so, apart from an ugly workaround in gold, there are
+      essentially three options: 1. implement mremap; 2. make parts of mman.h
+      conditional; 3. use our own copy of mman.h
+    <antrik> 1. would be ideal, but might be non-trivial; 2. would might be
+      tricky to get right, and even more tricky to get upstream; 3. would be
+      simple, but a maintenance burden in the long term
+    <teythoon> looking at golds replacement code (mmap & memcpy) 1 sounds like
+      the best option performance wise
+
+[[!taglink open_issue_glibc]]: check if it is possible to implement `mremap`.
+[[I|tschwinge]] remember some discussion about this, but have not yet worked on
+locating it.  [[Talk to me|tschwinge]] if you'd like to have a look at this.
