@@ -1,0 +1,27 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+From: Samuel Thibault <samuel.thibault@gnu.org>
+Subject: rm -fr slowness
+
+I have always been surprised by the slowness of a mere rm -fr. Looking a
+bit inside, I see that diskfs_dirremove_hard() calls diskfs_file_update
+(dp, 1) (as does diskfs_truncate, diskfs_direnter_hard, and
+diskfs_dirrewrite_hard). diskfs_file_update then calls pager_sync on
+the pager, which thus writes back the whole ext2fs pager!
+
+This sounds a bit excessive to me, an unlink could just record it in
+memory and actually sync later.  Also, the wait flag is set, so we
+really waits for all I/Os, which basically means strictly serializing
+file removals: remove one file, wait for the disk to have done it
+(~10ms), remove the next one, etc.  I guess this is for safety reasons
+against crashes, but isn't the sync option there for such kind of
