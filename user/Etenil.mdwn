@@ -8,9 +8,23 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
+[[!toc]]
 
 ## Current task
 
-Write a pagein (prefetching) mechanism in Mach.
+Write a clusterized pagein (prefetching) mechanism in Mach.
 
--- More to come.
+## General information on system architecture
+
+In order to implement the pagein properly, it was necessary for me to get a general idea of the I/O path that data follows in the Hurd/Mach. To accomplish this, I've investigated top-down from the [[ext2fs]] translator to Mach. This section contains the main nodes that data passes through.
+
+This is based on my understanding of the system and is probably imprecise. Refer to the manuals of both Hurd and Mach for more detailed information.
+
+### Pagers
+Pagers are implemented in libpager and provide abstracted access to Mach's [[VM]]. A pager is a struct that contains callback function references. These are used to actually access the storage. In the case of FS translators, like ext2fs, the pager uses libstore to acess the underlying hardware.
+
+### Libstore
+Libstore provides abstracted access to Mach's storage access.
+
+I am currently looking at the way the stores call Mach, especially for memory allocation. My intuition is that memory is allocated in Mach when the function *store_create()*. I am currently investigating this to see where in Mach would the prefetcher fit.
+
