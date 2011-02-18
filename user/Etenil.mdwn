@@ -12,47 +12,29 @@ License|/fdl]]."]]"""]]
 
 ## Current task
 
-Write a clusterized pagein (prefetching) mechanism in Mach.
+Implement clustered paging in GNU Mach
 
 - - -
 
-## General information on system architecture
+## What the problem is
+In Mach, memory access is ensured by the VM, an abstraction in the kernel. The VM is mapped by pages, which size is arbitrary and defined based on hardware specs. A single block of memory can then span over many pages, i.e. a file on a file system can represent a lot of pages.
 
-In order to implement the pagein properly, it was necessary for me to get a general idea of the I/O path that data follows in the Hurd/Mach. To accomplish this, I've investigated top-down from the [[hurd/translator/ext2fs]] translator to Mach. This section contains the main nodes that data passes through.
+When a process attempts to access pages that don't reside in the physical memory (RAM), the MMU detects this and triggers a page fault. Page faults are then handled and the kernel calls down the process associated with the memory pages on a *one by one basis*.
 
-This section is probably unnecessary to implement the prefetcher in Mach, however it is always interesting to understand how things work so we can notice when they get broken.
+This is where the problem lies. Hard disks are inherently efficient at sequentially writing large chunks of data whereas they cope badly with random access, plus the kernel wastes time writing/reading a page and handling the next page. All of these make for slow I/O in Mach.
 
-This is based on my understanding of the system and is probably imprecise. Refer to the manuals of both Hurd and Mach for more detailed information.
+## Solutions
+There are a couple of ways I could think of to solve this problem. Pages could be enlarged, but that would cause a lot more problems. Or pages must be handled by groups instead of one by one. This means the changes will also need to be applied in the way user-space processes talk to Mach.
 
-### Pagers
-Pagers are implemented in libpager and provide abstracted access to Mach's [[microkernel/mach/virtual address space]]. A pager is a struct that contains callback function references. These are used to actually access the storage. In the case of FS translators, like ext2fs, the pager uses libstore to acess the underlying hardware.
+## What's already been done
+[[hurd/user/KAM]] has already made a patch that provides basic page clustering. I have yet to understand it completely, but there are troubling changes in the patch, most notably the removal of continuations in *vm_fault* and *vm_fault_page*.
 
-### Libstore
-Libstore provides abstracted access to Mach's storage access.
+So far, what I can tell is that KAM seems to have modified the memory objects in Mach so that they handle clusters of pages.
 
-I am currently looking at the way the stores call Mach, especially for memory allocation. My intuition is that memory is allocated in Mach when the function *store_create()*. I am currently investigating this to see how the memory allocation process happens in practice.
+## What I intend to do
+Starting from KAM's work, I'll try and at least proxy the current behaviour in the kernel so as to keep backwards compatibility, at least until all user-space processes are converted (maybe some sort of deprecation warning would help porting). I'll also need to modify ext2fs to make it use the clustered paging feature, hopefully it'll improve performance quite a bit.
 
-### Mach
-VM allocation happens with a call to:
+## Problems
+As *braunr* and *antrik* pointed out on IRC, I seriously lack knowledge about kernel programming, and this is quite a big task. I also don't fully understand the inner workings of the kernel yet, even though *braunr* helped me a lot to understand the VM and page handling.
 
-    kern_return_t vm_allocate (vm_task_t target_task, vm_address_t *address, vm_size_t size, boolean_t anywhere)
-
-
-*vm_allocate()* looks more and more like a red herring. What I'm trying to prefetch is data on hard drives. I'll rather look at the devices in Mach.
-
-- - -
-
-## Implementation plan
-
-### Ideas
-To start of with, I will toy with the VM (even if it breaks stuff). My initial intent is to systematically allocate more memory than requested in the hope that the excess will be manipulated by the task in the near future, thus saving on future I/O requests.
-
-I'd also need to keep track of the pre-allocated memory and so that I can pass it on to the task on demand and prefetch even more. I could also possibly time the prefetched data and unallocate it if it's not requested after a while, but that's just an idea.
-
-The tricky part is to understand how the memory allocation works in Mach and to create an additional struct for the prefetched data.
-
-### Foreseeable difficulties
-* Tracking the prefetched memory
-* Unallocating prefetched memory along with the requested memory
-* Shared prefetched memory (i.e. a task requested memory, some more was prefetched and a second task used the prefetched memory)
-* Page faults
+I'll do what I can and keep maintaining this page so others may pickup where I left if I were to give up.
