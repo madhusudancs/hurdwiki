@@ -1,0 +1,103 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_gnumach open_issue_hurd]]
+
+IRC, freenode, #hurd, 2011-02-16
+
+    <braunr> exceptfor the kernel, everything in an address space is
+      represented with a VM object
+    <braunr> those objects can represent anonymous memory (from malloc() or
+      because of a copy-on-write)
+    <braunr> or files
+    <braunr> on classic Unix systems, these are files
+    <braunr> on the Hurd, these are memory objects, backed by external pagers
+      (like ext2fs)
+    <braunr> so when you read a file
+    <braunr> the kernel maps it from ext2fs in your address space
+    <braunr> and when you access the memory, a fault occurs
+    <braunr> the kernel determines it's a region backed by ext2fs
+    <braunr> so it asks ext2fs to provide the data
+    <braunr> when the fault is resolved, your process goes on
+    <etenil> does the faul occur because Mach doesn't know how to access the
+      memory?
+    <braunr> it occurs because Mach intentionnaly didn't back the region with
+      physical memory
+    <braunr> the MMU is programmed not to know what is present in the memory
+      region
+    <braunr> or because it's read only
+    <braunr> (which is the case for COW faults)
+    <etenil> so that means this bit of memory is a buffer that ext2fs loads the
+      file into and then it is remapped to the application that asked for it
+    <braunr> more or less, yes
+    <braunr> ideally, it's directly written into the right pages
+    <braunr> there is no intermediate buffer
+    <etenil> I see
+    <etenil> and as you told me before, currently the page faults are handled
+      one at a time
+    <etenil> which wastes a lot of time
+    <braunr> a certain amount of time
+    <etenil> enough to bother the user :)
+    <etenil> I've seen pages have a fixed size
+    <braunr> yes
+    <braunr> use the PAGE_SIZE macro
+    <etenil> and when allocating memory, the size that's asked for is rounded
+      up to the page size
+    <etenil> so if I have this correctly, it means that a file ext2fs provides
+      could be split into a lot of pages
+    <braunr> yes
+    <braunr> once in memory, it is managed by the page cache
+    <braunr> so that pages more actively used are kept longer than others
+    <braunr> in order to minimize I/O
+    <etenil> ok
+    <braunr> so a better page cache code would also improve overall performance
+    <braunr> and more RAM would help a lot, since we are strongly limited by
+      the 768 MiB limit
+    <braunr> which reduces the page cache size a lot
+    <etenil> but the problem is that reading a whole file in means trigerring
+      many page faults just for one file
+    <braunr> if you want to stick to the page clustering thing, yes
+    <braunr> you want less page faults, so that there are less IPC between the
+      kernel and the pager
+    <etenil> so either I make pages bigger
+    <etenil> or I modify Mach so it can check up on a range of pages for faults
+      before actually processing
+    <braunr> you *don't* change the page size
+    <etenil> ah
+    <etenil> that's hardware isn't it?
+    <braunr> in Mach, yes
+    <etenil> ok
+    <braunr> and usually, you want the page size to be the CPU page size
+    <etenil> I see
+    <braunr> current CPU can support multiple page sizes, but it becomes quite
+      hard to correctly handle
+    <braunr> and bigger page sizes mean more fragmentation, so it only suits
+      machines with large amounts of RAM, which isn't the case for us
+    <etenil> ok
+    <etenil> so I'll try the second approach then
+    <braunr> that's what i'd recommand
+    <braunr> recommend*
+    <etenil> ok
+
+---
+
+IRC, freenode, #hurd, 2011-02-16
+
+    <antrik> etenil: OSF Mach does have clustered paging BTW; so that's one
+      place to start looking...
+    <antrik> (KAM ported the OSF code to gnumach IIRC)
+    <antrik> there is also an existing patch for clustered paging in libpager,
+      which needs some adaptation
+    <antrik> the biggest part of the task is probably modifying the Hurd
+      servers to use the new interface
+    <antrik> but as I said, KAM's code should be available through google, and
+      can serve as a starting point
+
+<http://lists.gnu.org/archive/html/bug-hurd/2010-06/msg00023.html>

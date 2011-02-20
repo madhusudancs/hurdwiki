@@ -1,0 +1,40 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!toc]]
+
+## Current task
+
+Implement clustered paging in GNU Mach
+
+- - -
+
+## What the problem is
+In Mach, memory access is ensured by the VM, an abstraction in the kernel. The VM is mapped by pages, which size is arbitrary and defined based on hardware specs. A single block of memory can then span over many pages, i.e. a file on a file system can represent a lot of pages.
+
+When a process attempts to access pages that don't reside in the physical memory (RAM), the MMU detects this and triggers a page fault. Page faults are then handled and the kernel calls down the process associated with the memory pages on a *one by one basis*.
+
+This is where the problem lies. Hard disks are inherently efficient at sequentially writing large chunks of data whereas they cope badly with random access, plus the kernel wastes time writing/reading a page and handling the next page. All of these make for slow I/O in Mach.
+
+## Solutions
+There are a couple of ways I could think of to solve this problem. Pages could be enlarged, but that would cause a lot more problems. Or pages must be handled by groups instead of one by one. This means the changes will also need to be applied in the way user-space processes talk to Mach.
+
+## What's already been done
+[[user/KAM]] has already made a patch that provides basic page clustering. I have yet to understand it completely, but there are troubling changes in the patch, most notably the removal of continuations in *vm_fault* and *vm_fault_page*.
+
+So far, what I can tell is that KAM seems to have modified the memory objects in Mach so that they handle clusters of pages.
+
+## What I intend to do
+Starting from KAM's work, I'll try and at least proxy the current behaviour in the kernel so as to keep backwards compatibility, at least until all user-space processes are converted (maybe some sort of deprecation warning would help porting). I'll also need to modify ext2fs to make it use the clustered paging feature, hopefully it'll improve performance quite a bit.
+
+## Problems
+As *braunr* and *antrik* pointed out on IRC, I seriously lack knowledge about kernel programming, and this is quite a big task. I also don't fully understand the inner workings of the kernel yet, even though *braunr* helped me a lot to understand the VM and page handling.
+
+I'll do what I can and keep maintaining this page so others may pickup where I left if I were to give up.
