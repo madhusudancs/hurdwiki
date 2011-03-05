@@ -70,3 +70,166 @@ abandoned).
   * [LaBrea](https://github.com/dustin/labrea/wiki), or similar tools can be
     used for modelling certain aspects of system behavior (long response times,
     for example).
+
+
+# Discussion
+
+freenode, #hurd channel, 2011-03-05:
+
+    <nixness> what about testing though?
+    <nixness> like sort of "what's missing? lets write tests for it so that
+      when someone gets to implementing it, he knows what to do. Repeat"
+      project
+    <antrik> you mean creating an automated testing framework?
+    <antrik> this is actually a task I want to add for this year, if I get
+      around to it :-)
+    <nixness> yeah I'd very much want to apply for that one
+    <nixness> cuz I've never done Kernel hacking before, but I know that with
+      the right tasks like "test VM functionality", I would be able to write up
+      the automated tests and hopefully learn more about what breaks/makes the
+      kernel
+    <nixness> (and it would make implementing the feature much less hand-wavy
+      and more correct)
+    <nixness> antrik, I believe the framework(CUnit right?) exists, but we just
+      need to write the tests.
+    <antrik> do you have prior experience implementing automated tests?
+    <nixness> lots of tests!
+    <nixness> yes, in Java mostly, but I've played around with CUnit
+    <antrik> ah, great :-)
+    <nixness> here's what I know from experience: 1) write basic tests. 2)
+      write ones that test multiple features 3) stress test [option 4)
+      benchmark and record to DB]
+    <youpi> well, what we'd rather need is to fix the issues we already know
+      from the existing testsuites :)
+
+[[GSoC project propsal|community/gsoc/project_ideas/testsuites]].
+
+    <nixness> youpi, true, and I think I should check what's available in way
+      of tests, but if the tests are "all or nothing" then it becomes really
+      hard to fix your mistakes
+    <youpi> they're not all or nothing
+    <antrik> youpi: the existing testsuites don't test specific system features
+    <youpi> libc ones do
+    <youpi> we could also check posixtestsuite which does too
+
+[[open_issues/open_posix_test_suite]].
+
+    <antrik> AFAIK libc has very few failing tests
+
+[[open_issues/glibc_testsuite]].
+
+    <youpi> err, like twenty?
+    <youpi> € grep -v '^#' expected-results-i486-gnu-libc | wc -l
+    <youpi> 67
+    <youpi> nope, even more
+    <antrik> oh, sorry, I confused it with coreutils
+    <pinotree> plus the binutils ones, i guess
+    <youpi> yes
+
+[[open_issues/binutils#weak]].
+
+    <antrik> anyways, I don't think relying on external testsuites for
+      regression testing is a good plan
+    <antrik> also, that doesn't cover unit testing at all
+    <youpi> why ?
+    <youpi> sure there can be unit testing at the translator etc. level
+    <antrik> if we want to implement test-driven development, and/or do serious
+      refactoring without too much risk, we need a test harness where we can
+      add specific tests as needed
+    <youpi> but more than often, the issues are at the libc / etc. level
+      because of a combination o fthings at the translator level, which unit
+      testing won't find out
+    * nixness yewzzz!
+    <nixness> sure unit testing can find them out. if they're good "unit" tests
+    <youpi> the problem is that you don't necessarily know what "good" means
+    <youpi> e.g. for posix correctness
+    <youpi> since it's not posix
+    <nixness> but if they're composite clever tests, then you lose that
+      granularity
+    <nixness> youpi, is that a blackbox test intended to be run at the very end
+      to check if you're posix compliant?
+    <antrik> also, if we have our own test harness, we can run tests
+      automatically as part of the build process, which is a great plus IMHO
+    <youpi> nixness: "that" = ?
+    <nixness> oh nvm, I thought there was a test stuie called "posix
+      correctness"
+    <youpi> there's the posixtestsuite yes
+    <youpi> it's an external one however
+    <youpi> antrik: being external doesn't mean we can't invoke it
+      automatically as part of the build process when it's available
+    <nixness> youpi, but being internal means it can test the inner workings of
+      certain modules that you are unsure of, and not just the interface
+    <youpi> sure, that's why I said it'd be useful too
+    <youpi> but as I said too, most bugs I've seen were not easy to find out at
+      the unit level
+    <youpi> but rather at the libc level
+    <antrik> of course we can integrate external tests if they exist and are
+      suitable. but that that doesn't preclude adding our own ones too. in
+      either case, that integration work has to be done too
+    <youpi> again, I've never said I was against internal testsuite
+    <antrik> also, the major purpose of a test suite is checking known
+      behaviour. a low-level test won't directly point to a POSIX violation;
+      but it will catch any changes in behaviour that would lead to one
+    <youpi> what I said is that it will be hard to write them tight enough to
+      find bugs
+    <youpi> again, the problem is knowing what will  lead to a POSIX violation
+    <youpi> it's long work
+    <youpi> while libc / posixtestsuite / etc. already do that
+    <antrik> *any* unexpected change in behaviour is likely to cause bugs
+      somewher
+    <youpi> but WHAT is "expected" ?
+    <youpi> THAT is the issue
+    <youpi> and libc/posixtessuite do know that
+    <youpi> at the translator level we don't really
+    <youpi> see the recent post about link()
+
+[link(dir,name) should fail with
+EPERM](http://lists.gnu.org/archive/html/bug-hurd/2011-03/msg00007.html)
+
+    <youpi> in my memory jkoenig pointed it out for a lot of such calls
+    <youpi> and that issue is clearly not known at the translator level
+    <nixness> so you're saying that the tests have to be really really
+      low-level, and work our way up?
+    <youpi> I'm saying that the translator level tests will be difficult to
+      write
+    <antrik> why isn't it known at the translator level? if it's a translator
+      (not libc) bug, than obviously the translator must return something wrong
+      at some point, and that's something we can check
+    <youpi> because you'll have to know all the details of the combinations
+      used in libc, to know whether they'll lead to posix issues
+    <youpi> antrik: sure, but how did we detect that that was unexpected
+      behavior?
+    <youpi> because of a glib test
+    <youpi> at the translator level we didn't know it was an unexpected
+      behavior
+    <antrik> gnulib actually
+    <youpi> and if you had asked me, I wouldn't have known
+    <antrik> again, we do *not* write a test suite to find existing bugs
+    <youpi> right, took one for the other
+    <youpi> doesn't really matter actually
+    <youpi> antrik: ok, I don't care then
+    <antrik> we write a test suite to prevent future bugs, or track status of
+      known bugs
+    <youpi> (don't care *enough* for now, I mean)
+    <nixness> hmm, so write something up antrik for GSoC :) and I'll be sure to
+      apply
+    <antrik> now that we know some translators return a wrong error status in a
+      particular situation, we can write a test that checks exactly this error
+      status. that way we know when it is fixed, and also when it breaks again
+    <antrik> nixness: great :-)
+    <nixness> sweet. that kind of thing would also need a db backend
+    <antrik> nixness: BTW, if you have a good idea, you can send an application
+      for it even if it's not listed among the proposed tasks...
+    <antrik> so you don't strictly need a writeup from me to apply for this :-)
+    <nixness> antrik, I'll keep that in mind, but I'll also be checking your
+      draft page
+    <nixness> oh cool :)
+    <antrik> (and it's a well known fact that those projects which students
+      proposed themselfs tend to be the most successful ones :-) )
+    * nixness draft initiated
+    <antrik> youpi: BTW, I'm surprised that you didn't mention libc testsuite
+      before... working up from there is probably a more effective plan than
+      starting with high-level test suites like Python etc...
+    <youpi> wasn't it already in the gsoc proposal?
+    <youpi> bummer
+    <antrik> nope
