@@ -58,6 +58,8 @@ abandoned).
     Developers*](http://lwn.net/Articles/412302/) by Steven Rostedt,
     2010-10-28.  [v2](http://lwn.net/Articles/414064/), 2010-11-08.
 
+  * <http://autotest.kernel.org/wiki/WhitePaper>
+
 
 # Related
 
@@ -237,3 +239,84 @@ EPERM](http://lists.gnu.org/archive/html/bug-hurd/2011-03/msg00007.html)
     <youpi> wasn't it already in the gsoc proposal?
     <youpi> bummer
     <antrik> nope
+
+freenode, #hurd channel, 2011-03-06:
+
+    <nixness> how's the hurd coding workflow, typically?
+
+*nixness* -> *foocraft*.
+
+    <foocraft> we're discussing how TDD can work with Hurd (or general kernel
+      development) on #osdev
+    <foocraft> so what I wanted to know, since I haven't dealt much with GNU
+      Hurd, is how do you guys go about coding, in this case
+    <tschwinge> Our current workflow scheme is... well... is...
+    <tschwinge> Someone wants to work on something, or spots a bug, then works
+      on it, submits a patch, and 0 to 10 years later it is applied.
+    <tschwinge> Roughly.
+    <foocraft> hmm so there's no indicator of whether things broke with that
+      patch
+    <foocraft> and how low do you think we can get with tests? A friend of mine
+      was telling me that with kernel dev, you really don't know whether, for
+      instance, the stack even exists, and a lot of things that I, as a
+      programmer, can assume while writing code break when it comes to writing
+      kernel code
+    <foocraft> Autotest seems promising
+
+See autotest link given above.
+
+    <foocraft> but in any case, coming up with the testing framework that
+      doesn't break when the OS itself breaks is hard, it seems
+    <foocraft> not sure if autotest isolates the mistakes in the os from
+      finding their way in the validity of the tests themselves
+    <youpi> it could be interesting to have scripts that automatically start a
+      sub-hurd to do the tests
+
+[[hurd/subhurd#unit_testing]].
+
+    <tschwinge> foocraft: To answer one of your earlier questions: you can do
+      really low-level testing.  Like testing Mach's message passing.  A
+      million times.  The questions is whether that makes sense.  And / or if
+      it makes sense to do that as part of a unit testing framework.  Or rather
+      do such things manually once you suspect an error somewhere.
+    <tschwinge> The reason for the latter may be that Mach IPC is already
+      heavily tested during normal system operation.
+    <tschwinge> And yet, there still may be (there are, surely) bugs.
+    <tschwinge> But I guess that you have to stop at some (arbitrary?) level.
+    <foocraft> so we'd assume it works, and test from there
+    <tschwinge> Otherwise you'd be implementing the exact counter-part of what
+      you're testing.
+    <tschwinge> Which may be what you want, or may be not.  Or it may just not
+      be feasible.
+    <foocraft> maybe the testing framework should have dependencies
+    <foocraft> which we can automate using make, and phony targets that run
+      tests
+    <foocraft> so everyone writes a test suite and says that it depends on A
+      and B working correctly
+    <foocraft> then it'd go try to run the tests for A etc.
+    <tschwinge> Hmm, isn't that -- on a high level -- have you have by
+      different packages?  For example, the perl testsuite depends (inherently)
+      on glibc working properly.  A perl program's testsuite depends on perl
+      working properly.
+    <foocraft> yeah, but afaik, the ordering is done by hand
+
+freenode, #hurd channel, 2011-03-07:
+
+    <antrik> actually, I think for most tests it would be better not to use a
+      subhurd... that leads precisely to the problem that if something is
+      broken, you might have a hard time running the tests at all :-)
+    <antrik> foocraft: most of the Hurd code isn't really low-level. you can
+      use normal debugging and testing methods
+    <antrik> gnumach of course *does* have some low-level stuff, so if you add
+      unit tests to gnumach too, you might run into issues :-)
+    <antrik> tschwinge: I think testing IPC is a good thing. as I already said,
+      automated testing is *not* to discover existing but unknown bugs, but to
+      prevent new ones creeping in, and tracking progress on known bugs
+    <antrik> tschwinge: I think you are confusing unit testing and regression
+      testing. http://www.bddebian.com/~hurd-web/open_issues/unit_testing/
+      talks about unit testing, but a lot (most?) of it is actually about
+      regression tests...
+    <tschwinge> antrik: That may certainly be -- I'm not at all an expert in
+      this, and just generally though that some sort of automated testing is
+      needed, and thus started collecting ideas.
+    <tschwinge> antrik: You're of course invited to fix that.
