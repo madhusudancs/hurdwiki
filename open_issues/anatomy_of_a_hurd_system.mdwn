@@ -1,0 +1,73 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!taglink open_issue_documentation]]
+
+A bunch of this should also be covered in other (introductionary) material,
+like Bushnell's Hurd paper.  All this should be unfied and streamlined.
+
+IRC, freenode, #hurd, 2011-03-08
+
+    <foocraft> I've a question on what are the "units" in the hurd project, if
+      you were to divide them into units if they aren't, and what are the
+      dependency relations between those units(roughly, nothing too pedantic
+      for now)
+    <antrik> there is GNU Mach (the microkernel); there are the server
+      libraries in the Hurd package; there are the actual servers in the same;
+      and there is the POSIX implementation layer in glibc
+    <antrik> relations are a bit tricky
+    <antrik> Mach is the base layer which implements IPC and memory management
+    <foocraft> hmm I'll probably allocate time for dependency graph generation,
+      in the worst case
+    <antrik> on top of this, the Hurd servers, using the server libraries,
+      implement various aspects of the system functionality
+    <antrik> client programs use libc calls to use the servers
+    <antrik> (servers also use libc to communicate with other servers and/or
+      Mach though)
+    <foocraft> so every server depends solely on mach, and no other server?
+    <foocraft> s/mach/mach and/or libc/
+    <antrik> I think these things should be pretty clear one you are somewhat
+      familiar with the Hurd architecture... nothing really tricky there
+    <antrik> no
+    <antrik> servers often depend on other servers for certain functionality
+
+---
+
+IRC, freenode, #hurd, 2011-03-12
+
+    <dEhiN> when mach first starts up, does it have some basic i/o or fs
+      functionality built into it to start up the initial hurd translators?
+    <antrik> I/O is presently completely in Mach
+    <antrik> filesystems are in userspace
+    <antrik> the root filesystem and exec server are loaded by grub
+    <dEhiN> o I see
+    <dEhiN> so in order to start hurd, you would have to start mach and
+      simultaneously start the root filesystem and exec server?
+    <antrik> not exactly
+    <antrik> GRUB loads all three, and then starts Mach. Mach in turn starts
+      the servers according to the multiboot information passed from GRUB
+    <dEhiN> ok, so does GRUB load them into ram?
+    <dEhiN> I'm trying to figure out in my mind how hurd is initially started
+      up from a low-level pov
+    <antrik> yes, as I said, GRUB loads them
+    <dEhiN> ok, thanks antrik...I'm new to the idea of microkernels, but a
+      veteran of monolithic kernels
+    <dEhiN> although I just learned that windows nt is a hybrid kernel which I
+      never knew!
+    <rm> note there's a /hurd/ext2fs.static
+    <rm> I belive that's what is used initially... right?
+    <antrik> yes
+    <antrik> loading the shared libraries in addition to the actual server
+      would be unweildy
+    <antrik> so the root FS server is linked statically instead
+    <dEhiN> what does the root FS server do?
+    <antrik> well, it serves the root FS ;-)
+    <antrik> it also does some bootstrapping work during startup, to bring the
+      rest of the system up
