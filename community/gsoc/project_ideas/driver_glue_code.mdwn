@@ -1,5 +1,4 @@
-[[!meta copyright="Copyright © 2008, 2009, 2010 Free Software Foundation,
-Inc."]]
+[[!meta copyright="Copyright © 2008, 2009, 2010, 2011 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -9,41 +8,64 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled
 [[GNU Free Documentation License|/fdl]]."]]"""]]
 
-[[!meta title="New Driver Glue Code"]]
+[[!meta title="New Driver Framework"]]
 
-Although a driver framework in user space would be desirable, presently the Hurd
-uses kernel drivers in the microkernel,
-[[GNU_Mach|microkernel/mach/gnumach]]. (And changing this would be far beyond a
-GSoC project...)
-
-The problem is that the drivers in GNU Mach are presently old Linux drivers
-(mostly from 2.0.x) accessed through a glue code layer. This is not an ideal
-solution, but works quite OK, except that the drivers are very old. The goal of
-this project is to redo the glue code, so we can use drivers from current Linux
-versions, or from one of the free BSD variants.
-
-While it would be certainly possible to create custom glue code again, a more
-sustainable and probably also easier approach is to use
-[[DDE]] instead -- it already
-does the hard work of providing an environment where the foreign drivers can
-run, and has the additional advantage of being externally maintained.
-
-This is a doable, but pretty involved project. Previous experience with driver
-programming probably is a must. (No Hurd-specific knowledge is required,
-though.)
+The Hurd presently uses hardware drivers
+implemented in the microkernel, [[GNU_Mach|microkernel/mach/gnumach]].
+These drivers are old Linux drivers (mostly from 2.0.x)
+accessed through a glue code layer.
+This is not an ideal solution, but works quite OK,
+except that the drivers are extremely old by now.
+Thus we need a new framework,
+so we can use drivers from current Linux versions instead,
+or perhaps from one of the free BSD variants.
 
 This is [[!GNU_Savannah_task 5488]].
 [[open issues/user-space device drivers]].
 [[open issues/device drivers and io systems]].
 
+The most promising approach for getting newer drivers seems to be [[DDE]]:
+it already does the hard work of providing an environment
+where the foreign drivers can run,
+and offers the additional benefit of being externally maintained.
+DDE also offers the necessary facilities
+for running all drivers in separate userspace processes,
+which is more desirable than drivers running in the microkernel.
+
+[[Zheng Da|zhengda]] has already done considerable work on this.
+The basic framework for using DDE in the Hurd is present,
+and network card drivers are already working very well.
+However, this work isn't fully integrated in the Hurd yet.
+The additional kernel interfaces that were created for this
+are still prototypes, and will need to be reworked.
+Also, there is no build system for automatically compiling
+all Linux network card drivers in one go.
+
+Other types of drivers are missing so far.
+Support for IDE drivers has been partially implemented,
+but isn't fully working yet.
+To fully replace the old in-kernel drivers,
+further infrastructure will be necessary
+to make userspace disk drivers usable for the root filesystem.
+
+Some other subsystems are missing or incomplete in DDE itself,
+and will require additional work that is not specific to the Hurd implementation.
+
+The goal of this task is to fix at least one of the mentioned major shortcomings:
+rework the kernel interfaces;
+provide a streamlined build system for the drivers;
+finish IDE support;
+or implement support for some other subsystem.
+<!-- should probably provide separate task descriptions for each... -->
+
+This is a doable, but pretty involved project.
+Previous experience with driver programming probably is a must.
+To be able to work on the framework,
+the student will also have to get a good understanding of certain aspects of Hurd,
+such as memory management for example.
 
 Possible mentors: Samuel Thibault (youpi)
 
-Exercise: Take a driver for some newer piece of hardware (e.g. Intel e1000
-ethernet) from a recent system, and try to port it to run in the existing
-driver framework in GNU Mach. Completing the port might be too involved for the
-exercise; but it's pretty likely that you will find something else to improve
-in the glue code while working on this...
-
-*Status*: [[Zheng Da|zhengda]] is working on DDE, and has mostly completed the
-initial port.
+Exercise: Get one of the not yet integrated Linux network card drivers to work.
+(Note: This should be straightforward,
+once you have the framework properly built and set up...)

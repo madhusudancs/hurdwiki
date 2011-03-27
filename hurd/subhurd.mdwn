@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2007, 2008, 2010 Free Software Foundation,
+[[!meta copyright="Copyright © 2007, 2008, 2010, 2011 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -20,6 +20,8 @@ when the instance of gdb stops the server but requires its use.  (Note: it is
 possible to use [[debugging/gdb/noninvasive_debugging]], but this is less
 flexible.)  Vice versa, it is also possible to use a subhurd to debug the
 *main* Hurd system, for example, the latter's root file system.
+
+[[!toc levels=2]]
 
 
 # Howto
@@ -139,3 +141,47 @@ translator|translator/ext2fs]]'s [[PID]], but this is no problem, as currently
 [[PID]]s are visible across subhurd boundaries.  (It is a [[!taglink
 open_issue_hurd]] whether this is the right thing to do in
 [[open_issues/virtualization]] contexts, but that's how it currently is.)
+
+
+<a name="unit_testing"></a>
+## Unit Testing
+
+freenode, #hurd channel, 2011-03-06:
+
+From [[open_issues/unit_testing]].
+
+    <youpi> it could be interesting to have scripts that automatically start a
+      sub-hurd to do the tests
+    <youpi> though that'd catch sub-hurd issues :)
+    <foocraft> so a sub-hurd is a hurd that I can run on something that I know
+      works(like linux)?
+    <foocraft> Virtual machine I would think
+    <foocraft> and over a network connection it would submit results back to
+      the host :p
+    * foocraft brain damage
+    <youpi> sub-hurd is a bit like chroot
+    <youpi> except that it's more complete
+    <foocraft> oh okay
+    <youpi> i.e. almost everything gets replaced with what you want, except the
+      micro-kernel
+    <youpi> that way you can even test the exec server for instance, without
+      risks of damaging the host OS
+    <foocraft> and we know the micro-kernel works correctly, right youpi?
+    <youpi> well, at least it's small enough that most bugs are not there
+    <foocraft> 1) all tests run in subhurd 2) output results in a place in the
+      subhurd 3) tester in the host checks the result and pretty-prints it 4)
+      rinse & repeat
+    <youpi> the output can actually be redirected iirc
+    <youpi> since you give the sub-hurd a "console"
+    <foocraft> youpi, yup yeah, so now it's more like chroot if that's the case
+    <youpi> it really looks like chroot, yes
+    <foocraft> but again, there's this subset of tests that we need to have
+      that ensures that even the tester running on the subhurd is valid, and it
+      didn't break because of a bug in the subhurd
+    <tschwinge> As long as you do in-system testing, you'll always (have to)
+      rely on some functionality provided by the host system.
+    <foocraft> the worst thing that could happen with unit testing is false
+      results that lead someone to try to fix something that isn't broken :p
+    <tschwinge> Yes.
+    <youpi> usually one tries to repeat the test by hand in a normal
+      environment

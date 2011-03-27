@@ -1,0 +1,163 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+[RPC to self with rendez-vous leading to duplicate port
+destroy](http://lists.gnu.org/archive/html/bug-hurd/2011-03/msg00045.html)
+
+IRC, freenode, #hurd, 2011-03-14
+
+    <antrik> youpi: I wonder, why does the root FS call diskfs_S_dir_lookup()
+      at all?...
+    <youpi> errr, because a client asked for it?
+    <youpi> (problem with RPCs is you can't easily know where they come from :)
+      )
+    <youpi> (especially when it's the root fs...)
+    <antrik> ah, it's about a client request... didn't see that
+    <youpi> well, I just said "is called", yes
+    <antrik> I do not really understand though why it tries to reauthenticate
+      against itself...
+    <antrik> I fear my memory of the lookup mechanism grew a bit dim
+    <youpi> see the source
+    <youpi> it's about a translated entry
+    <antrik> (and I never fully understood some aspects anyways...)
+    <youpi> it needs to start the translated entry as another user, possibly
+    <antrik> yes, but a translated entry normally would be served by *another*
+      process?...
+    <youpi> sure, but ext2fs has to prepare it
+    <youpi> thus reauthenticate to prepare the correct set of rights
+    <antrik> prepare what?
+    <youpi> rights
+    <youpi> so the process is not root, doesn't have / opened as root, etc.
+    <antrik> rights for what?
+    <youpi> err, about everything
+    <antrik> IIRC the reauthentication is done by the parent FS on the port to
+      the *translated* node
+    <antrik> and the translated node should be a different process?...
+    <youpi> that's not what I read in the source
+    <youpi> fshelp_fetch_root
+    <youpi> ports[INIT_PORT_CRDIR] = reauth (getcrdir ());
+    <youpi> here, getcrdir() returns ext2fs itself
+    <antrik> well, perhaps the issue is that I have no idea what
+      fshelp_fetch_root() does, nor why it is called here...
+    <youpi> it notably starts the translator that dir_lookup is looking at, if
+      needed
+    <youpi> possibly as a different user, thus reauthentication of CRDIR
+    <antrik> so this is about a port that is passed to the translator being
+      started?
+    <youpi> no
+    <youpi> well, depends on what you mean by "port"
+    <youpi> it's about reauthenticating a port to be passed to the translator
+      being started
+    <youpi> and for that a rendez-vous port is needed for the reauthentication
+    <youpi> and that's the one at stake
+    <antrik> yeah, I meant the port that is reauthenticated
+    <antrik> what is CRDIR?
+    <youpi> current root dir ...
+    <antrik> so the parent translator passes it's own root dir to the child
+      translator; and the issue is that for the root FS the root dir points to
+      the root FS itself...
+    <youpi> yes
+    <antrik> OK, that makes sense
+    <youpi> (but that's only one example, rgrep mach_port_destroy hurd/ show
+      other potential issues)
+    <antrik> well, that's actually what I wanted to mention next... why is the
+      rendez-vous port destroyed, instead of just deallocating the port right
+      and letting reference counting to it's thing?...
+    <antrik> do its thing
+    <youpi> "just to make sure" I guess
+    <antrik> it's pretty obvious that this will cause trouble for any RPC
+      referencing itself...
+    <youpi> well, follow-up with that on the list
+    <youpi> with roland/tb in CC
+    <youpi> only they would know any real reason for destroy
+    <youpi> btw, if you knew how we could make _hurd_select()'s raw __mach_msg
+      call be interruptible by signals, that'll permit to fix sudo
+    <youpi> (damn, I need sleep, my tenses are all wrong)
+    <antrik> BTW, does this cause any actual trouble?...
+    <antrik> I don't know much about interruption... cfhammer might have a
+      better idea, he look into that stuff quite a bit AIUI
+    <antrik> looked
+    <antrik> (hehe, it's not only your tenses... guess there's something in the
+      ether ;-) )
+    <youpi> it makes sudo, mailq, etc. fail sometimes
+    <antrik> I mean the rendez-vous thing
+    <youpi> that's it, yes 
+    <youpi> sudo etc. fail at least due to this
+    <antrik> so these are two different problems that both affect sudo?
+    <antrik> (rendez-vous and interruption I mean)
+    <youpi> yes
+    <youpi> with my patch the buildds have much fewer issues, but still some
+    <youpi> (my interrupt-related patch)
+    <youpi> I'm installing a s/destroy/deallocate/ version of ext2fs on the
+      buildds, we'll see how it behaves
+    <youpi> (it fixes my testcase at least)
+    <antrik> interrupt-related patch?
+    <antrik> only thing interrupt-related I remember was the reauthentication
+      race...
+    <youpi> that's what I mean
+    <antrik> well, cfhammer investigated this is quite some depth, explaining
+      quite well why the race is only mitigated but still exists... problem is
+      that we didn't know how to fix it properly
+    <antrik> because nobody seems to understand the cancellation code, except
+      perhaps for Roland and Thomas
+    <antrik> (and I'm not even entirely sure about them :-) )
+    <antrik> I think his findings and our conclusions are documented on the
+      ML...
+    <youpi> by "much fewer issues", I mean that some of the symptoms have
+      disappeared, others haven't
+    <antrik> BTW, couldn't the rendez-vous thing be worked around by simply
+      ignoring the errors from the failing deallocate?...
+    <youpi> no, failing deallocate are actually dangerous
+    <antrik> why?
+    <youpi> since the name might have been reused for something else in the
+      meanwhile
+    <youpi> that's the whole point of the warning I had added in the kernel
+      itself
+    <antrik> I see
+    <youpi> such things really deserve tracking, since they can have any kind
+      of consequence
+    <antrik> does Mach try to reuse names quickly, rather than only after
+      wrapping around?...
+    <youpi> it seems to
+    <antrik> OK, then this is a serious problem indeed
+    <youpi> (note: I rarely divine issues when there aren't actual frequent
+      symptoms :) )
+    <antrik> well, the problem with the warning is that it only shows in the
+      cases that do *not* cause a problem... so it's hard to associate them
+      with any specific issues
+    <youpi> well, most of the time the port is not reused quickly enough
+    <youpi> so in most case it shows up more often than causing problem
+
+IRC, freenode, #hurd, 2011-03-14
+
+    <youpi> ok, mach_port_deallocate actually can't be used
+    <youpi> since mach_reply_port() returns a receive right, not a send right
+    * youpi guesses he will really have to manage to understand all that port
+        stuff completely
+    <antrik> oh, right
+    <antrik> youpi: hm... now I'm confused though. if one client holds a
+      receive right, the other client (or in this case the same process) should
+      have a send or send-once right -- these should *not* share the same name
+      in my understanding
+    <antrik> destroying the receive right should turn the send right into a
+      dead name
+    <antrik> so unless I'm missing something, the destroy shouldn't be a
+      problem, and there must be something else going wrong
+    <antrik> hm... actually I'm probably wrong
+    <antrik> yeah, definitely wrong. receive rights and "ordinary" send rights
+      share the name. only send-once rights are special
+    <antrik> I wonder whether the problem could be worked around by using a
+      send-once right...
+    <antrik> mach_port_mod_refs(mach_task_self(), name,
+      MACH_PORT_RIGHT_RECEIVE, -1) can be used to deallocate only the receive
+      right
+    <antrik> oh, you already figured that out :-)
