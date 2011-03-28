@@ -12,7 +12,6 @@ License|/fdl]]."]]"""]]
 This page discusses things for [[Unix]] systems, there is a separate page for
 [[Microsoft_Windows]] systems.
 
-
 # Readily Available Images
 
 To try out the Hurd you can use the image of the Debian GNU/Hurd: 
@@ -50,38 +49,127 @@ Instructions for creating a qemu image from the install CDs from debian installe
 
 # KVM acceleration
 
+Check if your CPU supports kvm:
+    $ egrep '^flags.*(vmx|svm)' /proc/cpuinfo
+
+#### If you don't have hardware support (slow):
+    $ apt-get install qemu
+
+#### If you have hardware support (recommended):
+    $ apt-get install qemu-kvm
+    $ modprobe kvm
+
+Intel VTx/VTd: Enable Intel kvm in the BIOS
+
+On a HP xw4600 Workstation: F10, Security->System Security; Enable VTx and VTd
+
+Check that the kvm module is loaded:
+
+    $ lsmod|grep kvm
+    kvm_intel              38050  0
+    kvm                   213800  1 kvm_intel
+
+    $ ls -l /dev/kvm
+    crw-rw----+ 1 root kvm 10, 232 Mar 14 15:02 /dev/kvm
+
+Add yourself to the kvm group: adduser your_user kvm; logout; login
+
+AMD SVM (AMD-V): Enable AMD-V in the BIOS if not enabled.
+
+Check that the kvm module is loaded:
+
+    $ lsmod|grep kvm
+    kvm_amd               31862  0
+    kvm                   214088  1 kvm_amd
+
+More info on kvm at: http://www.linux-kvm.org/page/FAQ
+
 If your machine supports hardware acceleration, you should really use the kvm variant of qemu, as it speeds things quite a lot. Note however that kvm tends to make assumptions when accelerating things in the linux kernel, you may need some -no-kvm-something option. At the moment in Debian you need to pass
 
     -no-kvm-irqchip
 
-else IRQs may hang sooner or later.
+if you are running Linux kernels 2.6.37 or 2.6.38 else IRQs may hang sooner or later. The kvm irq problems will be solved in kernel 2.6.39. 
 
-# Installing Debian/Hurd with QEMU
+# Installing Debian/Hurd with QEMU using the Debian installer
 
-First off you will need to create a disk image using `qemu-img`. I have set mine to 2 gigabytes, although you should be able to get away with less(Currently, the maximum disk image size one can create with QEMU is 4.5G).
+Note: If you have hardware support, replace the qemu commands below with kvm, e.g. qemu-ing -> kvm-img.
+
+First off you will need to create a disk image using `qemu-img`. I have set mine to 2 gigabytes, although you should be able to get away with less.
 
     $ qemu-img create hd0.img 2G
 
-Next you will want to start up QEMU and begin the installation process. The first time you run it you will want to use the `-boot d` option to boot off the cdrom.
+Next you will want to start up QEMU and begin the installation process.
 
-    $ qemu -hda hd0.img -cdrom debian-K16-hurd-i386-CD1.iso -fda floppy.img  -boot d
+    $ qemu -hda hd0.img -cdrom mini.iso -net nic,model=rtl8139
 
-Now at his point do the regular install using `hd0` as your harddrive. Partition it and install the base system. Once you have finished installing the base system select the reboot option as this will ensure the disk is properly un-mounted. When the Debian CD menu comes up again simply close QEMU.
+Now at his point do the regular install using `hd0` as your harddrive. Partition it and install the base system.
 
-Now run your image with floppy booting (`-boot a`) and finish the install (`./native-install` .. etc).
-You'll want to add more memory or activate swap for `./native-install` or it will hang.
-Starting qemu with `-m 512` worked for me.
-Swap can be activated like this (replace hd0s2 with your swap partition):
+In the installer make your choice of install option: Default install (or your choice)
 
-    $ cd /dev/
-    $ MAKEDEV hd0s2
-    $ /hurd/mach-defpager
-    $ swapon /dev/hd0s2
+    Language: English
 
-**Important:** Older versions on gnumach needed that the `-M isapc` was passed to qemu. This is not needed anymore.
+    Country, territory or area: your_choice
+
+    Locale: your_choice
+
+Note that even if you can set the country and locale, your keyboard is not yet supported.
+
+#### In case of problems with locale settings do the following after the installation is completed
+
+To get the correct timezone: dpkg-reconfigure tzdata
+
+To get your locale setting: nano /etc/locale.gen
+
+Update with command: locale-gen
+
+Network: Now configured automatically with dhcp
+    Parameters:
+    IP address: 10.0.2.15
+    Netmask: 255.255.0.0
+    Gateway: 10.0.2.2
+    Nameserver: 10.0.2.3
+
+    Qemu network setup:
+    QEMU VLAN     <------>  Firewall/DHCP server <-----> Internet
+                      |          (10.0.2.2)
+                      |
+                      ---->  DNS server (10.0.2.3)
+                      |
+                      ---->  SMB server (10.0.2.4)
+
+Partitioning method: Guided or your choice
+Partitioning /dev/hd0: All files in one partition.
+
+Note: Since partman is not yet fixed to set up to mount partitions automatically at reboot, it is crucial that you choose this option for now.
+
+Once you have finished installing the base system (might take some time) the system is rebooted and next boot will be from the hard disk and your are able to log in to your newly installed GNU/Hurd system. 
 
 Also see another text about how to [[gnu/create_an_image]] for the
 [[GNU_system|gnu]].
+
+## Running the installed system
+
+Starting qemu/qemu-kvm:
+    $ kvm -m 1024 -net nic,model=rtl8139 -net user,hostfwd=tcp::5555-:22 -hda hurd-install.kvm -vga vmware
+    vmsvga_value_write: guest runs Linux.
+
+See below on port forwarding in the networking section.
+
+If you have problems with grub hanging during boot with the vmware vga driver: Disable the graphic boot
+    $ nano /etc/default/grub
+    uncomment GRUB_TERMINAL=console
+    run /usr/sbin/update-grub
+
+### A few words about the qemu console
+
+During the graphical emulation, you can use the following keys:
+    <Ctrl><Alt>-f Toggle full screen
+    <Ctrl><Alt>-u Restore the screen's un-scaled dimensions
+    <Ctrl><Alt>-n Switch to virtual console 'n'. Standard console mappings are:
+    1 Target system display
+    2 Monitor
+    3 Serial port
+    <Ctrl><Alt> Toggle mouse and keyboard grab.
 
 
 # Transferring Files
@@ -131,6 +219,10 @@ If you just want to access the internet from within QEMU, you can setup pfinet f
     # settrans -afgp /servers/socket/2 /hurd/pfinet -i eth0 -a 10.0.2.15 -g 10.0.2.2 -m 255.255.255.0
     # echo "nameserver 10.0.2.3" > /etc/resolv.conf
 
+Alternately DHCP does work now: dhclient eth0
+
+To get ssh working: apt-get install random-egd openssh-server (Similarly for telnet if preferred)
+
 (See also <http://www.nongnu.org/qemu/qemu-doc.html#SEC32>.)
 
 Outgoing internet connections should just work then.
@@ -140,8 +232,34 @@ but `apt-get update` should work after you have filled out
 After that you should be able to install other network packages,
 but note that `ping` doesn't work with QEMU's user-networking stack.
 
-If you want to connect from the host system to the Hurd system running in QEMU, you need to setup something more advanced, like bridged networking.
+If you want to connect from the host system to the Hurd system running in QEMU, you can use port forwarding in QEMU or to setup something more advanced, like bridged networking.
 
+## Port Forwarding in QEMU
+(In the following we assume we use kvm!)
+
+#### Contacting Hurd from a terminal in  your host system
+This is the recommended way to work with a CLI since you have all your
+keyboard and locale settings are preserved.
+
+a) with ssh
+    $ kvm -m 1024 -net nic,model=rtl8139 -net user,hostfwd=tcp::5555-:22 -hda hurd-install.kvm &
+
+Contacting the running Hurd:
+    $ ssh -p5555 localhost
+Copying files:
+    1) On your host
+    To Hurd:   scp -p -P5555 file localhost:
+    From Hurd: scp -p -P5555 localhost:file .
+    2) On Hurd
+    To host:   scp -p file {10.0.2.2,your_host_ip}: .
+    From host: scp -p {10.0.2.2,your_host_ip}:file .
+
+b) with telnet
+    $ kvm -m 1024 -net nic,model=rtl8139 -net user,hostfwd=tcp::5556-:23 -hda hurd-install.qemu &
+Contacting the running Hurd:
+    $ telnet localhost 5556
+
+c) With the tap interface, see below.
 
 ## Bridged Networking
 
