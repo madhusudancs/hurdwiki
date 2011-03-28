@@ -1,0 +1,168 @@
+[[!meta copyright="Copyright © 2010, 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+[[!toc]]
+
+
+# Miscellaneous
+
+IRC, #hurd, around September 2010
+
+    <youpi> jkoenig: from a quick read, your procfs implementation seems quite
+      simple, probably much more what I was expecting from Madhusudan (who
+      probably now hates you :) )
+    <youpi> jkoenig: is it not possible to provide a /proc/self which points at
+      the client's pid?
+    <pinotree> (also, shouldn't /proc/version say something else than "Linux"?)
+    <youpi> to make linux tools work, no :/
+    <youpi> kfreebsd does that too
+    <pinotree> really?
+    <youpi> yes
+    <youpi> (kfreebsd, not freebsd)
+    <pinotree> does kbsd's one print just "Linux version x.y.z" too, or
+      something more eg in a second line?
+    <pinotree> (as curiosity)
+    <youpi> % cat /proc/version
+    <youpi> Linux version 2.6.16 (des@freebsd.org) (gcc version 4.3.5) #4 Sun
+      Dec 18 04:30:00 CET 1977
+    <pinotree> k
+    <giselher> I had some problems with killall5 to read the pid from /proc, Is
+      this now more reliable?
+    <youpi> I haven't tested with jkoenig's implementation
+    [...]
+    <pinotree> looks like he did 'self' too, see rootdir_entries[] in rootdir.c
+    <youpi> but it doesn't point at self
+    <antrik> youpi: there is no way to provide /proc/self, because the server
+      doesn't know the identity of the client
+    <youpi> :/
+    <antrik> youpi: using the existing mechanisms, we would need another magic
+      lookup type
+    <antrik> an alternative idea I discussed with cfhammer once would be for
+      the client to voluntarily provide it's identity to the server... but that
+      would be a rather fundamental change that requires careful consideration
+    <antrik> also, object migration could be used, so the implementation would
+      be provided by the server, but the execution would happen in the
+      client... but that's even more involved :-)
+    <youpi> but we've seen how much that'd help with a lot of other stuff
+    <antrik> I'm not sure whether we discussed this on the ML at some point, or
+      only on IRC
+    <youpi> it "just" needs to be commited :)
+    <antrik> in either case, it can't hurt to bring this up again :-)
+
+
+# root group
+
+IRC, #hurd, around October 2010
+
+    <pinotree> the only glitch is that files/dirs have the right user as
+      owner, but always with root group
+
+
+# `/proc/$pid/stat` being 400 and not 444, and some more
+
+IRC, freenode, #hurd, 2011-03-27
+
+    <pochu> is there a reason for /proc/$pid/stat to be 400 and not 444 like on
+      Linux?
+    <pochu> there is an option to procfs to make it 444 like Linux
+    <pochu> jkoenig: ^
+    <jkoenig> pochu, hi
+    <jkoenig> /proc/$pid/stat reveals information which is not usually
+      available on Hurd
+    <jkoenig> so I made it 400 by default to avoid leaking anything
+    <pochu> is there a security risk in providing that info?
+    <jkoenig> probably not so much, but it seemed like it's not really a
+      descision procfs should make
+    <jkoenig> I'm not sure which information we're speaking about, though, I
+      just remember the abstract reason.
+    <pochu> things like the pid, the memory, the priority, the state...
+    <pochu> sounds safe to expose
+    <jkoenig> also it's 0444 by default in "compatible" mode
+    <jkoenig> (which is necessary for the linux tools to work well)
+    <pochu> yeah I saw that :)
+    <pochu> my question is, should we change it to 0444 by default? if there
+      are no security risks and this improves compatibility, sounds like a good
+      thing to me
+    <pochu> we're already 'leaking' part of that info through e.g. ps
+    <jkoenig> I think /proc should be translated by /hurd/procfs --compatible
+      by default (I'm not sure whether it's already the case)
+    <jkoenig> also I'm not sure why hurd-ps is setuid root, rather than the
+      proc server being less paranoid, but maybe I'm missing something.
+    <pochu> jkoenig: it's not, at least not on Debian
+    <pochu> youpi: hi, what do you think about starting procfs with
+      --compatible by default?
+    <pochu> youpi: or changing /proc/$pid/stat to 0444 like on Linux
+      (--compatible does that among a few other things)
+    <youpi> I guess you need it for something?
+    <pochu> I'm porting libgtop :)
+    <youpi> k
+    <pochu> though I still think we should do this in procfs itself
+    <youpi> ymmv
+    <jkoenig> pochu, youpi, --compatible is also needed because mach's high
+      reported sysconf(_SC_CLK_TCK) makes some integers overflow (IIRC)
+    <youpi> agreed
+    <jkoenig> luckily, tools which use procfs usually try to detect the value
+      /proc uses rather than rely on CLK_TCK
+    <jkoenig> (so we can choose whatever reasonable value we want)
+
+IRC, freenode, #hurd, 2011-03-28
+
+    <antrik> jkoenig: does procfs expose any information that is not available
+      to everyone through the proc server?...
+    <antrik> also, why is --compatible not the default; or rather, why is there
+      even another mode? the whole point of procfs is compatibility...
+    <jkoenig> antrik, yes, through the <pid>/environ and (as mentionned above)
+      <pid>/stat files, but I've been careful to make these files readable only
+      to the process owner
+    <jkoenig> --compatible is not the default because it relaxes this paranoia
+      wrt. the stat file, and does not conform to the specification with regard
+      to clock tick counters
+    <antrik> what specification?
+    <jkoenig> the linux proc(5) manpage
+    <jkoenig> which says clock tick counters are in units of
+      1/sysconf(_SC_CLK_TCK)
+    <antrik> so you are saying that there is some information that the Hurd
+      proc server doesn't expose to unprivileged processes, but linux /proc
+      does?
+    <jkoenig> yes
+    <antrik> that's odd. I wonder what the reasoning behind that could be
+    <antrik> but this information is available through Hurd ps?
+    <antrik> BTW, what exactly is _SC_CLK_TCK supposed to be?
+    <pinotree> jkoenig: hm, just tried with two random processes on linux
+      (2.6.32), and enrivon is 400
+    <pinotree> (which makes sense, as you could have sensible informations eg
+      in http_proxy or other envvars)
+    <jkoenig> antrik, CLK_TCK is similar to HZ (maybe clock resolution instead
+      of time slices ?)
+    <jkoenig> sysconf(3) says "The number of clock ticks per second."
+    <jkoenig> antrik, I don't remember precisely what information this was, but
+      ps-hurd is setuid root.
+    <jkoenig> anyway, if you run procfs --compatible as a user and try to read
+      foo/1/stat, the result is an I/O error, which is the result of the proc
+      server denying access.
+    <antrik> but Linux /proc acutally uses HZ as the unit IIRC? or is
+      _SC_CLK_TCK=HZ on Linux?...
+    <jkoenig> I expect they're equal.
+    <jkoenig> in practice procps uses heuristics to guess what value /proc uses
+      (for compatibility purposes with older kernels)
+    <jkoenig> I don't think HZ is POSIX, while _SC_CLK_TCK is specifies as the
+      unit for (at least) the values returned by times()
+    <jkoenig> s/specifies/specified/
+    <jkoenig> antrik, some the information is fetched directly from mach by
+      libps, and understandably, the proc server does not give the task port to
+      anyone who asks.
+    <antrik> well, as long as the information is exposed through ps, there is
+      no point in hiding it in procfs...
+    <antrik> and I'm aware of the crazy guessing in libproc... I was actually
+      mentoring the previous procfs implementation
+    <antrik> (though I never got around to look at his buggy code...)
+    <jkoenig> ok
