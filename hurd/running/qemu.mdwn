@@ -50,6 +50,7 @@ Instructions for creating a qemu image from the install CDs from debian installe
 # KVM acceleration
 
 Check if your CPU supports kvm:
+
     $ egrep '^flags.*(vmx|svm)' /proc/cpuinfo
 
 #### If you don't have hardware support (slow):
@@ -72,7 +73,9 @@ Check that the kvm module is loaded:
     $ ls -l /dev/kvm
     crw-rw----+ 1 root kvm 10, 232 Mar 14 15:02 /dev/kvm
 
-Add yourself to the kvm group: adduser your_user kvm; logout; login
+Add yourself to the kvm group: 
+
+    $ adduser your_user kvm; logout; login
 
 AMD SVM (AMD-V): Enable AMD-V in the BIOS if not enabled.
 
@@ -94,9 +97,9 @@ if you are running Linux kernels 2.6.37 or 2.6.38 else IRQs may hang sooner or l
 
 Note: If you have hardware support, replace the qemu commands below with kvm, e.g. qemu-ing -> kvm-img.
 
-First off you will need to create a disk image using `qemu-img`. I have set mine to 2 gigabytes, although you should be able to get away with less.
+First off you will need to create a disk image using `qemu-img`. I have set mine to 4 gigabytes, although you should be able to get away with less.
 
-    $ qemu-img create hd0.img 2G
+    $ qemu-img create hd0.img 4G
 
 Next you will want to start up QEMU and begin the installation process.
 
@@ -107,23 +110,21 @@ Now at his point do the regular install using `hd0` as your harddrive. Partition
 In the installer make your choice of install option: Default install (or your choice)
 
     Language: English
-
     Country, territory or area: your_choice
-
     Locale: your_choice
 
 Note that even if you can set the country and locale, your keyboard is not yet supported.
 
-#### In case of problems with locale settings do the following after the installation is completed
+In case of problems with locale settings do the following after the installation is completed
 
-To get the correct timezone: dpkg-reconfigure tzdata
-
-To get your locale setting: nano /etc/locale.gen
-
-Update with command: locale-gen
+    To get the correct timezone:
+    $ dpkg-reconfigure tzdata
+    To get your locale setting: 
+    $ nano /etc/locale.gen
+    $ locale-gen
 
 Network: Now configured automatically with dhcp
-    Parameters:
+
     IP address: 10.0.2.15
     Netmask: 255.255.0.0
     Gateway: 10.0.2.2
@@ -138,7 +139,8 @@ Network: Now configured automatically with dhcp
                       ---->  SMB server (10.0.2.4)
 
 Partitioning method: Guided or your choice
-Partitioning /dev/hd0: All files in one partition.
+
+Partitioning `/dev/hd0`: All files in one partition.
 
 Note: Since partman is not yet fixed to set up to mount partitions automatically at reboot, it is crucial that you choose this option for now.
 
@@ -156,13 +158,15 @@ Starting qemu/qemu-kvm:
 See below on port forwarding in the networking section.
 
 If you have problems with grub hanging during boot with the vmware vga driver: Disable the graphic boot
+
     $ nano /etc/default/grub
     uncomment GRUB_TERMINAL=console
-    run /usr/sbin/update-grub
+    $ /usr/sbin/update-grub
 
 ### A few words about the qemu console
 
 During the graphical emulation, you can use the following keys:
+
     <Ctrl><Alt>-f Toggle full screen
     <Ctrl><Alt>-u Restore the screen's un-scaled dimensions
     <Ctrl><Alt>-n Switch to virtual console 'n'. Standard console mappings are:
@@ -242,11 +246,15 @@ This is the recommended way to work with a CLI since you have all your
 keyboard and locale settings are preserved.
 
 a) with ssh
+
     $ kvm -m 1024 -net nic,model=rtl8139 -net user,hostfwd=tcp::5555-:22 -hda hurd-install.kvm &
 
 Contacting the running Hurd:
+
     $ ssh -p5555 localhost
+
 Copying files:
+
     1) On your host
     To Hurd:   scp -p -P5555 file localhost:
     From Hurd: scp -p -P5555 localhost:file .
@@ -255,8 +263,11 @@ Copying files:
     From host: scp -p {10.0.2.2,your_host_ip}:file .
 
 b) with telnet
+
     $ kvm -m 1024 -net nic,model=rtl8139 -net user,hostfwd=tcp::5556-:23 -hda hurd-install.qemu &
+
 Contacting the running Hurd:
+
     $ telnet localhost 5556
 
 c) With the tap interface, see below.
