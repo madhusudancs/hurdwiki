@@ -1,18 +1,29 @@
+[[!meta copyright="Copyright © 2005, 2006, 2007, 2008, 2009, 2010, 2011 Free
+Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
 This page discusses things for [[Unix]] systems, there is a separate page for
 [[Microsoft_Windows]] systems.
 
-
 # Readily Available Images
 
-To try out the Hurd you can use the image of the Debian GNU/Hurd: 
+You can use the following images to give the GNU/Hurd a try.
 
-* [Official Debian GNU/Hurd QEMU image](http://ftp.debian-ports.org/debian-cd/K16/debian-hurd-k16-qemu.img.tar.gz)
+## Debian GNU/Hurd
 
-(!) Note that the following are unofficial images: they have been prepared by
+[[!inline pages=hurd/running/debian/qemu_image raw=yes feeds=no]]
+
+## Unofficial Images
+
+Note that the following images are unofficial ones: they have been prepared by
 volunteers and may not have been tested extensively.
-
-<!--* [Disk image](http://www.numenor.art.pl/balrog/hurd/) with an installation of
-  [[Debian_GNU/Hurd|running/debian]].-->
 
 * [Disk image](http://draketo.de/dateien/hurd/bab-hurd-qemu-2008-10-29.img.tar.bz2) 
   with a short intro on translators. Just start it with 'qemu *disk_image.img*'. 
@@ -20,9 +31,10 @@ volunteers and may not have been tested extensively.
   with it, please have a look at [[its_wikipage|hurd/running/qemu/babhurd_image]]. And when 
   you use it, please [tell me your experience with it](http://draketo.de/contact)! - [[community/weblogs/ArneBab]]
 
-Also you can use qemu to easily try one of our [[Hurd_LiveCDs|hurd/running/live_cd/]]. 
+# Arch Hurd Live CD
 
-<!--* [Announcement](http://lists.debian.org/debian-hurd/2007/09/msg00000.html) of  another image. - The link in the email doesn't work anymore, too old. //-->
+Also you can use QEMU to easily try one of the
+[[Hurd_LiveCDs|hurd/running/live_cd/]].
 
 
 # What is Needed to create a QEMU image
@@ -39,38 +51,134 @@ Instructions for creating a qemu image from the install CDs from debian installe
 
 # KVM acceleration
 
+Check if your CPU supports kvm:
+
+    $ egrep '^flags.*(vmx|svm)' /proc/cpuinfo
+
+#### If you don't have hardware support (slow):
+    $ apt-get install qemu
+
+#### If you have hardware support (recommended):
+    $ apt-get install qemu-kvm
+    $ modprobe kvm
+
+Intel VTx/VTd: Enable Intel kvm in the BIOS
+
+On a HP xw4600 Workstation: F10, Security->System Security; Enable VTx and VTd
+
+Check that the kvm module is loaded:
+
+    $ lsmod|grep kvm
+    kvm_intel              38050  0
+    kvm                   213800  1 kvm_intel
+
+    $ ls -l /dev/kvm
+    crw-rw----+ 1 root kvm 10, 232 Mar 14 15:02 /dev/kvm
+
+Add yourself to the kvm group: 
+
+    $ adduser your_user kvm; logout; login
+
+AMD SVM (AMD-V): Enable AMD-V in the BIOS if not enabled.
+
+Check that the kvm module is loaded:
+
+    $ lsmod|grep kvm
+    kvm_amd               31862  0
+    kvm                   214088  1 kvm_amd
+
+More info on kvm at: http://www.linux-kvm.org/page/FAQ
+
 If your machine supports hardware acceleration, you should really use the kvm variant of qemu, as it speeds things quite a lot. Note however that kvm tends to make assumptions when accelerating things in the linux kernel, you may need some -no-kvm-something option. At the moment in Debian you need to pass
 
     -no-kvm-irqchip
 
-else IRQs may hang sooner or later.
+to the command line, see below, if you are running Linux kernels 2.6.37 or 2.6.38 else IRQs may hang sooner or later. The kvm irq problems will be solved in kernel 2.6.39. 
 
-# Installing Debian/Hurd with QEMU
+# Installing Debian/Hurd with QEMU using the Debian installer
 
-First off you will need to create a disk image using `qemu-img`. I have set mine to 2 gigabytes, although you should be able to get away with less(Currently, the maximum disk image size one can create with QEMU is 4.5G).
+Note: If you have hardware support, replace the qemu commands below with kvm, e.g. qemu-ing -> kvm-img.
 
-    $ qemu-img create hd0.img 2G
+First off you will need to create a disk image using `qemu-img`. I have set mine to 4 GiB, although you should be able to get away with less.
 
-Next you will want to start up QEMU and begin the installation process. The first time you run it you will want to use the `-boot d` option to boot off the cdrom.
+    $ qemu-img create hd0.img 4G
 
-    $ qemu -hda hd0.img -cdrom debian-K16-hurd-i386-CD1.iso -fda floppy.img  -boot d
+Next you will want to start up QEMU and begin the installation process.
 
-Now at his point do the regular install using `hd0` as your harddrive. Partition it and install the base system. Once you have finished installing the base system select the reboot option as this will ensure the disk is properly un-mounted. When the Debian CD menu comes up again simply close QEMU.
+    $ qemu -m 512 -hda hd0.img -cdrom mini.iso -net nic,model=rtl8139 -net user
 
-Now run your image with floppy booting (`-boot a`) and finish the install (`./native-install` .. etc).
-You'll want to add more memory or activate swap for `./native-install` or it will hang.
-Starting qemu with `-m 512` worked for me.
-Swap can be activated like this (replace hd0s2 with your swap partition):
+Now at his point do the regular install using `hd0` as your harddrive. Partition it and install the base system.
 
-    $ cd /dev/
-    $ MAKEDEV hd0s2
-    $ /hurd/mach-defpager
-    $ swapon /dev/hd0s2
+In the installer make your choice of install option: Default install (or your choice)
 
-**Important:** Older versions on gnumach needed that the `-M isapc` was passed to qemu. This is not needed anymore.
+    Language: English
+    Country, territory or area: your_choice
+    Locale: your_choice
+
+Note that even if you can set the country and locale, your local keyboard is not yet supported.
+
+In case of problems with timezone or locale settings do the following after the installation is completed
+
+    To get the correct timezone:
+    $ dpkg-reconfigure tzdata
+    To get your locale setting: 
+    $ nano /etc/locale.gen
+    $ locale-gen
+
+Network: Now configured automatically with dhcp
+
+    IP address: 10.0.2.15
+    Netmask: 255.255.0.0
+    Gateway: 10.0.2.2
+    Nameserver: 10.0.2.3
+
+    Qemu network setup:
+    QEMU VLAN     <------>  Firewall/DHCP server <-----> Internet
+                      |          (10.0.2.2)
+                      |
+                      ---->  DNS server (10.0.2.3)
+                      |
+                      ---->  SMB server (10.0.2.4)
+
+Partitioning method: Guided (or your choice)
+
+Partitioning `/dev/hd0`: All files in one partition.
+
+**Important**: Since partman does not yet mount other partitions than / automatically at reboot, it is crucial that you choose this option for now.
+
+Once you have finished installing the base system (might take some time) the system is rebooted and next boot will be from the hard disk. Now you are able to log in to your newly installed GNU/Hurd system. 
 
 Also see another text about how to [[gnu/create_an_image]] for the
 [[GNU_system|gnu]].
+
+## Running the installed system
+
+Starting qemu/qemu-kvm:
+
+    $ kvm -m 512 -net nic,model=rtl8139 -net user,hostfwd=tcp::5555-:22 -hda hd0.img -vga vmware
+    vmsvga_value_write: guest runs Linux.
+
+Note: See below on port forwarding in the networking section.
+
+Note: Using the vmware vga driver is useful for setting up X windows, see [Debian GNU/Hurd](http://www.debian.org/ports/hurd/hurd-install)
+
+If you have problems with grub hanging during boot with the vmware vga driver: Disable the graphic boot
+
+    $ nano /etc/default/grub
+    uncomment GRUB_TERMINAL=console
+    $ /usr/sbin/update-grub
+
+### A few words about the qemu console
+
+During the graphical emulation, you can use the following keys:
+
+    <Ctrl><Alt>-f Toggle full screen
+    <Ctrl><Alt>-u Restore the screen's un-scaled dimensions
+    <Ctrl><Alt>-n Switch to virtual console 'n'. Standard console mappings are:
+    1 Target system display
+    2 Monitor
+    3 Serial port
+    <Ctrl><Alt> Toggle mouse and keyboard grab.
 
 
 # Transferring Files
@@ -88,13 +196,13 @@ You may wish to mount your disk image on your host system to transfer files. To 
     hd0.img1   *          63     3515903     1757920+  83  Linux
     hd0.img2         3515904     4193279      338688   82  Linux swap / Solaris
 
-Now take the number of sectors for the beginning of the partition and multiply it by the sector size. My partition starts at sector 63 and I have a sector size of 512 therefor my offset is 32256.
+Now take the number of sectors for the beginning of the partition and multiply it by the sector size. My partition starts at sector 63 and I have a sector size of 512 therefore my offset is 32256. For a start at 2048 the ofsset is 1048576.
 
     # mount -o loop,offset=32256 hd0.img /mnt/diskimage
 
 ## Having QEMU create *virtual FAT disk images*
 
-[Manual](http://www.nongnu.org/qemu/qemu-doc.html#SEC25).
+[Link to the manual](http://www.nongnu.org/qemu/qemu-doc.html#SEC25).
 
 QEMU has a facility to create FAT file systems on-the-fly:
 
@@ -120,6 +228,14 @@ If you just want to access the internet from within QEMU, you can setup pfinet f
     # settrans -afgp /servers/socket/2 /hurd/pfinet -i eth0 -a 10.0.2.15 -g 10.0.2.2 -m 255.255.255.0
     # echo "nameserver 10.0.2.3" > /etc/resolv.conf
 
+Alternately DHCP does work now:
+
+    # dhclient eth0
+
+To get ssh working:
+
+    # apt-get install random-egd openssh-server (Similarly for telnet if preferred)
+
 (See also <http://www.nongnu.org/qemu/qemu-doc.html#SEC32>.)
 
 Outgoing internet connections should just work then.
@@ -129,8 +245,40 @@ but `apt-get update` should work after you have filled out
 After that you should be able to install other network packages,
 but note that `ping` doesn't work with QEMU's user-networking stack.
 
-If you want to connect from the host system to the Hurd system running in QEMU, you need to setup something more advanced, like bridged networking.
+If you want to connect from the host system to the Hurd system running in QEMU, you can use port forwarding in QEMU or to setup something more advanced, like bridged networking.
 
+## Port Forwarding in QEMU
+(In the following we assume we use kvm!)
+
+#### Logging in to Hurd from a terminal in  your host system
+This is the recommended way to work with a Command Line Interface (CLI) since all your keyboard and locale settings are preserved.
+
+a) with ssh (assuming you have installed openssh-server)
+
+    $ kvm -m 1024 -net nic,model=rtl8139 -net user,hostfwd=tcp::5555-:22 -hda hd0.img &
+
+Logging in to the running Hurd:
+
+    $ ssh -p5555 localhost
+
+Copying files:
+
+    1) On your host
+    To Hurd:   scp -p -P5555 file localhost:
+    From Hurd: scp -p -P5555 localhost:file .
+    2) On Hurd
+    To host:   scp -p file {10.0.2.2,your_host_ip}: .
+    From host: scp -p {10.0.2.2,your_host_ip}:file .
+
+b) with telnet (assuming you have installed a telnet server, like telnetd)
+
+    $ kvm -m 1024 -net nic,model=rtl8139 -net user,hostfwd=tcp::5556-:23 -hda hurd-install.qemu &
+
+Logging in to the running Hurd:
+
+    $ telnet localhost 5556
+
+c) With the tap interface, see below.
 
 ## Bridged Networking
 
@@ -184,31 +332,3 @@ system after installation.
 [[Image_for_L4]] -- a QEMU image for the Hurd/L4 project.
 
 <http://eyeside.net/hurd/Hurd-on-QEMU.html>
-
-
-# TODO
-
-[[IRC]], #hurd, 2007-07-04.
-
-    <azeem-uni> so, is there a way to use a Debian GNU/Hurd partition (/dev/hda6) with qemu directly?
-    <tschwinge> Don't dare to do that, please.
-    <tschwinge> It will lead to inconsistencies.
-    <tschwinge> Because the Linux kernel thinks that it has complete control over the disk, or something.
-    <tschwinge> In theory you could run something like ``-hda /dev/hda'', having GRUB installed on there to offer you to boot your Hurd system from hda6 and that will even work, but then don't get the idea to stop qemu, mount that partition on your Linux system and restart qemu.  That's where I got lots of inconsistencies then, afterwards.
-    <azeem-uni> it's probably the same problem as having that partition mounted, suspending to disk, booting into it in the Hurd, and resume Linux
-    <neal> right
-    <tschwinge> That's a different problem.
-    <tschwinge> Then the partitoon is still mounted.
-    <neal> no, I think it is basically the same problem
-    <tschwinge> The file system stuff is cached in the kernel.
-    <neal> you have data that has not been written to disk yet
-    <tschwinge> Right.
-    <neal> and neither is prepared for the resource to be shared
-    <tschwinge> In the azeem-uni scenarion the data is on the file system layer and in my scenarion it's some disk block caching inside the Linux kernel, I guess.
-    <azeem-uni> anyway, do you guys think if I use -hda /dev/hda and tell Grub to boot off /dev/hda6, that the rest of hda should be fine, right?
-    <azeem-uni> maybe adding -snapshot makes it totally safe
-    <neal> azeem: Should be fine.
-    <tschwinge> Yes.
-
-The problem is actually that the linux block cache doesn't make any consistency between /dev/hda and /dev/hda6, so if you give /dev/hda to qemu, qemu writings won't be consistent with mounting /dev/hda6 in linux. You can give /dev/hda6 directly to qemu and it will be fine.
-

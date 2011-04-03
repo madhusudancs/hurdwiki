@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2011 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -8,9 +8,12 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
+[[!tag open_issue_hurd]]
+
 \#hurd, freenode, 2010
 
-    <slpz> humm... why does tmpfs try to use the default pager? that's a bad idea, and probably will never work correctly...
+    <slpz> humm... why does tmpfs try to use the default pager? that's a bad
+      idea, and probably will never work correctly...
     * slpz is thinking about old issues
     <slpz> tmpfs should create its own pagers, just like ext2fs, storeio...
     <slpz> slopez@slp-hurd:~$ settrans -a tmp /hurd/tmpfs 10M
@@ -21,53 +24,99 @@ License|/fdl]]."]]"""]]
     <slpz> :-)
     <pochu> slpz: woo you fixed it?
     <slpz> pochu: well, it's WIP, but reading/writing works...
-    <slpz> I've replaced the use of default pager for the standard pager creation mechanism
-    <antrik> slpz: err... how is it supposed to use swap space if not using the default pager?
-    <antrik> slpz: or do you mean that it should act as a proxy, just allocating anonymous memory (backed by the default pager) itself?
-    <youpi> antrik: the kernel uses the default pager if the application pager isn't responsive enough
-    <slpz> antrik: it will just create memory objects and provide zerofilled pages when requested by the kernel (after a page fault)
-    <antrik> youpi: that makes sense I guess... but how is that relevant to the question at hand?...
+    <slpz> I've replaced the use of default pager for the standard pager
+      creation mechanism
+    <antrik> slpz: err... how is it supposed to use swap space if not using the
+      default pager?
+    <antrik> slpz: or do you mean that it should act as a proxy, just
+      allocating anonymous memory (backed by the default pager) itself?
+    <youpi> antrik: the kernel uses the default pager if the application pager
+      isn't responsive enough
+    <slpz> antrik: it will just create memory objects and provide zerofilled
+      pages when requested by the kernel (after a page fault)
+    <antrik> youpi: that makes sense I guess... but how is that relevant to the
+      question at hand?...
     <slpz> antrik: memory objects will contain the data by themselves
-    <slpz> antrik: as youpi said, when memory is scarce, GNU Mach will start paging out data from memory objects to the default pager
+    <slpz> antrik: as youpi said, when memory is scarce, GNU Mach will start
+      paging out data from memory objects to the default pager
     <slpz> antrik: that's the way in which pages will get into swap space
     <slpz> (if needed)
-    <youpi> the thing being that the tmpfs pager has a chance to select pages he doesn't care any more about
-    <antrik> slpz: well, the point is that instead of writing the pages to a backing store, tmpfs will just keep them in anonymous memory, and let the default pager write them out when there is pressure, right?
-    <antrik> youpi: no idea what you are talking about. apparently I still don't really understand this stuff :-(
+    <youpi> the thing being that the tmpfs pager has a chance to select pages
+      he doesn't care any more about
+    <antrik> slpz: well, the point is that instead of writing the pages to a
+      backing store, tmpfs will just keep them in anonymous memory, and let the
+      default pager write them out when there is pressure, right?
+    <antrik> youpi: no idea what you are talking about. apparently I still
+      don't really understand this stuff :-(
     <youpi> ah, but tmpfs doesn't have pages he doesn't care about, does it?
-    <slpz> antrik: yes, but the term "anonymous memory" could be a bit confusing.
-    <slpz> antrik: in GNU Mach, anonymous memory is backed by a memory object without a pager. In tmpfs, nodes will be allocated in memory objects, and the pager for those memory objects will be tmpfs itself
-    <antrik> slpz: hm... I thought anynymous memory is backed by memory objects created from the default pager?
-    <antrik> yes, I understand that tmpfs is supposed to be the pager for the objects it provides. they are obviously not anonymoust -- they have inodes in the tmpfs name space
-    <antrik> but my understanding so far was that when Mach returns pages to the pager, they end up in anonymous memory allocated to the pager process; and then this pager is responsible for writing them back to the actual backing store
+    <slpz> antrik: yes, but the term "anonymous memory" could be a bit
+      confusing.
+    <slpz> antrik: in GNU Mach, anonymous memory is backed by a memory object
+      without a pager. In tmpfs, nodes will be allocated in memory objects, and
+      the pager for those memory objects will be tmpfs itself
+    <antrik> slpz: hm... I thought anynymous memory is backed by memory objects
+      created from the default pager?
+    <antrik> yes, I understand that tmpfs is supposed to be the pager for the
+      objects it provides. they are obviously not anonymoust -- they have
+      inodes in the tmpfs name space
+    <antrik> but my understanding so far was that when Mach returns pages to
+      the pager, they end up in anonymous memory allocated to the pager
+      process; and then this pager is responsible for writing them back to the
+      actual backing store
     <antrik> am I totally off there?...
-    <antrik> (i.e. in my understanding the returned pages do not reside in the actual memory object the pager provides, but in an anonymous memory object)
-    <slpz> antrik: you're right. The trick here is, when does Mach return the pages?
-    <slpz> antrik: if we set the attribute "can_persist" in a memory object, Mach will keep it until object cache is full or memory is scarce
+    <antrik> (i.e. in my understanding the returned pages do not reside in the
+      actual memory object the pager provides, but in an anonymous memory
+      object)
+    <slpz> antrik: you're right. The trick here is, when does Mach return the
+      pages?
+    <slpz> antrik: if we set the attribute "can_persist" in a memory object,
+      Mach will keep it until object cache is full or memory is scarce
     <slpz> or we change the attributes so it can no longer persist, of course
-    <slpz> without a backing store, if Mach starts sending us pages to be written, we're in trouble
-    <slpz> so we must do something about it. One option, could be creating another pager and copying the contents between objects.
+    <slpz> without a backing store, if Mach starts sending us pages to be
+      written, we're in trouble
+    <slpz> so we must do something about it. One option, could be creating
+      another pager and copying the contents between objects.
     <antrik> another pager? not sure what you mean
-    <antrik> BTW, you didn't really say why we can't use the default pager for tmpfs objects :-)
-    <slpz> well, there're two problems when using the default pager as backing store for translators
-    <slpz> 1) Mach relies on it to do swapping tasks, so meddling with it is not a good idea
-    <slpz> 2) There're problems with seqnos when trying to work with the default pager from tasks other the kernel itself
+    <antrik> BTW, you didn't really say why we can't use the default pager for
+      tmpfs objects :-)
+    <slpz> well, there're two problems when using the default pager as backing
+      store for translators
+    <slpz> 1) Mach relies on it to do swapping tasks, so meddling with it is
+      not a good idea
+    <slpz> 2) There're problems with seqnos when trying to work with the
+      default pager from tasks other the kernel itself
     <slpz> (probably, the latter could be fixed)
-    <slpz> antrik: pager's terminology is a bit confusing. One can also say creating another memory object (though the function in libpager is "pager_create")
+    <slpz> antrik: pager's terminology is a bit confusing. One can also say
+      creating another memory object (though the function in libpager is
+      "pager_create")
     <antrik> not sure why "meddling" with it would be a problem...
-    <antrik> and yeah, I was vaguely aware that there is some seqno problem with tmpfs... though so far I didn't really understand what it was about :-)
+    <antrik> and yeah, I was vaguely aware that there is some seqno problem
+      with tmpfs... though so far I didn't really understand what it was about
+      :-)
     <antrik> makes sense now
-    <antrik> anyways, AIUI now you are trying to come up with a mechanism where the default pager is not used for tmpfs objects directly, but without making it inefficient?
-    <antrik> slpz: still don't understand what you mean by creating another memory object/pager...
+    <antrik> anyways, AIUI now you are trying to come up with a mechanism where
+      the default pager is not used for tmpfs objects directly, but without
+      making it inefficient?
+    <antrik> slpz: still don't understand what you mean by creating another
+      memory object/pager...
     <antrik> (and yeat, the terminology is pretty mixed up even in Mach itself)
-    <slpz> antrik: I meant creating another pager, in terms of calling again to libpager's pager_create
-    <antrik> slpz: well, I understand what "create another pager" means... I just don't understand what this other pager would be, when you would create it, and what for...
+    <slpz> antrik: I meant creating another pager, in terms of calling again to
+      libpager's pager_create
+    <antrik> slpz: well, I understand what "create another pager" means... I
+      just don't understand what this other pager would be, when you would
+      create it, and what for...
     <slpz> antrik: oh, ok, sorry
-    <slpz> antrik: creating another pager it's just a trick to avoid losing information when Mach's objects cache is full, and it decides to purge one of our objects
-    <slpz> anyway, IMHO object caching mechanism is obsolete and should be replaced
+    <slpz> antrik: creating another pager it's just a trick to avoid losing
+      information when Mach's objects cache is full, and it decides to purge
+      one of our objects
+    <slpz> anyway, IMHO object caching mechanism is obsolete and should be
+      replaced
     <slpz> I'm writting a comment to bug #28730 which says something about this
     <slpz> antrik: just one more thing :-) 
-    <slpz> if you look at the code, for most time of their lives, anonymous memory objects don't have a pager
+    <slpz> if you look at the code, for most time of their lives, anonymous
+      memory objects don't have a pager
     <slpz> not even the default one
-    <slpz> only the pageout thread, when the system is running really low on memory, gives them a reference to the default pager by calling vm_object_pager_create
+    <slpz> only the pageout thread, when the system is running really low on
+      memory, gives them a reference to the default pager by calling
+      vm_object_pager_create
     <slpz> this is not really important, but worth noting ;-)
