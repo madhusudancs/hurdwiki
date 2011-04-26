@@ -1,0 +1,241 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_gnumach]]
+
+IRC, freenode, #hurd, 2011-04-23
+
+    <braunr> youpi: is there any use of the port renaming facility ?
+    <youpi> I don't know
+    <braunr> at least, did you see such use ?
+    <braunr> i wonder why mach mach_port_insert_right() lets the caller specify
+      the port name
+    <youpi> ../hurd-debian/hurd/serverboot/default_pager.c:	kr =
+      mach_port_rename(	default_pager_self,
+    <braunr> mach_port_rename() is used only once, in the default pager
+    <braunr> so it's not that important
+    <braunr> but mach_port_insert_right() lets userspace task decide the port
+      name value
+    <youpi> just to repeat myself again, I don't know port stuff very much :)
+    <braunr> well you know that a port denotes a right, which denotes a port
+    <youpi> yes, but I don't have any real experience with it
+    <braunr> err
+    <braunr> port name
+    <braunr> the only reason I see is that the caller, say /hurd/exec running a
+      fork()
+    <braunr> hm
+    <braunr> no, i don't even see the reason here
+    <braunr> port names should be allocated by the kernel only, like file
+      descriptors
+    <youpi> you can choose file descriptor values too
+    <braunr> really ?
+    <youpi> with dup2, yes
+    <braunr> oh
+    <braunr> hm
+    <braunr> what's the data structure in current unices to store file
+      descriptors ?
+    <braunr> a hash table ?
+    <youpi> I don't know
+    <braunr> i'll have to look at that
+    <braunr> FYI, i'm asking these questions because i'm thinking of reworking
+      ipc spaces
+    <braunr> i believe the use of splay trees completely destroys performance
+      of tasks with many many port names such as the root file system
+    <youpi> that can be a problem yes
+    <youpi> since there are 3 ports per opened file, and like 3 per thread too
+    <braunr> + the page cache
+    <youpi> with a few thousand opened files and threads, that makes a lot
+    <youpi> by "opened file" I meant page cache actually
+    <braunr> i saw numbers up to 30k
+    <braunr> ok
+    <youpi> on buildds I easily see 100k ports
+    <braunr> for a single task ?
+    <braunr> wow
+    <youpi> yes
+    <youpi> the page cache is 4k files
+    <braunr> so that's definitely worth the try
+    <youpi> so that already makes 12k ports
+    <youpi> and 4k is not so big
+    <braunr> it's limited to 4K ?
+    <youpi> I haven't been able to check where the 100k come from yet
+    <youpi> braunr: yas
+    <braunr> could be leaks :/
+    <youpi> yes
+    <braunr> omg, a hard limit on the page cache ..
+    <youpi> vm/vm_object.c:int		vm_object_cached_max = 4000;	/* may
+      be patched*/
+    <braunr> mach is really old :(
+    <youpi> I've raised it
+    <youpi> before it was 200
+    <youpi> ...
+    <braunr> oO
+    <youpi> I tried to dro pthe limit, but then I was lacking memory
+    <youpi> which I believe have fixed the other day, but I have to test again
+    <braunr> that implementation doesn't know how to deal with memory pressure
+    <youpi> yes
+    <braunr> i saw your recent changes about adding warnings in such cases
+    <braunr> so, back to ipc spaces
+    <braunr> i think splay trees 1/ can get very unbalanced easily
+    <braunr> which isn't hard to imagine
+    <braunr> and 2/ make poor usage of the cpu caches because they're BST and
+      write a lot to memory
+    <youpi> maybe you could write a patch which would dump statistics on that?
+    <braunr> that's part of the job i'm assigning to myself
+    <youpi> ok
+    <braunr> i'd like to try replacing splay trees with radix trees
+    <youpi> I can run it on the buildds
+    <youpi> buildds are very good stress-tests :)
+    <braunr> :)
+    <youpi> 22h building -> 77k ports
+    <youpi> 26h building -> 97k ports
+    <youpi> the problem is that when I add leak debugging (backtraces), I'm
+      getting out of memory :)
+    <braunr> that will be a small summer of code outside the gsoc :p
+    <braunr> :/
+    <braunr> backtraces are very consuming
+    <youpi> but that's only because of hardcoded limits
+    <youpi> I'll have to test again with bigger limits
+    <braunr> again ..
+    <braunr> evil hard limits
+    <youpi> well, actually we could as well just drop them
+    <youpi> but we'd also need to easily get statistics on zone/vm_maps usage
+    <youpi> because else we don't see leaks
+    <youpi> (except that the machine eventually crashes)
+    <braunr> hm
+    <braunr> i haven't explained why i was asking my questions actually
+    <braunr> so, i want radix trees, because they're nice
+    <braunr> they reduce the paths lengths
+    <braunr> they don't get too unbalanced (they're invariant wrt the order of
+      operations)
+    <braunr> they don't need to write to memory on lookups
+    <braunr> the only drawback is that they can create much overhead if their
+      usage pattern isn't appropriate
+    <braunr> elements in such a structure should be close, so that they share
+      common nodes
+    <youpi> the common usage pattern in ext2fs is a big bunch of ever-open
+      ports :)
+    <braunr> if there is one entry per node, it's a big waste
+    <braunr> yes
+    <youpi> there are 3, actually
+    <braunr> but the port names have low values
+    <braunr> they're allocated sequentially, beginning at 0
+    <braunr> (or 1 actually)
+    <braunr> which is perfect for radix trees
+    <youpi> yes
+    <youpi>  97989: send
+    <braunr> but if anyone can rename
+    <braunr> this introduces a new potential weakness
+    <youpi> ah, if it's just a weakness it's probably not a problem
+    <youpi> I thought it was even a no-go
+    <braunr> i think so
+    <youpi> I guess port rename is very seldom
+    <braunr> but in a future version, it would be nice not to allow port
+      renaming
+    <braunr> unless there are similar issues in current unix kernels
+    <braunr> in which case i'd say it's acceptable
+    <youpi> there are
+    <braunr> of that order ?
+    <youpi> and it'd be useful for e.g. processing
+      tracing/debugging/tweaking/whatever
+    <youpi> it's also used to hide fds from a process
+    <braunr> port renaming you mean ?
+    <youpi> you allocate them very high
+    <youpi> yes
+    <braunr> ok
+    <youpi> choosing your port name, generally
+    <youpi> to match what the process expects for instance
+    <braunr> then it would be a matter of resource limiting (which we totally
+      lack afaik)
+    <braunr> along the number of maximum open files, you would have a number of
+      maximum rights
+    <braunr> does that seem fine to you ?
+    <youpi> if done throught rlimits, sure
+    <braunr> something similar yes
+    <youpi> (_no_ PORTS_MAX ;) )
+    <braunr> oh and, in addition, i remember gnumach has a special
+      configuration of the processor in which caching is limited
+    <braunr> like write-through only
+    <youpi> didn't I fix that recently ?
+    <braunr> i don't know :)
+    <braunr> CR0=e001003b
+    <braunr> i don't think it's fixed
+    <youpi> I mean, in the git
+    <braunr> ah
+    <youpi> not in the debian package
+    <braunr> didn't tried the git version yet
+    <braunr> last time i tried (which was a long time ago), it made the kernel
+      crash
+    <braunr> have you figured why ?
+    <youpi> I'm not aware of that
+    <braunr> anyway, splay trees write a lot, and most trees write a lot even
+      at insertion/removal to rebalance
+    <youpi> braunr: Mmm, there's no clearance of CD in the kernel actually
+    <braunr> with radix trees, even if caching can't be fully enabled, it would
+      make much better use of it
+    <braunr> so if port renaming isn't a true issue, i'll choose that data
+      structure
+    <youpi> that'd probably be better yes
+    <youpi> I'm surprised by the CD, I do remember fixing something like this
+      lately
+    <braunr> there are several levels where CD can be set
+    <braunr> the processors ORs all those if i'm right
+    <braunr> to determine if caching is enabled 
+    <youpi> I know
+    <braunr> ok
+    <youpi> but in my memory that was at the CR* level, precisely
+    <braunr> maybe for xen only ?
+    <youpi> no
+    <braunr> well good luck if you hunt that one, i'm off, see you :)
+    <youpi> braunr: ah, no, it was the PGE flag that I had fixed
+
+    <antrik> braunr: explicit port naming is used for example to pass some
+      initial ports to a new task at well-known places IIRC
+    <antrik> braunr: but these tend to be low numbers, so I don't see a problem
+      there
+    <antrik> (I'm not familiar with radix trees... why would high numbers be a
+      problem?)
+
+    <youpi> braunr: iirc the ipc space is limited to ~192k ports
+
+    <braunr> antrik: in most cases i've seen, the insert_right() call is used
+      on task_self()
+    <braunr> and if there really are special ports (like the bootstrap or
+      device ports), they should have special names
+    <braunr> IIRC, these ports are given through command line expansion by the
+      kernel at boot time
+    <braunr> but it seems reasonable to think of port renaming as a potentially
+      useful feature
+    <braunr> antrik: the problem with radix trees isn't them being high, it's
+      them being sparse
+    <braunr> you get the most efficient trees when entries have keys that are
+      close to each other
+    <braunr> because radix trees are a type of tries (the path in the tree is
+      based on the elements composing the key)
+    <braunr> so the more common prefixes you have, the less external nodes you
+      need
+    <braunr> here, keys are port names, but they can be memory addresses or
+      offsets in memory objects (like in the page cache)
+    <braunr> the radix algorithm takes a few bits, say 4 or 6, at a time from a
+      key, and uses that as an index in a node
+    <braunr> if keys are sparse, there can be as little as one entry per node
+    <braunr> IIRC, the worst case (on entry per node with the maximum possible
+      number of nodes for a 32-bits key) is 2% entries
+    <braunr> the reste being null entries and almost-empty nodes containing
+      them
+    <braunr> so if you leave the ability to give port rights the names you
+      want, you can create such worst case trees
+    <braunr> which may consume several MiB of memory per tree
+    <braunr> tens of MiB i'd say
+    <braunr> on the other hand, in the current state, almost all hurd
+      applications use sequentially allocated port names, close to 0 (which
+      allows a nice optimization)
+    <braunr> so a radix ree would be the most efficient
+    <antrik> well, if some processes really feel they must use random numbers
+      for port names, they *ought* to be penalized ;-)

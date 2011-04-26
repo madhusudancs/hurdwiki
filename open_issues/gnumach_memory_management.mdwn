@@ -1,0 +1,772 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_gnumach]]
+
+IRC, freenode, #hurd, 2011-04-12:
+
+    <antrik> braunr: do you think the allocator you wrote for x15 could be used
+      for gnumach? and would you be willing to mentor this? :-)
+    <braunr> antrik: to be willing to isn't my current problem
+    <braunr> antrik: and yes, I think my allocator can be used
+    <braunr> it's a slab allocator after all, it only requires reap() and
+      grow()
+    <braunr> or mmap()/munmap() whatever you want to call it
+    <braunr> a backend
+    <braunr> antrik: although i've been having other ideas recently
+    <braunr> that would have more impact on our usage patterns I think
+    <antrik> mcsim: have you investigated how the zone allocator works and how
+      it's hooked into the system yet?
+    <braunr> mcsim: now let me give you a link
+    <braunr> mcsim:
+      http://git.sceen.net/rbraun/libbraunr.git/?a=blob;f=mem.c;h=330436e799f322949bfd9e2fedf0475660309946;hb=HEAD
+    <braunr> mcsim: this is an implementation of the slab allocator i've been
+      working on recently
+    <braunr> mcsim: i haven't made it public because i reworked the per
+      processor layer, and this part isn't complete yet
+    <braunr> mcsim: you could use it as a reference for your project
+    <mcsim> braunr: ok
+    <braunr> it used to be close to the 2001 vmem paper
+    <braunr> but after many tests, fragmentation and accounting issues have
+      been found
+    <braunr> so i rewrote it to be closer to the linux implementation (cache
+      filling/draining in bukl transfers)
+    <braunr> bulk*
+    <braunr> they actually use the word draining in linux too :)
+    <mcsim> antrik: not complete yet.
+    <antrik> braunr: oh, it's unfinished? that's unfortunate...
+    <braunr> antrik: only the per processor part
+    <braunr> antrik: so it doesn't matter much for gnumach
+    <braunr> and it's not difficult to set up
+    <antrik> mcsim: hm, OK... but do you think you will have a fairly good
+      understanding in the next couple of days?...
+    <antrik> I'm asking because I'd really like to see a proposal a bit more
+      specific than "I'll look into things..."
+    <antrik> i.e. you should have an idea which things you will actually have
+      to change to hook up a new allocator etc.
+    <antrik> braunr: OK. will the interface remain unchanged, so it could be
+      easily replaced with an improved implementation later?
+    <braunr> the zone allocator in gnumach is a badly written bare object
+      allocator actually, there aren't many things to understand about it
+    <braunr> antrik: yes
+    <antrik> great :-)
+    <braunr> and the per processor part should be very close to the phys
+      allocator sitting next to it
+    <braunr> (with the slight difference that, as per cpu caches have variable
+      sizes, they are allocated on the free path rather than on the allocation
+      path)
+    <braunr> this is a nice trick in the vmem paper i've kept in mind
+    <braunr> and the interface also allows to set a "source" for caches
+    <antrik> ah, good point... do you think we should replace the physmem
+      allocator too? and if so, do it in one step, or one piece at a time?...
+    <braunr> no
+    <braunr> too many drivers currently depend on the physical allocator and
+      the pmap module as they are
+    <braunr> remember linux 2.0 drivers need a direct virtual to physical
+      mapping
+    <braunr> (especially true for dma mappings)
+    <antrik> OK
+    <braunr> the nice thing about having a configurable memory source is that
+    <antrik> whot do you mean by "allocated on the free path"?
+    <braunr> even if most caches will use the standard vm_kmem module as their
+      backend
+    <braunr> there is one exception in the vm_map module, allowing us to get
+      rid of either a static limit, or specific allocation code
+    <braunr> antrik: well, when you allocate a page, the allocator will lookup
+      one in a per cpu cache
+    <braunr> if it's empty, it fills the cache
+    <braunr> (called pools in my implementations)
+    <braunr> it then retries
+    <braunr> the problem in the slab allocator is that per cpu caches have
+      variable sizes
+    <braunr> so per cpu pools are allocated from their own pools
+    <braunr> (remember the magazine_xx caches in the output i showed you, this
+      is the same thing)
+    <braunr> but if you allocate them at allocation time, you could end up in
+      an infinite loop
+    <braunr> so, in the slab allocator, when a per cpu cache is empty, you just
+      fall back to the slab layer
+    <braunr> on the free path, when a per cpu cache doesn't exist, you allocate
+      it from its own cache
+    <braunr> this way you can't have an infinite loop
+    <mcsim> antrik: I'll try, but I have exams now.
+    <mcsim> As I understand amount of elements which could be allocated we
+      determine by zone initialization. And at this time memory for zone is
+      reserved. I'm going to change this. And make something similar to kmalloc
+      and vmalloc (support for pages consecutive physically and virtually). And
+      pages in zones consecutive always physically.
+    <mcsim> Am I right?
+    <braunr> mcsim: don't try to do that
+    <mcsim> why?
+    <braunr> mcsim: we just need a slab allocator with an interface close to
+      the zone allocator
+    <antrik> mcsim: IIRC the size of the complete zalloc map is fixed; but not
+      the number of elements per zone
+    <braunr> we don't need two allocators like kmalloc and vmalloc
+    <braunr> actually we just need vmalloc
+    <braunr> IIRC the limits are only present because the original developers
+      wanted to track leaks
+    <braunr> they assumed zones would be large enough, which isn't true any
+      more today
+    <braunr> but i didn't see any true reservation
+    <braunr> antrik: i'm not sure i was clear enough about the "allocation of
+      cpu caches on the free path"
+    <braunr> antrik: for a better explanation, read the vmem paper ;)
+    <antrik> braunr: you mean there is no fundamental reason why the zone map
+      has a limited maximal size; and it was only put in to catch cases where
+      something eats up all memory with kernel object creation?...
+    <antrik> braunr: I think I got it now :-)
+    <braunr> antrik: i'm pretty certin of it yes
+    <antrik> I don't see though how it is related to what we were talking
+      about...
+    <braunr> 10:55 < braunr> and the per processor part should be very close to
+      the phys allocator sitting next to it
+    <braunr> the phys allocator doesn't have to use this trick
+    <braunr> because pages have a fixed size, so per cpu caches all have the
+      same size too
+    <braunr> and the number of "caches", that is, physical segments, is limited
+      and known at compile time
+    <braunr> so having them statically allocated is possible
+    <antrik> I see
+    <braunr> it would actually be very difficult to have a phys allocator
+      requiring dynamic allocation when the dynamic allocator isn't yet ready
+    <antrik> hehe :-)
+    <mcsim> total size of all zone allocations is limited to 12 MB. And is "was
+      only put in to catch cases where something eats up all memory with kernel
+      object creation?"
+    <braunr> mcsim: ah right, there could be a kernel submap backing all the
+      zones
+    <braunr> but this can be increased too
+    <braunr> submaps are kind of evil :/
+    <antrik> mcsim: I think it's actually 32 MiB or something like that in the
+      Debian version...
+    <antrik> braunr: I'm not sure I ever fully understood what the zalloc map
+      is... I looked through the code once, and I think I got a rough
+      understading, but I was still pretty uncertain about some bits. and I
+      don't remember the details anyways :-)
+    <braunr> antrik: IIRC, it's a kernel submap
+    <braunr> it's named kmem_map in x15
+    <antrik> don't know what a submap is
+    <braunr> submaps are vm_map objects
+    <braunr> in a top vm_map, there are vm_map_entries
+    <braunr> these entries usually point to vm_objects
+    <braunr> (for the page cache)
+    <braunr> but they can point to other maps too
+    <braunr> the goal is to reduce fragmentation by isolating allocations
+    <braunr> this also helps reducing contention
+    <braunr> for exemple, on BSD, there is a submap for mbufs, so that the
+      network code doesn't interfere too much with other kernel allocations
+    <braunr> antrik: they are similar to spans in vmem, but vmem has an elegant
+      importing mechanism which eliminates the static limit problem
+    <antrik> so memory is not directly allocated from the physical allocator,
+      but instead from another map which in turn contains physical memory, or
+      something like that?...
+    <braunr> no, this is entirely virtual
+    <braunr> submaps are almost exclusively used for the kernel_map
+    <antrik> you are using a lot of identifies here, but I don't remember (or
+      never knew) what most of them mean :-(
+    <braunr> sorry :)
+    <braunr> the kernel map is the vm_map used to represent the ~1 GiB of
+      virtual memory the kernel has (on i386)
+    <braunr> vm_map objects are simple virtual space maps
+    <braunr> they contain what you see in linux when doing /proc/self/maps
+    <braunr> cat /proc/self/maps
+    <braunr> (linux uses entirely different names but it's roughly the same
+      structure)
+    <braunr> each line is a vm_map_entry
+    <braunr> (well, there aren't submaps in linux though)
+    <braunr> the pmap tool on netbsd is able to show the kernel map with its
+      submaps, but i don't have any image around
+    <mcsim> braunr: is limit for zones is feature and shouldn't be changed?
+    <braunr> mcsim: i think we shouldn't have fixed limits for zones
+    <braunr> mcsim: this should be part of the debugging facilities in the slab
+      allocator
+    <braunr> is this fixed limit really a major problem ?
+    <braunr> i mean, don't focus on that too much, there are other issues
+      requiring more attention
+    <antrik> braunr: at 12 MiB, it used to be, causing a lot of zalloc
+      panics. after increasing, I don't think it's much of a problem anymore...
+    <antrik> but as memory sizes grow, it might become one again
+    <antrik> that's the problem with a fixed size...
+    <braunr> yes, that's the issue with submaps
+    <braunr> but gnumach is full of those, so let's fix them by order of
+      priority
+    <antrik> well, I'm still trying to digest what you wrote about submaps :-)
+    <braunr> i'm downloading netbsd, so you can have a good view of all this
+    <antrik> so, when the kernel allocates virtual address space regions
+      (mostly for itself), instead of grabbing chunks of the address space
+      directly, it takes parts out of a pre-reserved region?
+    <braunr> not exactly
+    <braunr> both statements are true
+    <mcsim> antrik: only virtual addresses are reserved
+    <braunr> it grabs chunks of the address space directly, but does so in a
+      reserved region of the address space
+    <braunr> a submap is like a normal map, it has a start address, a size, and
+      is empty, then it's populated with vm_map_entries
+    <braunr> so instead of allocating from 3-4 GiB, you allocate from, say,
+      3.1-3.2 GiB
+    <antrik> yeah, that's more or less what I meant...
+    <mcsim> braunr: I see two problems: limited zones and absence of caching. 
+    <mcsim> with caching absence of readahead paging will be not so significant
+    <braunr> please avoid readahead
+    <mcsim> ok
+    <braunr> and it's not about paging, it's about kernel memory, which is
+      wired
+    <braunr> (well most of it)
+    <braunr> what about limited zones ?
+    <braunr> the whole kernel space is limited, there has to be limits
+    <braunr> the problem is how to handle them
+    <antrik> braunr: almost all. I looked through all zones once, and IIRC I
+      found exactly one that actually allows paging...
+    <braunr> currently, when you reach the limit, you have an OOM error
+    <braunr> antrik: yes, there are
+    <braunr> i don't remember which implementation does that but, when
+      processes haven't been active for a minute or so, they are "swapedout"
+    <braunr> completely
+    <braunr> even the kernel stack
+    <braunr> and the page tables
+    <braunr> (most of the pmap structures are destroyed, some are retained)
+    <antrik> that might very well be true... at least inactive processes often
+      show up with 0 memory use in top on Hurd
+    <braunr> this is done by having a pageable kernel map, with wired entries
+    <braunr> when the swapper thread swaps tasks out, it unwires them
+    <braunr> but i think modern implementations don't do that any more
+    <antrik> well, I was talking about zalloc only :-)
+    <braunr> oh
+    <braunr> so the zalloc_map must be pageable
+    <braunr> or there are two submaps ?
+    <antrik> not sure whether "morden implementations" includes Linux ;-)
+    <braunr> no, i'm talking about the bsd family only
+    <antrik> but it's certainly true that on Linux even inactive processes
+      retain some memory
+    <braunr> linux doesn't make any difference between processor-bound and
+      I/O-bound processes
+    <antrik> braunr: I have no idea how it works. I just remember that when
+      creating zones, one of the optional flags decides whether the zone is
+      pagable. but as I said, IIRC there is exactly one that actually is...
+    <braunr> zone_map = kmem_suballoc(kernel_map, &zone_min, &zone_max,
+      zone_map_size, FALSE);
+    <braunr> kmem_suballoc(parent, min, max, size, pageable)
+    <braunr> so the zone_map isn't
+    <antrik> IIRC my conclusion was that pagable zones do not count in the
+      fixed zone map limit... but I'm not sure anymore
+    <braunr> zinit() has a memtype parameter
+    <braunr> with ZONE_PAGEABLE as a possible flag
+    <braunr> this is wierd :)
+    <mcsim> There is no any zones which use ZONE_PAGEABLE flag
+    <antrik> mcsim: are you sure? I think I found one...
+    <braunr> if (zone->type & ZONE_PAGEABLE) {
+    <antrik> admittedly, it is several years ago that I looked into this, so my
+      memory is rather dim...
+    <braunr> if (kmem_alloc_pageable(zone_map, &addr, ...
+    <braunr> calling kmem_alloc_pageable() on an unpageable submap seems wrong
+    <mcsim> I've greped gnumach code and there is no any zinit procedure call
+      with ZONE_PAGEABLE flag
+    <braunr> good
+    <antrik> hm... perhaps it was in some code that has been removed
+      alltogether since ;-)
+    <antrik> actually I think it would be pretty neat to have pageable kernel
+      objects... but I guess it would require considerable effort to implement
+      this right
+    <braunr> mcsim: you also mentioned absence of caching
+    <braunr> mcsim: the zone allocator actually is a bare caching object
+      allocator
+    <braunr> antrik: no, it's easy
+    <braunr> antrik: i already had that in x15 0.1
+    <braunr> antrik: the problem is being sure the objects you allocate from a
+      pageable backing store are never used when resolving a page fault
+    <braunr> that's all
+    <antrik> I wouldn't expect that to be easy... but surely you know better
+      :-)
+    <mcsim> braunr: indeed. I was wrong.
+    <antrik> braunr: what is a caching object allocator?...
+    <braunr> antrik: ok, it's not easy
+    <braunr> antrik: but once you have vm_objects implemented, having pageable
+      kernel object is just a matter of using the right options, really
+    <braunr> antrik: an allocator that caches its buffers
+    <braunr> some years ago, the term "object" would also apply to
+      preconstructed buffers
+    <antrik> I have no idea what you mean by "caches its buffers" here :-)
+    <braunr> well, a memory allocator which doesn't immediately free its
+      buffers caches them
+    <mcsim> braunr: but can it return objects to system?
+    <braunr> mcsim: which one ?
+    <antrik> yeah, obviously the *implementation* of pageable kernel objects is
+      not hard. the tricky part is deciding which objects can be pageable, and
+      which need to be wired...
+    <mcsim> Can zone allocator return cached objects to system as in slab?
+    <mcsim> I mean reap()
+    <braunr> well yes, it does so, and it does that too often
+    <braunr> the caching in the zone allocator is actually limited to the
+      pagesize
+    <braunr> once page is completely free, it is returned to the vm
+    <mcsim> this is bad caching
+    <braunr> yes
+    <mcsim> if object takes all page than there is now caching at all
+    <braunr> caching by side effect
+    <braunr> true
+    <braunr> but the linux slab allocator does the same thing :p
+    <braunr> hm
+    <braunr> no, the solaris slab allocator does so
+    <mcsim> linux's slab returns objects only when system ask
+    <antrik> without preconstructed objects, is there actually any point in
+      caching empty slabs?...
+    <mcsim> Once I've changed my allocator to slab and it cached more than 1GB
+      of my memory)
+    <braunr> ok wait, need to fix a few mistakes first
+    <mcsim> s/ask/asks
+    <braunr> the zone allocator (in gnumach) actually has a garbage collector
+    <antrik> braunr: well, the Solaris allocator follows the slab/magazine
+      paper, right? so there is caching at the magazine layer... in that case
+      caching empty slabs too would be rather redundant I'd say...
+    <braunr> which is called when running low on memory, similar to the slab
+      allocaotr
+    <braunr> antrik: yes
+    <antrik> (or rather the paper follows the Solaris allocator ;-) )
+    <braunr> mcsim: the zone allocator reap() is zone_gc()
+    <antrik> braunr: hm, right, there is a "collectable" flag for zones... but
+      I never understood what it means
+    <antrik> braunr: BTW, I heard Linux has yet another allocator now called
+      "slob"... do you happen to know what that is?
+    <braunr> slob is a very simple allocator for embedded devices
+    <mcsim> AFAIR this is just heap allocator
+    <braunr> useful when you have a very low amount of memory
+    <braunr> like 1 MiB
+    <braunr> yes
+    <antrik> just googled it :-)
+    <braunr> zone and slab are very similar
+    <antrik> sounds like a simple heap allocator
+    <mcsim> there is another allocator that calls slub, and it better than slab
+      in many cases
+    <braunr> the main difference is the data structures used to store slabs
+    <braunr> mcsim: i disagree
+    <antrik> mcsim: ah, you already said that :-)
+    <braunr> mcsim: slub is better for systems with very large amounts of
+      memory and processors
+    <braunr> otherwise, slab is better
+    <braunr> in addition, there are accounting issues with slub
+    <braunr> because of cache merging
+    <mcsim> ok. This strange that slub is default allocator
+    <braunr> well both are very good
+    <braunr> iirc, linus stated that he really doesn't care as long as its
+      works fine
+    <braunr> he refused slqb because of that
+    <braunr> slub is nice because it requires less memory than slab, while
+      still being as fast for most cases
+    <braunr> it gets slower on the free path, when the cpu performing the free
+      is different from the one which allocated the object
+    <braunr> that's a reasonable cost
+    <mcsim> slub uses heap for large object. Are there any tests that compare
+      what is better for large objects?
+    <antrik> well, if slub requires less memory, why do you think slab is
+      better for smaller systems? :-)
+    <braunr> antrik: smaller is relative
+    <antrik> mcsim: for large objects slab allocation is rather pointless, as
+      you don't have multiple objects in a page anyways...
+    <braunr> antrik: when lameter wrote slub, it was intended for systems with
+      several hundreds processors
+    <antrik> BTW, was slqb really refused only because the other ones are "good
+      enough"?...
+    <braunr> yes
+    <antrik> wow, that's a strange argument...
+    <braunr> linus is already unhappy of having "so many" allocators
+    <antrik> well, if the new one is better, it could replace one of the others
+      :-)
+    <antrik> or is it useful only in certain cases?
+    <braunr> that's the problem
+    <braunr> nobody really knows
+    <antrik> hm, OK... I guess that should be tested *before* merging ;-)
+    <antrik> is anyone still working on it, or was it abandonned?
+    <antrik> mcsim: back to caching...
+    <antrik> what does caching in the kernel object allocator got to do with
+      readahead (i.e. clustered paging)?...
+    <mcsim> if we cached some physical pages we don't need to find new ones for
+      allocating new object. And that's why there will not be a page fault.
+    <mcsim> antrik: Regarding kam. Hasn't he finished his project?
+    <antrik> err... what?
+    <antrik> one of us must be seriously confused
+    <antrik> I totally fail to see what caching of physical pages (which isn't
+      even really a correct description of what slab does) has to do with page
+      faults
+    <antrik> right, KAM didn't finish his project
+    <mcsim> If we free the physical page and return it to system we need
+      another one for next allocation. But if we keep it, we don't need to find
+      new physical page. 
+    <mcsim> And physical page is allocated only then when page fault
+      occurs. Probably, I'm wrong
+    <antrik> what does "return to system" mean? we are talking about the
+      kernel...
+    <antrik> zalloc/slab are about allocating kernel objects. this doesn't have
+      *anything* to do with paging of userspace processes
+    <antrik> only thing the have in common is that they need to get pages from
+      the physical page allocator. but that's yet another topic
+    <mcsim> Under "return to system" I mean ability to use this page for other
+      needs.
+    <braunr> mcsim: consider kernel memory to be wired
+    <braunr> here, return to system means releasing a page back to the vm
+      system
+    <braunr> the vm_kmem module then unmaps the physical page and free its
+      virtual address in the kernel map
+    <mcsim> ok
+    <braunr> antrik: the problem with new allocators like slqb is that it's
+      very difficult to really know if they're better, even with extensive
+      testing
+    <braunr> antrik: there are papers (like wilson95) about the difficulties in
+      making valuable results in this field
+    <braunr> see
+      http://www.sceen.net/~rbraun/dynamic_storage_allocation_a_survey_and_critical_review.pdf
+    <mcsim> how can be allocated physically continuous object now?
+    <braunr> mcsim: rephrase please
+    <mcsim> what is similar to kmalloc in Linux to gnumach?
+    <braunr> i know memory is reserved for dma in a direct virtual to physical
+      mapping
+    <braunr> so even if the allocation is done similarly to vmalloc()
+    <braunr> the selected region of virtual space maps physical memory, so
+      memory is physically contiguous too
+    <braunr> for other allocation types, a block large enough is allocated, so
+      it's contiguous too
+    <mcsim> I don't clearly understand. If we have fragmentation in physical
+      ram, so there aren't 2 free pages in a row, but there are able apart, we
+      can't to allocate these 2 pages along?
+    <braunr> no
+    <braunr> but every system has this problem
+    <mcsim> But since we have only 12 or 32 MB of memory the problem becomes
+      more significant
+    <braunr> you're confusing virtual and physical memory
+    <braunr> those 32 MiB are virtual
+    <braunr> the physical pages backing them don't have to be contiguous
+    <mcsim> Oh, indeed 
+    <mcsim> So the only problem are limits?
+    <braunr> and performance
+    <braunr> and correctness
+    <braunr> i find the zone allocator badly written
+    <braunr> antrik: mcsim: here is the content of the kernel pmap on NetBSD
+      (which uses a virtual memory system close to the Mach VM)
+    <braunr> antrik: mcsim: http://www.sceen.net/~rbraun/pmap.out
+
+[[pmap.out]]
+
+    <braunr> you can see the kmem_map (which is used for most general kernel
+      allocations) is 128 MiB large
+    <braunr> actually it's not the kernel pmap, it's the kernel_map
+    <antrik> braunr: why is it called pmap.out then? ;-)
+    <braunr> antrik: because the tool is named pmap
+    <braunr> for process map
+    <braunr> it also exists under Linux, although direct access to
+      /proc/xx/maps gives more info
+    <mcsim> braunr: I've said that this is kernel_map. Can I see kernel_map for
+      Linux?
+    <braunr> mcsim: I don't know how to do that
+    <mcsim> s/I've/You've
+    <braunr> but Linux doesn't have submaps, and uses a direct virtual to
+      physical mapping, so it's used differently
+    <antrik> how are things (such as zalloc zones) entered into kernel_map?
+    <braunr> in zone_init() you have
+    <braunr> zone_map = kmem_suballoc(kernel_map, &zone_min, &zone_max,
+      zone_map_size, FALSE);
+    <braunr> so here, kmem_map is named zone_map
+    <braunr> then, in zalloc()
+    <braunr> kmem_alloc_wired(zone_map, &addr, zone->alloc_size)
+    <antrik> so, kmem_alloc just deals out chunks of memory referenced directly
+      by the address, and without knowing anything about the use?
+    <braunr> kmem_alloc() gives virtual pages
+    <braunr> zalloc() carves them into buffers, as in the slab allocator
+    <braunr> the difference is essentially the lack of formal "slab" object
+    <braunr> which makes the zone code look like a mess
+    <antrik> so kmem_suballoc() essentially just takes a bunch of pages from
+      the main kernel_map, and uses these to back another map which then in
+      turn deals out pages just like the main kernel_map?
+    <braunr> no
+    <braunr> kmem_suballoc creates a vm_map_entry object, and sets its start
+      and end address
+    <braunr> and creates a vm_map object, which is then inserted in the new
+      entry
+    <braunr> maybe that's what you meant with "essentially just takes a bunch
+      of pages from the main kernel_map"
+    <braunr> but there really is no allocation at this point
+    <braunr> except the map entry and the new map objects
+    <antrik> well, I'm trying to understand how kmem_alloc() manages things. so
+      it has map_entry structures like the maps of userspace processes? do
+      these also reference actual memory objects?
+    <braunr> kmem_alloc just allocates virtual pages from a vm_map, and backs
+      those with physical pages (unless the user requested pageable memory)
+    <braunr> it's not "like the maps of userspace processes"
+    <braunr> these are actually the same structures
+    <braunr> a vm_map_entry can reference a memory object or a kernel submap
+    <braunr> in netbsd, it can also referernce nothing (for pure wired kernel
+      memory like the vm_page array)
+    <braunr> maybe it's the same in mach, i don't remember exactly
+    <braunr> antrik: this is actually very clear in vm/vm_kern.c
+    <braunr> kmem_alloc() creates a new kernel object for the allocation
+    <braunr> allocates a new entry (or uses a previous existing one if it can
+      be extended) through vm_map_find_entry()
+    <braunr> then calls kmem_alloc_pages() to back it with wired memory
+    <antrik> "creates a new kernel object" -- what kind of kernel object?
+    <braunr> kmem_alloc_wired() does roughly the same thing, except it doesn't
+      need a new kernel object because it knows the new area won't be pageable
+    <braunr> a simple vm_object
+    <braunr> used as a container for anonymous memory in case the pages are
+      swapped out
+    <antrik> vm_object is the same as memory object/pager? or yet something
+      different?
+    <braunr> antrik: almost
+    <braunr> antrik: a memory_object is the user view of a vm_object
+    <braunr> as in the kernel/user interfaces used by external pagers
+    <braunr> vm_object is a more internal name
+    <mcsim> Is fragmentation a big problem in slab allocator?
+    <mcsim> I've tested it on my computer in Linux and for some caches it
+      reached 30-40%
+    <antrik> well, fragmentation is a major problem for any allocator...
+    <antrik> the original slab allocator was design specifically with the goal
+      of reducing fragmentation
+    <antrik> the revised version with the addition of magazines takes a step
+      back on this though
+    <antrik> have you compared it to slub? would be pretty interesting...
+    <mcsim> I have an idea how can it be decreased, but it will hurt by
+      performance...
+    <mcsim> antrik: no I haven't, but there will be might the same, I think
+    <mcsim> if each cache will handle two types of object: with sizes that will
+      fit cache sizes (or I bit smaller) and with sizes which are much smaller
+      than maximal cache size. For first type of object will be used standard
+      slab allocator and for latter type will be used (within page) heap
+      allocator.
+    <mcsim> I think that than fragmentation will be decreased
+    <antrik> not at all. heap allocator has much worse fragmentation. that's
+      why slab allocator was invented
+    <antrik> the problem is that in a long-running program (such an the
+      kernel), objects tend to have vastly varying lifespans
+    <mcsim> but we use heap only for objects of specified sizes
+    <antrik> so often a few old objects will keep a whole page hostage
+    <mcsim> for example for 32 byte cache it could be 20-28 byte objects
+    <antrik> that's particularily visible in programs such as firefox, which
+      will grow the heap during use even though actual needs don't change
+    <antrik> the slab allocator groups objects in a fashion that makes it more
+      likely adjacent objects will be freed at similar times
+    <antrik> well, that's pretty oversimplyfied, but I hope you get the
+      idea... it's about locality
+    <mcsim> I agree, but I speak not about general heap allocation. We have
+      many heaps for objects with different sizes.
+    <mcsim> Could it be better?
+    <antrik> note that this has been a topic of considerable research. you
+      shouldn't seek to improve the actual algorithms -- you would have to read
+      up on the existing research at least before you can contribute anything
+      to the field :-)
+    <antrik> how would that be different from the slab allocator?
+    <mcsim> slab will allocate 32 byte for both 20 and 32 byte requests
+    <mcsim> And if there was request for 20 bytes we get 12 unused
+    <antrik> oh, you mean the implementation of the generic allocator on top of
+      slabs? well, that might not be optimal... but it's not an often used case
+      anyways. mostly the kernel uses constant-sized objects, which get their
+      own caches with custom tailored size
+    <antrik> I don't think the waste here matters at all
+    <mcsim> affirmative. So my idea is useless. 
+    <antrik> does the statistic you refer to show the fragmentation in absolute
+      sizes too?
+    <mcsim> Can you explain what is absolute size?
+    <mcsim> I've counted what were requested (as parameter of kmalloc) and what
+      was really allocated (according to best fit cache size).
+    <antrik> how did you get that information?
+    <mcsim> I simply wrote a hook
+    <antrik> I mean total. i.e. how many KiB or MiB are wasted due to
+      fragmentation alltogether
+    <antrik> ah, interesting. how does it work?
+    <antrik> BTW, did you read the slab papers?
+    <mcsim> Do you mean articles from lwn.net?
+    <antrik> no 
+    <antrik> I mean the papers from the Sun hackers who invented the slab
+      allocator(s)
+    <antrik> Bonwick mostly IIRC
+    <mcsim> Yes
+    <antrik> hm... then you really should know the rationale behind it...
+    <mcsim> There he says about 11% percent of memory waste
+    <antrik> you didn't answer my other questions BTW :-)
+    <mcsim> I've corrupted kernel tree with patch, and tomorrow I'm going to
+      read myself up for exam (I have it on Thursday). But than I'll send you a
+      module which I've used for testing.
+    <antrik> OK
+    <mcsim> I can send you module now, but it will not work without patch.
+    <mcsim> It would be better to rewrite it using debugfs, but when I was
+      writing this test I didn't know about trace_* macros
+
+2011-04-15
+
+    <mcsim> There is a hack in zone_gc when it allocates and frees two
+      vm_map_kentry_zone elements to make sure the gc will be able to allocate
+      two in vm_map_delete. Isn't it better to allocate memory for these
+      entries statically?
+    <youpi> mcsim: that's not the point of the hack
+    <youpi> mcsim: the point of the hack is to make sure vm_map_delete will be
+      able to allocate stuff
+    <youpi> allocating them statically will just work once
+    <youpi> it may happen several times that vm_map_delete needs to allocate it
+      while it's empty (and thus zget_space has to get called, leading to a
+      hang)
+    <youpi> funnily enough, the bug is also in macos X
+    <youpi> it's still in my TODO list to manage to find how to submit the
+      issue to them
+    <braunr> really ?
+    <braunr> eh
+    <braunr> is that because of map entry splitting ?
+    <youpi> it's git commit efc3d9c47cd744c316a8521c9a29fa274b507d26
+    <youpi> braunr: iirc something like this, yes
+    <braunr> netbsd has this issue too
+    <youpi> possibly
+    <braunr> i think it's a fundamental problem with the design
+    <braunr> people think of munmap() as something similar to free()
+    <braunr> whereas it's really unmap
+    <braunr> with a BSD-like VM, unmap can easily end up splitting one entry in
+      two
+    <braunr> but your issue is more about harmful recursion right ?
+    <youpi> I don't remember actually
+    <youpi> it's quite some time ago :)
+    <braunr> ok
+    <braunr> i think that's why i have "sources" in my slab allocator, the
+      default source (vm_kern) and a custom one for kernel map entries
+
+2011-04-18
+
+    <mcsim> braunr: you've said that once page is completely free, it is
+      returned to the vm.
+    <mcsim> who else, besides zone_gc, can return free pages to the vm?
+    <braunr> mcsim: i also said i was wrong about that
+    <braunr> zone_gc is the only one
+
+2011-04-19
+
+    <braunr> antrik: mcsim: i added back a new per-cpu layer as planned
+    <braunr>
+      http://git.sceen.net/rbraun/libbraunr.git/?a=blob;f=mem.c;h=c629b2b9b149f118a30f0129bd8b7526b0302c22;hb=HEAD
+    <braunr> mcsim: btw, in mem_cache_reap(), you can clearly see there are two
+      loops, just as in zone_gc, to reduce contention and avoid deadlocks
+    <braunr> this is really common in memory allocators
+
+2011-04-23
+
+    <mcsim> I've looked through some allocators and all of them use different
+      per cpu cache policy. AFAIK gnuhurd doesn't support multiprocessing, but
+      still multiprocessing must be kept in mind. So, what do you think what
+      kind of cpu caches is better? As for me I like variant with only per-cpu
+      caches (like in slqb).
+    <antrik> mcsim: well, have you looked at the allocator braunr wrote
+      himself? :-)
+    <antrik> I'm not sure I suggested that explicitly to you; but probably it
+      makes most sense to use that in gnumach
+
+2011-04-24
+
+    <mcsim> antrik: Yes, I have. He uses both global and per cpu caches. But he
+      also suggested to look through slqb, where there are only per cpu
+      caches.\
+    <braunr> i don't remember slqb in detail
+    <braunr> what do you mean by "only per-cpu caches" ?
+    <braunr> a whole slab sytem for each cpu ?
+    <mcsim> I mean that there are no global queues in caches, but there are
+      special queues for each cpu.
+    <mcsim> I've just started investigating slqb's code, but I've read an
+      article on lwn about it. And I've read that it is used for zen kernel.
+    <braunr> zen ?
+    <mcsim> Here is this article http://lwn.net/Articles/311502/
+    <mcsim> Yes, this is linux kernel with some patches which haven't been
+      approved to torvald's tree
+    <mcsim> http://zen-kernel.org/
+    <braunr> i see
+    <braunr> well it looks nice
+    <braunr> but as for slub, the problem i can see is cross-CPU freeing
+    <braunr> and I think nick piggins mentions it
+    <braunr> piggin*
+    <braunr> this means that sometimes, objects are "burst-free" from one cpu
+      cache to another
+    <braunr> which has the same bad effects as in most other allocators, mainly
+      fragmentation
+    <mcsim> There is a special list for freeing object allocated for another
+      CPU
+    <mcsim> And garbage collector frees such object on his own
+    <braunr> so what's your question ?
+    <mcsim> It is described in the end of article.
+    <mcsim> What cpu-cache policy do you think is better to implement?
+    <braunr> at this point, any
+    <braunr> and even if we had a kernel that perfectly supports
+      multiprocessor, I wouldn't care much now
+    <braunr> it's very hard to evaluate such allocators
+    <braunr> slqb looks nice, but if you have the same amount of fragmentation
+      per slab as other allocators do (which is likely), you have tat amount of
+      fragmentation multiplied by the number of processors
+    <braunr> whereas having shared queues limit the problem somehow
+    <braunr> having shared queues mean you have a bit more contention
+    <braunr> so, as is the case most of the time, it's a tradeoff
+    <braunr> by the way, does pigging say why he "doesn't like" slub ? :)
+    <braunr> piggin*
+    <mcsim> http://lwn.net/Articles/311093/
+    <mcsim> here he describes what slqb is better.
+    <braunr> well it doesn't describe why slub is worse
+    <mcsim> but not very particularly 
+    <braunr> except for order-0 allocations
+    <braunr> and that's a form of fragmentation like i mentioned above
+    <braunr> in mach those problems have very different impacts
+    <braunr> the backend memory isn't physical, it's the kernel virtual space
+    <braunr> so the kernel allocator can request chunks of higher than order-0
+      pages
+    <braunr> physical pages are allocated one at a time, then mapped in the
+      kernel space
+    <mcsim> Doesn't order of page depend on buffer size?
+    <braunr> it does
+    <mcsim> And why does gnumach allocates higher than order-0 pages more?
+    <braunr> why more ?
+    <braunr> i didn't say more
+    <mcsim> And why in mach those problems have very different impact?
+    <braunr> ?
+    <braunr> i've just explained why :)
+    <braunr> 09:37 < braunr> physical pages are allocated one at a time, then
+      mapped in the kernel space
+    <braunr> "one at a time" means order-0 pages, even if you allocate higher
+      than order-0 chunks
+    <mcsim> And in Linux they allocated more than one at time because of
+      prefetching page reading?
+    <braunr> do you understand what virtual memory is ?
+    <braunr> linux allocators allocate "physical memory"
+    <braunr> mach kernel allocator allocates "virtual memory"
+    <braunr> so even if you allocate a big chunk of virtual memory, it's backed
+      by order-0 physical pages
+    <mcsim> yes, I understand this
+    <braunr> you don't seem to :/
+    <braunr> the problem of higher than order-0 page allocations is
+      fragmentation
+    <braunr> do you see why ?
+    <mcsim> yes
+    <braunr> so
+    <braunr> fragmentation in the kernel space is less likely to create issues
+      than it does in physical memory
+    <braunr> keep in mind physical memory is almost always full because of the
+      page cache
+    <braunr> and constantly under some pressure
+    <braunr> whereas the kernel space is mostly empty
+    <braunr> so allocating higher then order-0 pages in linux is more dangerous
+      than it is in Mach or BSD
+    <mcsim> ok
+    <braunr> on the other hand, linux focuses pure performance, and not having
+      to map memory means less operations, less tlb misses, quicker allocations
+    <braunr> the Mach VM must map pages "one at a time", which can be expensive
+    <braunr> it should be adapted to handle multiple page sizes (e.g. 2 MiB) so
+      that many allocations can be made with few mappings
+    <braunr> but that's not easy
+    <braunr> as always: tradeoffs
+    <mcsim> There are other benefits of physical allocating. In big DMA
+      transfers can be needed few continuous physical pages. How does mach
+      handles such cases?
+    <braunr> gnumach does that awfully
+    <braunr> it just reserves the whole DMA-able memory and uses special
+      allocation functions on it, IIRC
+    <braunr> but kernels which have a MAch VM like memory sytem such as BSDs
+      have cleaner methods
+    <braunr> NetBSD provides a function to allocate contiguous physical memory
+    <braunr> with many constraints
+    <braunr> FreeBSD uses a binary buddy system like Linux
+    <braunr> the fact that the kernel allocator uses virtual memory doesn't
+      mean the kernel has no mean to allocate contiguous physical memory ...
