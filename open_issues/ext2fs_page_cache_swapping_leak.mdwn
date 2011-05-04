@@ -10,6 +10,8 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_hurd]]
 
+There is a [[!FF_project 272]][[!tag bounty]] on this task.
+
 IRC, OFTC, #debian-hurd, 2011-03-24
 
     <youpi> I still believe we have an ext2fs page cache swapping leak, however
@@ -21,3 +23,129 @@ IRC, OFTC, #debian-hurd, 2011-03-24
     <pinotree> so the swap tends to accumulate unuseful stuff, i see
     <youpi> yes
     <youpi> the disk content, basicallyt :)
+
+IRC, freenode, #hurd, 2011-04-18
+
+    <antrik> damn, a cp -a simply gobbles down swap space...
+    <braunr> really ?
+    <braunr> that's weird
+    <braunr> why would a copy use so much anonymous memory ?
+    <braunr> unless the external pager is so busy that the kernel falls back to
+      its default pager
+    <youpi> that's what I suggested some time ago
+    <braunr> maybe this case should be traced in the kernel
+    <braunr> a simple message in the kernel buffer to warn that this condition
+      happened may help
+    <youpi> I'm seeing swap space being kept used on buildds for no real reason
+      except possibly backing ext2fs pages
+    <youpi> that could help, yes
+    <antrik> youpi: I think it was actually slpz who suggested that...
+    <youpi> I think we're generally missing feedback from memory behavior
+    <antrik> youpi: do you think andrei's kernel instrumentation work might be
+      helpful with analyzing such things?
+    <youpi> antrik: I think I suggested it too, but never mind
+    <youpi> antrik: no, because it's not a trace of events that you want
+    <youpi> some specific events would be useful
+    <youpi> but then we don't really need a whole framework for that
+    <antrik> apt-get upgrade eats swap too
+    <youpi> the upgrade itself, or the computation of the ugprade?
+    <youpi> apt is a memory eater nowadays
+    <antrik> installing the packages
+    <antrik> seems to have stabilized though after a while...
+    <antrik> so perhaps it's not a leak in this case
+    <youpi> ideally we should have a way to know what was put in the swap
+    <braunr> how would you represent what's in the swap ?
+    <antrik> the apt-get process has 46M of virtual memory above the 128 M
+      baseline
+    <braunr> mostly libraries i guess
+    <braunr> are trheads stacks 8 MiB like on Linux ?
+    <youpi> braunr: at least knowing how much of each process is in the swap
+    <youpi> braunr: 2MiB
+    <braunr> ok
+    <youpi> vminfo could also report which parts of the address space are in
+      the swap
+    <antrik> youpi: would be nice to have some simple utility reporting how
+      much of a process' address space is anonymous
+    <antrik> (in fact, I wonder why it's not reported by standard tools such as
+      ps or top... this shouldn't be too difficult I would think?)
+    <antrik> it would be much more useful information than the total virt size,
+      which includes rather meaningless disk and device mappings...
+    <youpi> agreed
+    <braunr> well
+    <braunr> there are tools like pmap for this
+    <braunr> unfortunately, it's difficult in mach to know what backs a
+      non-anonymous mapping
+    <braunr> pagers should be able to name their mappings
+    <youpi> that'd be helpful for debugging yes
+    <braunr> there is almost no overhead in doing that, and it would be very
+      useful
+    <youpi> and could lead to /proc/pid/maps
+    <braunr> yes
+    <braunr> isn't there a maps already ?
+    <youpi> nope
+    <braunr> ok
+    <youpi> (probably not very useful without the names)
+    <braunr>  ithought i remembered maps without names, and guessed it might
+      have been on the hurd for that reason
+    <braunr> but i'm not sure
+    <youpi> there's the vminfo command, yes
+    <braunr> 14:06 < youpi> braunr: at least knowing how much of each process
+      is in the swap
+    <braunr> wouldn't it be clearer to do it the other way around ?
+    <braunr> like a swapinfo tool indicating what it contains ?
+    <youpi> sure, but it's a lot more difficult
+    <braunr> really ?
+    <braunr> why ?
+    <youpi> because you have to traverse all the mappings
+    <youpi> etc
+    <youpi> (in all processes, I mean)
+    <youpi> and you have to name what is waht
+    <braunr> there are other ways
+    <braunr> the swap is a central structure
+    <youpi> while simply introducing the swap %  in vminfo
+    <youpi> for a given process you know what is what
+    <braunr> right
+    <youpi> and doing that introduction is  probably very simple
+    <braunr> that's a good point
+    <braunr> top-down is effectively easier than bottom-up resolution in Mach
+      VM
+    <antrik> hm... the memory use caused by cp doesn't seem to be reflected in
+      the virtual size of any particular process
+    <antrik> ghost memory
+    <braunr> what's cp vmsize at the time of the problem ?
+    <antrik> it's at 134 M right now... so considering the 128 M baseline,
+      nothing worth speaking of
+    <braunr> right
+    <braunr> maybe a copy map during I/O
+    <braunr> but I don't know Mach copy maps in detail, as they have been
+      eliminated from UVM
+    <antrik> BTW, the memory eatup happens even before swap comes into
+      play... swapping seems to be a result of the problem, not the cause
+    <braunr> what do you mean ?
+    <braunr> I thought swapping was the issue
+    <braunr> you mean RAM is full before swapping ?
+    <antrik> well, I don't know what the actual problem is... I just don't
+      understand why the memory use increases without any particular process
+      seeing an increase in size
+    <antrik> the "free" size in vmstat decreses
+    <antrik> once it's eatun up, swap space use increases
+    <braunr> well it doesn't change much of it
+    <braunr> the anonymous memory pager will use RAM before resorting to the
+      external default-pager
+    <antrik> I would suspect normal block caching... but then, shouldn't this
+      show up in the memory info of the ext2 process?
+    <braunr> although, again, I'm not sure of the behaviour of the anonymous
+      memory pager
+    <braunr> antrik: I don't know how block caching behaves
+    <antrik> BTW, is it a know problem that doing ^C on a "cp -a" seems to hang
+      the whole system?...
+    <antrik> (the whole hurd instance that is... the other instance is not
+      affected)
+    <youpi> not that I know of
+    <braunr> seems like a deadlock in the anonymous memory handling
+    <youpi> (and I've never seen that)
+    <antrik> happens both in my main system (using ancient hurd/libc) and in my
+      subhurd (recently upgraded to current stuff)
+    <antrik> this make testing this stuff quite a lot harder... [sigh]
+    <antrik> any suggestions how to debug this hang?
+    <braunr> antrik: no :/
