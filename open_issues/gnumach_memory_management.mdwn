@@ -772,3 +772,76 @@ IRC, freenode, #hurd, 2011-04-12:
     <braunr> FreeBSD uses a binary buddy system like Linux
     <braunr> the fact that the kernel allocator uses virtual memory doesn't
       mean the kernel has no mean to allocate contiguous physical memory ...
+
+2011-05-02
+
+    <braunr> hm nice, my allocator uses less memory than glibc (squeeze
+      version) on both 32 and 64 bits systems
+    <braunr> the new per-cpu layer is proving effective
+    <neal> braunr: Are you reimplementation malloc?
+    <braunr> no
+    <braunr> it's still the slab allocator for mach, but tested in userspace
+    <braunr> so i wrote malloc wrappers
+    <neal> Oh.
+    <braunr> i try to heavily test most of my code in userspace now
+    <neal> it's easier :-)
+    <neal> I agree
+    <braunr> even the physical memory allocator has been implemented this way
+    <neal> is this your mach version?
+    <braunr> virtual memory allocation will follow
+    <neal> or are you working on gnu mach?
+    <braunr> for now it's my version
+    <braunr> but i intend to spend the summer working on ipc port names
+      management
+
+[[rework_gnumach_IPC_spaces]].
+
+    <braunr> and integrate the result in gnu mach
+    <neal> are you keeping the same user-space API?
+    <neal> Or are you experimenting with something new?
+    <antrik> braunr: to be fair, it's not terribly hard to use less memory than
+      glibc :-)
+    <braunr> yes
+    <braunr> antrik: well ptmalloc3 received some nice improvements
+    <braunr> neal: the goal is to rework some of the internals only
+    <braunr> neal: namely, i simply intend to replace the splay tree with a
+      radix tree
+    <antrik> braunr: the glibc allocator is emphasising performace, unlike some
+      other allocators that trade some performance for much better memory
+      utilisation...
+    <antrik> ptmalloc3?
+    <braunr> that's the allocator used in glibc
+    <braunr> http://www.malloc.de/en/
+    <antrik> OK. haven't seen any recent numbers... the comparision I have in
+      mind is many years old...
+    <braunr> i also made some additions to my avl and red-black trees this week
+      end, which finally make them suitable for almost all generic uses
+    <braunr> the red-black tree could be used in e.g. gnu mach to augment the
+      linked list used in vm maps
+    <braunr> which is what's done in most modern systems
+    <braunr> it could also be used to drop the overloaded (and probably over
+      imbalanced) page cache hash table
+
+2011-05-03
+
+    <mcsim> antrik: How should I start porting? Have I just include rbraun's
+      allocator to gnumach and make it compile?
+    <antrik> mcsim: well, basically yes I guess... but you will have to look at
+      the code in question first before we know anything more specific :-)
+    <antrik> I guess braunr might know better how to start, but he doesn't
+      appear to be here :-(
+    <braunr> mcsim: you can't juste put my code into gnu mach and make it run,
+      it really requires a few careful changes
+    <braunr> mcsim: you will have to analyse how the current zone allocator
+      interacts with regard to locking
+    <braunr> if it is used in interrupt handlers
+    <braunr> what kind of locks it should use instead of the pthread stuff
+      available in userspace
+    <braunr> you will have to change the reclamiing policy, so that caches are
+      reaped on demand
+    <braunr> (this basically boils down to calling the new reclaiming function
+      instead of zone_gc())
+    <braunr> you must be careful about types too
+    <braunr> there is work to be done ;)
+    <braunr> (not to mention the obvious about replacing all the calls to the
+      zone allocator, and testing/debugging afterwards)

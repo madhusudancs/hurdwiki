@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2009, 2010 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2009, 2010, 2011 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -8,103 +9,28 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
-[[!meta title="""How to prepare and publish "a month of the Hurd" for the last
+[[!meta title="""How to prepare and publish a "Month of the Hurd" for the last
 month"""]]
 
-We prepare *a month of the Hurd* in a public git branch (`master-news_next`),
-and merge that one into `master` once we want to publish the news.  The idea is
-to record to-be-published changes on that branch at they time they arise, and
-then publish them en bloc at the end of the month.
+We prepare a *Month of the Hurd* in the file [[moth_next]].  The idea is
+to record to-be-published changes in that file at they time they arise, and
+then publish them en bloc at the end of the month.  There are instructions for
+[[writing_the_moth]].
 
-As this is done on a separate branch, there are two options: you can have
-separate repositories (*clones*, or *checkouts*; what you get from `git clone`)
-for the `master` and `master-news_next` branches, or you can deal with both in
-the same repository.  Having separate repositories you don't have to remember
-which branch you're on, and don't have to switch between branches before
-beginning to edit files, and it doesn't matter -- as no switching between
-branches is needed -- if you have uncomitted changes to some files.  On the
-other hand, you may want to keep it all in one repository, to save disk space,
-and for shuffling different branches' commits being (a bit) easier.
+  * At the end of the month: prepare for publishing the MotH, then send the raw
+    Markdown text to the mailing list, asking for feedback.
 
-For practical work that means to use the following commands: 
+  * ..., and publish.
 
-  * create a local branch for `master-news_next`
-
-        $ git fetch
-        $ git checkout -b master-news_next origin/master-news_next
-
-      * if you already have created a local branch `master-news_next`: update to
-        the latest version of it
-
-            $ git checkout master-news_next
-            $ git pull --rebase
-
-  * edit
-
-    Always do check which branch you're on (asterisk in the first column of
-    `git branch`'s output), and only then begin to do your changes and commit
-    them.
-
-    We should not update news items that have already been published (that is,
-    on <http://www.gnu.org/software/hurd/news.html>; no problem for the
-    [[staging area|web_pages#staging_area]]), as the system will always also
-    update the RSS feeds, etc., causing the old news item to reappear on feeds,
-    which is a bit of a nuisance.
-
-      * at the beginning of a month: create a new news entry
-
-            $ cp contributing/web_pages/news/skeleton.mdwn news/YYYY-MM.mdwn
-            $ # edit the new file, then add the changes in git
-            $ git add news/YYYY-MM.mdwn
-            $ git commit -m "Begun the news entry for YYYY-MM."
-
-        That is, use the [[news skeleton|skeleton]] as a template for the new
-        news snippet.  It also includes a list of the places to watch for news.
-
-  * check the outgoing changes
-
-        $ git log --reverse -p -C origin/master-news_next..master-news_next
-
-  * push the changes
-
-        $ git push origin master-news_next
-
-      * if push fails, pull and rebase the local changes on top of the remote
-        changes
-
-            $ git pull --rebase
-
-        This will only happen if someone else has been installing commits into
-        `origin`'s `master-news_next` branch since the last time you
-        synchronized to it.
-
-        Note that this might cause some conflicts to arise -- if the remote
-        repository contains commits that conflict with any that you've been
-        recording in your local repository.  For this reason, you might want to
-        already do this *rebase* before beginning you local edits, simply to
-        shorten the time frame in which such conflicts can arise.
-        (Theoretically, in the very rare case of very much concurrent editing
-        going on, you'd have to repeat this again (and again...) before
-        succeeding to push your changes.)
-
-  * at the end of the month: prepare for publishing the news
+        $ git mv contributing/web_pages/news/moth_next.mdwn news/YYYY-MM.mdwn
 
     Edit the news entry's *meta date* value to the timestamp when the news
-    entry is [[published|news]].  We have to set that one manually, as
-    otherwise the timestamp of the news entry file's creation will be taken,
-    which is (much) earlier, and not what we want.  We do not set the *meta
-    updated* value, as it's correct to update that one upon further
-    modifications of the news entries.
+    entry is published.  We have to set that one manually, as otherwise the
+    timestamp of the news entry file's creation will be taken, which is (much)
+    earlier, and not what we want.  We do not set the *meta updated* value, as
+    it's correct to update that one upon further modifications of the news
+    entries.
 
-  * ... and publish
-
-        $ git checkout master
-        $ git pull --rebase
-        $ git merge master-news_next
+        $ git cp contributing/web_pages/news/skeleton.mdwn contributing/web_pages/news/moth_next.mdwn
+        $ git commit -m 'MotH YYYY-MM.'
         $ git push origin master
-
-    That means, for publishing we merge `master-news_next` into `master`.
-    After that merge, work for the next month's news item can continue on
-    `master-news_next`.
-
-    Arne Babenhauserheide uses a [[merge-news]] script for doing this.

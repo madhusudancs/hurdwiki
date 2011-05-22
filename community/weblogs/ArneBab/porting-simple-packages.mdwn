@@ -1,0 +1,72 @@
+# Quick porting guide for simple packages
+
+*If you want to help port a package with simple issues to the Hurd, please read on.*
+
+*just imagine joe C-doodler stumbling over some GNU philosophy and thinking “hey, I’ve got 2 free hours, why not help the Hurd?”*
+*for him I’d like to have a guide (and for me, the faulty-memory-does-too-many-things :) )*
+
+*a short guide “how to do simple ports” broken down to command line level: how to get the list of simple packages (youpi told me that here), how to get the source, how to test the fix, how to submit the fix.*
+
+## Setup an instant Hurd development environment
+
+See [[Instant Development Environment|contributing#index5h2]] - just follow the command to get a Hurd running in Qemu.
+
+## Getting the list of failed packages
+
+    wget http://people.debian.org/~sthibault/failed_packages.txt.gz
+    gunzip failed_packages.txt.gz
+
+## Finding a simple task
+
+    grep PATH_MAX failed_packages.txt -B 2
+
+Each of these packages is likely to be simple to fix. The output looks like this: 
+
+    …
+    --
+    tex/lilypond_2.12.3-7 by buildd_hurd-i386-mozart [optional:uncompiled:bp{-100}:calprio{-63}:days{258}]
+      Reasons for failing:
+    > file-name.cc:88: error: 'PATH_MAX' was not declared in this scope
+    --
+    …
+
+in this case, lilypond is the package.
+
+Other simple tasks can be found on [[hurd/porting/guidelines]].
+
+## Downloading the package source and installing dependencies
+
+    apt-get source PACKAGE
+    apt-get build-dep PACKAGE
+
+For example
+
+    apt-get source lilypond
+    apt-get build-dep lilypond
+
+## Fix the package
+
+See [[hurd/porting/guidelines]] for help on fixing the package.
+
+Notes: 
+
+* char path[4096] is evil. Use dynamic allocation (if you can).
+* use stuff like if (x < sysconf(_SC_PATH_MAX)) {}
+* if need be, make it conditional
+
+\#ifdef PATH_MAX
+old, POSIX-violating code
+\#else
+GNU, better code
+\#endif
+
+## Test the fix (compile, run tests)
+
+    cd PACKAGE
+    dpkg-buildpackage -B
+
+Also check the packages README for instructions.
+
+## Submit the fix
+
+See [[hurd/running/debian/patch_submission]].

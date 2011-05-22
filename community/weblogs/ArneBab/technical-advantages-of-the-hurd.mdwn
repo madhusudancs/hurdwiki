@@ -1,0 +1,44 @@
+*answer to http://blog.flameeyes.eu/2011/05/15/just-accept-it-truth-hurds .*
+
+Thanks for explaining your reasons. As answer: 
+
+Firstoff: FUSE is essentially an implementation of parts of the translators system (which is the main building block of the Hurd) to Linux and NetBSD recently got a port of the translators system¹. That’s the main contribution to other projects I see. 
+
+¹: http://netbsd-soc.sourceforge.net/projects/hurdt/
+
+On the bare technical side, the translator-based filesystem stands out: The filesystem allows for making arbitrary programs responsible for displaying a given node (which can also be a directory tree) and to start these programs on demand. To make them persistent over reboots, you only need to add them to the filesystem node (for which you need the right to change that node). Also you can start translators on any node without having to change the node itself, but then they are not persistent and only affect your view of the filesystem without affecting other users. These translators are called active, and you don’t need write permissions on a node to add them. 
+
+The filesystem implements stuff like Gnome VFS and KDE network transparency on the filesystem level, so they are available for all programs. And you can add a new filesystem as simple user, just as if you’d just write into a file “instead of this node, show the filesystem you get by interpreting file X with filesystem Y” (this is what you actually do when setting a translator but not yet starting it (passive translator)).
+
+One practical advantage of this is that the following works: 
+
+    settrans -a ftp\: /hurd/hostmux /hurd/ftpfs /
+    dpkg -i ftp://ftp.gnu.org/path/to/*.deb
+
+The shell sees normal directories (beginning with the directory “ftp:”), so shell expressions just work.
+
+You could even define a Gentoo mirror translator (`settrans mirror\: /hurd/gentoo-mirror`), so every program could just access mirror://gentoo/portage-2.2.0_alpha31.tar.bz2 and get the data from a mirror automatically: `wget mirror://gentoo/portage-2.2.0_alpha31.tar.bz2`
+
+Or you could add a uniounmount translator to root which makes writes happen at another place. Every user is able to make a readonly system readwrite by just specifying where the writes should go. But the writes only affect his view of the filesystem.
+
+Starting a network process is done by a translator, too: The first time something accesses the network card, the network translator starts up and actually provides the device. This replaces most initscripts in the Hurd: Just add a translator to a node, and the service will persist over restarts.
+
+It’s a surprisingly simple concept, which reduces the complexity of many basic tasks needed for desktop systems.
+
+And at its most basic level, Hurd is a set of protocols for messages which allow using the filesystem to coordinate and connect processes (along with helper libraries to make that easy). 
+
+Also it adds POSIX compatibility to Mach (while still providing access to the capabilities-based access rights underneath, if you need them). You can give a process permissions at runtime and take them away at will. For example you can start all programs without permission to use the network (or write to any file) and add the permissions when you need them. 
+
+And then there are subhurds (essentially lightweight virtualization which allows cutting off processes from other processes without the overhead of creating a virtual machine for each process). But that’s an entire post of its own… 
+
+And the fact that a translator is just a simple standalone program means that these can be shared and tested much more easily, opening up completely new options for lowlevel hacking, because it massively lowers the barrier of entry.
+
+And then there is the possibility of subdividing memory management and using different microkernels (by porting the Hurd layer, as partly done in the NetBSD port), but that is purely academic right now (search for Viengoos to see what its about).
+
+
+So in short: The translator system in the Hurd is a simple concept which makes many tasks easy, which are complex with Linux (like init, network transparency, new filesystems, …). Additionally there are capabilities, subhurds and (academic) memory management.
+
+Best wishes, 
+Arne
+
+PS: I decided to read your post as “please give me technical reasons to dispell my emotional impression”.

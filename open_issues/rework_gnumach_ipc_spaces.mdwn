@@ -10,6 +10,14 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_gnumach]]
 
+IRC, freenode, #hurd, 2011-05-07
+
+    <braunr> things that are referred to as "system calls" in glibc are
+      actually RPCs to the kernel or other tasks, those RPCs have too lookup
+      port rights
+    <braunr> the main services have tens of thousands of ports, looking up one
+      is slow
+
 There is a [[!FF_project 268]][[!tag bounty]] on this task.
 
 IRC, freenode, #hurd, 2011-04-23
@@ -241,3 +249,72 @@ IRC, freenode, #hurd, 2011-04-23
     <braunr> so a radix ree would be the most efficient
     <antrik> well, if some processes really feel they must use random numbers
       for port names, they *ought* to be penalized ;-)
+
+2011-04-27
+
+    <braunr> antrik: remember when you asked why high numbers would be a
+      problem with radix trees ?
+    <braunr> here is a radix tree with one entry, which key is around 5000
+    <braunr> [  656.296412] tree height: 3
+    <braunr> [  656.296412] index:  0, level:  0, height:  3, count:  1,
+      bitmap: 0000000000000002
+    <braunr> [  656.296412] index:  1, level:  1, height:  2, count:  1,
+      bitmap: 0000000000004000
+    <braunr> [  656.296412] index: 14, level:  2, height:  1, count:  1,
+      bitmap: 0000000000000080
+    <braunr> three levels, each with an external node (dynamically allocated),
+      for one entry
+    <braunr> so in the worst case of entries with keys close to the highest
+      values, the could be many external nodes with higher paths lengths than
+      when keys are close to 0
+    <braunr> which also brings the problem of port name allocation
+    <braunr> can someone with access to a buildd which has an uptime of at
+      least a few days (and did at least one build) show me the output of
+      portinfo 3 | tail ?
+    <braunr> port names are allocated linearly IIRC, like PIDs, and some parts
+      of the kernel may rely on them not being reused often
+    <braunr> but for maximum effifiency, they should be
+    <braunr> efficiency*
+    <braunr> 00:00 < braunr> can someone with access to a buildd which has an
+      uptime of at least a few days (and did at least one build) show me the
+      output of portinfo 3 | tail ?
+    <braunr> :)
+    <youpi> it's almost like wc -l
+    <youpi>   4905: receive
+    <youpi> vs 4647
+    <youpi> for /
+    <youpi>  52902: receive
+    <youpi> vs 52207
+    <youpi> for the chroot
+    <braunr> even after several builds ?
+    <braunr> and several days ?
+    <youpi> that's after 2 days
+    <youpi> it's not so many builds
+    <youpi> rossini is not so old
+    <youpi> (7h)
+    <youpi> but many builds
+    <youpi> 70927: send
+    <youpi> vs 70938
+    <braunr> ok
+    <braunr> so it seems port names are reused
+    <braunr> good
+    <youpi> yes they are clearly
+    <braunr> i think i remember a comment about why the same port name
+      shouldn't be reused too soon
+    <youpi> well, it could help catching programming errors
+    <braunr> that it helped catch bugs in applications that could
+      deallocate/reallote quickly
+    <braunr> reallocate*
+    <braunr> without carefuly synchronization
+    <braunr> careful
+    <braunr> damn, i'm tired :/
+    <youpi> but that's about debugging
+    <youpi> so we don't care about performance there
+    <braunr> yes
+    <braunr> i'll try to improve allocation performance too
+    <braunr> using e.g. bitmaps in each external node back to the root so that
+      unused slots are quickly found
+    <braunr> i thknk that's what idr does in linux
+    <antrik> braunr: idr?
+    <braunr> antrik: a data structure used to map integers to pointers
+    <braunr> http://fxr.watson.org/fxr/source/lib/idr.c?v=linux-2.6

@@ -1,0 +1,55 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_glibc]]
+
+
+# Python
+
+IRC, freenode, #hurd, 2011-04-13
+
+    <abeaumont> ok, cause of first python testsuite failure located, now the
+      hard part, how to best fix it :)
+    <abeaumont> how to redesign the code to avoid the problem... that's the
+      hard part, mostly cause i lack contextual info
+    <abeaumont> tschwinge: the problem is pretty much summarized by this
+      comment in _hurd_select (in glibc): /* If one descriptor is bogus, we
+      fail completely.  */
+    <pochu> does POSIX say anything about what to do if one fd is invalid?
+    <pochu> and the other question is why python is calling select() with an
+      invalid fd
+    <abeaumont> pochu: yep, it says it should not fail completelly
+    <pochu> then that's our bug :)
+    <pinotree> abeaumont: just note that (at least on debian) some tests may
+      hang forever or cause hurd/mach to die
+    <pinotree> abeaumont: see in the debian/rules of the packaging of each
+      pythonX.Y source
+    <pinotree> ... there's a list of the tests excluded from the test suite run
+    <abeaumont> well, to be precise, python has a configure check for
+      'broken_poll' which hurd fails, and therefore python's select module is
+      not built, and anything depending on it fails
+    <abeaumont> broken_poll checks exactly for that posix requirement
+    <abeaumont> the reason for python using a non-existant
+      descriptor... unknown :D
+    <pochu> we should fix select to not fail miserably in that case
+    <pinotree> abeaumont: we have a patch to fix the broken poll check to
+      actually disable the poll module
+    <pochu> pinotree: but the proper fix is to fix select(), which is what
+      abeaumont is looking at
+    <abeaumont> pinotree: i'd say that's exactly what python's configure check
+      does itself -- disable building the select module
+    <pochu> abeaumont: what pinotree means is that the check is broken, see
+      http://patch-tracker.debian.org/patch/series/view/python2.6/2.6.6-8/hurd-broken-poll.diff
+    <pinotree> yes, the configure check for poll does the check, but not
+      everything of the poll module gets disabled (and you get a build failure)
+
+---
+
+See also [[select]] and [[select_vs_signals]].

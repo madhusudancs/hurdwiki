@@ -1,0 +1,345 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_glibc open_issue_hurd]]
+
+[[!GNU_Savannah_bug 461]]
+
+IRC, freenode, #hurd, 2011-04-20
+
+    <svante_> I found a problem from 2002 by Marcus Brinkmann that I think is
+      related to my problems: http://savannah.gnu.org/bugs/?461. He has a test
+      file called pipetest.c that shows that SIGPIPE is not triggered reliably.
+    <svante_> Cited from the bug report: The attached test program does not
+      trigger SIGPIPE reliably, because closing the read end of the pipe
+      happens asynchronously. The write can succeed because the read end might
+      not have been closed yet.
+    <svante_> I have debugged this program on both Hurd and Linux, and the
+      problem in Hurd remains:-(
+    <svante_> Anybody looked into the almost ten year old
+      bug:http://savannah.gnu.org/bugs/?461 this one is definitely related to
+      the build problems of e.g. ghc6 and ruby1.9.1. Should I mention this on
+      the ML?
+    <youpi> that could be it indeed
+    <youpi> does th bug still happen?
+    <azeem> depends on: new interface io_close
+    <azeem> which depends on: POSIX record locking
+    <svante_> youpi: Yes it does, I've tested the pipetest.c file submitted by
+      Marcus B on both Linux and Hurd
+    <azeem> that would've maybe been a nice GSOC task
+    <youpi> azeem: err, the contrary for posix record locking, non ?
+    <azeem> argh
+    <azeem> why would POSIX record locking depend on this?
+    <azeem> well anyway, then have POSIX record locking be a GSOC task :)
+    <azeem> I wasn't aware that would also fix ruby and ghc building :)
+    <youpi> http://permalink.gmane.org/gmane.os.hurd.devel.readers/265
+    <youpi> (for io_close stuff)
+    <youpi> http://comments.gmane.org/gmane.os.hurd.devel.readers/63 actually
+    <azeem> I guess if they didn't implement it/agreed on something back then
+      it'd be quite hard to do it now
+    <svante_> azeem: marcus recently showed up here. Maybe he can help out/has
+      ideas?
+    <azeem> well yeah
+    <azeem> but marcus was the junior guy back then
+    <azeem> <marcus> but it's a very hurdish solution (ie, complex, buggy, and
+      not implemented)
+    <azeem> maybe we can go for something simpler
+    <youpi> azeem: what is this quote about?
+    <azeem> don't remember
+    <azeem> not io_close I'd say
+
+2011-04-21
+
+    <antrik> svante_: why do you think the problem you see in ruby and ghc is
+      related to async close() ?
+
+2011-04-22
+
+    <svante_> Well: the test case I'm running on ruby is giving me an EBADF
+      after 8 successful loops, and tracing within eglibc points towards
+      __mutex_lock_solid or __spin_lock,  __spin_lock_solid from
+      mach/lock-intern.h from cthreads.
+
+2011-04-23
+
+    <antrik> srs1: yeah, I saw it... but I still wonder what makes you think
+      this is related to async FD closing?
+    <srs1> antrik: Every test case showing the problems are related to fd.h and
+      the functions there, especially the ones used in the function:
+      _HURD_FD_H_EXTERN_INLINE struct hurd_fd *_hurd_fd_get (int fd) and so is
+      the pipetest from Marcus too.
+    <srs1> I have not yet been able to trace further with gdb since most
+      variables are optimized out and adding print statements does not work, at
+      least not yet. Now I'm trying to build eglibc with -O1 to see if the
+      optimized out variables are there or not.
+    <youpi> srs1: he means the ghc6 issue
+    <youpi> (and the ruby issue)
+    <srs1> youpi: Yes, the ghc6 and ruby ends at the functions I mentioned in
+      fd,h 
+    <srs1> Both ghc6 and ruby programs are writing to a file when the error
+      happens. If they are using a pipeline or not I don't know yet, I think it
+      is a regular file write.
+    <srs1> I can send your the ruby program if you like: It is a c-file so
+      debugging is possible. ghc6 is worse, since that program cannot be
+      debugged directly with gdb. 
+    <antrik> pipetest also results in the program hanging in locking stuff?...
+    <srs1> pipetest does not hang, but gives no output as it should. Running it
+      in gdb with single stepping shows the correct behavior, but then gdb
+      hangs if I try to single stepping further, continue at the right place
+      works!
+    <antrik> I haven't looked at the pipetest program. do you have the link
+      handy?
+    <antrik> never mind, got it
+    <antrik> srs1: that sounds like a GDB problem...
+    <youpi> most probably, yes
+    <youpi> (and I've always seen issues like this in gdb on hurd)
+    <antrik> actually I think it's expected... the RPC handling code has some
+      explicit GDB hooks AIUI; trying to single-step into this code is probably
+      expected to wreck havoc...
+    <youpi> well, it should have some sane behavior
+    <youpi> even if it's "skip to next point where it's debuggable"
+    <antrik> srs1: note that there is no BADF involved in the pipetest AIUI...
+
+2011-04-28
+
+    <antrik> what is the actual problem you are seeing BTW?
+    <gnu_srs1> antrik: in ruby the problem is: Exception `IOError' at
+      tool/mkconfig.rb:12 - closed stream
+    <gnu_srs1> Triggered by ruby:io.c:internal_read_func() calling
+      sysdeps/mach/hurd/read.c returning a negative number of bytes read. 
+    <abeaumont> gnu_srs1: why do you think that error is locking related?
+    <gnu_srs1> This happens after 8 iterations of the read loop with 8192 bytes
+      read each time.
+    <abeaumont> but that doesn't involve locking at all, does it?
+    <gnu_srs1> I think it is, if there is a pipepline set up??
+    <gnu_srs1> Also the ghc6 hang ends up in hangs in sysdeps/mach/hurd/read.c
+      traced into fd.h where all things happen (including setting locks and
+      mutexes)
+    <braunr> what locking ?
+    <braunr> stdio locking is different from file locking
+    <braunr> and a pipe doesn't imply file locking at all
+    <abeaumont> read may block on pipes, but it's unrelated to flock
+    <gnu_srs1> Look into the file fd.h, maybe you can describe things
+      better. I'm not fluent in this stuff.
+    <gnu_srs1> Has a pipe has a file descriptor associated to it? What about a
+      file read/write?
+    <abeaumont> a pipe provides 2 file descriptors, one for reading and another
+      one for writting
+    <abeaumont> i may give a look at that if i manage to build glibc
+      succesfully...
+    <gnu_srs1> Take a look at the realevant code from fd.h:
+      http://pastebin.com/kesBpjy4
+    <abeaumont> the ruby error happens just trying to build ruby1.9?
+    <abeaumont> gnu_srs1: from what you said, the error occurs while reading,
+      so i don't see how it can be related to that code
+    <abeaumont> you already got a descriptor if you're reading from it
+    <gnu_srs1> I have not tried anything else than ruby1.9.1. I can send you
+      the ruby debug setup and files if you are interested.
+    <abeaumont> gnu_srs1: ok, i'll try to build ruby1.9.1 later... let's see if
+      i can build glibc first
+    <gnu_srs1>  abeaumont: well, the read suddenly returns -1 bytes read,
+      resulting in a file descriptor of -1 (instead of +3).
+    <abeaumont> gnu_srs1: i see
+    <antrik> gnu_srs1: are you sure the hang really happens in _hurd_fd_get()?
+      could you give us a backtrace?
+    <antrik> gnu_srs1: there are many reasons why read() can return -1; errno
+      should indicate the reason. unfortunately, I can't make much out of
+      ruby's "translation" of the error :-)
+    <gnu_srs1> antrik: In the ruby case there is no hang: The steam is closed
+      by read() giving an error code !=0. This triggers things in the ruby
+      code:  A negative number of bytes read and a negative fd results, and an
+      error error is triggered in the ruby code.
+    <gnu_srs1> antrik: See http://pastebin.com/eZmaZQJr
+    <antrik> gnu_srs1: yes, this all sounds perfectly right. the question is
+      *why* read() returns an error code. we'd need to know what error it is
+      exactly, and in what situation it occurs. tracing the libc code is not at
+      all useful here
+    <antrik> uhm... 1073741833 is errno?...
+    <gnu_srs1> BTW: I think the error code is EBADF (badfile descriptor?). The
+      integer version of it is 1073741833, see the pastebin i linked to.
+    <antrik> you could use perror() to get something more readable :-)
+    <antrik> or error() with the right arguments
+    <gnu_srs1> I used integer when printing, but looking into fd.h I think it
+      is EBADF  (I did get this result once in gdb)
+    <antrik> fd.h won't tell you anything. most error codes are generated by
+      the server, not by libc
+    <antrik> BADF might be generated in libc when ruby tries to read on FD -1
+    <antrik> (no idea why it tries to do that... perhaps there is actually
+      something wrong/stupid in ruby's error handling)
+    <gnu_srs1> Well I single-stepped in fd.h using gdb and printing err gave
+      EBADf. err is declared as: error_t err in read.c
+    <antrik> at which point did you single-step? while fd was still 3?
+    <gnu_srs1> I don't think the problem is in ruby, it is in mach/hurd!
+      Similar problems with ghc, python-apt, etc
+    <gnu_srs1> Yes, fd=3 was not changed. I cannot trace into fd.h from
+      read.c. That is the problem with all cases! Need to leave for a while
+      now.
+    <antrik> sorry, I don't see *anything* similar in the ghc failure.
+    <antrik> I don't know about python-apt
+    <antrik> for the ghc case, I'd like to see a GDB backtrace from the point
+      where it is hanging
+    <antrik> just to be clear: anything I/O-related will involve fd.h
+      somewhere. that doesn't in any way indicate the problems are related. in
+      fact the symptoms you described are very different, and I'm pretty
+      certain these are completely different issues
+    <gnu_srs1> antrik: Here is a backtrace,
+      http://pastebin.com/wvCiXFjB. Numbers 6,7,8 are from the calling Haskell
+      functions. They cannot be debugged by gdb. Nice to see that somebody is
+      showing interest at last:-/
+    <antrik> hm... I wonder whether the _hurd_intr_rpc_msg_in_trap is a result
+      of the ^C?
+    <antrik> if so, it seems to be a "normal" bloking read() operation. so
+      again probably not related to libc code at all
+    <gnu_srs1> Where is this blocking read() code located mach/hurd?
+    <antrik> io_read() is implemented by whatever server handles the FD in
+      question
+    <antrik> I guess rpctrace will be more helpful here than GDB... to see what
+      the program is trying to do here
+    <gnu_srs1> Why don't I get there with gdb?
+    <antrik> err... the server is a different process
+    <antrik> you are only tracing the client code
+    <gnu_srs1> OK, here is a rpctrace for ruby:
+      http://pastebin.com/sdPiKGBW.Nice programs you have, no manual pages, and
+      the program hang
+    <gnu_srs1> s/http://pastebin.com/sdPiKGBW.Nice
+      /http://pastebin.com/sdPiKGBW. BTW: Nice/ 
+    <gnu_srs1> antrik: Do you want the rpctrace of the ghc hang too? If that is
+      the case, do you need the whole file. From the ruby case the last part
+      looked most interesting:
+      libpthread/sysdeps/generic/pt-mutex-timedlock.c: assert (mutex->owner !=
+      self);
+    <antrik> gnu_srs1: hm... you get that assertion only with rpctrace? guess
+      it doesn't work properly then :-(
+    <gnu_srs1> Is it visible on the client side?
+    <antrik> gnu_srs1: that assertion *is* from the client side. I'm just
+      surprised that apparently it's only triggered when you run it in rpctrace
+    <antrik> how did you invoke rpctrace?
+    <gnu_srs1> rpctrace "command with options" > rpctrace.out 2>&1
+    <antrik> well, I'd like to know the "command with options" part :-)
+    <gnu_srs1> OK: for ruby: ./miniruby ./ tool/mkconfig.rb as before.
+    <antrik> OK, so it just runs the ruby interpreter and no other processes
+    <gnu_srs1> No other processes involved!
+    <abeaumont> gnu_srs1: i can reproduce the ruby error, no let's dig in it :D
+    <antrik> gnu_srs1: rpctrace for ghc could be useful too... but if it's too
+      long, pasting only the last bit might suffice
+    <gnu_srs1> antrik: OK, will do that. Do you find anything interesting?
+    <gnu_srs1>  abeaumont: Using gdb: gdb ./miniruby; (gdb) break io.c:569; c8;
+      break fd.h:72 or break read.c:27 and you are there. Beware of gdb
+      hanging, so you need another terminal to kill -9 gdb (sometimes a reboot
+      is needed :-(
+    <antrik> gnu_srs1: no, the ruby rpctrace is useless; apparently rpctrace
+      makes it break before reaching the relevant part :-(
+    <abeaumont> thanks gnu_srs1 
+    <gnu_srs1> antrik: Hope for better luck with ghc:
+      http://pastebin.com/dgcrA05t
+    <antrik> hm... it hangs at proc_dostop() again... whatever that means
+
+2011-05-07
+
+    <gnu_srs> One question about ruby: I know where the problems occur in ruby
+      code. Can I switch to the kernel thread just before in gdb to single step
+      from there?
+    <youpi> you can put a breakpoint, can't you?
+    <antrik> gnu_srs: kernel thread?
+    <gnu_srs> Yes, but will single stepping from there lead me to the Hurd
+      code. I have not succeeded to do that yet!
+    <youpi> you mean the translator code?
+    <gnu_srs> Well, Roland did call it the signal thread, there are at least
+      two threads per process, a signal thread and a main (user) thread.
+    <youpi> then it's a thread in gdb
+    <youpi> just use the thread gdb commands to access it
+    <gnu_srs> I do find two threads in gdb, yes. But following only the user
+      thread does not lead me to the cause of the problems.
+    <gnu_srs> And following the other (signal thread) has not been successful
+      so far.
+    <youpi> multithreading debugging in gdb is painful yes
+    <youpi> single-step isn't really an option in it
+    <antrik> gnu_srs: well, as I said before, the cause is probably not in the
+      libc code anyways. it would be much more relevant to find out what the FD
+      in question is, and what "special" thing Ruby does to it to trigger the
+      problematic behaviour...
+    <youpi> it's simpler to put printfs etc.
+    <antrik> youpi: well, printf doesn't work in the FD code :-)
+    <youpi> you can make it work
+    <youpi> open /dev/mem, write to 0xb8000
+    <youpi> I'm not even joking
+    <gnu_srs> I have printfs in the ruby code. And at some parts in eglibc (but
+      it is not possible to put them at all places I want, as mentioned before)
+    <antrik> sure, there are ways to debug this code too... but I don't think
+      it's useful. so far there is no indication that this will help finding
+      the actual issue
+    <gnu_srs> The problem is not file descriptors. It is that an ongoing read
+      suddenly returns -1 bytes read. And then the ruby code assigns a negative
+      file descriptor in the exception handling.
+    <youpi> a *read* ?
+    <youpi> with errno == 0 ?
+    <gnu_srs> Yes, a read!
+    <youpi> how ruby comes to assigning a negative fd from that?
+    <youpi> does it somehow close the fd?
+    <gnu_srs> The errno reported from the read is EBADF!
+    <youpi> did you try to rpctrace it?
+    <gnu_srs> I don't bother too much about ruby exception handling. The error
+      has already happened in the read operation. And that lead me to eglibc
+      code.... and so on...
+    <youpi> do you know what kind of file this fd was supposed to be on?
+    <youpi> sure, that's debugging
+    <gnu_srs> Yes I did rpctrace, but that was not successful. rpctrace just
+      hang! Buggy code?
+    <antrik> youpi: I assume that's Ruby's way to indicate that the FD is not
+      valid anymore, after the previous error
+    <youpi> does the program fork?
+    <youpi> antrik: possibly
+    <youpi> rpctrace has known issues, yes
+    <youpi> gnu_srs: did you trace close()s by hand with printfs?
+    <gnu_srs> Ho w to find out if it forks?
+    <youpi> what does rpctrace stop on ?
+    <gnu_srs> Well, I don't remember. Antrik?
+    <antrik> proc_dostop() IIRC
+    <antrik> or something like that
+    <gnu_srs> I did not find any close() statements in the code I debugged.
+    <youpi> ok, proc_dostop() is typically a sign of fork()
+    <youpi> gnu_srs: that doesn't necessarily mean it's not called
+    <antrik> gnu_srs: I think his point is that something else might close the
+      FD, causing the error you see
+    <youpi> anything can happen in the wild :)
+    <antrik> gnu_srs: as I said before, the next step is to find out what this
+      FD is, and what happens to it...
+    <gnu_srs> antrik: Any ideas how to find out?
+    <youpi> what is the backtrace?
+    <gnu_srs> Well I know the fd number, it is either 3 or 5 in my tests. Does
+      the number matter?
+    <youpi> yes, it's not std{in,out,err}
+    <gnu_srs> How to get a backtrace of a program that does not hang?
+    <youpi> make it hang at the point of failure
+    <youpi> when read returns -1
+    <youpi> so you know who did the read
+    <gnu_srs> I have to run the loop several times before the number of bytes
+      read is -1.
+    <youpi> you mean running the program several times ?
+    <youpi> or just let the loop continue for some time?
+    <pinotree> if it's the latter, you can add breakpoints with conditions
+    <gnu_srs> No the read loop runs for 7 iterations, and fails the 8th time!
+    <youpi> then make it hang when read() returns -1
+    <Mr_Spock> could you paste your code somewhere?
+    <youpi> when debugging, you're allowed to do all kinds of ugly things, you
+      know ;)
+    <gnu_srs> OK, I'll try that.
+    <gnu_srs> MR_Spock: The easiest way would be to try to build
+      ruby1.9.1. Then I can help you from where it fails. 
+    <gnu_srs> pinotree: How to give a breakpoint with a condition?
+    <pinotree> break where if condition
+    <youpi> see help break
+    <youpi> oh, there's even a thread condition nowadays, good
+    <gnu_srs> Thanks for the discussion. I have to get into the real world for
+      a while now. To be continued.
+    <antrik> gnu_srs: well, if you already know that the loop runs several
+      times before the error occurs, you apparently already looked at the
+      higher-level code that is relevant here...
+    <youpi> but it may be generic code, and not tell what calls it
