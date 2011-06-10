@@ -22,13 +22,12 @@ The whole process is much more cumbersome otherwise.
 It also assumes that apart from networking,
 your Hurd system is already installed and operational.
 
+
 Start by booting into Debian GNU/Linux for some preparations:
 
-suppose hurd partition is hdd1
+(as root)
 
-as root
-
-> $ mount /dev/hdd1 /mnt -t ext2
+> $ mount /dev/hdd1 /mnt -t ext2 # assuming your Hurd partition is hdd1 -- replace with whatever matches your setup
 
 > $ cd /mnt/etc/apt
 
@@ -61,12 +60,27 @@ as root
 > $ git clone git://git.sv.gnu.org/hurd/gnumach.git -b master-user_level_drivers gnumach_dde
 
 
-suppose you need forcedeth driver
+Now you need to get the actual driver from the Linux source tree.
+You have to find out which Linux driver
+is responsible for your network card,
+and which source file corresponds to this driver.
+In this guide we will use the forcedeth driver
+(for Nvidia nForce chipsets) as example.
 
-Download http://git.kernel.org/?p=linux/kernel/git/stable/linux-2.6.29.y.git;a=blob_plain;f=drivers/net/forcedeth.c;hb=HEAD from mozilla like
-browser to /mnt/home as forcedeth.c
+Download http://git.kernel.org/?p=linux/kernel/git/stable/linux-2.6.29.y.git;a=blob_plain;f=drivers/net/forcedeth.c;hb=HEAD
+and save under the file name forcedeth.c in /mnt/home
 
-reboot back to hurd (multiuser)
+(Note: the download from the Git URL above
+doesn't work with wget
+or other simple user agents without JavaScript.
+You will need to use Firefox or some such...
+Or figure out a better URL to get the file directly :-) )
+
+
+Now everything should be in place,
+so we can boot into Hurd to do the actual work:
+
+(again as root)
 
 > $ apt-get update
 
@@ -78,6 +92,8 @@ reboot back to hurd (multiuser)
 
 > $ apt-get install build-essential libpciaccess-dev libpcap0.8-dev
 
+
+(this part can be done as normal user)
 
 > $ cd /home/gnumach_dde
 
@@ -103,9 +119,7 @@ reboot back to hurd (multiuser)
 
 > $ sed -i 's:-I/include:-I..:' Makefile
 
-> $ nano forcedeth.c
-
-add this line after the last #include
+> $ nano forcedeth.c # Near the top of the file, there will be many #include lines. After the last one, add this:
 
     #include <ddekit/timer.h>
 
@@ -131,6 +145,8 @@ add this line after the last #include
 
 If the make fails it might be necassary to replace some of the -l options (or all) in Makefile with the real path to the library objects (example: change *-lhurd-slab* to *../libhurd-slab/libhurd-slab.a*)
 
+(as root)
+
 > $ cp /home/gnumach_dde/gnumach /boot/gnumach_dde
 
 > $ mkdir /hurd/dde
@@ -141,15 +157,29 @@ If the make fails it might be necassary to replace some of the -l options (or al
 
 > $ cp /home/hurd_dde/dde_forcedeth/dde_forcedeth /hurd/dde/forcedeth
 
-reboot to hurd with the new gnumach_dde
+
+Now everything should be built.
+Before we can use the driver,
+we have to boot with the newly built gnumach_dde
+instead of the standard kernel.
+(Adapt your grub configuration;
+or manually edit the entry
+in the boottime grub menu while testing.)
+Once there, set up the translators for the driver:
+
+(as root)
 
 > $ settrans -c /dev/forcedeth /hurd/dde/forcedeth
 
 > $ settrans -c /dev/eth0 /hurd/dde/devnode -M /dev/forcedeth eth0
 
+Finally, we can set up the actual network translator,
+using something like:
+
 > $ settrans -c /servers/socket/2 /hurd/dde/pfinet -i /dev/eth0 -a 192.168.1.194 -g 192.168.1.254 -m 255.255.255.0 
 
-
-replace the ip, gateway and mask with your own ones
-
-DONE
+For the exact syntax,
+see the normal network setup documentation.
+The only differences here
+are the different location of the pfinet binary,
+and the different syntax for the -i option.
