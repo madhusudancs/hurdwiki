@@ -8,44 +8,7 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
-[[!tag open_issue_hurd]]
-
-[[!toc]]
-
-
-# Log
-
-Create two 5 GiB partitions.
-
-    # # Would default to 256 byte inodes otherwise.
-    # mke2fs -I 128 -o linux /dev/hd1s1
-    [...]
-    # mke2fs -o hurd /dev/hd1s2
-    [...]
-
-The only difference (apart from UUID, time stamps, hash seeds) in ext2 file
-system meta data, according to `dumpe2fs -h`:
-
-    [...]
-    -Filesystem features:      ext_attr resize_inode dir_index filetype sparse_super large_file
-    +Filesystem features:      ext_attr resize_inode dir_index sparse_super large_file
-     Filesystem flags:         signed_directory_hash
-     Default mount options:    (none)
-     Filesystem state:         clean
-     Errors behavior:          Continue
-    -Filesystem OS type:       Linux
-    +Filesystem OS type:       Hurd
-    [...]
-
-According to *mke2fs(8)*:
-
-> *filetype*  
->                           Store file type information in directory entries.
-
-    # settrans -c /media/hd1s1 /hurd/ext2fs /dev/hd1s1
-    # settrans -c /media/hd1s2 /hurd/ext2fs /dev/hd1s2
-    # mkdir /media/hd1s{1,2}/tmp
-    # chmod 1777 /media/hd1s{1,2}/tmp
+[[!tag open_issue_porting]]
 
     $ git-new-workdir ~/tmp/binutils/git /media/hd1s1/tmp/master master
     error: unable to create file gas/testsuite/gas/arm/attr-mfpu-vfpv3-d16.d (Interrupted system call)
@@ -140,8 +103,6 @@ Consistent; thus very likely corrupt on-disk.
 After a few tries, the pattern generally is that for the files where there are
 differences, once the file regularely ends, its content appears once more.
 That is, the files' content appears once (regularely), and then the same again.
-From three retries, I've seen this only ever happen on the `-o
-linux`/`filetype` option file system.
 
 Some more copying:
 
@@ -155,45 +116,10 @@ Some more copying:
 
 No further difference.
 
+---
 
-# Conclusion?
+    $ git-new-workdir git master master
+    $ diff -x .git -ur tar_master/ master/ > master.diff
 
-The ext2 `filetype` option, as used for Linux-type file systems by default,
-might cause some confusion inside [[hurd/translator/ext2fs]]?
-
-[[!tag open_issue_documentation]] The strange thing is that in
-`[hurd]/ext2fs/dir.c` the `EXT2_FEATURE_INCOMPAT_FILETYPE` is generally masked
-out (is not even considered) when adding a node to a directory in
-`diskfs_direnter_hard` and when reading in `diskfs_get_directs`, so unless
-setting this file system flag has some other effects on the meta data (which it
-doesn't seem to have according to the Linux kernel source code), it shouldn't
-make any difference.  Also, this information would only be used for setting
-directory listing's informational `d_type` field (`readdir`, etc.).  Hrm.
-Perhaps only a red herring?
-
-
-## `e2fsck`
-
-Running `e2fsck` on a file system with the `filetypes` option, there are
-messages that the `filetype` for a lot of files is set (to either 1 (regular
-file, `EXT2_FT_REG_FILE`), or 2 (directory, `EXT2_FT_DIR`)).  The Hurd's ext2fs
-should unconditionally set this field to 0 (`EXT2_FT_UNKNOWN`).
-
-
-# Next
-
-Start over with the `filetype` option reversed:
-
-    # mke2fs -I 128 -o linux -O ^filetype /dev/hd1s1
-    # mke2fs -o hurd -O filetype /dev/hd1s2
-
-In fact, for `-o hurd`, `-O filetype` doesn't have any effect (according to
-`dumpe2fs -h`), so the meta data now only differs in *Filesystem OS type*.
-
-Invoke `git-new-workdir` once more (for each).
-
-Now there is corruption in files on the `-o hurd -O filetype` file system.  But
-this time not caused by `git-new-workdir`, but instead when copying a binutils
-checkout to a new directory.  Huh.  Does `-O filetype` in fact have any effect
-with `-o hurd`?  The `e2fsprogs` source code should tell, but is not available
-right now.
+    $ rm -rf ar_master* && (cd git/ && git archive master) | (mkdir ar_master && cd ar_master/ && tar -x) && diff -x .git -ru tar_master/ ar_master/ > ar_master.diff; ls -l ar_master.diff
+    $ (cd git/ && git archive master) | md5sum
