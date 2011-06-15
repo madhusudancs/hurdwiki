@@ -1,628 +1,114 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
 
-# Java for Hurd (and vice versa)
-
-Contact information:
-
-  * Full name: Jérémie Koenig
-  * Email: jk@jk.fr.eu.org
-  * IRC: jkoenig on Freenode and OFTC
-
-## Introductions
-
-I am a first year M.Sc. student
-in Computer Science at University of Strasbourg (France).
-My interests include capability-based security,
-programming languages and formal methods
-(in particular, object-capability languages and proof-carrying code).
-
-### Proposal summary
-
-This project would consist in improving Java support on Hurd.
-The first part would consist in
-fixing bugs and porting Java-related packages.
-The second part would consist in
-creating low-level Java bindings for the Hurd interfaces,
-as well as libraries to make translator development easier.
-
-### Previous involvement
-
-I started contributing to Hurd last summer,
-during which I participated to Google Summer of Code
-as a student for the Debian project.
-I worked on porting Debian-Installer to Hurd.
-This project was mostly a success,
-although we still have to use a special mirror for installation
-with a few modified packages
-and tweaked priorities
-to work around some uninstallable packages
-with Priority: standard.
-
-Shortly afterwards,
-I rewrote the procfs translator
-to fix some issues with memory leaks,
-make it more reliable,
-and improve compatibility with Linux-based tools
-such as `procps` or `htop`.
-
-Although I have not had as much time
-as I would have liked to dedicate to the Hurd
-since that time,
-I have continued to maintain the mirror in question,
-and I have started to work
-on implementing POSIX threads signal semantics in glibc.
-
-### Project-related skills and interests
-
-I have used Java mostly for university assignments.
-This includes non-trivial projects
-using threads and distributed programming frameworks
-such as Java RMI or CORBA.
-I have also used it to experiment with
-Google App Engine
-(web applications)
-and Google Web Toolkit
-(a compiler from Java to Javascript which helps with AJAX code),
-and I have some limited experience with JNI
-(the Java Native Interface, to link Java with C code).
-
-My knowledge of the Hurd and Debian GNU/Hurd is reasonable,
-as the Debian-Installer and procfs projects
-gave me the opportunity to fiddle with many parts of the system.
-
-Initially,
-I started working on this project because I wanted to use
-[Joe-E](http://code.google.com/p/joe-e/)
-(a subset of Java)
-to investigate the potential
-[[applications of object-capability languages|objcap]]
-in a Hurd context.
-I also believe that improving Java support on Hurd
-would be an important milestone.
-
-### Organisational matters
-
-I am subscribed to bug-hurd@g.o and
-I do have a permanent internet connexion.
-
-I would be able to attend the regular IRC meetings,
-and otherwise communicate with my mentor
-through any means they would prefer
-(though I expect email and IRC would be the most practical).
-Since I'm already familiar with the Hurd,
-I don't expect I would require too much time from them.
-
-My exams end on May 20 so I would be able to start coding
-right at the beginning of the GSoC period.
-Next year's term would probably begin around September 15,
-so that would not be an issue either.
-I expect I would work around 40 hours per week,
-and my waking hours would be flexible.
-
-I don't have any other plans for the summer
-and would not make any if my project were to be accepted.
-
-Full disclosure:
-I also submitted a proposal to the Jikes RVM project
-(which is a research-oriented Java Virtual Machine,
-itself written in Java)
-for implementing a new garbage collector into the MMTk subsystem.
-
-## Improve Java support
-
-### Justification
-
-Java is a popular language and platform used by many desktop and web
-applications (mostly on the server side). As a consequence, competitive Java
-support is important for any general-purpose operating system.
-Better Java support would also be a prerequisite
-for the second part of my proposal.
-
-### Current situation
-
-Java is currently supported on Hurd with the GNU Java suite:
-
-   * [GCJ](http://gcc.gnu.org/java/),
-     the GNU Compiler for Java, is part of GCC and can compile Java
-     source code to Java bytecode, and both source code and bytecode to
-     native code;
-   * libgcj is the implementation of the Java runtime which GCJ uses.
-     It is based on [GNU Classpath](http://www.gnu.org/software/classpath/).
-     It includes a bytecode interpreter which enables
-     Java applications compiled to native code to dynamically load and execute
-     Java bytecode from class files.
-   * The gij command is a wrapper around the above-mentioned virtual machine
-     functionality of libgcj and can be used as a replacement for the java
-     command.
-
-However, GCJ does not work flawlessly on Hurd.r
-For instance, some parts of libgcj relies on
-the POSIX threads signal semantics, which are not yet implemented.
-In particular, this makes ant hang waiting for child processes,
-which makes some packages fail to build on Hurd
-(“ant” is the “make” of the Java world).
-
-### Tasks
-
-   * **Finish implementing POSIX thread semantics** in glibc (high priority).
-     According to POSIX, signal dispositions should be global to a process,
-     while signal blocking masks should be thread-specific. Signals sent to the
-     process as a whole are to be delivered to any thread which does not block
-     them. By contrast, Hurd has per-thread signal dispositions and signals
-     sent to a process are delivered to the main thread only. I have been
-     working on refactoring the glibc signal code and implementing the POSIX
-     semantics as a per-thread option. However, due to lack of time I have not
-     yet been able to test and debug my code properly. Finishing this work
-     would be my first task.
-   * **Fix further problems with GCJ on Hurd** (high priority). While I’m not
-     aware of any other problems with GCJ at the moment, I suspect some might
-     turn up as I progress with the other tasks. Fixing these problems would
-     also be a high-priority task.
-   * **Port OpenJDK 6** (medium priority). While GCJ is fine, it is not yet
-     100% complete. It is also slower than OpenJDK on architectures where a
-     just-in-time compiler is available. Porting OpenJDK would therefore
-     improve Java support on Hurd in scope and quality. Besides, it would also
-     be a good way to test GCJ, which is used for bootstrapping by the Debian
-     OpenJDK packages. Also note that OpenJDK 6 is now the default Java
-     Runtime Environment on all released Linux-based Debian architectures;
-     bringing Hurd in line with this would probably be a good thing.
-   * **Port Eclipse and other Java applications** (low priority). Eclipse is a
-     popular, state-of-the-art IDE and tool suite used for Java and other
-     languages. It is a dependency of the Joe-E verifier (see part 3 of this
-     proposal). Porting Eclipse would be a good opportunity to test GCJ and
-     OpenJDK.
-
-### Deliverables
-
-  * The glibc pthreads patch and any other fixes on the Hurd side
-    would be submitted upstream
-  * Patches against Debian source packages
-    required to make them build on Hurd would be submitted
-    to the [Debian bug tracking system](http://bugs.debian.org/).
-
-
-## Create Java bindings for the Hurd interfaces
-
-### Justification
-
-Java is used for many applications and often taught to
-introduce object-oriented programming. The fact that Java is a
-garbage-collected language makes it easier to use, especially for the less
-experienced programmers. Besides, its object-oriented nature is a
-natural fit for the capability-based design of Hurd.
-The JVM is also used as a target for many other languages,
-all of which would benefit from the access provided by these bindings.
-
-Advantages over other garbage-collected, object-oriented languages include
-performance, type safety and the possibility to compile a Java translator to
-native code and
-[link it statically](http://gcc.gnu.org/wiki/Statically_linking_libgcj)
-using GCJ, should anyone want to use a
-translator written in Java for booting.
-Note that Java is
-[being](http://www.linuxjournal.com/article/8757)
-[used](http://oss.readytalk.com/avian/)
-in this manner for embedded development.
-Since GCJ can take bytecode as its input,
-this expect this possibility would apply to any JVM-based language.
-
-Java bindings would lower the bar for newcomers
-to begin experimenting with what makes Hurd unique
-without being faced right away with the complexity of
-low-level systems programming.
-
-### Tasks summary
-
-  * Implement Java bindings for Mach
-  * Implement a libports-like library for Java
-  * Modify MIG to output Java code
-  * Implement libfoofs-like Java libraries
-
-### Design principles
-
-The principles I would use to guide the design
-of these Java bindings would be the following ones:
-
-  * The system should be hooked into at a low level,
-    to ensure that Java is a "first class citizen"
-    as far as the access to the Hurd's interfaces is concerned.
-  * At the same time, the memory safety of Java should be maintained
-    and extended to Mach primitives such as port names and
-    out-of-line memory regions.
-  * Higher-level interfaces should be provided as well
-    in order to make translator development
-    as easy as possible.
-  * A minimum amount of JNI code (ie. C code) should be used.
-    Most of the system should be built using Java itself
-    on top of a few low-level primitives.
-  * Hurd objects would map to Java objects.
-  * Using the same interfaces,
-    objects corresponding to local ports would be accessed directly,
-    and remote objects would be accessed over IPC.
-
-One approach used previously to interface programming languages with the Hurd
-has been to create bindings for helper libraries such as libtrivfs. Instead,
-for Java I would like to take a lower-level approach by providing access to
-Mach primitives and extending MIG to generate Java code from the interface
-description files.
-
-This approach would be initially more involved, and would introduces several
-issues related to overcoming the "impedance mismatch" between Java and Mach.
-However, once an initial implementation is done it would be easier to maintain
-in the long run and we would be able to provide Java bindings for a large
-percentage of the Hurd’s interfaces.
-
-### Bindings for Mach system calls
-
-In this low-level approach, my intention is to enable Java code to use Mach
-system calls (in particular, mach_msg) more or less directly. This would
-ensure full access to the system from Java code, but it raises a number of
-issues:
-
-  * the Java code must be able to manipulate Mach-level entities, such as port
-    rights or page-aligned buffers mapped outside of the garbage-collected
-    heap (for out-of-line transfers);
-  * putting together IPC messages requires control of the low-level
-    representation of data.
-
-In order to address these concerns, classes would be encapsulating these
-low-level entities so that they can be referenced through normal, safe objects
-from standard Java code. Bindings for Mach system calls can then be provided
-in terms of these classes. Their implementation would use C code through the
-Java Native Interface (JNI).
-
-More specifically, this functionality would be provided by the `org.gnu.mach`
-package, which would contain at least the following classes:
-
-  * `MachPort` would encapsulate a `mach_port_t`. (Some of) its constructors
-    would act as an interface for the `mach_port_allocate()` system call.
-    `MachPort` objects would also be instantiated from other parts of the JNI
-    C code to represent port rights received through IPC. The `deallocate()`
-    method would call `mach_port_deallocate()` and replace the encapsulated
-    port name with `MACH_PORT_DEAD`. We would recommend that users call it
-    when a port is no longer used, but the finalizer would also deallocate the
-    port when the `MachPort` object is garbage collected.
-  * `Buffer` would represent a page-aligned buffer allocated outside of the
-    Java heap, to be transferred (or having been received) as out-of-line
-    memory. The JNI code would would provide methods to read and write data at
-    an arbitrary offset (but within bounds) and would use `vm_allocate()` and
-    `vm_deallocate()` in the same spirit as for `MachPort` objects.
-  * `Message` would allow Java code to put together Mach messages. The
-    constructor would allocate a `byte[]` member array of a given size.
-    Additional methods would be provided to fill in or query the information
-    in the message header and additional data items, including `MachPort` and
-    `Buffer` objects which would be translated to the corresponding port names
-    and out-of-line pointers.
-    A global map from port names to the corresponding `MachPort` object
-    would probably be needed to ensure that there is a one-to-one
-    correspondence.
-  * `Syscall` would provide static JNI methods for performing system calls not
-    covered by the above classes, such as `mach_msg()` or
-    `mach_thread_self()`.  These methods would accept or return `MachPort`,
-    `Buffer` and `Message` objects when appropriate. The associated C code
-    would access the contents of such objects directly in order to perform the
-    required unsafe operations, such as constructing `MachPort` and `Buffer`
-    objects directly from port names and C pointers.
-
-Note that careful consideration should be given to the interfaces of these
-classes to avoid “safety leaks” which would compromise the safety guarantees
-provided by Java. Potential problematic scenarios include the following
-examples:
-
-  * It must not be possible to write an integer at some position in a
-    `Message` object, and to read it back as a `MachPort` or `Buffer` object,
-    since this would allow unsafe access to arbitrary memory addresses and
-    mach port names.
-  * Providing the `mach_task_self()` system call would also provide access to
-    arbitrary addresses and ports by using the `vm_*` family of RPC operations
-    with the returned `MachPort` object. This means that the relevant task
-    operations should be provided by the `Syscall` class instead.
-
-Finally, access should be provided to the initial ports and file descriptors
-in `_hurd_ports` and provided by the `getdport()` function,
-for instance through static methods such as
-`getCRDir()`, `getCWDir()`, `getProc()`, ... in a dedicated class such as
-`org.gnu.hurd.InitPorts`.
-
-A realistic example of code based on such interfaces would be:
-
-    import org.gnu.mach.MsgType;
-    import org.gnu.mach.MachPort;
-    import org.gnu.mach.Buffer;
-    import org.gnu.mach.Message;
-    import org.gnu.mach.Syscall;
-    import org.gnu.hurd.InitPorts;
-
-    public class Hello
-    {   
-       public static main(String argv[])
-           /* Parent class for all Mach-related exceptions */
-           throws org.gnu.mach.MachException
-       {   
-           /* Allocate a reply port */
-           MachPort reply = new MachPort();
-
-           /* Allocate an out-of-line buffer */
-           Buffer data = new Buffer(MsgType.CHAR, 13);
-           data.writeString(0, "Hello, World!");
-
-           /* Craft an io_write message */
-           Message msg = new Message(1024);
-           msg.setRemotePort(InitPorts.getdport(1));
-           msg.setLocalPort(reply, Message.Type.MAKE_SEND_ONCE);
-           msg.setId(21000);
-           msg.addBuffer(data);
-
-           /* Make the call, MACH_MSG_SEND | MACH_MSG_RECEIVE */
-           Syscall.machMsg(msg, true, true, reply);
-
-           /* Extract the returned value */
-           msg.assertId(21100);
-           int retCode = msg.readInt(0);
-           int amount = msg.readInt(1);
-       }
-    }
-
-Should this paradigm prove insufficient,
-more ideas could be borrowed from the
-[`org.vmmagic`](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.151.5253&rep=rep1&type=pdf)
-package used by [Jikes RVM](http://jikesrvm.org/),
-a research Java virtual machine itself written in Java.
-
-### Generating Java stubs with MIG
-
-Once the basic machinery is in place to interface with Mach, Java programs
-have more or less equal access to the system functionality without resorting
-to more JNI code. However, as illustrated above, this access is far from
-convenient.
-
-As a solution I would modify MIG to add the option to output Java code. MIG
-would emit a Java interface, a client class able to implement the interface
-given a Mach port send right, an a server class which would be able to handle
-incoming messages. The class diagram below, although it is by no means
-complete or exempt of any problem, illustrates the general idea:
-
-[[gsoc2011_classes.png]]
-
-This structure is somewhat reminiscent of
-[Java RMI](http://en.wikipedia.org/wiki/Java_remote_method_invocation)
-or similar systems,
-which aim to provide more or less transparent access to remote objects.
-The exact way the Java code would be generated still needs to be determined,
-but basically:
-
-  * An interface, corresponding to the header files generated by MIG, would
-    enumerate the operations listed in a given .defs files. Method names would
-    be transformed to adhere to Java conventions (for instance,
-    `some_random_identifier` would become `someRandomIdentifier`).
-  * A user class, corresponding to the `*User.c` files,
-    would implement this interface by doing RPC over a given MachPort object.
-  * A server class, corresponding to `*Server.c`, would be able to handle
-    incoming messages using a user-provided implementation of the interface.
-    (Possibly, a skeleton class providing methods which would raise
-    `NotImplementedException`s would be provided as well.
-    Users would derive from this class and override the relevant methods.
-    This would allow them not to implement some operations,
-    and would avoid pre-existing code from breaking when new operations are
-    introduced.)
-
-In order to help with the implementation of servers, some kind of library
-would be needed to associate Mach receive rights with server objects and to
-handle incoming messages on dedicated threads, in the spirit of libports.
-This would probably require support for port sets at the level of the Mach
-primitives described in the previous section.
-
-When possible, operations involving the transmission of send rights
-of some kind would be expressed in terms of the MIG-generated interfaces
-instead of `MachPort` objects.
-Upon reception of a send right,
-a `FooUser` object would be created
-and associated with the corresponding `MachPort` object.
-If the received send right corresponds to a local port
-to which a server object has been associated,
-this object would be used instead.
-This way,
-subsequent operations on the received send right
-would be handled as direct method calls
-instead of going through RPC mechanisms.
-
-Some issues will still need to be solved regarding how MIG will convert
-interface description files to Java interfaces. For instance:
-
-  * `.defs` files are not explicitly associated with a type. For instance in
-    the example above, MIG would have to somehow infer that io_t corresponds
-    to `this` in the `Io` interface.
-  * More generally, a correspondence between MIG and Java types would have
-    to be determined. Ideally this would be automated and not hardcoded
-    too much.
-  * Initially, reply port parameters would be ignored. However they may be
-    needed for some applications.
-
-So the details would need to be flushed out during the community bonding
-period and as the implementation progresses. However I’m confident that a
-satisfactory solution can be designed.
-
-Using these new features, the example above could be rewritten as:
-
-    import org.gnu.hurd.InitPorts;
-    import org.gnu.hurd.Io;
-    import org.gnu.hurd.IoUser;
-
-    class Hello {
-       static void main(String argv[]) throws ...
-       {
-           Io stdout = new IoUser(InitPorts.getdport(1));
-           String hello = “Hello, World!\n”;
-
-           int amount = stdout.write(hello.getBytes(), -1);
-
-           /* (A retCode corresponding to an error
-               would be signalled as an exception.) */
-       }
-    }
-
-An example of server implementation would be:
-
-    import org.gnu.hurd.Io;
-    import java.util.Arrays;
-
-    class HelloIo implements Io {
-       final byte[] contents = “Hello, World!\n”.getBytes();
-
-       int write(byte[] data, int offset) {
-           return SOME_ERROR_CODE;
-       }
-
-       byte[] read(int offset, int amount) {
-           return Arrays.copyOfRange(contents, offset,
-                                     offset + amount - 1);
-       }
-
-       /* ... */
-    }
-
-A new server object could then be created with `new IoServer(new HelloIo())`,
-and associated with some receive right at the level of the ports management
-library.
-
-### Base classes for common types of translators
-
-Once MIG can target Java code, and a libports equivalent is available,
-creating new translators in Java would be greatly facilitated. However,
-we would probably want to introduce basic implementations of file system
-translators in the spirit of libtrivfs or libnetfs. They could take the form
-of base classes implementing the relevant MIG-generated interfaces which
-would then be derived by users,
-or could define a simpler interface
-which would then be used by adapter classes
-to implement the required ones.
-
-I would draw inspiration from libtrivfs and libnetfs
-to design and implement similar solutions for Java.
-
-### Deliverables
-
-  * A hurd-java package would contain the Java code developed
-    in the context of this project.
-  * The Java code would be documented using javadoc
-    and a tutorial for writing translators would be written as well.
-  * Modifications to MIG would be submitted upstream,
-    or a patched MIG package would be made available.
-
-The Java libraries resulting from this work,
-including any MIG support classes
-as well as the class files built from the MIG-generated code
-for the Mach and Hurd interface definition files,
-would be provided as single `hurd-java` package for
-Debian GNU/Hurd.
-This package would be separate from both Hurd and Mach,
-so as not to impose unreasonable build dependencies on them.
-
-I expect I would be able to act as its maintainer in the foreseeable future, 
-either as an individual or as a part of the Hurd team.
-Hopefully,
-my code would be claimed by the Hurd project as their own,
-and consequently the modifications to MIG
-(which would at least conceptually depend on the Mach Java package)
-could be integrated upstream.
-
-Since by design,
-the Java code would use only a small number of stable interfaces,
-it would not be subject to excessive amounts of bitrot.
-Consequently,
-maintenance would primarily consist in
-fixing bugs as they are reported,
-and adding new features as they are requested.
-A large number of such requests
-would mean the package is useful,
-so I expect that the overall amount of work
-would be correlated with the willingness of more people
-to help with maintenance
-should I become overwhelmed or get hit by a bus.
-
-
-## Timeline
-
-The dates listed are deadlines for the associated tasks.
-
-  * *Community bonding period.*
-    Discuss, refine and complete the design of the Java bindings
-    (in particular the MIG and "libports" parts)
-  * *May 23.*
-    Coding starts.
-  * *May 30.*
-    Finish implementing pthread signal semantics.
-  * *June 5.*
-    Port OpenJDK
-  * *June 12.*
-    Fix the remaining problems with GCJ and/or OpenJDK,
-    possibly port Eclipse or other big Java packages.
-  * *June 19.*
-    Create the bindings for Mach.
-  * *June 26.*
-    Work on some kind of basic Java libports
-    to handle receive rights.
-  * *July 3.*
-    Test, write some documentation and examples.
-  * *July 17 (two weeks).*
-    Add the Java target to MIG.
-  * *July 24.*
-    Test, write some documentation and examples.
-  * *August 7 (two weeks).*
-    Implement a modular libfoofs to help with translator development.
-    Try to write a basic but non-trivial translator
-    to evaluate the performance and ease of use of the result,
-    rectify any rough edges this would uncover.
-  * *August 22. (last two weeks)*
-    Polish the code and packaging,
-    finish writing the documentation.
-
-
-## Conclusion
-
-This project is arguably ambitious.
-However, I have been thinking about it for some time now
-and I'm confident I would be able to accomplish most of it.
-
-In the event multiple language bindings projects
-would be accepted,
-some work could probably be done in common.
-In particular,
-[ArneBab](http://www.bddebian.com/~hurd-web/community/weblogs/ArneBab/2011-04-06-application-pyhurd/)
-seems to favor a low-level approach for his Python bindings as I do for Java,
-and I would be happy to discuss API design and coordinate MIG changes with him.
-I would also have an extra month after the end of the GSoC period
-before I go back to school,
-which I would be able to use to finish the project
-if there is some remaining work.
-(Last year's rewrite of procfs was done during this period.)
-
-As for the project's benefits,
-I believe that good support for Java
-is a must-have for the Hurd.
-Java bindings would also further the Hurd's agenda
-of user freedom by extending this freedom to more people:
-I expect the set of developers
-who would be able to write Java code against a well-written libfoofs
-is much larger than
-those who master the intricacies of low-level systems C programming.
-From a more strategic point of view,
-this would also help recruit new contributors
-by providing an easier path to learning the inner workings of the Hurd.
-
-Further developments
-which would build on the results of this project
-include my planned [[experiment with Joe-E|objcap]]
-(which I would possibly take on as a university project next year).
-Another possibility would be to reimplement some parts
-of the Java standard library
-directly in terms of the Hurd interfaces
-instead of using the POSIX ones through glibc.
-This would possibly improve the performance
-of some Java applications (though probably not by much),
-and would otherwise be a good project
-for someone trying to get acquainted with Hurd.
-
-Overall, I believe this project would be fun, interesting and useful.
-I hope that you will share this sentiment
-and give me the opportunity to spend another summer working on Hurd.
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+# Improve Java on Hurd (GSoC 2011)
+
+
+## Description
+
+The project consists in improving Java support on Hurd.
+This includes porting OpenJDK,
+creating low-level Java bindings for Mach and Hurd,
+as well as creating Java libraries to help with translator development.
+
+For details, see my original [[proposal]].
+
+
+## Current status
+
+
+### Apt repository
+
+Modified Debian packages are available in this repository:
+
+    deb http://jk.fr.eu.org/debian experimental/
+    deb-src http://jk.fr.eu.org/debian experimental/
+
+
+### Glibc signal code improvements
+
+I have submitted
+[preliminary patches](http://lists.gnu.org/archive/html/bug-hurd/2011-05/msg00182.html)
+for global signal dispositions,
+which I'm currently testing.
+I have since fixed a few thinks and implemented `SA_SIGINFO`
+(which is required by OpenJDK.)
+My latest code is available on
+[github](http://github.com/jeremie-koenig/glibc/commits/master-beware-rebase),
+and modified Debian packages
+are available in my apt repository.
+
+One question is how the new symbols introduced by my patches
+should be handled.
+Weak symbols turned out to be impractical,
+so I'm currently considering using a Debian-specific
+symbol version in the interim period (`GLIBC_2.13_DEBIAN_7` so far).
+The ultimate symbol version to be used will depend on
+the time at which the patches get integrated upstream,
+at which point we will alias the interim version
+to the new one in debian packages.
+
+I have modified libc0.3 to include a `deb-symbols(5)` file
+so that we get an accurate libc dependency in `hurd` and other packages
+when the symbols in question are pulled in.
+
+Another issue which came up with OpenJDK is the expansion
+by the dynamic linker of `$ORIGIN` in the `RPATH` header,
+see below.
+
+#### Plans
+
+I will submit revised series for review later this week,
+as well as matching Debian patches.
+I expect only the last patch (implement global dispositions) will change,
+and new ones will be added on top of it.
+
+
+### Port OpenJDK
+
+As suggested by [[tschwinge]], I have targeted OpenJDK 7 at first.
+I don't expect it will be too hard to backport my patches to OpenJDK 6.
+I have succeeded in building a working JIT-less ("zero") version,
+although the dynamic linker issue must be worked around.
+Porting Hotspot (the original just-in-time compiler of OpenJDK)
+should not be too hard.
+If that fails we can fall back on Shark
+(a portable alternative JIT which uses LLVM).
+
+The dynamic linker issue is as follows.
+An executable-specific search path can be provided in the ELF RPATH header.
+RPATH directories can include the special string `$ORIGIN`,
+which is to be expanded to the directory the executable was loaded from.
+OpenJDK's `java` command uses this feature to locate
+the right `libjli.so` at runtime.
+However,
+on Hurd this information is not available to the dynamic linker
+and as a consequence RPATH components which include `$ORIGIN`
+are silently discarded.
+
+This can be worked around by defining
+the `LD_ORIGIN_PATH` environment variable.
+(which have I used to build and test OpenJDK so far.)
+
+#### Plans
+
+I intend to fix the RPATH issue
+by building on [[pochu]]'s `file_exec_file_name()` patches.
+
+I have succeeded in building a Hotspot-enabled `libjvm.so`,
+although the current toolchain issues
+have so far prevented me from testing it.
+
+
+### Java bindings for Mach
+
+(just started.)
+
 
