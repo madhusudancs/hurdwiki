@@ -60,6 +60,12 @@ I have modified libc0.3 to include a `deb-symbols(5)` file
 so that we get an accurate libc dependency in `hurd` and other packages
 when the symbols in question are pulled in.
 
+[[hurd/libthreads]] (cthreads library) will not be changed.  There's no reason
+why its behavior should change, whereas for [[libpthread]] it's needed for
+conformance.  Patches posted on 2011-05-25, but there's a more recent one in
+the modified hurd package (adds `_hurd_sigstate_delete` and removes the weak
+symbols).
+
 Another issue which came up with OpenJDK is the expansion
 by the dynamic linker of `$ORIGIN` in the `RPATH` header,
 see below.
@@ -77,8 +83,8 @@ and new ones will be added on top of it.
   * Test patches: in progress, [[jkoenig]], Svante.  More volunteers welcome,
     of course.
 
-  * If [[jkoenig]] thinks it's mature enough: should ask Samuel to test this
-    (that is, only the refactoring patches for starters?) on the buildds.
+  * If [[jkoenig]] thinks it's mature enough: should ask
+    [[Samuel|samuelthibault]] to test these patches on the buildds.
 
   * Get patches reviewed (Roland?), and integrated into official sources: [!]
     [[tschwinge]].
@@ -87,11 +93,12 @@ and new ones will be added on top of it.
     moved either into the appropriate glibc or Hurd documentation
     files/reference manuals, or to [[glibc/signal]].
 
-  * libthreads (cthreads) integration.
+  * `SA_SIGINFO` patche is based on [[Samuel|samuelthibault]]'s earlier work.
+    Thus, have him review the new patch?
 
-      * [[tschwinge]] suggests to leave them as-is?
+  * Perhaps have a look at `SA_NOCLDWAIT`.
 
-  * [[libpthread]] integration.
+  * Which numeric values to use for `SA_SIGINFO` (and `SA_NOCLDWAIT`)?
 
 
 ### Port OpenJDK
@@ -104,6 +111,11 @@ Porting Hotspot (the original just-in-time compiler of OpenJDK)
 should not be too hard.
 If that fails we can fall back on Shark
 (a portable alternative JIT which uses LLVM).
+
+Complexity of porting HotSpot: probably low.  The complex things should be
+arch- rather than OS-specific.  Not many Linux-specific interfaces used.
+Garbage collection/memory management, etc. and/or most of other Linux-specific
+interfaces are already dealt with for the zero build.
 
 The dynamic linker issue is as follows.
 An executable-specific search path can be provided in the ELF RPATH header.
@@ -127,10 +139,18 @@ by building on [[pochu]]'s `file_exec_file_name()` patches.
 
 I have succeeded in building a Hotspot-enabled `libjvm.so`,
 although the current toolchain issues
+(*Hurd OS ABI*)
 have so far prevented me from testing it.
 
 
 ##### Open Items
+
+  * [!] [[tschwinge]] to have a look at [[pochu]]'s `file_exec_file_name()`
+    patches (2010-05), whether it's generally the right idea.
+
+      * Assuming it is, continue with getting `$ORIGIN` working.
+
+  * [!] [[Samuel|samuelthibault]]/[[tschwinge]]/[[jkoenig]]: *Hurd OS ABI*.
 
   * They seem to have a rather heavy-weight process for such projects: confer
     <http://mail.openjdk.java.net/pipermail/announce/2011-January/000092.html>,
