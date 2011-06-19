@@ -1,0 +1,48 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd open_issue_porting]]
+
+    $ git-new-workdir /media/kepler-data/home/thomas/tmp/source/binutils/git master master
+    fatal: Out of memory? mmap failed: No such device
+    $ echo $?
+    128
+    $ showtrans /media/kepler-data
+    /hurd/nfs kepler.schwinge.homeip.net:/media/data
+
+With `sh -x`:
+
+    [...]
+    + ln -s /media/kepler-data/home/thomas/tmp/source/binutils/git/.git/remotes master/.git/remotes
+    + ln -s /media/kepler-data/home/thomas/tmp/source/binutils/git/.git/rr-cache master/.git/rr-cache
+    + ln -s /media/kepler-data/home/thomas/tmp/source/binutils/git/.git/svn master/.git/svn
+    + cd master
+    + cp /media/kepler-data/home/thomas/tmp/source/binutils/git/.git/HEAD .git/HEAD
+    + git checkout -f master
+    fatal: Out of memory? mmap failed: No such device
+
+As one can easily guess (and confirm with [[hurd/debugging/rpctrace]]), `git`
+tries to [[glibc/mmap]] a file via the [[hurd/translator/nfs]] translator, this
+fails, and it isn't prepared to cope with that:
+
+    [...]
+      88->dir_lookup (".git/objects/pack/pack-37ca560e7877fa0cc6e5ddcd556aa73e5a3e3f40.idx" 2049 0) = 0 3 "/media/kepler-data/home/thomas/tmp/source/binutils/git/.git/objects/pack/pack-37"  (null)
+      62->dir_lookup ("media/kepler-data/home/thomas/tmp/source/binutils/git/.git/objects/pack/pack-37c" 2049 0) = 0 1 "/home/thomas/tmp/source/binutils/git/.git/objects/pack/pack-37ca560e7877fa0cc6e5"   61
+      61->dir_lookup ("home/thomas/tmp/source/binutils/git/.git/objects/pack/pack-37ca560e7877fa0cc6e5d" 2049 0) = 0 1 ""   84
+    task3741-> 3206 (pn{ 33}) = 0
+      84->term_getctty () = 0xfffffed1 ((ipc/mig) bad request message ID)
+      84->io_stat_request () = 0 {1 704 0 36308992 0 0 -1 33060 1 1000 1000 4712 0 1307711395 0 1307657003 0 1307657003 0 4096 16 0 1000 0 0 100663296 1836017780 29537 0 0 0 0}
+      84->io_map_request () = 0x4000002d (Operation not supported)
+      84->io_map_request () = 0x4000002d (Operation not supported)
+      76->io_write_request ("fatal: Out of memory? mmap failed: No such device
+    " -1) = 0 50
+      64->proc_mark_exit_request (32768 0) = 0
+    task3741-> 2008 () = 0
+    Child 3741 exited with 128

@@ -1,0 +1,33 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+The *ext2fs* translator doesn't support the ext2 format's *filetype* option.
+
+According to *mke2fs(8)*:
+
+> **filetype**: Store file type information in directory entries.
+
+By setting directory listings' informational `d_type` field (`readdir`, etc.),
+this may avoid the need for subsequent `stat` calls.
+
+Not all file systems can support this option.
+
+In `[hurd]/ext2fs/dir.c` the `EXT2_FEATURE_INCOMPAT_FILETYPE` is generally
+masked out (is not even considered) when adding a node to a directory in
+`diskfs_direnter_hard` and when reading in `diskfs_get_directs`.  The Hurd's
+ext2fs unconditionally sets this field to 0 (`EXT2_FT_UNKNOWN`).
+
+
+# `e2fsck`
+
+Running `e2fsck` on a file system with the *filetype* option, will correct the
+*filetype* for a lot of files (all `EXT2_FT_UNKNOWN`?) to either 1 (regular
+file, `EXT2_FT_REG_FILE`), or 2 (directory, `EXT2_FT_DIR`), and likely others.
+The Hurd's ext2fs will again ignore these fields, of course.
