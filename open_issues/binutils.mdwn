@@ -30,8 +30,16 @@ though, as explained below.
 
 # Configuration
 
-Last reviewed up to the [[Git mirror's a446ef2f3862fb5f89c669b34a2b6a2ab943ff96
-(2011-02-10) sources|source_repositories/binutils]].
+Last reviewed up to the [[Git mirror's 38b56eda7ea117def3d5075110c0221fa1989878
+(2011-06-18) sources|source_repositories/binutils]].
+
+  * Open Issues
+
+      * 51b2f560ad035dffad3371093f8e5c80608d196c: [[toolchain/ELFOSABI_HURD]].
+
+      * 0df7bac224004772a380db3e3b29933c16411940: restricts tests to
+        `*-*-linux*`.  [Patch
+        posted](http://sourceware.org/ml/binutils/2011-06/msg00217.html).
 
   * Globally
 
@@ -107,51 +115,49 @@ Last reviewed up to the [[Git mirror's a446ef2f3862fb5f89c669b34a2b6a2ab943ff96
 
 # Build
 
-Here's a log of a binutils build run; this is from our [[Git
-repository's e8052e7548e0d5523f1764b7d3896ca000bfaed7 (2011-02-10)
-sources|source_repositories/binutils]], run on kepler.SCHWINGE and grubber.
+Here's a log of a binutils build run; this is from our [[Git repository's
+ab9f9e3e30d95fe653957ce5f554a01dcd453370 (2011-06-19)
+sources|source_repositories/binutils]], run on kepler.SCHWINGE and
+coulomb.SCHWINGE.
 
     $ export LC_ALL=C
-    $ ../master/configure --prefix="$PWD".install 2>&1 | tee log_build
+    $ ../master/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 2>&1 | tee log_build
     [...]
-    $ make SHELL=/bin/bash 2>&1 | tee log_build_
+    $ make 2>&1 | tee log_build_
     [...]
 
-(kepler.SCHWINGE defaults to using /bin/sh for libtool, grubber to /bin/bash;
-thus harmonized.)
+(Different hosts may default to different shells and compiler versions; thus
+harmonized.)
 
-On grubber, this needs roughly one hour, and takes up around 100 MiB.
+This takes up around 100 MiB, and needs roughly 4 min on kepler.SCHWINGE, and
+15 min on coulomb.SCHWINGE.
 
 
 ## Analysis
 
-x86 GNU/Linux and GNU/Hurd's configurations are [[slightly
-different|binutils]], thus mask out most of the differences that are due to
-GNU/Linux defining `-DTRAD_CORE`, `-DHAVE_i386linux_vec`
-(`-DSELECT_VECS='[...],&i386linux_vec[...]`), `-DHAVE_i386pei_vec`
-(`-DSELECT_VECS='[...],&i386pei_vec[...]`).
+x86 GNU/Linux and GNU/Hurd's configurations are slightly
+different, thus mask out most of the differences that are due to
+GNU/Linux supporting more core file formats, and more emulation vectors.
 
-    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/binutils/ && cat hurd/master.build/log_build* | sed -e "s%${PWD}%[...]%g" -e s%-DTRAD_CORE%% -e s%-DHAVE_i386linux_vec%% -e s%-DHAVE_i386pei_vec%% -e s%-DSELECT_VECS=\\\('\\\''\\\?\\\)\&bfd_elf32_i386_vec,\&i386linux_vec,\&i386pei_vec,\&bfd_elf32_little_generic_vec,\&bfd_elf32_big_generic_vec'\\\''\\\?%-DSELECT_VECS=\\\1\\\&bfd_elf32_i386_vec,\\\&bfd_elf32_little_generic_vec,\\\&bfd_elf32_big_generic_vec\\\1%') <(ssh grubber 'cd tmp/binutils/ && cat hurd/master.build/log_build* | sed "s%${PWD}%[...]%g"') > open_issues/binutils/log_build-diff
+    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/binutils/ && cat hurd/master.build/log_build* | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' | sed -f open_issues/binutils/log_build-linux.sed) <(ssh coulomb.SCHWINGE 'cd tmp/binutils/ && cat hurd/master.build/log_build* | sed "s%\(/media/erich\)\?${PWD}%[...]%g"' | sed -f open_issues/binutils/log_build-hurd.sed) > open_issues/binutils/log_build.diff
 
-[[log_build-diff]].
+[[log_build.diff]].
 
 
 # Install
 
-    $ make SHELL=/bin/bash install 2>&1 | tee log_install
+    $ make install 2>&1 | tee log_install
     [...]
 
-(kepler.SCHWINGE defaults to using /bin/sh, grubber to /bin/bash; thus
-harmonized.)
-
-On grubber, this needs roughly 5 minutes, and takes up around 60 MiB.
+This takes up around 60 MiB, and needs roughly 1 min on kepler.SCHWINGE, and 5
+min on coulomb.SCHWINGE.
 
 
 ## Analysis
 
-    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/binutils/ && cat hurd/master.build/log_install | sed -e "s%${PWD}%[...]%g" -e "s%i686-pc-linux-gnu%[ARCH]%g"') <(ssh grubber 'cd tmp/binutils/ && cat hurd/master.build/log_install | sed -e "s%${PWD}%[...]%g" -e "s%i686-unknown-gnu0\.3%[ARCH]%g"') > open_issues/binutils/log_install-diff
+    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/binutils/ && cat hurd/master.build/log_install | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' | sed -f open_issues/binutils/log_install-linux.sed) <(ssh coulomb.SCHWINGE 'cd tmp/binutils/ && cat hurd/master.build/log_install | sed "s%\(/media/erich\)\?${PWD}%[...]%g"' | sed -f open_issues/binutils/log_install-hurd.sed) > open_issues/binutils/log_install.diff
 
-[[log_install-diff]].
+[[log_install.diff]].
 
   * `libtool: finish`: `ldconfig` is not run for the Hurd.
 
@@ -161,39 +167,39 @@ On grubber, this needs roughly 5 minutes, and takes up around 60 MiB.
     $ make -k check
     [...]
 
-On grubber, this takes roughly one hour.
+This needs roughly 5 min on kepler.SCHWINGE, and 15 min on coulomb.SCHWINGE.
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/binutils/ && cat hurd/master.build/*/*.sum hurd/master.build/*/*/*.sum | sed "s%${PWD}%[...]%g"' > open_issues/binutils/sum_linux
-    $ ssh grubber 'cd tmp/binutils/ && cat hurd/master.build/*/*.sum hurd/master.build/*/*/*.sum | sed "s%${PWD}%[...]%g"' > open_issues/binutils/sum_hurd
+    $ ssh kepler.SCHWINGE 'cd tmp/source/binutils/ && cat hurd/master.build/*/*.sum hurd/master.build/*/*/*.sum | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > open_issues/binutils/sum_linux
+    $ ssh coulomb.SCHWINGE 'cd tmp/binutils/ && cat hurd/master.build/*/*.sum hurd/master.build/*/*/*.sum | sed "s%\(/media/erich\)\?${PWD}%[...]%g"' > open_issues/binutils/sum_hurd
 
 Comparing the results files, [[sum_linux]] to [[sum_hurd]]:
 
     $ diff -u -F ^Running open_issues/binutils/sum_linux open_issues/binutils/sum_hurd
-    --- open_issues/binutils/sum_linux      2011-02-10 19:01:56.000000000 +0100
-    +++ open_issues/binutils/sum_hurd       2011-02-10 20:27:17.000000000 +0100
+    --- open_issues/binutils/sum_linux	2011-06-19 18:37:02.000000000 +0200
+    +++ open_issues/binutils/sum_hurd	2011-06-19 20:40:21.000000000 +0200
     @@ -1,5 +1,5 @@
-    -Test Run By thomas on Thu Feb 10 18:57:42 2011
+    -Test Run By thomas on Sun Jun 19 18:26:46 2011
     -Native configuration is i686-pc-linux-gnu
-    +Test Run By tschwinge on Thu Feb 10 18:58:16 2011
+    +Test Run By thomas on Sun Jun 19 20:16:01 2011
     +Native configuration is i686-unknown-gnu0.3
      
-                    === binutils tests ===
+     		=== binutils tests ===
      
-    @@ -114,8 +114,8 @@ Running [...]/hurd/master/binutils/tests
+    @@ -117,8 +117,8 @@ Running [...]/hurd/master/binutils/tests
      
-     # of expected passes           83
-     # of unsupported tests         2
-    -Test Run By thomas on Thu Feb 10 18:58:10 2011
+     # of expected passes		86
+     # of unsupported tests		2
+    -Test Run By thomas on Sun Jun 19 18:27:17 2011
     -Native configuration is i686-pc-linux-gnu
-    +Test Run By tschwinge on Thu Feb 10 19:06:15 2011
+    +Test Run By thomas on Sun Jun 19 20:17:58 2011
     +Native configuration is i686-unknown-gnu0.3
      
-                    === ld tests ===
+     		=== ld tests ===
      
-    @@ -296,10 +296,10 @@ Running [...]/hurd/master/ld/testsuite/l
-     PASS: init array
-     PASS: fini array
-     PASS: init array mixed
+    @@ -322,10 +322,10 @@ Running [...]/hurd/master/ld/testsuite/l
+     PASS: PIE init array
+     PASS: PIE fini array
+     PASS: PIE init array mixed
     -PASS: static preinit array
     -PASS: static init array
     -PASS: static fini array
@@ -201,11 +207,11 @@ Comparing the results files, [[sum_linux]] to [[sum_hurd]]:
     +XFAIL: static preinit array
     +XFAIL: static init array
     +XFAIL: static fini array
-    +XPASS: static init array mixed
+    +XFAIL: static init array mixed
      Running [...]/hurd/master/ld/testsuite/ld-elf/exclude.exp ...
      PASS: ld link shared library
      PASS: ld export symbols from archive
-    @@ -553,8 +553,8 @@ Running [...]/hurd/master/ld/testsuite/l
+    @@ -579,8 +579,8 @@ Running [...]/hurd/master/ld/testsuite/l
      PASS: ELF DSO weak func last DSO
      PASS: ELF weak func first
      PASS: ELF weak func last
@@ -216,7 +222,7 @@ Comparing the results files, [[sum_linux]] to [[sum_hurd]]:
      PASS: ELF DSO weak data first
      PASS: ELF DSO weak data last
      PASS: ELF DSO weak data first DSO
-    @@ -565,10 +565,10 @@ Running [...]/hurd/master/ld/testsuite/l
+    @@ -591,10 +591,10 @@ Running [...]/hurd/master/ld/testsuite/l
      PASS: ELF weak data last
      PASS: ELF weak data first common
      PASS: ELF weak data last common
@@ -231,24 +237,23 @@ Comparing the results files, [[sum_linux]] to [[sum_hurd]]:
      PASS: ELF DSO small bar (size)
      PASS: ELF DSO foo with small bar (size)
      PASS: ELF DSO big bar (size)
-    @@ -882,13 +882,14 @@ Running [...]/hurd/master/ld/testsuite/l
+    @@ -921,13 +921,13 @@ Running [...]/hurd/master/ld/testsuite/l
      
-                    === ld Summary ===
+     		=== ld Summary ===
      
-    -# of expected passes           626
-    -# of expected failures         8
-    +# of expected passes           616
-    +# of unexpected successes      1
-    +# of expected failures         17
-     # of untested testcases                6
-     /media/data[...]/hurd/master.build/ld/ld-new 2.21.51.20110210
+    -# of expected passes		659
+    -# of expected failures		8
+    +# of expected passes		649
+    +# of expected failures		18
+     # of untested testcases		6
+     [...]/hurd/master.build/ld/ld-new 2.21.52.20110618
      
-    -Test Run By thomas on Thu Feb 10 18:57:49 2011
+    -Test Run By thomas on Sun Jun 19 18:26:56 2011
     -Native configuration is i686-pc-linux-gnu
-    +Test Run By tschwinge on Thu Feb 10 19:00:16 2011
+    +Test Run By thomas on Sun Jun 19 20:16:27 2011
     +Native configuration is i686-unknown-gnu0.3
      
-                    === gas tests ===
+     		=== gas tests ===
      
 
 
@@ -259,7 +264,7 @@ Comparing the results files, [[sum_linux]] to [[sum_hurd]]:
     The testsuite isn't prepared for using `crt0.o` instead of `crt1.o`
     depending on whether a static or dynamic executable is created.  Documented
     in `ld/configure.host`.  Perhaps we should finally rewrite this messy code
-    in glibc to avoid this difference...
+    in glibc?
 
   * <a name="64ksec">`FAIL: ld-elf/64ksec`</a>
 
