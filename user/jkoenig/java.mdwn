@@ -23,6 +23,14 @@ For details, see my original [[proposal]].
 
 ## Current status
 
+Feeling slightly behind schedule; but project is very ambitious, which has been
+known from the beginning, and there is great progress, so there is no problem.
+--[[tschwinge]], 2011-06-29.
+
+[[tschwinge]] will be on vacations in China starting July 26th, will have
+Internet access intermittently, but not regularely.  We'll have to figure out
+some scheme.
+
 
 ### Apt repository
 
@@ -82,17 +90,11 @@ for broader testing.
   * Test patches: in progress, [[jkoenig]], Svante.  More volunteers welcome,
     of course.
 
-    > Current status: there's an issue with gdb,
+    > There's an issue with gdb,
     > namely signals lose their "untracedness" when they go
     > through the global sigstate's pending mask,
     > so gdb spins intercepting a signal and trying to deliver it.
-    > My current
-    > [patch](http://github.com/jeremie-koenig/glibc/commit/3ecb990e9d08d5f75adc40b738b35a1802cc0943)
-    > makes the system unstable.
-    > --[[jkoenig]] 2011-06-22
-
-    >> Correction: the patch is fine, problem solved.
-    >> --[[jkoenig]] 2011-06-29
+    > [Patch](http://github.com/jeremie-koenig/glibc/commit/3ecb990e9d08d5f75adc40b738b35a1802cc0943).
 
   * If [[jkoenig]] thinks it's mature enough: should ask
     [[Samuel|samuelthibault]] to test these patches on the buildds.
@@ -102,24 +104,43 @@ for broader testing.
     > (in particular hurd)
     > --[[jkoenig]] 2011-06-22
 
+      * Waiting on ABI finalization ([!] Roland).
+
+          * Which numeric values to use for `SA_SIGINFO` (and `SA_NOCLDWAIT`)?
+
+            > Staying in sync with BSD seems the most logical approach,
+            > so I have defined it to 0x40. --[[jkoenig]] 2011-06-29
+
   * Get patches reviewed (Roland?), and integrated into official sources: [!]
     [[tschwinge]].
 
     > In progress. --[[jkoenig]] 2011-06-29
 
-  * Documentations bits (from [[proposal]] and elsewhere) should probably be
+  * Documentations bits (from here, the initial [[proposal]], and elsewhere)
+    should probably be
     moved either into the appropriate glibc or Hurd documentation
     files/reference manuals, or to [[glibc/signal]].
 
-  * `SA_SIGINFO` patche is based on [[Samuel|samuelthibault]]'s earlier work.
+  * `SA_SIGINFO` patch is based on [[Samuel|samuelthibault]]'s earlier work.
     Thus, have him review the new patch?
 
+  * `SA_SIGINFO` patch has a few TODOs w.r.t. protocol changes for missing
+    information, and for FPU state.  Providing even incomplete information is
+    an improvement on the current status.  The question is, whether
+    applications rely on this information in any hard way if `SA_SIGINFO` is
+    available?
+
+      * We could possibly rename certain fields in `struct siginfo`, say
+        `si_pid_not_implemented`, to ensure compilation failures for programs
+        which use them.  Or perhaps a linker warning is possible.
+
+      * The FPU state is not included in the `ucontext_t` passed to the signal
+        handler.  On the other hand, `ucontext_t` is actually being somewhat
+        deprecated: the functions to restore it are no longer in POSIX.
+        `thread_get_state`() should return this information, in case we decide
+        to fill the gap, and there might be existing glibc wrappers, too.
+
   * Perhaps have a look at `SA_NOCLDWAIT`.
-
-  * Which numeric values to use for `SA_SIGINFO` (and `SA_NOCLDWAIT`)?
-
-    > Staying in sync with BSD seems the most logical approach,
-    > so I have defined it to 0x40. --[[jkoenig]] 2011-06-29
 
 
 ### Port OpenJDK
@@ -183,6 +204,12 @@ have so far prevented me from testing it.
 
   * [!] [[Samuel|samuelthibault]]/[[tschwinge]]/[[jkoenig]]:
     [[toolchain/ELFOSABI_HURD]].
+
+      * 2011-06-29: No progress.
+
+  * `libthread_db.so` issue.  Likely, the Serviceability Agent is used by jdb
+    and the like only, so for now the goal should be to lose some functionality
+    by removing/avoiding this dependency.
 
   * They seem to have a rather heavy-weight process for such projects: confer
     <http://mail.openjdk.java.net/pipermail/announce/2011-January/000092.html>,
