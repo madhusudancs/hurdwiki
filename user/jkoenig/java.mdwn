@@ -34,12 +34,9 @@ Modified Debian packages are available in this repository:
 
 ### Glibc signal code improvements
 
-I have submitted
-[preliminary patches](http://lists.gnu.org/archive/html/bug-hurd/2011-05/msg00182.html)
-for global signal dispositions,
-which I'm currently testing.
-I have since fixed a few things and implemented `SA_SIGINFO`
-(which is required by OpenJDK.)
+2011-06-29:
+Patches were submitted to `libc-alpha`
+which implement global signal dispositions and `SA_SIGINFO`.
 My latest code is available on
 [github](http://github.com/jeremie-koenig/glibc/commits/master-beware-rebase),
 and modified Debian packages
@@ -49,9 +46,10 @@ One question is how the new symbols introduced by my patches
 should be handled.
 Weak symbols turned out to be impractical,
 so I'm currently considering using a Debian-specific
-symbol version in the interim period (`GLIBC_2.13_DEBIAN_7` so far).
+symbol version in the interim period (`GLIBC_2.13_DEBIAN_8` so far).
 The ultimate symbol version to be used will depend on
-the time at which the patches get integrated upstream,
+the time at which the patches get integrated upstream
+(most likely `GLIBC_2.15`),
 at which point we will alias the interim version
 to the new one in debian packages.
 
@@ -72,10 +70,11 @@ see below.
 
 #### Plans
 
-I will submit revised series for review later this week,
-as well as matching Debian patches.
-I expect only the last patch (implement global dispositions) will change,
-and new ones will be added on top of it.
+The patches are pending review and inclusion upstream.
+As soon as we reach an agreement wrt. the new interfaces
+(in particular wrt. the value of `SA_SIGINFO`),
+the patches will be applied to the Debian libc packages
+for broader testing.
 
 
 ##### Open Items
@@ -92,6 +91,9 @@ and new ones will be added on top of it.
     > makes the system unstable.
     > --[[jkoenig]] 2011-06-22
 
+    >> Correction: the patch is fine, problem solved.
+    >> --[[jkoenig]] 2011-06-29
+
   * If [[jkoenig]] thinks it's mature enough: should ask
     [[Samuel|samuelthibault]] to test these patches on the buildds.
 
@@ -103,6 +105,8 @@ and new ones will be added on top of it.
   * Get patches reviewed (Roland?), and integrated into official sources: [!]
     [[tschwinge]].
 
+    > In progress. --[[jkoenig]] 2011-06-29
+
   * Documentations bits (from [[proposal]] and elsewhere) should probably be
     moved either into the appropriate glibc or Hurd documentation
     files/reference manuals, or to [[glibc/signal]].
@@ -113,6 +117,9 @@ and new ones will be added on top of it.
   * Perhaps have a look at `SA_NOCLDWAIT`.
 
   * Which numeric values to use for `SA_SIGINFO` (and `SA_NOCLDWAIT`)?
+
+    > Staying in sync with BSD seems the most logical approach,
+    > so I have defined it to 0x40. --[[jkoenig]] 2011-06-29
 
 
 ### Port OpenJDK
@@ -157,6 +164,15 @@ although the current toolchain issues
 ([[toolchain/ELFOSABI_HURD]])
 have so far prevented me from testing it.
 
+> It turns out the build fails later on in `hotspot/agent`
+> because Hurd lack a `libthread_db.so`.
+> Also, a Shark version builds, but the result does not work so far.
+>
+> In other news, Damien Raude-Morvan is
+> [working on a kFreeBSD version](http://lists.debian.org/debian-java/2011/06/msg00124.html),
+> so I intend to merge my current patches with his.
+>
+> --[[jkoenig]] 2011-06-29
 
 ##### Open Items
 
@@ -171,6 +187,12 @@ have so far prevented me from testing it.
   * They seem to have a rather heavy-weight process for such projects: confer
     <http://mail.openjdk.java.net/pipermail/announce/2011-January/000092.html>,
     for example.  Do we need this, too?
+
+    > Probably not.
+    > My current approach (and Damien's wrt. the kFreeBSD patches)
+    > is to add preprocessor directives in the Linux code
+    > to make it more portable.
+    > --[[jkoenig]] 2011-06-29
 
   * Eclipse
 
