@@ -1,0 +1,246 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+GDB testsuite makes a term process go bonkers.  The testsuite is terminated.
+The term process remanins.  Next, a new shell (bash) is started that connects
+to this term process -- and hangs.
+
+Hung bash process (27834), term (22634).
+
+    # portinfo -t 22634 27834
+         5 =>     58: receive
+        11 =>     18: receive
+        21 =>     53: receive
+        26 =>     51: receive
+        27 =>     56: receive
+        28 =>     48: receive
+        30 =>     54: receive
+
+GDB on bash:
+
+    #0  0x010ab12c in _hurd_intr_rpc_msg_in_trap (msg=0x102383c, option=3, send_size=44, rcv_size=2092, rcv_name=9, timeout=0, notify=0) at intr-msg.c:134
+            err = <value optimized out>
+            err = <value optimized out>
+            user_option = 3
+            user_timeout = 0
+            m = 0x102383c
+            msgh_bits = 5395
+            remote_port = 27
+            msgid = 21001
+            __PRETTY_FUNCTION__ = "_hurd_intr_rpc_mach_msg"
+    #1  0x01235195 in __io_read (io_object=27, data=0x1024148, dataCnt=0x102414c, offset=-1, amount=1) at /home/buildd/build/chroot-sid/home/buildd/byhand/eglibc-2.13/build-tree/hurd-i386-libc/hurd/RPC_io_read.c:138
+            Mess = {In = {Head = {msgh_bits = 5395, msgh_size = 1768, msgh_remote_port = 27, msgh_local_port = 9, msgh_seqno = 0, msgh_id = 21001}, offsetType = {msgt_name = 11, msgt_size = 64, msgt_number = 1, msgt_inline = 1, msgt_longform = 0, msgt_deallocate = 0, 
+                  msgt_unused = 0}, offset = -1, amountType = {msgt_name = 2, msgt_size = 32, msgt_number = 1, msgt_inline = 1, msgt_longform = 0, msgt_deallocate = 0, msgt_unused = 0}, amount = 1}, Out = {Head = {msgh_bits = 5395, msgh_size = 1768, msgh_remote_port = 27, 
+                  msgh_local_port = 9, msgh_seqno = 0, msgh_id = 21001}, RetCodeType = {msgt_name = 11, msgt_size = 64, msgt_number = 1, msgt_inline = 1, msgt_longform = 0, msgt_deallocate = 0, msgt_unused = 0}, RetCode = -1, dataType = {msgtl_header = {msgt_name = 255, 
+                    msgt_size = 255, msgt_number = 4095, msgt_inline = 1, msgt_longform = 1, msgt_deallocate = 1, msgt_unused = 1}, msgtl_name = 8194, msgtl_size = 4097, msgtl_number = 1}, 
+                data = "# /etc/inputrc - global inputrc for libreadline\n# See readline(3readline) and `info rluserman' for more information.\n\n# Be 8 bit clean.\nset input-meta on\nset output-meta on\n\n# To allow the use of 8bit"...}}
+            msg_result = <value optimized out>
+            msgh_size = <value optimized out>
+    #2  0x010afbb1 in readfd (port=27) at fd-read.c:34
+            nbytes = 0x9
+            nread = 40
+            data = 0x44 <Address 0x44 out of bounds>
+            offset = 12884901897
+    #3  0x010b5de5 in _hurd_ctty_input (port=26, ctty=27, rpc=0x1024154) at ctty-input.c:36
+            err = 19156808
+    #4  0x010af53e in _hurd_fd_read (fd=0x1244f48, buf=0x102420f, offset=-1) at fd-read.c:39
+            __ulink = {resource = {next = 0x0, prevp = 0x1244f4c}, thread = {next = 0x1024160, prevp = 0x1246c5c}, cleanup = 0x10b75a0 <_hurd_port_cleanup>, cleanup_data = 0x1a}
+            __ctty_ulink = {resource = {next = 0x0, prevp = 0x1244f5c}, thread = {next = 0x0, prevp = 0x1024180}, cleanup = 0x10b75a0 <_hurd_port_cleanup>, cleanup_data = 0x1b}
+            ctty = 27
+            crit = 0x1246808
+            __result = 16925048
+            port = <value optimized out>
+            err = <value optimized out>
+            data = 0x102420f ""
+            nbytes = 0x10241f8
+            nread = 1
+    #5  0x0116c080 in __libc_read (fd=DWARF-2 expression error: DW_OP_reg operations must be used either alone or in conjuction with DW_OP_piece or DW_OP_bit_piece.
+    ) at ../sysdeps/mach/hurd/read.c:27
+            descriptor = <error reading variable descriptor (DWARF-2 expression error: DW_OP_reg operations must be used either alone or in conjuction with DW_OP_piece or DW_OP_bit_piece.)>
+            err = <value optimized out>
+    #6  0x080cdaac in ?? ()
+    No symbol table info available.
+    #7  0x080cdf88 in ?? ()
+    No symbol table info available.
+    #8  0x080baff7 in ?? ()
+    No symbol table info available.
+    #9  0x080bb435 in ?? ()
+    No symbol table info available.
+    #10 0x080507e7 in ?? ()
+    No symbol table info available.
+    #11 0x0804fc36 in ?? ()
+    No symbol table info available.
+    #12 0x08052f22 in ?? ()
+    No symbol table info available.
+    #13 0x08055dab in ?? ()
+    No symbol table info available.
+    #14 0x0804d960 in ?? ()
+    No symbol table info available.
+    #15 0x0804da1f in ?? ()
+    No symbol table info available.
+    #16 0x0804dc65 in ?? ()
+    No symbol table info available.
+    #17 0x0804d215 in ?? ()
+    No symbol table info available.
+    #18 0x010b906b in __libc_start_main (main=0x804c450, argc=1, ubp_av=0x1024dd4, init=0x80d7ff0, fini=0x80d7fe0, rtld_fini=0xf330, stack_end=0x1024dcc) at libc-start.c:257
+            result = <value optimized out>
+    #19 0x0804b281 in ?? ()
+    No symbol table info available.
+
+GDB on term:
+
+      5 Thread 22634.5  0x01089f6c in mach_msg_trap () at /home/buildd/build/chroot-sid/home/buildd/byhand/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+      4 Thread 22634.4  0x01089f6c in mach_msg_trap () at /home/buildd/build/chroot-sid/home/buildd/byhand/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+      3 Thread 22634.3  0x01089f6c in mach_msg_trap () at /home/buildd/build/chroot-sid/home/buildd/byhand/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+      2 Thread 22634.2  0x01089f6c in mach_msg_trap () at /home/buildd/build/chroot-sid/home/buildd/byhand/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    * 1 Thread 22634.1  0x01089f6c in mach_msg_trap () at /home/buildd/build/chroot-sid/home/buildd/byhand/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    
+    Thread 5 (Thread 22634.5):
+    #0  0x01089f6c in mach_msg_trap () at /home/buildd/build/chroot-sid/home/buildd/byhand/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    No locals.
+    #1  0x0108a769 in __mach_msg (msg=0x129bf10, option=2050, send_size=0, rcv_size=8192, rcv_name=16, timeout=0, notify=0) at msg.c:110
+            ret = <value optimized out>
+    #2  0x0108ae24 in __mach_msg_server_timeout (demux=0x125fd1c, max_size=8192, rcv_name=16, option=2048, timeout=0) at msgserver.c:101
+            request = 0x129bf10
+            reply = 0x129df20
+            mr = <value optimized out>
+            __PRETTY_FUNCTION__ = "__mach_msg_server_timeout"
+    #3  0x01058e45 in thread_function (master=0) at /home/buildd/build/chroot-sid/home/buildd/byhand/hurd/./libports/manage-multithread.c:136
+            timeout = 0
+            err = <value optimized out>
+            hook = 0
+            global_timeout = 0
+            thread_timeout = 0
+            bucket = 0x805e1f0
+            lock = 0
+            totalthreads = 4
+            nreqthreads = 3
+    #4  0x01052b91 in cthread_body (self=0x8061460) at /home/buildd/build/chroot-sid/home/buildd/byhand/hurd/./libthreads/cthreads.c:300
+            t = 0x80619a8
+    #5  0x00000000 in ?? ()
+    No symbol table info available.
+    
+    Thread 4 (Thread 22634.4):
+    #0  0x01089f6c in mach_msg_trap () at /home/buildd/build/chroot-sid/home/buildd/byhand/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    No locals.
+    #1  0x0108a769 in __mach_msg (msg=0x128df20, option=2050, send_size=0, rcv_size=8192, rcv_name=16, timeout=0, notify=0) at msg.c:110
+            ret = <value optimized out>
+    #2  0x0108ae24 in __mach_msg_server_timeout (demux=0x125fd1c, max_size=8192, rcv_name=16, option=2048, timeout=0) at msgserver.c:101
+            request = 0x128df20
+            reply = 0x128bf10
+            mr = <value optimized out>
+            __PRETTY_FUNCTION__ = "__mach_msg_server_timeout"
+    #3  0x01058e45 in thread_function (master=0) at /home/buildd/build/chroot-sid/home/buildd/byhand/hurd/./libports/manage-multithread.c:136
+            timeout = 0
+            err = <value optimized out>
+            hook = 0
+            global_timeout = 0
+            thread_timeout = 0
+            bucket = 0x805e1f0
+            lock = 0
+            totalthreads = 4
+            nreqthreads = 3
+    #4  0x01052b91 in cthread_body (self=0x805f800) at /home/buildd/build/chroot-sid/home/buildd/byhand/hurd/./libthreads/cthreads.c:300
+            t = 0x805f788
+    #5  0x00000000 in ?? ()
+    No symbol table info available.
+    
+    Thread 3 (Thread 22634.3):
+    #0  0x01089f6c in mach_msg_trap () at /home/buildd/build/chroot-sid/home/buildd/byhand/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    No locals.
+    #1  0x0108a769 in __mach_msg (msg=0x127df20, option=2050, send_size=0, rcv_size=8192, rcv_name=16, timeout=0, notify=0) at msg.c:110
+            ret = <value optimized out>
+    #2  0x0108ae24 in __mach_msg_server_timeout (demux=0x125fd1c, max_size=8192, rcv_name=16, option=2048, timeout=0) at msgserver.c:101
+            request = 0x127df20
+            reply = 0x127bf10
+            mr = <value optimized out>
+            __PRETTY_FUNCTION__ = "__mach_msg_server_timeout"
+    #3  0x01058e45 in thread_function (master=0) at /home/buildd/build/chroot-sid/home/buildd/byhand/hurd/./libports/manage-multithread.c:136
+            timeout = 0
+            err = <value optimized out>
+            hook = 0
+            global_timeout = 0
+            thread_timeout = 0
+            bucket = 0x805e1f0
+            lock = 0
+            totalthreads = 4
+            nreqthreads = 3
+    #4  0x01052b91 in cthread_body (self=0x805ec30) at /home/buildd/build/chroot-sid/home/buildd/byhand/hurd/./libthreads/cthreads.c:300
+            t = 0x805ebb8
+    #5  0x00000000 in ?? ()
+    No symbol table info available.
+    
+    Thread 2 (Thread 22634.2):
+    #0  0x01089f6c in mach_msg_trap () at /home/buildd/build/chroot-sid/home/buildd/byhand/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    No locals.
+    #1  0x0108a769 in __mach_msg (msg=0x126df20, option=3, send_size=32, rcv_size=4096, rcv_name=12, timeout=0, notify=0) at msg.c:110
+            ret = <value optimized out>
+    #2  0x0108ae99 in __mach_msg_server_timeout (demux=0x109b9d0 <msgport_server>, max_size=4096, rcv_name=12, option=0, timeout=0) at msgserver.c:151
+            request = 0x126ef30
+            reply = 0x126df20
+            mr = <value optimized out>
+            __PRETTY_FUNCTION__ = "__mach_msg_server_timeout"
+    #3  0x0108af6b in __mach_msg_server (demux=0x109b9d0 <msgport_server>, max_size=4096, rcv_name=12) at msgserver.c:196
+    No locals.
+    #4  0x0109b99f in _hurd_msgport_receive () at msgportdemux.c:68
+    No locals.
+    #5  0x01052b91 in cthread_body (self=0x805da48) at /home/buildd/build/chroot-sid/home/buildd/byhand/hurd/./libthreads/cthreads.c:300
+            t = 0x805d9d0
+    #6  0x00000000 in ?? ()
+    No symbol table info available.
+    
+    Thread 1 (Thread 22634.1):
+    #0  0x01089f6c in mach_msg_trap () at /home/buildd/build/chroot-sid/home/buildd/byhand/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    No locals.
+    #1  0x0108a769 in __mach_msg (msg=0x125ba2c, option=2, send_size=0, rcv_size=24, rcv_name=10, timeout=0, notify=0) at msg.c:110
+            ret = <value optimized out>
+    #2  0x010516b8 in cproc_block () at /home/buildd/build/chroot-sid/home/buildd/byhand/hurd/./libthreads/cprocs.c:638
+            msg = {msgh_bits = 17345214, msgh_size = 18972660, msgh_remote_port = 17163428, msgh_local_port = 134764952, msgh_seqno = 19249824, msgh_id = 18935134}
+            waiter = 0x1240808
+            new = <value optimized out>
+            p = 0x805d988
+    #3  0x01053589 in hurd_condition_wait (m=0x805d89c) at /home/buildd/build/chroot-sid/home/buildd/byhand/hurd/./libthreads/cancel-cond.c:86
+            p = 0x805d988
+            cancel = <value optimized out>
+            __PRETTY_FUNCTION__ = "hurd_condition_wait"
+            c = 0x805e498
+    #4  0x08052abf in trivfs_S_io_read (cred=0x8084b78, reply=32, replytype=18, data=0x125bb44, datalen=0x125bb40, offset=-1, amount=1) at /home/buildd/build/chroot-sid/home/buildd/byhand/hurd/./term/users.c:695
+            cancel = <value optimized out>
+            i = <value optimized out>
+            max = <value optimized out>
+            cp = <value optimized out>
+            avail = <value optimized out>
+    #5  0x0104053b in _Xio_read (InHeadP=0x125dc70, OutHeadP=0x125bc60) at ioServer.c:234
+            dataCnt = 2048
+            msgh_simple = <value optimized out>
+            io_object = 0x8084b78
+            dataP = 0x125bc8c "\350\003"
+    #6  _Xio_read (InHeadP=0x125dc70, OutHeadP=0x125bc60) at ioServer.c:148
+            In0P = 0x125dc70
+            OutP = 0x125bc60
+            offsetCheck = {msgt_name = 11, msgt_size = 64, msgt_number = 1, msgt_inline = 1, msgt_longform = 0, msgt_deallocate = 0, msgt_unused = 0}
+            amountCheck = {msgt_name = 2, msgt_size = 32, msgt_number = 1, msgt_inline = 1, msgt_longform = 0, msgt_deallocate = 0, msgt_unused = 0}
+    #7  0x0104065e in trivfs_io_server (InHeadP=0x125dc70, OutHeadP=0x125bc60) at ioServer.c:2005
+            InP = 0x125dc70
+            OutP = 0x125bc60
+            routine = <value optimized out>
+    #8  0x01038f17 in trivfs_demuxer (inp=0x125dc70, outp=0x125bc60) at /home/buildd/build/chroot-sid/home/buildd/byhand/hurd/./libtrivfs/demuxer.c:32
+    No locals.
+    #9  0x080537a8 in demuxer (inp=0x125dc70, outp=0x125bc60) at /home/buildd/build/chroot-sid/home/buildd/byhand/hurd/./term/main.c:68
+    No locals.
+    #10 0x01059045 in internal_demuxer (inp=0x125dc70, outheadp=0x125bc60) at /home/buildd/build/chroot-sid/home/buildd/byhand/hurd/./libports/manage-multithread.c:101
+            err = <value optimized out>
+            spawn = <value optimized out>
+            status = <value optimized out>
+            pi = <value optimized out>
+            link = {thread = 3, next = 0x0, prevp = 0x8084b94, notifies = 0x0, interrupted_next = 0x0}
+            outp = 0x125bc60
+            __PRETTY_FUNCTION__ = "internal_demuxer"
+    [System crashed.]
