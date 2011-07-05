@@ -48,11 +48,27 @@ upstream code, and put it into the local *hurd/boehm-gc/config_backport*
 branch, planning to submit it to gcc-patches after testing with the GCC
 testsuite.
 
+  * Check
+
+      * 02e191ba495b4ec87aeb961ff9afdb666287104a
+
+      * ce062771587f6637ce09f79c36e24de691032919
+
+      * a9cc177ef514d6eb39db72c82911fcea2cd70dba
+
+      * 7b8d306d18986cd98808c9ed5d3a696a186dc213
+
+        Looks generally OK.
+
+      * a3a3fd06ae58af9591a95c94245809b0359289ff
+
+        Looks OK.
+
 
 # Configuration
 
-Last reviewed up to the [[Git mirror's 3457702eb6f8ee22acaee881dc7f783c3aa2fa91
-(2010-12-08) sources|source_repositories/gcc]].
+Last reviewed up to the [[Git mirror's 16774908cf3453bfa0d7142e377539b0a80512f0
+(2011-07-05) sources|source_repositories/gcc]].
 
 <http://gcc.gnu.org/install/configure.html> has documentation for the
 `configure` switches.
@@ -72,6 +88,8 @@ Last reviewed up to the [[Git mirror's 3457702eb6f8ee22acaee881dc7f783c3aa2fa91
 
       * `libgomp/configure.tgt`
 
+      * `libstdc++-v3/config/os/gnu-linux/*`
+
       * Etc.
 
   * [[`libmudflap`|libmudflap]].
@@ -87,7 +105,7 @@ Last reviewed up to the [[Git mirror's 3457702eb6f8ee22acaee881dc7f783c3aa2fa91
       * GNAT is not yet ported / bootstrapped?
 
       * The Google Go's libgo (introduced in
-        e440a3286bc89368b8d3a8fd6accd47191790bf2 (2010-12-03)) apparently needs
+        e440a3286bc89368b8d3a8fd6accd47191790bf2 (2010-12-03)) needs
         OS configuration / support.
 
   * `--enable-frame-pointer`
@@ -119,12 +137,23 @@ Last reviewed up to the [[Git mirror's 3457702eb6f8ee22acaee881dc7f783c3aa2fa91
 
     [[IFUNC]]
 
+  * bdd793b231c5454437e28d91ecda885a83819e66, 2010-12-23, `dl_iterate_phdr`:
 
-# TODO
+    `cross-gnu` says: `checking dl_iterate_phdr in target C library... unknown`
 
-Debian's GCC package has Hurd-specific patches.  Some have been forwarded
-upstream (and have been ignored).  [[Thomas_Schwinge|tschwinge]] is working on
-getting them integrated.
+    Patch also contains `#if defined __linux__`, which likely should be
+    glibc-specific.
+
+  * `gcc/config/t-linux` should be named `gcc/config/t-gnu-user` or similar.
+    Likewise for `gcc/config/i386/t-linux`.
+
+  * `gcc/config/gnu-user.h` defines `*SPLIT_STACK*` macros -- which aren't
+    valid for us (yet), I think.
+
+
+  * Debian's GCC package has Hurd-specific patches.  Some have been forwarded
+    upstream (and have been ignored).  [[Thomas_Schwinge|tschwinge]] is working
+    on getting them integrated.
 
   * [\[meta-bug\] bootstrap bugs for
     \*-gnu\*](http://gcc.gnu.org/bugzilla/show_bug.cgi?id=21824)
@@ -135,8 +164,26 @@ getting them integrated.
   * [-fstack-protector shouldn't use TLS in freestanding
     mode](http://gcc.gnu.org/bugzilla/show_bug.cgi?id=29838)
 
-  * [Tool chain configuration: GNU/\* sharing stuff with
-    GNU/Linux](http://gcc.gnu.org/ml/gcc/2007-11/msg00289.html)
+  * Check before/after Joseph changes.  (Should be fine.)
+
+  * 34618b3190c110b8926cc2b1db4b4eac95451995
+
+    What's this used for?  (Check ML.)  Ask to include i686-pc-gnu (once it is
+    buildable out of the box)?  See also
+    73905b5de0d9a086f22ded7638bb1c0ae1b91326.
+
+  * 1e53920f848bded45425cf0ed9de9e77d5948c1d (fixed in *linux-unwind.h* branch)
+
+    Now unconditionally uses the Linux i386/linux-unwind.h on non-Linux x86
+    architectures in libgcc.  Due to `#ifdef` removal in unwind-dw2.c, the
+    header file will always be included.  There is now an empty no-unwind.h,
+    which is the default unless overridden.  The solutions should be in
+    libgcc/config.host to not set md_unwind_header for non-Linux x86.
+    [Discussion](http://gcc.gnu.org/ml/gcc-patches/2011-06/threads.html#01571).
+
+  * [low, testsuite] 5c7992866145620ffd0bc75b4f23298162b2c17f
+
+    `check_effective_target_pie` should include `*-*-gnu*`, too.
 
 
 # Build
