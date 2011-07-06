@@ -23,15 +23,18 @@ It also assumes that apart from networking,
 your Hurd system is already installed and operational.
 
 
-Start by booting into Debian GNU/Linux for some preparations:
+We start by booting into Debian GNU/Linux,
+so we can downloading everything we will need for building DDE.
 
-(as root)
+Once there, first mount the Hurd partition (as root):
 
 > $ mount /dev/hdd1 /mnt -t ext2 # assuming your Hurd partition is hdd1 -- replace with whatever matches your setup
 
+Prepare apt offline configuration so we can get necessary packages:
+
 > $ cd /mnt/etc/apt
 
-> $ echo "deb http://ftp.debian-ports.org/debian unreleased main" >> sources.list
+> $ echo "deb http://ftp.debian-ports.org/debian unreleased main" >> sources.list # if you don't have sources.list set up yet on the Hurd system
 
 > $ echo "deb-src http://ftp.debian-ports.org/debian unreleased main" >> sources.list
 
@@ -41,6 +44,8 @@ Start by booting into Debian GNU/Linux for some preparations:
 
 > $ wget http://www.gnu.org/software/hurd/hurd/running/debian/DebianAptOffline/apt.conf.offline
 
+Download the packages for offline installation:
+
 > $ cd /mnt
 
 > $ apt-get -c etc/apt/apt.conf.offline update
@@ -49,12 +54,13 @@ Start by booting into Debian GNU/Linux for some preparations:
 
 > $ apt-get -c etc/apt/apt.conf.offline install git-core build-essential libpciaccess-dev libpcap0.8-dev
 
+Get DDE code:
+
 > $ cd /mnt/home
 
 > $ git clone git://git.sv.gnu.org/hurd/incubator.git -b dde hurd_dde
 
 > $ git clone git://git.sv.gnu.org/hurd/gnumach.git -b master-user_level_drivers gnumach_dde
-
 
 Now you need to get the actual driver from the Linux source tree.
 You have to find out which Linux driver
@@ -71,17 +77,17 @@ Find the right file to download (e.g. forcedeth.c),
 hit the "raw" link,
 and save the resulting file (page) to /mnt/home
 
-Now everything should be in place,
-so we can boot into Hurd to do the actual work:
 
-(again as root)
+Now everything should be in place,
+so we can boot into Hurd to do the actual work.
+
+Once there, install the packages previously downloaded (again as root):
 
 > $ apt-get build-dep hurd gnumach
 
 > $ apt-get install git-core build-essential libpciaccess-dev libpcap0.8-dev
 
-
-(this part can be done as normal user)
+Build a DDE-enabled Mach (this and following parts can be done as normal user):
 
 > $ cd /home/gnumach_dde
 
@@ -89,23 +95,25 @@ so we can boot into Hurd to do the actual work:
 
 > $ make
 
+Prepare the driver for your network card:
+
 > $ cd ../hurd_dde
 
-> $ cp -r dde_pcnet32 dde_forcedeth
+> $ cp -r dde_pcnet32 dde_forcedeth # using pcnet32 as template
 
 > $ cd dde_forcedeth
 
-> $ rm pcnet32.c
+> $ rm pcnet32.c # don't want the actual pcnet32 code here...
 
-> $ cp /home/forcedeth.c ./
+> $ cp /home/forcedeth.c ./ # ...but rather the forcedeth code
 
-> $ sed -i 's/pcnet32/forcedeth/g' Makefile
+> $ sed -i 's/pcnet32/forcedeth/g' Makefile # adapt Makefile accordingly
 
 > $ sed -i 's/pcnet32/forcedeth/g' .gitignore
 
-> $ sed -i 's:-lhurd-slab:../libhurd-slab/libhurd-slab.a:' Makefile
+> $ sed -i 's:-lhurd-slab:../libhurd-slab/libhurd-slab.a:' Makefile # fix up build system... XXX I guess this part is obsolete
 
-> $ sed -i 's:-I/include:-I..:' Makefile
+> $ sed -i 's:-I/include:-I..:' Makefile # same
 
 > $ nano forcedeth.c # Near the top of the file, there will be many #include lines. After the last one, add this:
 
@@ -113,27 +121,34 @@ so we can boot into Hurd to do the actual work:
 
 > $ cd ..
 
+Commit the driver with git.
+This will be helpful if we update the DDE code later;
+as well as for creating a patch for later reuse
+and/or upstream submission:
+
 > $ git add dde_forcedeth
 
 > $ git commit -a -m 'Add forcedeth driver'
 
+Build the necessary Hurd and DDE bits:
+
 > $ autoreconf -i && ./configure
 
-> $ mkdir -p hurd/include/ddekit
+> $ mkdir -p hurd/include/ddekit # workaround for a buildsystem bug... XXX I'm pretty sure this is not necessary anymore
 
-> $ make libddekit libmachdev devnode pfinet
+> $ make libddekit libmachdev devnode pfinet # Hurd components
 
-> $ cd libdde_linux26
-
-> $ make
-
-> $ cd ../dde_forcedeth
+> $ cd libdde_linux26 # common DDE driver code -- uses a different Makefile system than the Hurd components!
 
 > $ make
 
-If the make fails it might be necassary to replace some of the -l options (or all) in Makefile with the real path to the library objects (example: change *-lhurd-slab* to *../libhurd-slab/libhurd-slab.a*)
+> $ cd ../dde_forcedeth # actual driver
 
-(as root)
+> $ make
+
+If the make fails it might be necassary to replace some of the -l options (or all) in Makefile with the real path to the library objects (example: change *-lhurd-slab* to *../libhurd-slab/libhurd-slab.a*) XXX
+
+Install the various built components to their final destinations (as root):
 
 > $ cp /home/gnumach_dde/gnumach /boot/gnumach_dde
 
@@ -146,16 +161,15 @@ If the make fails it might be necassary to replace some of the -l options (or al
 > $ cp /home/hurd_dde/dde_forcedeth/dde_forcedeth /hurd/dde/forcedeth
 
 
-Now everything should be built.
+Now everything should be ready.
 Before we can use the driver,
 we have to boot with the newly built gnumach_dde
 instead of the standard kernel.
 (Adapt your grub configuration;
 or manually edit the entry
 in the boottime grub menu while testing.)
-Once there, set up the translators for the driver:
 
-(as root)
+Once there, set up the translators for the driver (as root):
 
 > $ settrans -c /dev/forcedeth /hurd/dde/forcedeth
 
