@@ -62,20 +62,35 @@ Get DDE code:
 
 > $ git clone git://git.sv.gnu.org/hurd/gnumach.git -b master-user_level_drivers gnumach_dde
 
-Now you need to get the actual driver from the Linux source tree.
-You have to find out which Linux driver
-is responsible for your network card,
-and which source file corresponds to this driver.
+Now comes the tricky part:
+you need to find out
+whether there is already a driver for your card
+in the DDE source tree,
+and otherwise get the driver code
+from the official Linux source tree.
+
+For this, you have to find out which Linux driver
+is responsible for your network card.
 In this guide we will use the forcedeth driver
 (for Nvidia nForce chipsets) as example.
+We check whether there is already a `dde_forcedeth` directory
+in the newly cloned `hurd_dde` tree.
+If there isn't, we have to find and download
+the right source file from Linux:
 
 Point a (JavaScript-capable) web browser at
 
 > http://git.kernel.org/?p=linux/kernel/git/stable/linux-2.6.29.y.git;a=tree;f=drivers/net;hb=HEAD
 
-Find the right file to download (e.g. forcedeth.c),
-hit the "raw" link,
+Find the right file to download
+(forcedeth.c in this example);
+then hit the "raw" link,
 and save the resulting file (page) to /mnt/home
+
+(If you happen to need one of the few drivers
+that consist of more than one source file,
+the process will be more complicated,
+and can't be covered in this guide...)
 
 
 Now everything should be in place,
@@ -95,7 +110,9 @@ Build a DDE-enabled Mach (this and following parts can be done as normal user):
 
 > $ make
 
-Prepare the driver for your network card:
+
+If not already present in DDE,
+we need to prepare the driver for the network card:
 
 > $ cd ../hurd_dde
 
@@ -121,7 +138,7 @@ Prepare the driver for your network card:
 
 > $ cd ..
 
-Commit the driver with git.
+Commit the new driver with git.
 This will be helpful if we update the DDE code later;
 as well as for creating a patch for later reuse
 and/or upstream submission:
@@ -130,7 +147,9 @@ and/or upstream submission:
 
 > $ git commit -a -m 'Add forcedeth driver'
 
-Build the necessary Hurd and DDE bits:
+
+Having prepared the driver,
+we can now build the necessary Hurd and DDE bits:
 
 > $ autoreconf -i && ./configure
 
