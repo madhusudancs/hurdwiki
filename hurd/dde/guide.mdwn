@@ -56,11 +56,13 @@ Download the packages for offline installation:
 
 Get DDE code:
 
-> $ cd /mnt/home
+> $ cd /mnt/home/me # assuming your user name on the Hurd system is "me"
 
-> $ git clone git://git.sv.gnu.org/hurd/incubator.git -b dde hurd_dde
+> $ mkdir dde && cd dde
 
-> $ git clone git://git.sv.gnu.org/hurd/gnumach.git -b master-user_level_drivers gnumach_dde
+> $ git clone git://git.sv.gnu.org/hurd/incubator.git -b dde hurd
+
+> $ git clone git://git.sv.gnu.org/hurd/gnumach.git -b master-user_level_drivers
 
 Now comes the tricky part:
 you need to find out
@@ -85,7 +87,7 @@ Point a (JavaScript-capable) web browser at
 Find the right file to download
 (forcedeth.c in this example);
 then hit the "raw" link,
-and save the resulting file (page) to /mnt/home
+and save the resulting file (page) to /mnt/home/me/dde
 
 (If you happen to need one of the few drivers
 that consist of more than one source file,
@@ -104,7 +106,7 @@ Once there, install the packages previously downloaded (again as root):
 
 Build a DDE-enabled Mach (this and following parts can be done as normal user):
 
-> $ cd /home/gnumach_dde
+> $ cd ~me/dde/gnumach
 
 > $ autoreconf -i && ./configure --enable-kdb --enable-device-drivers=none --enable-lpr --enable-floppy --enable-ide
 
@@ -114,7 +116,7 @@ Build a DDE-enabled Mach (this and following parts can be done as normal user):
 If not already present in DDE,
 we need to prepare the driver for the network card:
 
-> $ cd ../hurd_dde
+> $ cd ~me/dde/hurd
 
 > $ cp -r dde_pcnet32 dde_forcedeth # using pcnet32 as template
 
@@ -122,7 +124,7 @@ we need to prepare the driver for the network card:
 
 > $ rm pcnet32.c # don't want the actual pcnet32 code here...
 
-> $ cp /home/forcedeth.c ./ # ...but rather the forcedeth code
+> $ cp ~me/dde/forcedeth.c ./ # ...but rather the forcedeth code
 
 > $ sed -i 's/pcnet32/forcedeth/g' Makefile # adapt Makefile accordingly
 
@@ -169,15 +171,17 @@ If the make fails it might be necassary to replace some of the -l options (or al
 
 Install the various built components to their final destinations (as root):
 
-> $ cp /home/gnumach_dde/gnumach /boot/gnumach_dde
+> $ cd ~me/dde/
+
+> $ cp gnumach/gnumach /boot/gnumach_dde
 
 > $ mkdir /hurd/dde
 
-> $ cp /home/hurd_dde/devnode/devnode /hurd/dde
+> $ cp hurd/devnode/devnode /hurd/dde
 
-> $ cp /home/hurd_dde/pfinet/pfinet /hurd/dde
+> $ cp hurd/pfinet/pfinet /hurd/dde
 
-> $ cp /home/hurd_dde/dde_forcedeth/dde_forcedeth /hurd/dde/forcedeth
+> $ cp hurd/dde_forcedeth/dde_forcedeth /hurd/dde/forcedeth
 
 
 Now everything should be ready.
