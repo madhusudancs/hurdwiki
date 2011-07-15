@@ -1,0 +1,117 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_documentation]]
+
+
+# IRC, freenode, #hurd, 2011-06-11
+
+    <antrik> I don't think we have a precendence case of Mach initiating RPCs
+      to userspace tasks
+    <braunr> well mach regularly sends RPCs to external pagers
+    <antrik> hm, right
+    <antrik> anyways, the ds_ in device.defs is for use *inside* Mach, not for
+      the userspace interface
+    <braunr> what makes you think so ?
+    <antrik> several things
+    <antrik> not least the fact that without zhengda's modifications, the
+      device handling never calls out to userspace for all I know
+    <braunr> hm, it does
+    <braunr> for async I/O
+    <braunr> when the kernel has finished its I/O, it calls
+      ds_device_read_reply/ds_device_write_reply
+    <antrik> I see
+    <antrik> I never quite understood the _reply stuff
+    <braunr> although i wonder how mig is supposed to forge those names
+    <antrik> braunr: it isn't
+    <antrik> braunr: there is a separate device_reply.defs
+    <antrik> braunr: and it sets a *userprefix* of ds_
+    <antrik> rather than a serverprefix
+    <braunr> i saw, yes
+    <braunr> ah right
+    <antrik> so ds still refers to the in-Mach device server, not anything
+      userspace
+    <braunr> so this is where the patch is supposed to introduce the
+      device_intr_notify RPC
+    <antrik> or at least that's my understanding...
+    <braunr> no, it doesn't refer to in-mach servers
+    <braunr> it really forges the right rpcs to be called by mach
+    <antrik> the definition of "RPC" is rather unclear here
+    <braunr> why ?
+    <braunr> mach has its own mach_msg() call for kernel-to-user messaging
+    <antrik> yes, but this is used only to send the reply message for the RPC
+      earlier initiated by userspace AIUI
+    <antrik> it doesn't look like there is any special RPC for async I/O
+    <braunr> yes, because this is the only use case they had
+    <braunr> hence the name "reply"
+    <braunr> intr_notify isn't a reply, but it uses the same mechanism
+    <braunr> these are declared as simpleroutine
+    <antrik> sure. but the fact that it isn't a reply message, but rather
+      initiates a new RPC, changes things from MiG point of view I believe
+    <antrik> right, as there is no reply to the reply :-)
+    <braunr> :)
+    <braunr> a simpleroutine is how to turn an rpc into a simple ipc
+    <antrik> I know
+    <antrik> so in _reply, we pretend that the reply is actually a new RPC,
+      with server and client roles reversed, and no reply
+    <antrik> (this is actually rather kludgy... apparently MIG has no real
+      notion of async replies)
+    <braunr> i don't understand what you mean
+    <braunr> simpleroutine is the explicit solution for async replies
+    <braunr> as stated in
+      http://www.cs.cmu.edu/afs/cs/project/mach/public/doc/unpublished/mig.ps
+    <braunr> it's not a new rpc with roles reversed
+    <braunr> it's not a reply either
+    <antrik> it might be an explicit solution for that, but it still seems
+      kludgy :-)
+    <braunr> i don't see why :/
+    <braunr> would you have expected something like an option to create both
+      sync and async versions ?
+    <antrik> because it requires an extra .defs file
+    <antrik> yes
+    <braunr> ok
+    <braunr> well this seems cumbersome to me :)
+    <braunr> i prefer the simpleroutine approach
+    <braunr> but i agree this seems odd since mach has a high level ipc api
+    <antrik> anyways, my point is that the ds_ in device_reply.defs still
+      refers to the Mach side of things
+    <braunr> npnth: which package fails to build ?
+    <antrik> though a userspace process that actually handles the replies in an
+      async fashion will of course need some kind of device server too, just
+      like the DDE stuff...
+    <antrik> though naming it ds_ is confusing IMHO, because of the name clash
+      with the device server in Mach
+    <braunr> hm again, i fail to see why
+    <braunr> ds_ just means device_server
+    <braunr> and as most things in mach, it can be in kernel or not
+    <braunr> i mean, this is an interface prefix, i don't refer to an actual
+      single instance of a "device server" out there
+    <antrik> oh, right... DDE implements the Mach device protocol, so it *does*
+      do the ds_ part... but that makes the interrupt notification stuff even
+      more confusing
+    <braunr> hm
+    <braunr> because it provides a ds_device_intr_notify() which will never be
+      used, just to completely implement the interface ?
+    <antrik> yeah, that's what I suspect...
+    <braunr> sounds likely
+    <antrik> the device interface actually has two parts: one for "generic"
+      RPCs on the master device port, and one for device-specific RPCs. DDE
+      implements the latter, and uses the former...
+    <antrik> they live in separate places though I think: the individual device
+      RPCs are implemented in libmachdev, while the intr_ stuff is used in
+      libddekit probably
+    <braunr> it would be hairy to build otherwise
+    <antrik> so we *really* need to know what component npnth gets the error
+      with
+    <antrik> braunr: nah, not really. that's why we always have a separate
+      prefix for the server routines in Hurd RPCs
+    <braunr> right, i really need to read about mig again
+    <antrik> it's pretty normal for a translator to both implement and use an
+      interface

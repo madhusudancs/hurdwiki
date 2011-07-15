@@ -10,7 +10,10 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_gnumach]]
 
-IRC, freenode, #hurd, 2011-05-07
+[[!toc]
+
+
+# IRC, freenode, #hurd, 2011-05-07
 
     <braunr> things that are referred to as "system calls" in glibc are
       actually RPCs to the kernel or other tasks, those RPCs have too lookup
@@ -20,7 +23,8 @@ IRC, freenode, #hurd, 2011-05-07
 
 There is a [[!FF_project 268]][[!tag bounty]] on this task.
 
-IRC, freenode, #hurd, 2011-04-23
+
+# IRC, freenode, #hurd, 2011-04-23
 
     <braunr> youpi: is there any use of the port renaming facility ?
     <youpi> I don't know
@@ -250,7 +254,8 @@ IRC, freenode, #hurd, 2011-04-23
     <antrik> well, if some processes really feel they must use random numbers
       for port names, they *ought* to be penalized ;-)
 
-2011-04-27
+
+# IRC, freenode, #hurd, 2011-04-27
 
     <braunr> antrik: remember when you asked why high numbers would be a
       problem with radix trees ?
@@ -319,7 +324,182 @@ IRC, freenode, #hurd, 2011-04-23
     <braunr> antrik: a data structure used to map integers to pointers
     <braunr> http://fxr.watson.org/fxr/source/lib/idr.c?v=linux-2.6
 
-2011-06-18
+
+# IRC, freenode, #hurd, 2011-06-08
+
+    <braunr> hm, reverse space/port to name lookups also suck
+    <braunr> having separate types for simple ipc entries and splay tree
+      entries really makes many parts of the ipc code complicated
+    <braunr> and a global hash table for these operations is scary
+
+
+# IRC, freenode, #hurd, 2011-06-09
+
+    <braunr> hm nice, my radix tree code runs inside gnumach, along with the
+      original splay tree code and assertions making sure results are the same
+    <braunr> there is this "collision" thing i'm not sure to understand but
+      once this is solved, replacing the splay trees should be easy
+
+    <braunr> youpi: is there a way to easily know the number of send rights
+      associated to a port ?
+    <youpi> portinfo ?
+    <braunr> portinfo gives information in a space
+    <braunr> but this is specific to a port
+    <braunr> is there an option for that ?
+    <youpi> -v
+    <braunr> hm ok
+    <youpi>     25: send (refs: 550)
+    <braunr> nice
+    <braunr> youpi: if you have time, could you give me the min/max/avg numbers
+      of send rights referring to the same port on buildds ?
+    <braunr> i'm trying to estimate if it's better to have space->list_of_ports
+      or port->list_of_spaces to replace the global ipc hash table
+    <braunr> the latter seems better but there could be unexpected cases on
+      machines using large amounts of resources like the buildds
+    <youpi> max is 64k
+    <youpi> min is 1 of course :)
+    <braunr> 64k
+    <braunr> then it's not what i'm looking for
+    <youpi> avg is 55
+    <braunr> isn't this the number of urefs ?
+    <youpi> I don't know
+    <braunr> hmm
+    <braunr> what i'm looking for is the number of *pure send rights* for the
+      same port
+    <braunr> i don't think portinfo can give it
+    <braunr> there can only be one such send right per task for the same port
+    <braunr> 64k would mean there are 64k tasks
+    <youpi> ok, so it's more difficult
+    <youpi> it means using -t
+    <braunr> ahh
+    <youpi> and run n^2 portinfo over the n processes
+    <braunr> i see
+    <youpi> Mmm, that will however still show any duplicate send right
+    <youpi> but then by min/max/avg, you mean, over time ?
+    <braunr> i'll change the source code, simpler
+    <youpi> e.g. min would be right after boot?
+    <braunr> min is 1
+    <youpi> 1 what ?
+    <braunr> 1 send right to a port
+    <youpi> ah, 1 for a given port
+    <braunr> yes
+    <youpi> ok, it becomes really hairy to compute, I don't hav ethe time :)
+    <braunr> avg and max are more interesting :)
+    <braunr> no worries
+    <youpi> braunr: I wouldn't be surprised that max is the number of tasks
+    <youpi> e.g. for a send port to the proc server for instance
+    <braunr> youpi: it is, but i'm not looking for potential numbers
+    <youpi> I'm not talking about a potential number, but an actual number
+      that's almost always true
+    <braunr> for one port, yes
+    <braunr> but yes, ok for max
+    <braunr> this makes choosing an appropriate data structure difficult
+
+    <antrik> braunr: actually, min number of send rights to a port is 0... but
+      I'm sure you know that already :-)
+
+    <antrik> youpi: normally each client gets a separate port. I'm not sure
+      there are any ports with send rights distributed over many tasks...
+
+    <jkoenig> antrik, what about / ?
+
+    <youpi> antrik: not necessarily
+
+    <antrik> jkoenig: not sure... isn't the "/" port authenticated to the
+      specific user?
+
+    <jkoenig> antrik, I guess so, but a single user could still have many
+      tasks.
+    <jkoenig> (wrt /)
+    <antrik> jkoenig: well, in theory the tasks having exactly the same UIDs
+      and GITs could probably share an auth token... but that's not how things
+      are handled in general
+    <antrik> at least I don't think so
+    <antrik> tasks are authenticated, not users
+    <antrik> err... GIDs :-)
+    <jkoenig> antrik, still, my quick glance to the fork() code seemed to
+      indicate the port is inherited as-is, maybe authentication happens only
+      when something is actually looked up?
+    <jkoenig> hmm "rpctrace ls -d /" does not show any authentication calls,
+      only a lookup("") on the root which returns a different port
+    <jkoenig> so I guess the root port is "deauthenticated" or something when
+      the uid of a process is changed.
+    <antrik> too bad cfhammer isn't around, he digged into all this stuff...
+    <antrik> I know that there is a mechanism which reauths all FDs when the
+      IDs of a process change
+    <antrik> but I'm not sure the "/" port uses this mechanism
+
+    <braunr> antrik: but the radix tree codee is really used as is, which means
+      no locking, no preloading before locking, all of this because simple
+      locks don't exist on UP, and because the kernel isn't preemptible
+
+    <braunr> antrik: and yes, min number is 0, but in that case you don't need
+      (space, port) -> right lookups :)
+    <braunr> antrik: or put in another way, whichever reasonable structure you
+      use, when it's empty, you don't care much
+    <braunr> which also means that the min number has actually no value here
+    <braunr> because the same applies to 1
+
+    <braunr> then what seems to take most time is forks
+    <braunr> and i hope my upcoming kernel changes will help the situation a
+      bit
+    <pinotree> what are your incoming gnumach changes about?
+    <braunr> the ipc translation layer speed
+    <braunr> which basically means operating on port names (looking them up,
+      inserting, removing, renaming, looking up send rights to a specific
+      ports) will be faster
+    <braunr> and i believe forks are (one of) the most demanding use cases wrt
+      ipc space manipulation
+    <braunr> i'm really surprised how badly the splay trees are used
+    <braunr> the worst case for this data structure is traversal
+    <braunr> and this is done in many situations
+    <braunr> leaving the tree in its worst case shape
+    <braunr> and i didn't mentioned the bunch of memory writes occurring, event
+      for things like lookups or traversals
+    <braunr> this is slow and can disrupt many cpu cache lines
+    <braunr> and when there are 10k to 100+k (e.g. in some ext2fs instances on
+      buildds), just imagine the number of operations involved in those
+      operations
+    <braunr> a simple traversal_next involves a rotation *gasp*
+    <braunr> this means potentially writing on 3 different cache lines, for
+      *one* next operation
+    <pinotree> what are you replacing that splay tree with?
+    <braunr> radix trees
+    <braunr> much shorter paths
+    <braunr> extremely few memory writes
+    <braunr> locality of reference when traversing
+    <braunr> good cache usage (as many of the top nodes are reused)
+    <braunr> the two drawbacks are 1/ memory allocation for external nodes,
+      which means the tree must be preloaded before locking
+    <braunr> and 2/ high memory overhead if the keys are sparse
+    <braunr> but this isn't the case with port names, unless someone messes it
+      up by assigning random names to many rights
+
+    <antrik> braunr: so, when will we see the first performance comparision?
+      :-)
+    <braunr> antrik: that's a topic of itself, how to compare ?
+    <braunr> antrik: the thing is, my current gnumach patches only makes
+      assertions
+    <braunr> this is the best way i found to test my tree in real life
+      conditions
+    <braunr> much cleanup is needed
+    <braunr> and what i'd like to do is to completely replace all teh
+      translation layer structures with it
+    <braunr> which means removing much code, making sure it still works as
+      expected
+    <braunr> this is tedious
+    <braunr> so one month at least
+    <antrik> braunr: comparing shouldn't be too hard... the average configure
+      script does a lot of forking, which should be a good benchmark according
+      to your observations
+    <braunr> rough estimates are easy, yes
+    <braunr> but my observations my be wrong :p
+    <antrik> braunr: well, we don't really need precise numbers...
+    <antrik> unless you need to do some kind of fine-tuning?
+    <braunr> i don't know yet
+
+
+# IRC, freenode, #hurd, 2011-06-18
 
     < braunr> hmm, i'm having a problem with integrating my radix tree code in
       gnumach
@@ -373,7 +553,8 @@ IRC, freenode, #hurd, 2011-04-23
     < braunr> not much
     < braunr> testing is what requires time really
 
-2011-06-27
+
+# IRC, freenode, #hurd, 2011-06-27
 
     < braunr> ok, here is the radix tree code:
       http://git.sceen.net/rbraun/libbraunr.git/
@@ -399,7 +580,8 @@ IRC, freenode, #hurd, 2011-04-23
     < youpi> k
     < braunr> before locking the ipc spaces
 
-2011-06-28
+
+# IRC, freenode, #hurd, 2011-06-28
 
     < braunr> antrik: i think i won't write the code for the preloading stuff
       actually
@@ -456,7 +638,8 @@ IRC, freenode, #hurd, 2011-04-23
       only
     < braunr> but released in both the entry and the splay tree code ...
 
-2011-06-29
+
+# IRC, freenode, #hurd, 2011-06-29
 
     < braunr> hmm i missed an important thing :/
     < braunr> and it's scary
