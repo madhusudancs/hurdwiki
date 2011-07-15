@@ -67,8 +67,8 @@ testsuite.
 
 # Configuration
 
-Last reviewed up to the [[Git mirror's 16774908cf3453bfa0d7142e377539b0a80512f0
-(2011-07-05) sources|source_repositories/gcc]].
+Last reviewed up to the [[Git mirror's 6aed13f1c173ef4a398e10e6dc09866dbde6b324
+(2011-07-15) sources|source_repositories/gcc]].
 
 <http://gcc.gnu.org/install/configure.html> has documentation for the
 `configure` switches.
@@ -78,27 +78,34 @@ Last reviewed up to the [[Git mirror's 16774908cf3453bfa0d7142e377539b0a80512f0
 
       * `configure.ac`
 
-      * `libgcc/configure.ac` [might
-        need](http://gcc.gnu.org/ml/gcc-patches/2008-10/msg00315.html) to be
-        aligned for us to the `*linux*` cases.  As well as at the end of
-        `libgcc/config.host`.  Check.
-
-            checking whether decimal floating point is supported... no
-            checking whether fixed-point is supported... no
-
       * `libgomp/configure.tgt`
+
+      * `libstdc++-v3/configure.host`
+
+        `abi_baseline_pair` etc. setting.
 
       * `libstdc++-v3/config/os/gnu-linux/*`
 
-      * Etc.
+        Is used for all GNU systems, as per `libstdc++-v3/configure.host`.
+        Should rename to `gnu` to reflect this?
+
+      * `gcc/acinclude.m4`:`gcc_GAS_FLAGS`: always pass `--32` to assembler for
+        x86 Linux.  (Why?)
 
   * [[`libmudflap`|libmudflap]].
 
   * Might [`-fsplit-stack`](http://nickclifton.livejournal.com/6889.html) be
     worthwhile w.r.t. our multithreaded libraries?
 
-  * <http://gcc.gnu.org/ml/gcc/2007-11/msg00289.html>,
-    <http://gcc.gnu.org/ml/gcc-patches/2010-12/msg00672.html>
+      * Also see `libgcc/config/i386/morestack.S`: comments w.r.t
+        `TARGET_THREAD_SPLIT_STACK_OFFSET`; likely needs porting.
+
+    As per `libgcc/config/i386/t-stack-i386`, the former file is only used for
+    `-fsplit-stack` support -- which is currently enabled for us in
+    `libgcc/config.host`, but not usable via GCC proper.
+
+      * `gcc/config/gnu-user.h` defines `*SPLIT_STACK*` macros -- which aren't
+        valid for us (yet), I think.
 
   * `--enable-languages=[...]`
 
@@ -120,11 +127,6 @@ Last reviewed up to the [[Git mirror's 16774908cf3453bfa0d7142e377539b0a80512f0
 
   * `--enable-build-with-cxx`
 
-  * `--enable-decimal-float`, `--enable-fixed-point`, `--with-long-double-128`
-
-    `configure: WARNING: decimal float is not supported for this target,
-    ignored`
-
   * `--enable-linker-build-id`
 
   * `--enable-gnu-unique-object`
@@ -137,19 +139,11 @@ Last reviewed up to the [[Git mirror's 16774908cf3453bfa0d7142e377539b0a80512f0
 
     [[IFUNC]]
 
-  * bdd793b231c5454437e28d91ecda885a83819e66, 2010-12-23, `dl_iterate_phdr`:
+  * <http://gcc.gnu.org/ml/gcc/2007-11/msg00289.html>,
+    <http://gcc.gnu.org/ml/gcc-patches/2010-12/msg00672.html>
 
-    `cross-gnu` says: `checking dl_iterate_phdr in target C library... unknown`
-
-    Patch also contains `#if defined __linux__`, which likely should be
-    glibc-specific.
-
-  * `gcc/config/t-linux` should be named `gcc/config/t-gnu-user` or similar.
-    Likewise for `gcc/config/i386/t-linux`.
-
-  * `gcc/config/gnu-user.h` defines `*SPLIT_STACK*` macros -- which aren't
-    valid for us (yet), I think.
-
+      * `gcc/config/t-linux` should be named `gcc/config/t-gnu-user` or
+        similar.  Likewise for `gcc/config/i386/t-linux`.
 
   * Debian's GCC package has Hurd-specific patches.  Some have been forwarded
     upstream (and have been ignored).  [[Thomas_Schwinge|tschwinge]] is working
@@ -176,35 +170,47 @@ Last reviewed up to the [[Git mirror's 16774908cf3453bfa0d7142e377539b0a80512f0
 
     `check_effective_target_pie` should include `*-*-gnu*`, too.
 
+  * [high] 9b0fef97f18ed5c9f2f9a361262fbb450f2b0b53
+
+    Very likely needed for us, too.  Patch on gcc-patches.
+
 
 # Build
 
 Here's a log of a GCC build run; this is from our [[Git repository's
-5ac39af7792ba0dc363cc199060faf53dfa9dc1a (2010-12-08)
-sources|source_repositories/gcc]], run on kepler.SCHWINGE and grubber.
+726414af2443a89ffbbce3a884ac6da71dae6992 (2011-07-13)
+sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
-    $ ../master/configure --prefix="$PWD".install 2>&1 | tee log_build
+    $ (cd ../master/ && contrib/gcc_update --touch)
+    $ ../master/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 2>&1 | tee log_build
     [...]
-    $ make SHELL=/bin/bash 2>&1 | tee log_build_
+    $ LIBRARY_PATH=$(echo /usr/lib/i386*-gnu) make 2>&1 | tee log_build_
     [...]
 
-(kepler.SCHWINGE defaults to using /bin/sh, grubber to /bin/bash; thus
-harmonized.)
+Different hosts may default to different shells and compiler versions; thus
+harmonized.
 
-On grubber, this needs roughly 24 hours, and takes up around 2.5 GiB.
+Setting `LIBRARY_PATH` is needed until [[!debbug 629819]] is resolved.
+
+This takes up around 2.6 GiB, and needs roughly 3 h on kepler.SCHWINGE, and 13
+h on coulomb.SCHWINGE.
 
 
 ## Analysis
 
-    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd/master.build/log_build* | sed -e "s%${PWD}%[...]%g"' | sed -f open_issues/gcc/log_build-linux.sed) <(ssh grubber 'cd tmp/gcc/ && cat hurd/master.build/log_build* | sed "s%${PWD}%[...]%g"' | sed -f open_issues/gcc/log_build-hurd.sed) > open_issues/gcc/log_build-diff
+    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd/master.build/log_build* | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' | sed -f open_issues/gcc/log_build-linux.sed) <(ssh coulomb.SCHWINGE 'cd tmp/gcc/ && cat hurd/master.build/log_build* | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' | sed -f open_issues/gcc/log_build-hurd.sed) > open_issues/gcc/log_build.diff
 
-[[log_build-diff]].
+[[log_build.diff]].
 
   * [[`checking if gcc static flag -static
     works... no`|glibc_madvise_vs_static_linking]]
 
+    Addressed in Debian glibc.
+
   * DFP
+
+    Addressed in hurd/decimal_floating_point branch.
 
         +configure: WARNING: decimal float is not supported for this target, ignored
 
@@ -219,6 +225,24 @@ On grubber, this needs roughly 24 hours, and takes up around 2.5 GiB.
         -checking whether decimal floating point is supported... yes
         +checking whether decimal floating point is supported... no
         +configure: WARNING: decimal float is not supported for this target, ignored
+
+      * `libstdc++-v3/acinclude.m4`: ISO/IEC TR 24733
+
+            -checking for ISO/IEC TR 24733 ... yes
+            +checking for ISO/IEC TR 24733 ... no
+
+      * `--enable-decimal-float`, `--enable-fixed-point`, `--with-long-double-128`
+
+        `configure: WARNING: decimal float is not supported for this target,
+        ignored`
+
+          * `libgcc/configure.ac` [might
+            need](http://gcc.gnu.org/ml/gcc-patches/2008-10/msg00315.html) to be
+            aligned for us to the `*linux*` cases.  As well as at the end of
+            `libgcc/config.host`.  Check.
+
+                checking whether decimal floating point is supported... no
+                checking whether fixed-point is supported... no
 
   * `host-linux.c` vs. `host-default.c`
 
@@ -235,48 +259,55 @@ On grubber, this needs roughly 24 hours, and takes up around 2.5 GiB.
 
       * `-ftls-model=initial-exec -march=i486 -mtune=i686`
 
-  * `-static` vs. `dlopen`
+  * Missing `EOWNERDEAD`, `ENOTRECOVERABLE`.  What're they used for?
 
-        -checking whether a statically linked program can dlopen itself... no
-        +checking whether a statically linked program can dlopen itself... yes
-
-  * ISO/IEC TR 24733
-
-        -checking for ISO/IEC TR 24733 ... yes
-        +checking for ISO/IEC TR 24733 ... no
+  * `RLIMIT_VMEM`.  Usage kosher?
 
   * `basic_file.cc`
 
         +basic_file.cc: In member function 'std::streamsize std::__basic_file<char>::showmanyc()':
-        +basic_file.cc:344:33: warning: enumeral and non-enumeral type in conditional expression [enabled by default]
+        +basic_file.cc:347:33: warning: enumeral and non-enumeral type in conditional expression [enabled by default]
 
   * `libtool: link: ar rc .libs/libstdc++.a [...]`
 
-    Just different order of object files, or another problem?
+    Just different order of object files, or another problem?  TODO
 
-  * `gcc/gthr-posix.h`
+  * `libobjc/encoding.c`: 
 
+         libtool: compile:  [...]/hurd/master.build/./gcc/xgcc [...] [...]/hurd/master/libobjc/encoding.c -c [...]
+        +[...]/hurd/master/libobjc/encoding.c:128:1: warning: '_darwin_rs6000_special_round_type_align' defined but not used [-Wunused-function]
+
+  * `libobjc/thr.c`: `gcc/gthr-posix.h`
+
+         libtool: compile:  [...]/hurd/master.build/./gcc/xgcc [...] [...]/hurd/master/libobjc/thr.c -c [...]
         +In file included from ../.././gcc/gthr-default.h:1:0,
-        +                 from [...]/hurd/libobjc/../gcc/gthr.h:162,
-        +                 from [...]/hurd/libobjc/thr.c:43:
-        +[...]/hurd/libobjc/../gcc/gthr-posix.h: In function '__gthread_objc_thread_set_priority':
-        +[...]/hurd/libobjc/../gcc/gthr-posix.h:384:41: warning: unused parameter 'priority' [-Wunused-parameter]
+        +                 from [...]/hurd/master/libobjc/../gcc/gthr.h:160,
+        +                 from [...]/hurd/master/libobjc/thr.c:45:
+        +[...]/hurd/master/libobjc/../gcc/gthr-posix.h: In function '__gthread_objc_thread_set_priority':
+        +[...]/hurd/master/libobjc/../gcc/gthr-posix.h:384:41: warning: unused parameter 'priority' [-Wunused-parameter]
 
-  * `java-signal.h`, `java-signal-aux.h`
+  * `/proc/self/*`
+
+        -checking for /proc/self/exe... yes
+        -checking for /proc/self/maps... yes
+        +checking for /proc/self/exe... no
+        +checking for /proc/self/maps... no
+
+  * GCJ: `java-signal.h`, `java-signal-aux.h`
 
         -config.status: linking ../../../hurd/libjava/include/i386-signal.h to include/java-signal.h
         -config.status: linking ../../../hurd/libjava/include/i386-signal.h to include/java-signal-aux.h
         +config.status: linking ../../../hurd/libjava/include/default-signal.h to include/java-signal.h
         +config.status: linking ../../../hurd/libjava/include/default-signal.h to include/java-signal-aux.h
 
-  * `jni_md.h`
+  * GCJ: `jni_md.h`
 
         -checking jni_md.h support... yes
         +checking jni_md.h support... configure: WARNING: no
 
   * *default library search path*
 
-        -checking for the default library search path... /lib /usr/lib /lib/i486-linux-gnu /usr/lib/i486-linux-gnu /usr/local/lib 
+        -checking for the default library search path... /lib /usr/lib /lib/i386-linux-gnu /usr/lib/i386-linux-gnu /lib/i486-linux-gnu /usr/lib/i486-linux-gnu /usr/local/lib /lib64 /usr/lib64 
         +checking for the default library search path... /lib /usr/lib
 
   * `./classpath/[...]/*.properties`
@@ -285,17 +316,20 @@ On grubber, this needs roughly 24 hours, and takes up around 2.5 GiB.
 
   * `libjava/gnu/gcj/util/natGCInfo.cc`
 
-        +../../../hurd/libjava/gnu/gcj/util/natGCInfo.cc:440:1: warning: unused parameter 'name' [-Wunused-parameter]
-        +../../../hurd/libjava/gnu/gcj/util/natGCInfo.cc:446:1: warning: unused parameter 'name' [-Wunused-parameter]
-        +../../../hurd/libjava/gnu/gcj/util/natGCInfo.cc:452:1: warning: unused parameter 'name' [-Wunused-parameter]
+         libtool: compile:  [...]/hurd/master.build/./gcc/xgcc [...] -c ../../../master/libjava/gnu/gcj/util/natGCInfo.cc [...]
+        +../../../master/libjava/gnu/gcj/util/natGCInfo.cc:440:1: warning: unused parameter 'name' [-Wunused-parameter]
+        +../../../master/libjava/gnu/gcj/util/natGCInfo.cc:446:1: warning: unused parameter 'name' [-Wunused-parameter]
+        +../../../master/libjava/gnu/gcj/util/natGCInfo.cc:452:1: warning: unused parameter 'name' [-Wunused-parameter]
 
   * `gnu/java/net/natPlainSocketImpl.cc`
 
+         libtool: compile:  [...]/hurd/master.build/./gcc/xgcc [...] -c gnu/java/net/natPlainSocketImpl.cc [...]
         +gnu/java/net/natPlainSocketImpl.cc: In member function 'virtual jint gnu::java::net::PlainSocketImpl::available()':
         +gnu/java/net/natPlainSocketImpl.cc:515:27: warning: enumeral and non-enumeral type in conditional expression [enabled by default]
 
   * `gnu/java/nio/channels/natFileChannelImpl.cc`
 
+         libtool: compile:  [...]/hurd/master.build/./gcc/xgcc [...] -c gnu/java/nio/channels/natFileChannelImpl.cc [...]
         +gnu/java/nio/channels/natFileChannelImpl.cc: In member function 'jint gnu::java::nio::channels::FileChannelImpl::available()':
         +gnu/java/nio/channels/natFileChannelImpl.cc:388:20: warning: enumeral and non-enumeral type in conditional expression [enabled by default]
 
@@ -306,11 +340,6 @@ On grubber, this needs roughly 24 hours, and takes up around 2.5 GiB.
     Is there a pattern that GNU/Hurd hands out the files alphabetically sorted
     where it wouldn't need to ([[!taglink open_issue_hurd]])?
 
-    Why does the GNU Hurd's `lib_build_` repeatedly contain a long series
-    (several KiB) of NUL (0) characters after the 5319th column in the
-    `/bin/bash ./libtool --tag=CXX --mode=link [...] -o libgcj.la [...]`
-    command line?  Is that only in the log?
-
   * `libjvm.la`, `.libs/libjvm.so`, `libgij.la`, `.libs/libgij.so.12.0.0`
 
     `-Wl,-Bsymbolic` vs. `-Wl,-Bsymbolic-functions`
@@ -318,20 +347,20 @@ On grubber, this needs roughly 24 hours, and takes up around 2.5 GiB.
 
 # Install
 
-    $ make SHELL=/bin/bash install 2>&1 | tee log_install
+    $ LIBRARY_PATH=$(echo /usr/lib/i386*-gnu) make install 2>&1 | tee log_install
     [...]
 
-(kepler.SCHWINGE defaults to using /bin/sh, grubber to /bin/bash; thus
-harmonized.)
+Setting `LIBRARY_PATH` is needed until [[!debbug 629819]] is resolved.
 
-On grubber, this needs roughly 15 minutes, and takes up around 0.7 GiB.
+This takes up around 0.8 GiB, and needs roughly 5 min on kepler.SCHWINGE, and
+50 min on coulomb.SCHWINGE.
 
 
 ## Analysis
 
-    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd/master.build/log_install | sed -e "s%${PWD}%[...]%g" -e "s%i686-pc-linux-gnu%[ARCH]%g"') <(ssh grubber 'cd tmp/gcc/ && cat hurd/master.build/log_install | sed -e "s%${PWD}%[...]%g" -e "s%i686-unknown-gnu0\.3%[ARCH]%g"') > open_issues/gcc/log_install-diff
+    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd/master.build/log_install | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' | sed -f open_issues/gcc/log_install-linux.sed) <(ssh coulomb.SCHWINGE 'cd tmp/gcc/ && cat hurd/master.build/log_install | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' | sed -f open_issues/gcc/log_install-hurd.sed) > open_issues/gcc/log_install.diff
 
-[[log_install-diff]].
+[[log_install.diff]].
 
   * `libtool: finish`: `ldconfig` is not run for the Hurd.
 
@@ -344,10 +373,13 @@ On grubber, this needs roughly 15 minutes, and takes up around 0.7 GiB.
 
 <http://gcc.gnu.org/install/test.html>
 
-    $ make SHELL=/bin/bash -k check 2>&1 | tee log_check
+    $ LIBRARY_PATH=$(echo /usr/lib/i386*-gnu) make -k check 2>&1 | tee log_check
     [...]
 
-Blocked on [[fork_mach_port_mod_refs_ekern_urefs_owerflow]].
+Setting `LIBRARY_PATH` is needed until [[!debbug 629819]] is resolved.
+
+Testing on GNU/Hurd is blocked on
+[[fork_mach_port_mod_refs_ekern_urefs_owerflow]].
 
 
 ## Analysis
