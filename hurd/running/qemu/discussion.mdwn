@@ -50,3 +50,95 @@ The problem is actually that the linux block cache doesn't make any consistency
 between /dev/hda and /dev/hda6, so if you give /dev/hda to qemu, qemu writings
 won't be consistent with mounting /dev/hda6 in linux. You can give /dev/hda6
 directly to qemu and it will be fine.
+
+
+# Host-side Writeback Caching
+
+IRC, freenode, #hurd, 2011-06-07
+
+    <braunr> hm, i guess i should have used cache=writeback with kvm before
+      starting the debian installer :/
+    <braunr> ah yes, much better
+    <braunr> this shows how poor the state of our I/O drivers and subsystem is
+      :/
+    <antrik> indeed... still no clustered pageout :-(
+    <braunr> and no I/O scheduler either
+    <braunr> although an I/O scheduler has limited value without clustered
+      pageouts
+    <braunr> since one of its goals is to pack related I/O requests together eh
+    <braunr> i wonder if the wiki mentions using cache=writeback to speed up
+      qemu performances
+    <braunr> it would help those unable to use kvm a lot
+    <braunr> and even those running kvm too
+    <braunr> kvm -m $RAM \ -monitor stdio \ -drive
+      cache=writeback,index=0,media=disk,file=hd0.img \
+    <braunr> etc..
+    <braunr> the idea is that qemu doesn't open its disk file synchronously
+    <braunr> changes are queued in the host page cache before being flushed to
+      the disk image
+    <braunr> but if you brutally close your qemu instance, you're likely to
+      loose file system consistency
+    <braunr> ext2fs will think it has committed its metadata to the disk, but
+      the disk image won't be updated synchronously
+    <braunr> on my machine (which is quite fast), my kvm has installed debian
+      like 10 times faster than without the option
+    <antrik> braunr: I don't think killing qemu should hurt in this
+      case... probably only matters when the host machine dies
+    <braunr> antrik: ah yes, right
+    <braunr> it really makes everything faster, even downloading, since I/O
+      requests aren't interleaved between networking RPCs
+    <antrik> regarding I/O sheduler... this discussion came up before, but I
+      don't remember the outcome -- doesn't the glued Linux driver actually
+      come with one?
+    <braunr> i don't remember either
+    <antrik> braunr: err... I don't think interleaving has anything to do with
+      it... I guess it's simply the fact that downloading writes the result to
+      disk, which suffers from lacking clustered pageout like everything else
+    <antrik> (my internet connection is too slow though to notice :-) )
+    <braunr> well, if there is no I/O during downloading, downloading is faster
+      :)
+
+IRC, freenode, #hurd, 2011-06-08
+
+    <braunr> youpi: does xen provide disk caching options ?
+    <youpi> through a blktap, probably
+    <braunr> ok
+
+([[microkernel/mach/gnumach/ports/Xen]], *Host-side Writeback Caching*.)
+
+    <braunr> we should find the pages mentioning qemu on the wiki and add the
+      options to enable disk image caching
+    <braunr> it really makes the hurd run a lot faster
+    <braunr> as a workaround for emulators until I/O is reworked, ofc
+
+IRC, freenode, #hurd, 2011-06-09
+
+    <gnu_srs> braunr recommends to use writeback caching with kvm. Is this
+      really recommended with the frequent crashes I experience?
+    <youpi> provided that you terminate your kvm normaly (i.e. quitting it, not
+      killing it), there should be no difference
+    <jkoenig> I think the host's stability is what matters
+    <jkoenig> the data presumably sits in linux's cache even if qemu dies
+      violently
+    <gnu_srs> But the freezes I see force me to kill kvm :-(
+    <youpi> maybe kvm doesn't even do caching indeed, I don't know
+    <youpi> gnu_srs: you can quit even when frozen
+    <youpi> use the console
+    <youpi> (the kvm console)
+    <jkoenig> gnu_srs, "Writeback caching will report data writes as completed
+      as soon as the data is present in the host page cache.  This is safe as
+      long as you trust your host.  If your host crashes or loses power, then
+      the guest may experience data corruption." (from the qemu manpage)
+
+IRC, freenode, #hurd, 2011-06-11
+
+    <gnu_srs> braunr: If you are online. For me setting the parameters -drive
+      cache=writeback,index=0,media=disk,file=hd0.img does not show any speed
+      improvement at all compared to the default.
+    <braunr> gnu_srs: what's your complete qemu command line ?
+    <gnu_srs> kvm -m 1024 -net nic,model=rtl8139 -net
+      user,hostfwd=tcp::5556-:22 -drive
+      cache=writeback,index=0,media=disk,file=hd0.img -cdrom netinst.iso
+    <braunr> what qemu version ?
+    <gnu_srs>  qemu-kvm  0.14.1+dfsg-1: Sorry, I cannot be online until
+      tomorrow again.

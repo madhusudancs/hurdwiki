@@ -1,0 +1,47 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="libpthread: pthread_key_create, reuse"]]
+
+IRC, FreeNode, #hurd, 2011-07-02
+
+[[!tag open_issue_libpthread]]
+
+    < pinotree> hm, maybe i found a libpthread bug
+    * pinotree tries a testcase
+    < pinotree> yesssss, found the bug :)
+    < pinotree> youpi: it's a problem of the key reuse in pthread_key_create()
+    < youpi> it doesn't reset it?
+    < youpi> were you looking at the licq issue?
+    < pinotree> no, gtest
+    < youpi> k
+    < youpi> licq has a failing threadspecific issue
+    < youpi> [  FAILED  ] ThreadSpecificData.dataDeletedWhenThreadExits
+    < pinotree> basically, pthread_key_delete() does not delete the key values
+      from the "thread_specifics" ihash
+    < pinotree> but those were new keys, so i'm not sure it is allowed to
+      return values of previous keys?
+    < pinotree> after all, the actual key value is an implementation detail,
+      applications shouldn't care about it being reused
+    < pinotree> (imho)
+    < youpi> Upon key creation, the value NULL shall be associated with the new
+      key in all active threads.
+    < youpi> ok, so we have to clear it in all threads
+    < youpi> that's a pity
+    < pinotree> or just remove the entry from the hash on key removal
+    < youpi> pinotree: from all the hashes, you mean?
+    < pinotree> youpi: from how i see it, adding a snippet like
+      http://paste.debian.net/121690/ in pthread_key_delete() should do the job
+    < youpi> that only drops from the current thread
+    < pinotree> ah hm, other threads
+    < youpi> we need to drop from all  threads
+    < youpi> that's the pity part
+    < pinotree> youpi: the licq case could look like a similar issue, at a
+      veeery quick glance

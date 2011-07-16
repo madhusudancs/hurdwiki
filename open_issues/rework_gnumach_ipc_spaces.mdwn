@@ -10,7 +10,10 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_gnumach]]
 
-IRC, freenode, #hurd, 2011-05-07
+[[!toc]
+
+
+# IRC, freenode, #hurd, 2011-05-07
 
     <braunr> things that are referred to as "system calls" in glibc are
       actually RPCs to the kernel or other tasks, those RPCs have too lookup
@@ -20,7 +23,8 @@ IRC, freenode, #hurd, 2011-05-07
 
 There is a [[!FF_project 268]][[!tag bounty]] on this task.
 
-IRC, freenode, #hurd, 2011-04-23
+
+# IRC, freenode, #hurd, 2011-04-23
 
     <braunr> youpi: is there any use of the port renaming facility ?
     <youpi> I don't know
@@ -250,7 +254,8 @@ IRC, freenode, #hurd, 2011-04-23
     <antrik> well, if some processes really feel they must use random numbers
       for port names, they *ought* to be penalized ;-)
 
-2011-04-27
+
+# IRC, freenode, #hurd, 2011-04-27
 
     <braunr> antrik: remember when you asked why high numbers would be a
       problem with radix trees ?
@@ -318,3 +323,401 @@ IRC, freenode, #hurd, 2011-04-23
     <antrik> braunr: idr?
     <braunr> antrik: a data structure used to map integers to pointers
     <braunr> http://fxr.watson.org/fxr/source/lib/idr.c?v=linux-2.6
+
+
+# IRC, freenode, #hurd, 2011-06-08
+
+    <braunr> hm, reverse space/port to name lookups also suck
+    <braunr> having separate types for simple ipc entries and splay tree
+      entries really makes many parts of the ipc code complicated
+    <braunr> and a global hash table for these operations is scary
+
+
+# IRC, freenode, #hurd, 2011-06-09
+
+    <braunr> hm nice, my radix tree code runs inside gnumach, along with the
+      original splay tree code and assertions making sure results are the same
+    <braunr> there is this "collision" thing i'm not sure to understand but
+      once this is solved, replacing the splay trees should be easy
+
+    <braunr> youpi: is there a way to easily know the number of send rights
+      associated to a port ?
+    <youpi> portinfo ?
+    <braunr> portinfo gives information in a space
+    <braunr> but this is specific to a port
+    <braunr> is there an option for that ?
+    <youpi> -v
+    <braunr> hm ok
+    <youpi>     25: send (refs: 550)
+    <braunr> nice
+    <braunr> youpi: if you have time, could you give me the min/max/avg numbers
+      of send rights referring to the same port on buildds ?
+    <braunr> i'm trying to estimate if it's better to have space->list_of_ports
+      or port->list_of_spaces to replace the global ipc hash table
+    <braunr> the latter seems better but there could be unexpected cases on
+      machines using large amounts of resources like the buildds
+    <youpi> max is 64k
+    <youpi> min is 1 of course :)
+    <braunr> 64k
+    <braunr> then it's not what i'm looking for
+    <youpi> avg is 55
+    <braunr> isn't this the number of urefs ?
+    <youpi> I don't know
+    <braunr> hmm
+    <braunr> what i'm looking for is the number of *pure send rights* for the
+      same port
+    <braunr> i don't think portinfo can give it
+    <braunr> there can only be one such send right per task for the same port
+    <braunr> 64k would mean there are 64k tasks
+    <youpi> ok, so it's more difficult
+    <youpi> it means using -t
+    <braunr> ahh
+    <youpi> and run n^2 portinfo over the n processes
+    <braunr> i see
+    <youpi> Mmm, that will however still show any duplicate send right
+    <youpi> but then by min/max/avg, you mean, over time ?
+    <braunr> i'll change the source code, simpler
+    <youpi> e.g. min would be right after boot?
+    <braunr> min is 1
+    <youpi> 1 what ?
+    <braunr> 1 send right to a port
+    <youpi> ah, 1 for a given port
+    <braunr> yes
+    <youpi> ok, it becomes really hairy to compute, I don't hav ethe time :)
+    <braunr> avg and max are more interesting :)
+    <braunr> no worries
+    <youpi> braunr: I wouldn't be surprised that max is the number of tasks
+    <youpi> e.g. for a send port to the proc server for instance
+    <braunr> youpi: it is, but i'm not looking for potential numbers
+    <youpi> I'm not talking about a potential number, but an actual number
+      that's almost always true
+    <braunr> for one port, yes
+    <braunr> but yes, ok for max
+    <braunr> this makes choosing an appropriate data structure difficult
+
+    <antrik> braunr: actually, min number of send rights to a port is 0... but
+      I'm sure you know that already :-)
+
+    <antrik> youpi: normally each client gets a separate port. I'm not sure
+      there are any ports with send rights distributed over many tasks...
+
+    <jkoenig> antrik, what about / ?
+
+    <youpi> antrik: not necessarily
+
+    <antrik> jkoenig: not sure... isn't the "/" port authenticated to the
+      specific user?
+
+    <jkoenig> antrik, I guess so, but a single user could still have many
+      tasks.
+    <jkoenig> (wrt /)
+    <antrik> jkoenig: well, in theory the tasks having exactly the same UIDs
+      and GITs could probably share an auth token... but that's not how things
+      are handled in general
+    <antrik> at least I don't think so
+    <antrik> tasks are authenticated, not users
+    <antrik> err... GIDs :-)
+    <jkoenig> antrik, still, my quick glance to the fork() code seemed to
+      indicate the port is inherited as-is, maybe authentication happens only
+      when something is actually looked up?
+    <jkoenig> hmm "rpctrace ls -d /" does not show any authentication calls,
+      only a lookup("") on the root which returns a different port
+    <jkoenig> so I guess the root port is "deauthenticated" or something when
+      the uid of a process is changed.
+    <antrik> too bad cfhammer isn't around, he digged into all this stuff...
+    <antrik> I know that there is a mechanism which reauths all FDs when the
+      IDs of a process change
+    <antrik> but I'm not sure the "/" port uses this mechanism
+
+    <braunr> antrik: but the radix tree codee is really used as is, which means
+      no locking, no preloading before locking, all of this because simple
+      locks don't exist on UP, and because the kernel isn't preemptible
+
+    <braunr> antrik: and yes, min number is 0, but in that case you don't need
+      (space, port) -> right lookups :)
+    <braunr> antrik: or put in another way, whichever reasonable structure you
+      use, when it's empty, you don't care much
+    <braunr> which also means that the min number has actually no value here
+    <braunr> because the same applies to 1
+
+    <braunr> then what seems to take most time is forks
+    <braunr> and i hope my upcoming kernel changes will help the situation a
+      bit
+    <pinotree> what are your incoming gnumach changes about?
+    <braunr> the ipc translation layer speed
+    <braunr> which basically means operating on port names (looking them up,
+      inserting, removing, renaming, looking up send rights to a specific
+      ports) will be faster
+    <braunr> and i believe forks are (one of) the most demanding use cases wrt
+      ipc space manipulation
+    <braunr> i'm really surprised how badly the splay trees are used
+    <braunr> the worst case for this data structure is traversal
+    <braunr> and this is done in many situations
+    <braunr> leaving the tree in its worst case shape
+    <braunr> and i didn't mentioned the bunch of memory writes occurring, event
+      for things like lookups or traversals
+    <braunr> this is slow and can disrupt many cpu cache lines
+    <braunr> and when there are 10k to 100+k (e.g. in some ext2fs instances on
+      buildds), just imagine the number of operations involved in those
+      operations
+    <braunr> a simple traversal_next involves a rotation *gasp*
+    <braunr> this means potentially writing on 3 different cache lines, for
+      *one* next operation
+    <pinotree> what are you replacing that splay tree with?
+    <braunr> radix trees
+    <braunr> much shorter paths
+    <braunr> extremely few memory writes
+    <braunr> locality of reference when traversing
+    <braunr> good cache usage (as many of the top nodes are reused)
+    <braunr> the two drawbacks are 1/ memory allocation for external nodes,
+      which means the tree must be preloaded before locking
+    <braunr> and 2/ high memory overhead if the keys are sparse
+    <braunr> but this isn't the case with port names, unless someone messes it
+      up by assigning random names to many rights
+
+    <antrik> braunr: so, when will we see the first performance comparision?
+      :-)
+    <braunr> antrik: that's a topic of itself, how to compare ?
+    <braunr> antrik: the thing is, my current gnumach patches only makes
+      assertions
+    <braunr> this is the best way i found to test my tree in real life
+      conditions
+    <braunr> much cleanup is needed
+    <braunr> and what i'd like to do is to completely replace all teh
+      translation layer structures with it
+    <braunr> which means removing much code, making sure it still works as
+      expected
+    <braunr> this is tedious
+    <braunr> so one month at least
+    <antrik> braunr: comparing shouldn't be too hard... the average configure
+      script does a lot of forking, which should be a good benchmark according
+      to your observations
+    <braunr> rough estimates are easy, yes
+    <braunr> but my observations my be wrong :p
+    <antrik> braunr: well, we don't really need precise numbers...
+    <antrik> unless you need to do some kind of fine-tuning?
+    <braunr> i don't know yet
+
+
+# IRC, freenode, #hurd, 2011-06-18
+
+    < braunr> hmm, i'm having a problem with integrating my radix tree code in
+      gnumach
+    < braunr> inserting into such a tree can trigger memory allocation
+    < braunr> so commonly, the tree i loaded with nodes before insertion,
+      usually if it requires strong locking
+    < braunr> ipc spaces are locked using "simple locks" (which are spin locks)
+    < braunr> but spin locks are noops on UP, and gnumach is always UP ..
+    < braunr> so, should i still include preloading code, even if it'll end up
+      dead code ?
+    < antrik> hm... I think we discussed this before; but isn't gnumach
+      supposed to be SMP-capable, minus bugs?...
+    < braunr> it is
+    < braunr> but ofc, if i choose not to include preloading, i'll write
+      #errors so that the day gnumach is built for SMP again, such support will
+      be included
+    < antrik> oh, sorry, I think I misread. what is UP?
+    < braunr> uniprocessor
+    < antrik> well, if it's just bugs forcing the current UP state, I think
+      saying that gnumach is always UP is a stretch...
+    < braunr> sure, but it's a practical consideration
+    < antrik> does the locking complicate stuff? or is it just performance
+      considerations?
+    < braunr> no it's about correctness and completeness
+    < braunr> if you don't preload a tree before locking
+    < braunr> and memory allocation occurs while you're holding a simple lock
+    < braunr> and memory allocation requires the kernel to sleep
+    < braunr> you're screwed
+    < braunr> but i hate the idea of including code that won't be used and
+      which won't be easy to test
+    < braunr> so i'm wondering if it's ok for now to just put this in a TODO
+      comment and write it when the time is right
+    < braunr> or if i should spens the week adding this and tweaking the
+      userspace implementation to "emulate" spin locks
+    < antrik> well, it's tricky situation. on one hand, it seems stupid to
+      include handling for something that presently isn't used, and it's not
+      clear when it will. on the other hand, I'd rather not see additional
+      problems introduced that will make fixing SMP even harder...
+    < braunr> that's why i'm asking here
+    < antrik> of course, you could resolve this question by fixing SMP
+      first... ;-)
+    < braunr> ew
+    < antrik> well, I guess it would be best first to make the code work... and
+      we can still decide about the locking thing before it goes mainline I'd
+      say?
+    < braunr> "make the code work" ?
+    < antrik> I mean make gnumach work with your radix tree code
+    < braunr> without preloading then
+    < antrik> yeah... as a first step... I guess adding it later won't be any
+      harder than adding it right now?
+    < braunr> not much
+    < braunr> testing is what requires time really
+
+
+# IRC, freenode, #hurd, 2011-06-27
+
+    < braunr> ok, here is the radix tree code:
+      http://git.sceen.net/rbraun/libbraunr.git/
+    < braunr> the preloading stuff will be added in the kernel only, as it's
+      really pointless and not easily doable in userspace
+    < youpi> preloading?
+    < braunr> youpi: yes, preloading
+    < braunr> radix trees allocate external nodes
+    < youpi> well, providing a url at some random time of some random day is
+      not a great way  to get eyes on it :)
+    < braunr> and ipc spaces are locked when inserting/allocating names
+    < braunr> we normally don't need preloading in gnumach
+    < braunr> since there is no preemption nor SMP
+    < braunr> but in case someone changes that, i'd like the code to be mostly
+      ready
+    < braunr> and correctly handle those ugly simple locks
+    < braunr> youpi: is what i say clear enough or do you need more background
+      on what is done ?
+    < youpi> about preloading?
+    < braunr> yes
+    < youpi> I guess it means allocating nodes in advance?
+    < braunr> yes
+    < youpi> k
+    < braunr> before locking the ipc spaces
+
+
+# IRC, freenode, #hurd, 2011-06-28
+
+    < braunr> antrik: i think i won't write the code for the preloading stuff
+      actually
+    < braunr> antrik: it's not very difficult, but i really hate the idea of
+      not being able to reliably test it
+    < braunr> antrik: and i'd rather concentrate on integrating the radix tree
+      code in gnu mach now
+    < braunr> (i've already removed much code, even some files which weren't
+      actually used before my changes !)
+    < braunr> hmm, i won't be able not to write the preloading code after all
+    < antrik> braunr: not able not to write? how's that?
+    < braunr> antrik: it's actually required
+    < braunr> there are three functions, ipc_entry_get, ipc_entry_alloc, and
+      ipc_entry_grow_table
+    < braunr> ipc_entry_get cannot allocate memory
+    < braunr> if it fails, ipc_entry_grow_table is called, which will allocate
+      memory
+    < braunr> ipc_entry_alloc calls both of them depending on the result of
+      ipc_entry_get
+    < braunr> this is the equivalent of the preloading thing i had in mind
+    < braunr> not a bad thing after all
+    < braunr> the only thing i'm afraid of are the "optimized" version of those
+      ipc functions in te so-called fast paths
+    < braunr> i'm afraid if i don't deal right with those, the kernel may end
+      up using mostly slow paths
+    < braunr> but considering the purpose of those fast paths was merely to
+      avoid the overhead of function calls and some locking functions, it
+      shouldn't be that bad
+    < braunr> this is such a mess eh
+    < antrik> hurray microoptimisations ;-)
+    < braunr> there, the preload functions are done, easy :)
+    < antrik> braunr: seems you spent less time implementing it than pondering
+      whether you should implement it ;-)
+    < braunr> well, i couldn't implement it correctly before knowing what
+      should have been done exactly
+    < braunr> and there are still other problems :/
+    < braunr> and the other problems make me reconsider if this was useful at
+      all eh
+    < braunr> youpi: i'm unable to find where ipc tree entries are released
+      except in ipc_entry_alloc_name(), which could mean they're leaked ...
+    < braunr> youpi: would you have time to take a look ?
+    < youpi> they aren't in ipc_entry_dealloc() ?
+    < braunr> no .....
+    < youpi> it's not so unprobable that they're only freed when the task quits
+    < braunr> i don't see that either
+    < braunr> i only see them released in ipc_entry_alloc_name()
+    < braunr> so maybe they're reused
+    < braunr> but i'm not sure about that when reading the code
+    < braunr> oh wait, yes, they are :/
+    < braunr> my bad
+    < youpi> in the ipc_splay_tree_* fucntions I guess?
+    < braunr> yes
+    < braunr> it's just surprsing to see them allocated outside the tree code
+      only
+    < braunr> but released in both the entry and the splay tree code ...
+
+
+# IRC, freenode, #hurd, 2011-06-29
+
+    < braunr> hmm i missed an important thing :/
+    < braunr> and it's scary
+    < braunr> it looks like the splay tree is mainly used when names are
+      provided
+    < braunr> whereas the entry table is used when names are allocated
+    < braunr> which means the table is the main ipc data structure, even for
+      tasks with lots of rights
+    < braunr> i can make my root ext2fs have more than 10k rights, and i see
+      the ipc table table grow along that number ...
+    < braunr> now thetable has 15k+ entries
+    < braunr> IOW there is no point to put the radix tree code in gnumach :(
+    < antrik> braunr: what do you mean by "provided" and "allocated"?
+    < antrik> and what is that table you are talking about?
+    < braunr> antrik: provided means the user space tasks gives the name of the
+      new right
+    < braunr> antrik: allocated means the kernel generates it
+    < braunr> antrik: the table i'm talking about is is_table in struct
+      ipc_space
+    < braunr>  55  *      Every space has a non-NULL is_table with
+      is_table_size entries.
+    < braunr>  56  *      A space may have a NULL is_tree.  is_tree_small
+      records the
+    < braunr>  57  *      number of entries in the tree that, if the table were
+      to grow
+    < braunr>  58  *      to the next larger size, would move from the tree to
+      the table.
+    < braunr> here is the description which mislead me (in addition of the
+      obscure code)
+    < braunr>  50  *      Spaces hold capabilities for ipc_object_t's (ports
+      and port sets).
+    < braunr>  51  *      Each ipc_entry_t records a capability.  Most
+      capabilities have
+    < braunr>  52  *      small names, and the entries are elements of a table.
+    < braunr>  53  *      Capabilities can have large names, and a splay tree
+      holds
+    < braunr>  54  *      those entries.  The cutoff point between the table
+      and the tree
+    < braunr>  55  *      is adjusted dynamically to minimize memory
+      consumption.
+    < antrik> ah, so the rights with a low name are in a linear table, and only
+      those with "random" high names are stored in the splay tree instead?
+    < antrik> seems a rather complex design... I guess though there isn't much
+      room for further optimisation there :-(
+    < antrik> (well, except for code size optimisation -- which could in fact
+      make a considerable difference...)
+    < braunr> well there are problems with this approach, but most don't
+      concern performance
+    < braunr> when the table gets big (close to the page size or more), it gets
+      remapped when reallocated
+    < braunr> which will incur some penalty because of the tlb
+    < braunr> but it's annoying even for small tables
+    < braunr> the initial table size is 4 entries, and from what i can see,
+      most tables are 128 entries wide when tasks are destroyed
+    < braunr> an obvious simple optimization is to set a larger default size
+    < braunr> the same applies for the dead name tables
+    < braunr> those reallocations are a pain, and they're due to this design
+    < braunr> they can also fail because of fragmentation
+    < braunr> there would be a point to radix trees if they would replace all
+      that, and not just the splay tree
+    < braunr> but this would cause a lot of changes in a lot of places, and in
+      particular the "optimized" fast paths i mentioned yesterday
+    < braunr> we'll see how they perform in x15 :>
+    < braunr> there is a slight noticeable improvement when increasing the
+      initial size of the entry table
+    < antrik> braunr: well, if you use them in a completely different
+      implementation, there will be no way of telling whether they make a
+      difference
+    < antrik> how did you test the improvement?
+    < braunr> antrik: no actually it's completely negligeable
+    < braunr> hm
+    < braunr> is that a valid word ? :)
+    < braunr> negligible
+    < braunr> youpi: did you see my comments about the ipc stuff this earlier
+      today ?
+    < braunr> youpi: well to make things short, when port names are allocated,
+      the right they refer to is allocated from the ipc table
+    < braunr> youpi: the splay tree is only used for user provided names
+    < braunr> youpi: i had tables as large as the number of rights in a space
+      (i could easily reach 20k)
+    < braunr> youpi: whereas the splay trees had at most ~40 entries ..

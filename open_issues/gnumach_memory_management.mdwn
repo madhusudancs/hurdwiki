@@ -12,7 +12,10 @@ License|/fdl]]."]]"""]]
 
 There is a [[!FF_project 266]][[!tag bounty]] on this task.
 
-IRC, freenode, #hurd, 2011-04-12:
+[[!toc]]
+
+
+# IRC, freenode, #hurd, 2011-04-12
 
     <antrik> braunr: do you think the allocator you wrote for x15 could be used
       for gnumach? and would you be willing to mentor this? :-)
@@ -597,7 +600,8 @@ IRC, freenode, #hurd, 2011-04-12:
     <mcsim> It would be better to rewrite it using debugfs, but when I was
       writing this test I didn't know about trace_* macros
 
-2011-04-15
+
+# IRC, freenode, #hurd, 2011-04-15
 
     <mcsim> There is a hack in zone_gc when it allocates and frees two
       vm_map_kentry_zone elements to make sure the gc will be able to allocate
@@ -632,7 +636,8 @@ IRC, freenode, #hurd, 2011-04-12:
     <braunr> i think that's why i have "sources" in my slab allocator, the
       default source (vm_kern) and a custom one for kernel map entries
 
-2011-04-18
+
+# IRC, freenode, #hurd, 2011-04-18
 
     <mcsim> braunr: you've said that once page is completely free, it is
       returned to the vm.
@@ -640,7 +645,8 @@ IRC, freenode, #hurd, 2011-04-12:
     <braunr> mcsim: i also said i was wrong about that
     <braunr> zone_gc is the only one
 
-2011-04-19
+
+# IRC, freenode, #hurd, 2011-04-19
 
     <braunr> antrik: mcsim: i added back a new per-cpu layer as planned
     <braunr>
@@ -649,7 +655,8 @@ IRC, freenode, #hurd, 2011-04-12:
       loops, just as in zone_gc, to reduce contention and avoid deadlocks
     <braunr> this is really common in memory allocators
 
-2011-04-23
+
+# IRC, freenode, #hurd, 2011-04-23
 
     <mcsim> I've looked through some allocators and all of them use different
       per cpu cache policy. AFAIK gnuhurd doesn't support multiprocessing, but
@@ -661,7 +668,8 @@ IRC, freenode, #hurd, 2011-04-12:
     <antrik> I'm not sure I suggested that explicitly to you; but probably it
       makes most sense to use that in gnumach
 
-2011-04-24
+
+# IRC, freenode, #hurd, 2011-04-24
 
     <mcsim> antrik: Yes, I have. He uses both global and per cpu caches. But he
       also suggested to look through slqb, where there are only per cpu
@@ -773,7 +781,8 @@ IRC, freenode, #hurd, 2011-04-12:
     <braunr> the fact that the kernel allocator uses virtual memory doesn't
       mean the kernel has no mean to allocate contiguous physical memory ...
 
-2011-05-02
+
+# IRC, freenode, #hurd, 2011-05-02
 
     <braunr> hm nice, my allocator uses less memory than glibc (squeeze
       version) on both 32 and 64 bits systems
@@ -822,7 +831,8 @@ IRC, freenode, #hurd, 2011-04-12:
     <braunr> it could also be used to drop the overloaded (and probably over
       imbalanced) page cache hash table
 
-2011-05-03
+
+# IRC, freenode, #hurd, 2011-05-03
 
     <mcsim> antrik: How should I start porting? Have I just include rbraun's
       allocator to gnumach and make it compile?
@@ -845,3 +855,42 @@ IRC, freenode, #hurd, 2011-04-12:
     <braunr> there is work to be done ;)
     <braunr> (not to mention the obvious about replacing all the calls to the
       zone allocator, and testing/debugging afterwards)
+
+
+# IRC, freenode, #hurd, 2011-07-14
+
+    <braunr> can you make your patch available ?
+    <mcsim> it is available in gnumach repository at savannah 
+    <mcsim> tree mplaneta/libbraunr/master
+    <braunr> mcsim: i'll test your branch
+    <mcsim> ok. I'll give you a link in a minute
+    <braunr> hm why balloc ?
+    <mcsim> Braun's allocator
+    <braunr> err
+    <braunr>
+      http://git.sceen.net/rbraun/x15mach.git/?a=blob;f=kern/kmem.c;h=37173fa0b48fc9d7e177bf93de531819210159ab;hb=HEAD
+    <braunr> mcsim: this is the interface i had in mind for a kernel version :)
+    <braunr> very similar to the original slab allocator interface actually
+    <braunr> well, you've been working
+    <mcsim> But I have a problem with this patch. When I apply it to gnumach
+      code from debian repository. I have to make a change in file ramdisk.c
+      with sed -i 's/kernel_map/\&kernel_map/' device/ramdisk.c
+    <mcsim> because in git repository there is no such file
+    <braunr> mcsim: how do you configure the kernel before building ?
+    <braunr> mcsim: you should keep in touch more often i think, so that you
+      get feedback from us and don't spend too much time "off course"
+    <mcsim> I didn't configure it. I just run dpkg-buildsource -b.
+    <braunr> oh you build the debian package
+    <braunr> well my version was by configure --enable-kdb --enable-rtl8139
+    <braunr> and it seems stuck in an infinite loop during bootstrap
+    <mcsim> and printf doesn't work. The first function called by c_boot_entry
+      is printf(version).
+    <braunr> mcsim: also, you're invited to get the x15mach version of my
+      files, which are gplv2+ licensed
+    <braunr> be careful of my macros.h file, it can conflict with the
+      macros_help.h file from gnumach iirc
+    <mcsim> There were conflicts with MACRO_BEGIN and MACRO_END. But I solved
+      it
+    <braunr> ok
+    <braunr> it's tricky
+    <braunr> mcsim: try to find where the first use of the allocator is made
