@@ -1,0 +1,274 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+
+# IRC, freenode, #hurd, 2011-07-17
+
+    <antrik> Reventlov: this is the so-called "firmlink issue" -- though AFAIK
+      it doesn't actually apply to firmlinks ;-)
+    <antrik> the problem is that any user can in theory create and set up a
+      special translator, which will redirect to another directory, without any
+      indication that it's a link
+    <braunr> but this doesn't supersede the file system permissions, does it ?
+    <antrik> as a result, if someone runs rm -r on the directory containing
+      that translator (which could be a world-writable one such as tmp), the rm
+      -r will descend into the directory, and thus remove it with the
+      permissions of the user who ran the rm -- not the one who set up the
+      translator
+    <braunr> oh i see, when tmp gets cleared by a script run as root, your home
+      is deleted ?
+    <antrik> right
+    <antrik> of course, the workaround is trivial: just don't follow
+      translators set up by untrusted users
+    <antrik> (which is precisely the default policy for FUSE BTW)
+    <braunr> which is the general policy around memory managers in general
+    <antrik> it's just nobody cared to implement this change
+    <youpi> antrik: does rm use O_NOTRANS ?
+    <antrik> youpi: I'm pretty sure it doesn't
+    <youpi> so it's still an issue for now
+    <antrik> yes, it's still an issue. it's just not a really fundamental
+      problem as macrus claimed it to be... [sigh]
+    <youpi> well, fix rm and then you can say it's not an issue any more
+    <braunr> does it only concern rm ?
+    <antrik> youpi: rm is just an example. the problem is much more generic: a
+      malicious translator can do all kinds of harm
+    <youpi> sure
+    <youpi> it's just about tools not blindly following things
+    <antrik> the only simple and effective answer is not to follow translators
+      from untrusted users by default
+    <youpi> antrik: but then /dev/null can't be non-root
+    <braunr> depends how "untrusted users" are identified
+    <antrik> we discussed a more sophisticated solution with cfhammer, that
+      would change the way reauthentication works in lookups, and should
+      prevent these kinds of permission escalation without preventing desirable
+      uses... but it still wouldn't address DOS issues, so it would be only a
+      partial solution
+    <antrik> youpi: why should it?
+    <manuel> (http://lists.gnu.org/archive/html/bug-hurd/2009-11/msg00231.html
+      for the most sophisticated solution)
+    <antrik> braunr: well, currently the permission system generally trusts
+      root and the own user. implementing something else might be tricky... not
+      sure
+    <antrik> manuel: yes, that's precisely the discussion I was referring
+      to... thanks for the link :-)
+    <youpi> antrik: depends what you mean by "follow"
+    <youpi> what DOS are you thinking of?
+    <antrik> youpi: a translator can generate endless amounts of "data"; a
+      translator can generate endless recursive directory tress; or it can just
+      never return from RPCs... all things that can do pretty much harm
+      depending on the situation
+    <antrik> filesystem clients generally trust filesystem operations to be
+      safe -- and that's just not true anymore with filesystems run by
+      untrusted users
+    <antrik> (be it Hurd translators or FUSE modules)
+    <antrik> this is a fundamental problem as marcus and neal rightly observed
+    <antrik> I just don't agree about the seriousness of the consequences
+    <antrik> I don't think not following untrusted translators really looses us
+      much
+    <youpi> EDOOMANYNEGATIONS
+    <youpi> s/D/T
+    <youpi> again, what do you mean by "following" ?
+    <youpi> always use O_NOTRANS ?
+    <tschwinge> Yes, I think.
+    <youpi> or never accept a REAUTH ?
+    <youpi> O_NOTRANS would mean ftpfs running as root, brrr
+    <youpi> it's not really true that clients always trust filesystem
+      operations
+    <youpi> the "not returning" case for instance, also appears with nfs mounts
+    <antrik> no, not always use O_NOTRANS. just be more selective about what
+      translators to follow. specifically, don't follow translators set up by
+      untrusted users. (unless explicitly requested)
+    <antrik> you can think of it as O_NO_UNTRUSTED_TRANS
+    <antrik> note that if you run ftpfs under a special user, who is not root
+      but trusted by root, this would still be fine. I hope it shouldn't be too
+      hard to implement that...
+    <antrik> as for NFS: clients generally do *not* try to catch possible
+      failures. if the NFS server doesn't return, the clients hang forever. but
+      the NFS server is generally trusted, so this is not much of a problem
+    <antrik> BTW, I guess not accepting reauth from untrusted translators would
+      also fix the privilege escalations (similar to the proposed modified
+      reauth mechanism, only more invasive); but it wouldn't fix the DoS issues
+    <ArneBab> antrik: would that also be an issue for a run translator, which
+      runs a command on read?
+    <ArneBab> youpi: couldn’t ftpfs have root drop priviledges?
+    <ArneBab> like a runas trans
+    <ArneBab> essertially su for translators to drop privs
+    <antrik> ArneBab: hm... if we can make sure that the translator was started
+      as root, and dropped privileges later, I guess that would be fine... not
+      sure how hard that is
+    <antrik> ArneBab: but I think it would be more elegant to start the
+      translators as trusted non-root users in the first place
+    <ArneBab> then i ph.avme to trust them
+    <ArneBab> deper hierarchy
+    <ArneBab> deeper
+    <ArneBab> but essertially the same
+    <ArneBab> if then someone mounted his home himself, would I be able to read
+      it?
+    <ArneBab> /home/user
+    <ArneBab> antrik: if not, that would be really non-nice
+    <antrik> ArneBab: sorry, but we simply *can't* trust a translator set up by
+      an untrusted user. if he controls it, he can make it behave maliciously
+    <antrik> we could in theory try to come up with a proxy that catches
+      problematic semantics, and presents a "safe" variant to the actual
+      clients... but that would be not-trivial, and I'm not sure how safe it
+      can be made
+    <antrik> ArneBab: of course you should always have the option to explicitly
+      say that you want to trust the translator, if you think the user doesn't
+      have malicious intentions :-)
+    <antrik> (I think nsmux would be a good way to achieve this...)
+    <braunr> unless it's really really necessary (and i don't see why it would
+      be), no design should force a process to start with privileges and drop
+      them
+    <braunr> having a set of trusted users (e.g. uid < 100) is a nice solution
+      to the problem imho
+    <braunr> or part of a group, 100 is a non-hurdish static limit
+    <ArneBab> What user is running a passive translator?
+    <braunr> passive translators are a pain for such things :/
+    <braunr> a command line and attach point are not enough to persistently
+      encode the execution context of the tranlator
+    <ArneBab> What user is running a passive translator?
+    <ArneBab> sorry
+    <braunr> the one owning the inode if i'm right
+    <ArneBab> so actually the orly problem are recursive commands, which also
+      are a problem with plain symlinks?
+    <braunr> i'm not sure
+    <ArneBab> Is thene any havoc a translator can wreak that a symlink can’t?
+    <braunr> well, as symlinks are translators, if a translator can damage
+      something, a symlink may too
+    <ArneBab> but not in Linux?
+    <braunr> err
+    <braunr> there are no translator in linux
+    <ArneBab> → commands could just treat translators as symlinks
+    <ArneBab> jepp, but it has symlinks
+    <braunr> no, this would defeat the purpose of translators :p
+    <braunr> and it's just no doable
+    <braunr> you would have recursion everywhere
+    <ArneBab> why?
+    <braunr> because every file access is sent to a translator
+    <ArneBab> hm, yes
+    <braunr> and we don't want to change commands
+    <braunr> we want to fix the design
+    <ArneBab> → only untrusted trans 
+    <braunr> rather than considering them as symlinks, just consider them as
+      untrusted translators
+    <braunr> this doesn't change the semantics, only the action of accessing a
+      node or not
+    <braunr> but as antrik said, this has to be done :)
+    <braunr> the real problem would simplify to "how do you know if a
+      translator can be trusted", which is a matter of selecting the righ
+      identification strategy
+    <braunr> one strong strategy would be to have a port right copied to each
+      trusted task
+    <braunr> i wonder if one of the special ports could be used for that
+    <braunr> or if we have to add a new one
+    <ArneBab> so when I login, I would give port rights to trusted uids?
+    <braunr> no
+    <braunr> when a trusted translator starts a passive translator attached on
+      a node owned by root, it would copy its trusted right to the new task
+    <braunr> much like the device master port is passed to root tasks
+    <braunr> but i'm not sure this mechanism can be safely used to know if the
+      translator can be trusted
+    <braunr> the translator would be able to actively call services requiring
+      this capability
+    <braunr> but i guess client tasks would have to ask for the translator to
+      prove it's trusted
+    <braunr> which is a problem because the issue is to know if it can be
+      trusted before asking it anything
+    <braunr> another way is to register trusted tasks in another server, and
+      ask this server if the target translator is trusted
+    <braunr> i"m pretty sure these strategies already exist in some form on the
+      hurd
+    <ArneBab> hm
+    <braunr> does someone here have an idea why BSD-derived VMs account wiring
+      information at the high level vm_map instead of storing it in lower level
+      vm_page ?
+    <ArneBab> braunr: a translator anywhene in the FS can only be there, if the
+      creator had sufficient rights to the node, right?
+    <ArneBab> so wouldn’t it suffice to check the access rights?
+    <braunr> no
+    <braunr> ismple example: /dev/null is owned by root, but you have read
+      access to it
+    <braunr> hm that may not answer your question actually
+    <braunr> what access right would you check ?
+    <braunr> if someone creates a node with rights 777, do you still want to
+      access it ?
+    <ArneBab> no
+    <braunr> simple enough i hope :)
+    <ArneBab> arg…
+    <ArneBab> if I can write to it, I can give it a translaton
+    <ArneBab> translator
+    <braunr> but this doesn't tell you it can be trusted
+    <ArneBab> well, actually: yes, access, but not recurse
+    <braunr> the owner sets his own rights, and you can't trust the owner
+    <braunr> unless it's root, but you don't want all your translators to run
+      as root
+    <ArneBab> it can act as its owner?
+    <ArneBab> yes
+    <braunr> well, as i told you, a passive translator is started by its parent
+      translator (the one managing the file systeme node it's attached to)
+    <braunr> the new translator runs as the user owning the node
+    <braunr> (if i'm right)
+    <ArneBab> …and so on, till noot starts the first
+    <ArneBab> root
+    <braunr> ?
+    <ArneBab> root starts /, right?
+    <braunr> no
+    <braunr> gnumach starts /
+    <ArneBab> ah, right
+    <braunr> gnumach starts somefs.static
+    <braunr> which attaches at /
+    <braunr> and runs with root privileges
+    <braunr> keep in mind that unix permissions are implemented as capabilities
+      on the hurd
+    <ArneBab> → root has it / it’s root
+    <braunr> the rights you have aren't limited to those permissions
+    <ArneBab> jepp
+    <braunr> and it's not "until"
+    <ArneBab> so why should I not access a translator run by someone else? I
+      just don’t want to do any active command (recurse)… hm… can a translator
+      turn a read request into a write?
+    <braunr> that's the only problem
+    <ArneBab> program with my rights wants to read, but the translator makes it
+      write instead?
+    <braunr> no
+    <braunr> a translator can do pretty much anything with your request
+    <ArneBab> with my rights?
+    <braunr> no
+    <braunr> the most obvious example of DoS is simply not answering
+    <braunr> your process hangs
+    <braunr> considering some file system accesses, a translator could return
+      inconsistent data
+    <ArneBab> so if the translator tries to make me write instead of read, it
+      can do so only when the owner of the translaton can write to the file in
+      question?
+    <braunr> a well written application shouldn't have too much trouble dealing
+      with it but some aren't that well written
+    <braunr> this has *nothing* to do with read/write permissions
+    <braunr> you should read the critique :p
+
+[[hurd/critique]]
+
+    <ArneBab> ln -s /home/you /home/me → “why don’t you look into my home?”
+    <ArneBab> read it again, that is :)
+    <ArneBab> (has been some time since I read it)
+    <antrik> braunr: you just described the auth mechanism ;-)
+    <antrik> ArneBab: symlinks can do considerably less than translators; and
+      even these caused a lot of trouble when introduced (and still cause
+      sometimes)
+    <antrik> we can't make every application aware of translators
+    <antrik> indeed I believe we can a avoid many problems by presenting
+      various translators as symlinks -- but this is not approriate for all
+      translators
+    <antrik> it is something the translator itself decides, so it's not helpful
+      to solve security issues at all
+    <antrik> and as braunr already pointed out, this wouldn't help with DoS
+      problems
