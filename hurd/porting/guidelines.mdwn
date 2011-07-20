@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2002, 2003, 2005, 2007, 2008, 2009 Free Software
-Foundation, Inc."]]
+[[!meta copyright="Copyright © 2002, 2003, 2005, 2007, 2008, 2009, 2010, 2011
+Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -50,9 +50,18 @@ An example with `fpathconf`:
 
 If you get Bad File Descriptor error when trying to read from a file (or accessing it at all), check the `open()` invocation. The second argument is the access method. If it is a hard coded number instead of a symbol defined in the standard header files, the code is screwed and should be fixed to either use `O_RDONLY`, `O_WRONLY` or `O_RDWR`. This bug was observed in the `fortunes` and `mtools` packages for example.
 
-## <a name="PATH_MAX_tt_MAX_PATH_tt_MAXPATHL"> `PATH_MAX` / `MAX_PATH` / `MAXPATHLEN` </a>
+## <a name="PATH_MAX_tt_MAX_PATH_tt_MAXPATHL">`PATH_MAX`, `MAX_PATH`, `MAXPATHLEN`, `_POSIX_PATH_MAX`</a>
 
 Every unconditionalized use of `PATH_MAX`, `MAX_PATH` or `MAXPATHLEN` is a POSIX incompatibility. If there is no upper limit on the length of a path (as its the case for GNU), this symbol is not defined in any header file. Instead, you need to either use a different implementation that does not rely on the length of a string or use `sysconf()` to query the length at runtime. If `sysconf()` returns -1, you have to use `realloc()` to allocate the needed memory dynamically. Usually it is thus simpler to just use dynamic allocation. Sometimes the amount is actually known. Else, a geometrically growing loop can be used: for instance, see [Alioth patch](http://alioth.debian.org/tracker/download.php/30628/410472/303735/1575/cpulimit-path-max-fix.patch) or [Pulseaudio patch](http://bugs.debian.org/cgi-bin/bugreport.cgi?msg=5;filename=patch-pulse;att=1;bug=522100). Note that in some cases there are GNU extensions that just work fine: when the `__GLIBC__` macro is defined, `getcwd()` calls can be just replaced by `get_current_dir_name()` calls.
+
+Note: constants such as `_POSIX_PATH_MAX` are only the minimum required value
+for a potential corresponding `PATH_MAX` macro.  They are not a replacement for
+`PATH_MAX`, just the minimum value that one can assume.
+
+Note 2: Yes, some POSIX functions such as `realpath()` actually assume that
+`PATH_MAX` is defined.  This is a bug of the POSIX standard, which got fixed in
+the latest revisions, in which one can simply pass `NULL` to get a dynamically
+allocated buffer.
 
 ## <a name="ARG_MAX"> `ARG_MAX` </a>
 
