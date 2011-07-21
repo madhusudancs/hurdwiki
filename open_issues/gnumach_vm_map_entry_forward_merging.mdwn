@@ -49,6 +49,126 @@ License|/fdl]]."]]"""]]
     <jkoenig> braunr, as you pointed out, "vminfo $$" seems to indicate that
       merging _is_ incomplete.
     <braunr> this could actually have a noticeable impact on package builds
+    <braunr> hm
+    <braunr> the number of entries for instances of bash running scripts don't
+      exceed 50-55 :/
+    <braunr> the issue seems to affect only certain instances (login shells,
+      and su -)
+    <braunr> jkoenig: i guess dash is just much lighter than bash in many ways
+      :)
+    <jkoenig> braunr, the number seems to increase with usage (100 here for a
+      newly started interactive shell, vs. 150 in an old one)
+    <braunr> yes, merging is far from complete in the vm_map code
+    <braunr> it only handles null objects (private zeroed memory), and only
+      tries to extend a previous entry (this isn't even a true merge)
+    <braunr> this works well for the kernel however, which is why there are so
+      few as 25 entries
+    <braunr> but any request, be it e.g. mmap(), or mprotect(), can easily
+      split entries
+    <braunr> making their number larger
+    <jkoenig> my ext2fs has ~6500 entries, but I guess this is related to
+      mapping blocks from the filesystem, right?
+    <braunr> i think so
+    <braunr> hm not sure actually
+    <braunr> i'd say it's fragmentation due to copy on writes when client have
+      mapped memory from it
+    <braunr> there aren't that many file mappings though :(
+    <braunr> jkoenig: this might just be the same problem as in bash
+    <braunr>  0x1308000[0x3000] (prot=RW, max_prot=RWX, mem_obj=584)
+    <braunr>  0x130b000[0x6000] (prot=RW, max_prot=RWX, mem_obj=585)
+    <braunr>  0x1311000[0x3000] (prot=RX, max_prot=RWX, mem_obj=586)
+    <braunr>  0x1314000[0x1000] (prot=RW, max_prot=RWX, mem_obj=586)
+    <braunr>  0x1315000[0x2000] (prot=RX, max_prot=RWX, mem_obj=587)
+    <braunr> the first two could be merged but not the others
+    <jkoenig> theoritically, those may correspond to memory objects backed by
+      different portions of the disk, right?
+    <braunr> jkoenig: this looks very much like the same issue (many private
+      mappings not merged)
+    <braunr> jkoenig: i'm not sure
+    <braunr> jkoenig: normally there is an offset when the object is valid
+    <braunr> but vminfo may simply not display it if 0
+    * jkoenig goes read about memory object
+    <braunr> ok, vminfo can't actually tell if the object is anonymous or
+      file-backed memory
+    <jkoenig> (I'm perplexed about how the kernel can merge two memory objects
+      if disctinct port names exist in the tasks' name space -- that's what
+      mem_obj is, right?)
+    <braunr> i don't see why
+    <braunr> jkoenig: can you be more specific ?
+    <jkoenig> braunr, if, say, 584 and 585 above are port names which the task
+      expects to be able to access and do stuff with, what will happen to them
+      when the memory objects are merged?
+    <braunr> good question
+    <braunr> but hm
+    <braunr> no it's not really a problem
+    <braunr> memory objects aren't directly handled by the vm system
+    <braunr> vm_object and memory_object are different things
+    <braunr> vm_objects can be split and merged
+    <braunr> and shadow objects form chains ending on a final vm_object
+    <braunr> which references a memory object
+    <braunr> hm
+    <braunr> jkoenig: ok no solution, they can't be merged :)
+    <jkoenig> braunr, I'm confused :-)
+    <braunr> jkoenig: but at least, if two vm_objects are created but reference
+      the same externel memory object, the vm should be able to merge them back
+    <braunr> external*
+    <braunr> are created as a result of a split
+    <braunr> say, you map a memory object, mprotect part of it (=split), then
+      mprotect the reste of it (=merge), it should work
+    <braunr> jkoenig: does that clarify things a bit ?
+    <jkoenig> ok so if I get it right, the entries shown by vmstat are the
+      vm_object, and the mem_obj listed is a send right to the memory object
+      they're referencing ?
+    <braunr> yes
+    <braunr> i'm not sure about the type of the integer showed (port name or
+      simply an index)
+    <braunr> jkoenig: another possibility explaining the high number of entries
+      is how anonymous memory is implemented
+    <braunr> if every vm_allocate request implies the creation of a memory
+      object from the default pager
+    <braunr> the vm has no way to merge them
+    <jkoenig> and a vm_object is not a capability, but just an internal kernel
+      structure used to record the composition of the address space
+    <braunr> jkoenig: not exactly the address space, but close enough
+    <braunr> jkoenig: it's a container used to know what's in physical memory
+      and what isn't
+    <jkoenig> braunr, ok I think I'm starting to get it, thanks.
+    <braunr> glad i could help
+    <braunr> i wonder when vm_map_enter() gets null objects though :/
+    <braunr> "If this port is MEMORY_OBJECT_NULL, then zero-filled memory is
+      allocated instead"
+    <braunr> which means vm_allocate()
+    <jkoenig> braunr, when the task uses vm_allocate(), or maybe vm_map_enter()
+      with MEMORY_OBJECT_NULL, there's an opportunity to extend an existing
+      object though, is that what you referred to earlier ?
+    <braunr> jkoenig: yes, and that's what is done
+    <jkoenig> but how does that play out with the default pager? (I'm thinking
+      aloud, as always feel free to ignore ;-)
+    <braunr> the default pager backs vm_objects providing zero filled memory
+    <braunr> hm, guess it wasn't your question
+    <braunr> well, swap isn't like a file, pages can be placed dynamically,
+      which is why the offset is always 0 for this type of memory
+    <jkoenig> hmm I see, apparently a memory object does not have a size
+    <braunr> are you sure ?
+    <jkoenig> from what I can gather from
+      http://www.gnu.org/software/hurd/gnumach-doc/External-Memory-Management.html,
+      but I looked very quickly
+    <braunr> vm_objects have a size
+    <braunr> and each map entry recors the offset within the object where the
+      mapping begins
+    <braunr> offset and sizes are used by the kernel when querying the memory
+      object pager
+    <braunr> see memory_object_data_request for example
+    <jkoenig> right.
+    <braunr> but the default pager has another interface
+    <braunr> jkoenig: after some simple tests, i haven't seen a simple case
+      where forward merging could be applied :(
+    <braunr> which means it's a lot harder than it first looked
+    <braunr> hm
+    <braunr> actually, there seems to be cases where this can be done
+    <braunr> all of them occurring after a first merge was done
+    <braunr> (which means a mapping request perfectly fits between two map
+      entries)
 
 
 # Procedure
