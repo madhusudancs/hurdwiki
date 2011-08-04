@@ -12,7 +12,7 @@ You can either use the git repository (see <http://savannah.gnu.org/git/?group=h
 
     $ git clone git.savannah.gnu.org:/srv/git/hurd/gnumach.git
 
-... or Debian sources, if you're using Debian. (See
+... or get the Debian sources, if you're using Debian. (See
 [here](http://packages.debian.net/source/unstable/gnumach).)
 
     $ apt-get source gnumach
@@ -32,7 +32,7 @@ package:
 
 ### Building and Installing ... Debian `.deb` files
 
-Change into the directory with the downloaded / unpacked GNU Mach sources, e.g.
+Change into the directory with the downloaded / unpacked GNU Mach sources,
 
     $ cd gnumach-XXXXXXXX
 
@@ -42,7 +42,7 @@ Start the build process with
 
 [[GNU_Mach|gnumach]] is now building.  To use the new kernel, you must install the
 resulting `.deb` package which is located one directory above the build
-directory and has a similar name as the build directory, e.g.
+directory and has a similar name as the build directory:
 
     # dpkg -i ../gnumach_XXXXXXXX-X_hurd-i386.deb
 
@@ -52,7 +52,7 @@ You can now reboot your computer and enjoy the new kernel.
 
 ### Preparing for the Build
 
-Building GNU Mach requires a C compiler, a _static_ 32 bit standard C library and
+Building GNU Mach requires a C compiler, a _static_ 32 bit standard C library,
 your favourite flavor of awk (gawk) and GNU make.
 
 First, create the configuartion files:
@@ -60,7 +60,7 @@ First, create the configuartion files:
     $ cd gnumach
     $ autoreconf --install
 
-GNU Mach and its headers should be built in a subdirectory:
+GNU Mach (and the associated headers) need be built in a separate build directory:
 
     $ mkdir build
     $ cd build
@@ -69,27 +69,26 @@ Run configure:
 
     $ ../configure --prefix=
 
-Use the --host flag and some options on 64 bit systems:
+If building on a 64 bit host system,
+you need a number of additional settings to force a 32 bit build:
 
     $ CPP='gcc -m32 -E -x c -undef -ansi' CC='gcc -m32' LD='ld -melf_i386' ../configure --prefix= --host=i686-unknown-linux-gnu
 
 ### Installing the Header Files First
 
-In order to build GNU Mach, you must build and install MIG, which requires that
-you install the GNU Mach header files, for example into `~/gnu/include/`:
+In order to build GNU Mach, you will need a working MIG.
+Building MIG in turn requires the GNU Mach header files to be already present.
+So for bootstrapping MIG, you have to install the Mach headers first,
+for example into `~/gnu/include/`:
 
     $ make DESTDIR=~/gnu install-data
 
+Now you can [[build_MIG|mig/gnu_mig/building]].
+Once you are done with that, come back here to finish the Mach build.
+
 ### Building and Installing
 
-After you've already installed the header files (above), as well as the the
-Mach Interface Generator, you may finish building GNU Mach.  (See
-[[building_MIG|mig/gnu_mig/building]], then come back here.)
-
-GNU Mach should be built in the subdirectory created above. If you've cleared
-your directory since then, you'll need to rerun the configure script.
-
-Build the kernel image:
+With MIG present, now build the kernel image:
 
     $ make gnumach.gz
 
@@ -97,8 +96,6 @@ Optionally run the (tiny) test suite:
 
     $ make check
 
-You can now install and use `gnumach.gz`.
-
-[TODO]
-
-
+The resulting kernel binary can now be moved into place
+(just copy `gnumach.gz`, typically to `/boot/gnumach.gz`),
+so you can boot your system with the new kernel.
