@@ -9,8 +9,55 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
+Here are some hints to debug with GNU Mach
+
 Mach has a built-in kernel debugger.
 [Manual](http://www.gnu.org/software/hurd/gnumach-doc/Kernel-Debugger.html).
+
+First, make sure to enable it. Either by using a pre-packaged gnumach-image-something-dbg, or by passing --enable-kdb to the ./configure invocation.
+
+Then, reproduce the issue again. If something like a kernel trap happens, you will end up in the GNU Mach debugger. Otherwise, type control-alt-d to make Mach enter it by hand.
+
+The debugger has an extensive documentation on http://www.gnu.org/software/hurd/gnumach-doc/Kernel-Debugger.html , but a quick start is the following.
+
+To get the register values, type
+
+show registers
+
+To get a backtrace, type trace, which will print both function return addresses and function parameters, such as
+
+0x107cf1(8088488,5e,40000008,2aa008,0)
+0x1071bc(0,0,0,0,0)
+0x106831(24fe00,2000,b,800,0)
+
+Run the addr2line tool on the return addresses:
+
+addr2line -i -f -e /boot/gnumach 0x107cf1 0x1071bc 0x106831
+
+This will print the source code lines of the backtrace.
+
+To examine the backtrace of some given thread, use
+
+show all thread/u
+
+to get the whole listing of all tasks and threads. You can then use trace/t to trace a specific thread.
+
+Unfortunately, userland and kernelland use the same range of addresses, so one can not get userland traces easily. The Xen port uses different ranges, and in that case one can use trace/u to also get the userland trace.
+
+To examine a variable, use nm /boot/gnumach to get the address of the variable (e.g. 0x123400), and use
+
+x 0x123400
+
+to read it. One can also write to it by using
+
+w 0x123400
+
+Another interesting feature is watching a variable, by using
+
+watch 0x123400
+
+and then type continue, to let Mach continue execution. The debugger will be entered again on any change in that variable. The watch is implemented in hardware, so it does not disturb or slow down execution at all.
+
 
 
 When you're [[running_a_system_in_QEMU|hurd/running/qemu]] you can directly
