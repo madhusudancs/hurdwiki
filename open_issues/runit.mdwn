@@ -1,12 +1,13 @@
-[[!meta copyright="Copyright © 2008, 2009 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2008, 2009, 2011 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
 document under the terms of the GNU Free Documentation License, Version 1.2 or
 any later version published by the Free Software Foundation; with no Invariant
 Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
-is included in the section entitled
-[[GNU Free Documentation License|/fdl]]."]]"""]]
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
 
 [[!tag open_issue_porting]]
 
@@ -26,36 +27,24 @@ Originally answered by Samuel Thibault:
 
 Usual issue with rpctrace: it does not support fork().
 
-I've checked a backtrace in gdb, got this:
-
- 0x0105af6c in mach_msg_trap ()
-   at /build/eglibc-jWVnRE/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
-
-1  0x0105b769 in __mach_msg (msg=0x1024af8, option=258, send_size=0, rcv_size=40, rcv_name=140,
-   timeout=1000020, notify=0) at msg.c:110
-
-2  0x01062251 in _hurd_select (nfds=2, pollfds=0x1024dc0, readfds=0x0, writefds=0x0, exceptfds=0x0,
-   timeout=0x1024bbc, sigmask=0x0) at hurdselect.c:324
-
-3  0x0114427b in __poll (fds=0x1024dc0, nfds=2, timeout=1000020) at ../sysdeps/mach/hurd/poll.c:48
-
-4  0x0804b770 in iopause (x=0x1024dc0, len=2, deadline=0x1024dd8, stamp=0x1024de8) at iopause.c:29
-
-5  0x08048efc in main (argc=2, argv=0x1024e94) at runsv.c:543
-
-
-and main() shows up as:
-
-   sig_unblock(sig_term);
-
-   sig_unblock(sig_child);
-
- ->  iopause(x, 2 +haslog, &deadline, &now);
-
-   sig_block(sig_term);
-
-   sig_block(sig_child);
-
+    I've checked a backtrace in gdb, got this:
+    
+     0x0105af6c in mach_msg_trap ()
+       at /build/eglibc-jWVnRE/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    1  0x0105b769 in __mach_msg (msg=0x1024af8, option=258, send_size=0, rcv_size=40, rcv_name=140,
+       timeout=1000020, notify=0) at msg.c:110
+    2  0x01062251 in _hurd_select (nfds=2, pollfds=0x1024dc0, readfds=0x0, writefds=0x0, exceptfds=0x0,
+       timeout=0x1024bbc, sigmask=0x0) at hurdselect.c:324
+    3  0x0114427b in __poll (fds=0x1024dc0, nfds=2, timeout=1000020) at ../sysdeps/mach/hurd/poll.c:48
+    4  0x0804b770 in iopause (x=0x1024dc0, len=2, deadline=0x1024dd8, stamp=0x1024de8) at iopause.c:29
+    5  0x08048efc in main (argc=2, argv=0x1024e94) at runsv.c:543
+    
+    and main() shows up as:
+    
+       sig_unblock(sig_term);
+       sig_unblock(sig_child);
+     ->  iopause(x, 2 +haslog, &deadline, &now);
+       sig_block(sig_term);
+       sig_block(sig_child);
 
 So it simply looks like the known "signals don't interrupt select" bug.
-
