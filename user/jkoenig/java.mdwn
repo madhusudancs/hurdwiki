@@ -30,10 +30,6 @@ Feeling slightly behind schedule; but project is very ambitious, which has been
 known from the beginning, and there is great progress, so there is no problem.
 --[[tschwinge]], 2011-06-29.
 
-[[tschwinge]] will be on vacations in China starting July 26th, will have
-Internet access intermittently, but not regularely.  We'll have to figure out
-some scheme.
-
 
 ### Apt repository
 
@@ -82,6 +78,20 @@ why its behavior should change, whereas for [[libpthread]] it's needed for
 conformance.  Patches posted on 2011-05-25, but there's a more recent one in
 the modified hurd package (adds `_hurd_sigstate_delete` and removes the weak
 symbols).
+
+IRC, freenode, #hurd, 2011-07-27: 
+
+    < jkoenig> the glibc patches are pending review and inclusion in Debian (I
+      think youpi wants to check my latest additions before we go ahead with
+      that)
+    < jkoenig> when it's in Debian and the sky does not fall, I intend to
+      resubmit a full series to libc-alpha for inclusion upstream.
+
+IRC, freenode, #hurd, 2011-08-24: 
+
+    < youpi> jkoenig: I'll probably commit your siginfo/globalsig patches soon
+    < youpi> I'm building the ant package atm, seems to proceed great
+    < jkoenig> youpi, great!
 
 Another issue which came up with OpenJDK is the expansion
 by the dynamic linker of `$ORIGIN` in the `RPATH` header,
@@ -158,6 +168,23 @@ for broader testing.
         `si_pid_not_implemented`, to ensure compilation failures for programs
         which use them.  Or perhaps a linker warning is possible.
 
+        IRC, freenode, #hurd, 2011-08-20:
+
+            < youpi> jkoenig: I was considering renaming the fields of siginfo
+            < youpi> to catch applications which need those which we haven't
+              yet
+            < jkoenig> youpi, makes sense AFAICT
+            < youpi> one issue we'll get is some application which previously
+              built without SA_SIGINFO, and will now want some information
+              we're not yet able to provide
+            < youpi> but at least we'll know
+            < jkoenig> youpi, yes it would still be better than having them
+              crash at runtime because of it
+
+        IRC, freenode, #hurd, 2011-08-21:
+
+            < youpi> jkoenig: actually we need the fields for waitid
+
       * The FPU state is not included in the `ucontext_t` passed to the signal
         handler.  On the other hand, `ucontext_t` is actually being somewhat
         deprecated: the functions to restore it are no longer in POSIX.
@@ -198,6 +225,111 @@ This can be worked around by defining
 the `LD_ORIGIN_PATH` environment variable.
 (which have I used to build and test OpenJDK so far.)
 
+IRC, freenode, #hurd, 2011-07-27:
+
+    < jkoenig> if you have the latest hurd/libc in my repository, you should be
+      able to run /usr/lib/jvm/java-7-openjdk/bin/java without defining
+      LD_ORIGIN_PATH manually
+    < braunr> java: error while loading shared libraries: libjli.so: cannot
+      open shared object file: No such file or directory
+    < jkoenig> braunr, this one is expected, it's the symlink problem.
+    < braunr> oh ok
+    < jkoenig> (ie. thus far, if java is accessed as /usr/bin/java, the ld
+      origin ends up as /usr/bin)
+
+    < jkoenig> *sigh*... it seems I'm going to have to reimplement realpath()
+      in elf/dl-origin.c.
+    < braunr> why ?
+    < jkoenig> using it from there results in duplicate symbols when linking
+      elf/librtld.map.o
+    < braunr> from where ?
+    < braunr> dl-origin ?
+    < jkoenig> apparently this part of the code uses a different allocator
+      (elf/dl-minimal.c)
+    < braunr> oh
+    < braunr> depndency issues ?
+    < braunr> or bootstrapping ones ?
+    < jkoenig> http://paste.debian.net/124310/
+    < jkoenig> dl-origin is what provides the $ORIGIN value for RPATH (now
+      sysdeps/mach/hurd/dl-origin.c, in our case)
+    < braunr> but what's the problem ?
+    < braunr> what prevents you from using the existing implementation ?
+    < jkoenig> you mean copy-and-paste the code ? Well I'll end up doing that I
+      guess... not that it feels right.
+    < braunr> not really
+    < braunr> link against what provides it
+    < braunr> i'm really not familiar with glibc :/
+    < jkoenig> also I'd like to understand what's happening precisely before I
+      resort to such blasphemy :-)
+    < braunr> :)
+    < jkoenig> maybe I could make {file,exec,_hurd}_exec_file_name()
+      canonicalize it instead.
+    < jkoenig> for some reason it does not feel right, though.
+    < braunr> why ?
+    < jkoenig> I'm not sure, loss of information maybe?
+    < jkoenig> (that I ran /usr/bin/java as opposed to /usr/lib/jvm/...)
+    < braunr> i guess you should explain the issue more clearly, i feel like
+      there is something i'm really missing :/
+    < braunr> but it can wait
+    < jkoenig> that ld.so actually needs the canonical file name to substitute
+      $ORIGIN is its own problem, not that of exec or _hurd_exec_file_name..
+    < jkoenig> Ok, so.. Initially the shell (indirectly) runs
+      _hurd_exec_file_name(..., "/usr/bin/java", ...), which then calls
+      file_exec_file_name() on the file in question, passing it its own
+      filename
+    < jkoenig> which is transmitted to exec_exec_file_name()
+    < jkoenig> (until now it's all pochu's patch)
+    < jkoenig> which then makes it available to the newly created process
+      through exec_startup_get_info_2() (my own addition)
+    < braunr> oh
+    < braunr> wasn't it available before oO ?
+    < jkoenig> no, exec only has access to a port to the executable file.
+    < braunr> how was argv[0] handled then ?
+    < jkoenig> argv[0] is handled like any other argument
+    < braunr> ok, so the file path is duplicated ?
+    < jkoenig> the shell (or whomever calls _hurd_exec) provide whatever they
+      want.
+    < braunr> ok
+    < jkoenig> well argv[0] is not necessarily the file path (at least not the
+      full path)
+    < braunr> right
+    < jkoenig> so exec() does some guesswork with $PATH but obviously that's
+      limited.
+    < braunr> so what you changed is that get_info_2 now receives a canonical
+      path ?
+    < jkoenig> right
+    < jkoenig> (or whatever was specified to _hurd_exec_file_name(), for this
+      reason and others we shouldn't use it for setuid programs.)
+    < jkoenig> well, not a canonical path. A path. (hence the problem)
+    < braunr> ok
+    < jkoenig> now both the filesystem and exec might run under another root so
+      they're not an option for canonicalization
+    < jkoenig> _hurd_exec_file_name (in libc) might be a better spot.
+    < braunr> resolution from the client, yes
+
+IRC, freenode, #hurd, 2011-08-03:
+
+    < jkoenig> so my RPATH patches are polished and built, and I'll post them
+      soon, is the good news
+
+IRC, freenode, #hurd, 2011-08-17:
+
+    < jkoenig> also fixed a fakeroot-induced deadlock in my dl-origin patches
+      (namely, under fakeroot, realpath() uses a socket (through stat), so we
+      need to use it when _hurd_dtable_lock is not held)
+    < jkoenig> also I'll post my dl-origin patches shortly
+    < youpi> dl-origin is about the environment variable that java needs,
+      right?
+    < jkoenig> about the environment variable it shouldn't need, yes :-)
+    < youpi> ah :)
+    < youpi> but ok, I vaguely remember what that refers to
+    < jkoenig> $LD_ORIGIN_PATH is used as an override (much like
+      LD_LIBRARY_PATH), but ideally ld.so uses whatever directory the loaded
+      binary is from.
+    < youpi> ok
+    < jkoenig> (as a substitution for $ORIGIN in RPATH)
+
+
 #### Plans
 
 I intend to fix the RPATH issue
@@ -219,6 +351,27 @@ have so far prevented me from testing it.
 >
 > --[[jkoenig]] 2011-06-29
 
+IRC, freenode, #hurd, 2011-08-03:
+
+    < jkoenig> and I'm battleing to update my OpenJDK patches to b147, and
+      merge the with the kFreeBSD ones.
+    < braunr> b147 ?
+    < jkoenig> but that thing is seriously huge and touches about everything,
+      so it's taking more time than I'd have hoped
+    < jkoenig> braunr, the latest release of IcedTea / OpenJDK 7 and the
+      current Debian version (in experimental of course)
+    < braunr> ok
+    < jkoenig> I'm trying to make this clean so that hopefully we can get them
+      integrated at some level of upstream (probably IcedTea, at least at
+      first)
+
+IRC, freenode, #hurd, 2011-08-10:
+
+    < jkoenig> well actually I've finished merging my patches with the freebsd
+      ones, and updating them to the new openjdk-7,
+    < jkoenig> but now a new version of both is out :-P
+
+
 ##### Upstream Submission
 
 On 2011-07-15, *gnu_andrew* talked to us in the #hurd channel (freenode IRC),
@@ -238,6 +391,19 @@ than some huge patchset).  Send patches to <distro-pkg-dev@openjdk.java.net>.
     by removing/avoiding this dependency.
 
   * [[java-access-bridge]] (not critical; JVM appears to work without)
+
+  * IRC, freenode, #hurd, 2011-07-27:
+
+        < jkoenig> there's a bug with java.nio when running javadoc, you might
+          run into it.
+
+  * [[`SCM_CREDENTIALS`|open_issues/sendmsg/scm_creds]]
+
+    IRC, freenode, #hurd, 2011-08-03:
+
+        < jkoenig> wrt. peer credentials, openjdk also uses file modes for
+          security, and my guess is that it's sufficient, at least on Hurd, so
+          I've reduced my priority for this at least in the meantime
 
   * They seem to have a rather heavy-weight process for such projects: confer
     <http://mail.openjdk.java.net/pipermail/announce/2011-January/000092.html>,
@@ -274,6 +440,19 @@ The code is at <http://github.com/jeremie-koenig/hurd-java>.
 
 Doxygen-generated documentation is available at
 <http://jk.fr.eu.org/hurd-java/doc/html/>; or run `make doc` yourself.
+
+IRC, freenode, #hurd, 2011-07-27:
+
+    < jkoenig> I need to be able to read/write individual data items from
+      messages, in order to implement deallocation correctly, so I'm working on
+      that when I'm waiting for things to build, but it's not my primary focus
+      right now.
+
+IRC, freenode, #hurd, 2011-08-17:
+
+    < jkoenig> so, weekly status report: I have made some progress on the java
+      bindings, I hope to have a safe version mach_msg soon, after which I can
+      begin experimenting with mig.
 
 
 #### Plans
