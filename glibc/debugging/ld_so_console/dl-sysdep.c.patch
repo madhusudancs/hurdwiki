@@ -1,0 +1,63 @@
+diff --git a/sysdeps/mach/hurd/dl-sysdep.c b/sysdeps/mach/hurd/dl-sysdep.c
+index ff37add..7e6d352 100644
+--- a/sysdeps/mach/hurd/dl-sysdep.c
++++ b/sysdeps/mach/hurd/dl-sysdep.c
+@@ -44,6 +44,8 @@
+ #include <dl-machine.h>
+ #include <dl-procinfo.h>
+ 
++#include <device/device.h>
++
+ extern void __mach_init (void);
+ 
+ extern int _dl_argc;
+@@ -116,6 +118,29 @@ static void fmh(void) {
+ /* XXX loser kludge for vm_map kernel bug */
+ #endif
+ 
++/* Return a port to the Mach console.  */
++static mach_port_t
++get_console (void)
++{
++  mach_port_t device_master, console;
++  /* We cannot use __get_privileged_ports (from hurd/privports.c), as this
++     drags in too much other libc stuff.  */
++#if 0
++  error_t err = __get_privileged_ports (0, &device_master);
++
++  if (err)
++    return MACH_PORT_NULL;
++#else
++  error_t err = 0;
++  device_master = 2;
++#endif
++
++  err = __device_open (device_master, D_WRITE | D_READ, "console", &console);
++  if (err)
++    return MACH_PORT_NULL;
++
++  return console;
++}
+ 
+ ElfW(Addr)
+ _dl_sysdep_start (void **start_argptr,
+@@ -256,6 +279,20 @@ unfmh();			/* XXX */
+   /* Set up so we can do RPCs.  */
+   __mach_init ();
+ 
++  /* Open the Mach console so that any message can actually be seen.  This is
++     particularly useful at boot time, when started by the bootstrap file
++     system.  */
++  mach_port_t console = get_console ();
++  if (console != MACH_PORT_NULL)
++    {
++      /* stdout = mach_open_devstream (console, "w"); */
++      /* stderr = stdout; */
++      /* if (stdout != NULL) */
++      /* 	printf ("Hello, world!\n"); */
++      int written;
++      __device_write_inband (console, 0, 0, "hello, world!\n", 14, &written);
++    }
++
+   /* Initialize frequently used global variable.  */
+   GLRO(dl_pagesize) = __getpagesize ();
