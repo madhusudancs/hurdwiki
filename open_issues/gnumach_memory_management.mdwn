@@ -923,3 +923,400 @@ There is a [[!FF_project 266]][[!tag bounty]] on this task.
     <braunr> 20 years ago
     <braunr> but it's a source of deadlock
     <mcsim> Indeed. I'll won't use kmem_alloc_pageable.
+
+
+# IRC, freenode, #hurd, 2011-08-09
+
+    < braunr> mcsim: what's the "bug related to MEM_CF_VERIFY" you refer to in
+      one of your commits ?
+    < braunr> mcsim: don't use spin_lock_t as a member of another structure
+    < mcsim> braunr: I confused with types in *_verify functions, so they
+      didn't work. Than I fixed it in the commit you mentioned.
+    < braunr> in gnumach, most types are actually structure pointers
+    < braunr> use simple_lock_data_t
+    < braunr> mcsim: ok
+    < mcsim> > use simple_lock_data_t
+    < mcsim> braunr: ok
+    < braunr> mcsim: don't make too many changes to the code base, and if
+      you're unsure, don't hesitate to ask
+    < braunr> also, i really insist you rename the allocator, as done in x15
+      for example
+      (http://git.sceen.net/rbraun/x15mach.git/?a=blob;f=vm/kmem.c), instead of
+      a name based on mine :/
+    < mcsim> braunr: Ok. It was just work name. When I finish I'll rename the
+      allocator.
+    < braunr> other than that, it's nice to see progress
+    < braunr> although again, it would be better with some reports along
+    < braunr> i won't be present at the meeting tomorrow unfortunately, but you
+      should use those to report the status of your work
+    < mcsim> braunr: You've said that I have to tweak gc process. Did you mean
+      to call mem_gc() when physical memory ends instead of calling it every x
+      seconds? Or something else?
+    < braunr> there are multiple topics, alhtough only one that really matters
+    < braunr> study how zone_gc was called
+    < braunr> reclaiming memory should happen when there is pressure on the VM
+      subsystem
+    < braunr> but it shouldn't happen too ofte, otherwise there is trashing
+    < braunr> and your caches become mostly useless
+    < braunr> the original slab allocator uses a 15-second period after a
+      reclaim during which reclaiming has no effect
+    < braunr> this allows having a somehow stable working set for this duration
+    < braunr> the linux slab allocator uses 5 seconds, but has a more
+      complicated reclaiming mechanism
+    < braunr> it releases memory gradually, and from reclaimable caches only
+      (dentry for example)
+    < braunr> for x15 i intend to implement the original 15 second interval and
+      then perform full reclaims
+    < mcsim> In zalloc mem_gc is called by vm_pageout_scan, but not often than
+      once a second.
+    < mcsim> In balloc I've changed interval to once in 15 seconds.
+    < braunr> don't use the code as it is
+    < braunr> the version you've based your work on was meant for userspace
+    < braunr> where there isn't memory pressure
+    < braunr> so a timer is used to trigger reclaims at regular intervals
+    < braunr> it's different in a kernel
+    < braunr> mcsim: where did you see vm_pageout_scan call the zone gc once a
+      second ?
+    < mcsim> vm_pageout_scan calls consider_zone_gc and consider_zone_gc checks
+      if second is passed.
+    < braunr> where ?
+    < mcsim> Than zone_gc can be called.
+    < braunr> ah ok, it's in zaclloc.c then
+    < braunr> zalloc.c
+    < braunr> yes this function is fine
+    < mcsim> so old gc didn't consider vm pressure. Or I missed something.
+    < braunr> it did
+    < mcsim> how?
+    < braunr> well, it's called by the pageout daemon
+    < braunr> under memory pressure
+    < braunr> so it's fine
+    < mcsim> so if mem_gc is called by pageout daemon is it fine?
+    < braunr> it must be changed to do something similar to what
+      consider_zone_gc does
+    < mcsim> It does. mem_gc does the same work as consider_zone_gc and
+      zone_gc.
+    < braunr> good
+    < mcsim> so gc process is fine?
+    < braunr> should be
+    < braunr> i see mem.c only includes mem.h, which then includes other
+      headers
+    < braunr> don't do that
+    < braunr> always include all the headers you need where you need them
+    < braunr> if you need avltree.h in both mem.c and mem.h, include it in both
+      files
+    < braunr> and by the way, i recommend you use the red black tree instead of
+      the avl type
+    < braunr> (it's the same interface so it shouldn't take long)
+    < mcsim> As to report. If you won't be present at the meeting, I can tell
+      you what I have to do now.
+    < braunr> sure
+    < braunr> in addition, use GPLv2 as the license, teh BSD one is meant for
+      the userspace version only
+    < braunr> GPLv2+ actually
+    < braunr> hm you don't need list.c
+    < braunr> it would only add dead code
+    < braunr> "Zone for dynamical allocator", don't mix terms
+    < braunr> this comment refers to a vm_map, so call it a map
+    < mcsim> 1. Change constructor for kentry_alloc_cache.
+    < mcsim> 2. Make measurements.
+    < mcsim> +
+    < mcsim> 3. Use simple_lock_data_t
+    < mcsim> 4. Replace license
+    < braunr> kentry_alloc_cache <= what is that ?
+    < braunr> cache for kernel map entries in vm_map ?
+    < braunr> the comment for mem_cpu_pool_get doesn't apply in gnumach, as
+      there is no kernel preemption
+    < braunr> "Don't attempt mem GC more frequently than hz/MEM_GC_INTERVAL
+      times a second.
+    < braunr> "
+    < mcsim> sorry. I meant vm_map_kentry_cache
+    < braunr> hm nothing actually about this comment
+    < braunr> mcsim: ok
+    < braunr> yes kernel map entries need special handling
+    < braunr> i don't know how it's done in gnumach though
+    < braunr> static preallocation ?
+    < mcsim> yes
+    < braunr> that's ugly :p
+    < mcsim> but it uses dynamic allocation further even for vm_map kernel
+      entries
+    < braunr> although such bootstrapping issues are generally difficult to
+      solve elegantly
+    < braunr> ah
+    < mcsim> now I use only static allocation, but I'll add dynamic allocation
+      too
+    < braunr> when you have time, mind the coding style (convert everything to
+      gnumach style, which mostly implies using tabs instead of 4-spaces
+      indentation)
+    < braunr> when you'll work on dynamic allocation for the kernel map
+      entries, you may want to review how it's done in x15
+    < braunr> the mem_source type was originally intended for that purpose, but
+      has slightly changed once the allocator was adapted to work in my kernel
+    < mcsim> ok
+    < braunr> vm_map_kentry_zone is the only zone created with ZONE_FIXED
+    < braunr> and it is zcram()'ed immediately after
+    < braunr> so you can consider it a statically allocated zone
+    < braunr> in x15 i use another strategy: there is a special kernel submap
+      named kentry_map which contains only one map entry (statically allocated)
+    < braunr> this map is the backend (mem_source) for the kentry_cache
+    < braunr> the kentry_cache is created with a special flag that tells it
+      memory can't be reclaimed
+    < braunr> when the cache needs to grow, the single map entry is extended to
+      cover the allocated memory
+    < braunr> it's similar to the way pmap_growkernel() works for kernel page
+      table pages
+    < braunr> (and is actually based on that idea)
+    < braunr> it's a compromise between full static and dynamic allocation
+      types
+    < braunr> the advantage is that the allocator code can be used (so there is
+      no need for a special allocator like in netbsd)
+    < braunr> the drawback is that some resources can never be returned to
+      their source (and under peaks, the amount of unfreeable resources could
+      become large, but this is unexpected)
+    < braunr> mcsim: for now you shouldn't waste your time with this
+    < braunr> i see the number of kernel map entries is fixed at 256
+    < braunr> and i've never seen the kernel use more than around 30 entries
+    < mcsim> Do you think that I have to left this problem to the end?
+    < braunr> yes
+
+
+# IRC, freenode, #hurd, 2011-08-11
+
+    < mcsim> braunr: Hello. Can you give me an advice how can I make
+      measurements better?
+    < braunr> mcsim: what kind of measurements
+    < mcsim> braunr: How much is your allocator better than zalloc.
+    < braunr> slightly :p
+    < braunr> that's why i never took the time to put it in gnumach
+    < mcsim> braunr: Just I thought that there are some rules or
+      recommendations of such measurements. Or I can do them any way I want?
+    < braunr> mcsim: i don't know
+    < braunr> mcsim: benchmarking is an art of its own, and i don't even know
+      how to use the bits of profiling code available in gnumach (if it still
+      works)
+    < antrik> mcsim: hm... are you saying you already have a running system
+      with slab allocator?... :-)
+    < braunr> mcsim: the main advantage i can see is the removal of many
+      arbitrary hard limits
+    < mcsim> antrik: yes
+    < antrik> \o/
+    < antrik> nice work!
+    < braunr> :)
+    < braunr> the cpu layer should also help a bit, but it's hard to measure
+    < braunr> i guess it could be seen on the ipc path for very small buffers
+    < mcsim> antrik: Thanks. But I still have to 1. Change constructor for
+      kentry_alloc_cache. and 2. Make measurements.
+    < braunr> and polish the whole thing :p
+    < antrik> mcsim: I'm not sure this can be measured... the performance
+      differente in any real live usage is probably just a few percent at most
+      -- it's hard to construct a benchmark giving enough precision so it's not
+      drowned in noise...
+    < antrik> perhaps it conserves some memory -- but that too would be hard to
+      measure I fear
+    < braunr> yes
+    < braunr> there *should* be better allocation times, less fragmentation,
+      better accounting ... :)
+    < braunr> and no arbitrary limits !
+    < antrik> :-)
+    < braunr> oh, and the self debugging features can be nice too
+    < mcsim> But I need to prove that my work wasn't useless
+    < braunr> well it wasn't, but that's hard to measure
+    < braunr> it's easy to prove though, since there are additional features
+      that weren't present in the zone allocator
+    < mcsim> Ok. If there are some profiling features in gnumach can you give
+      me a link with their description?
+    < braunr> mcsim: sorry, no
+    < braunr> mcsim: you could still write the basic loop test, which counts
+      the number of allocations performed in a fixed time interval
+    < braunr> but as it doesn't match many real life patterns, it won't be very
+      useful
+    < braunr> and i'm afraid that if you consider real life patterns, you'll
+      see how negligeable the improvement can be compared to other operations
+      such as memory copies or I/O (ouch)
+    < mcsim> Do network drivers use this allocator?
+    < mcsim> ok. I'll scrape up some test and than I'll report results.
+
+
+# IRC, freenode, #hurd, 2011-08-26
+
+    < mcsim> hello. Are there any analogs of copy_to_user and copy_from_user in
+      linux for gnumach?
+    < mcsim> Or how can I determine memory map if I know address? I need this
+      for vm_map_copyin
+    < guillem> mcsim: vm_map_lookup_entry?
+    < mcsim> guillem: but I need to transmit map to this function and it will
+      return an entry which contains specified address.
+    < mcsim> And I don't know what map have I transmit.
+    < mcsim> I need to transfer static array from kernel to user. What map
+      contains static data?
+    < antrik> mcsim: Mach doesn't have copy_{from,to}_user -- instead, large
+      chunks of data are transferred as out-of-line data in IPC messages
+      (i.e. using VM magic)
+    < mcsim> antrik: can you give me an example? I just found using
+      vm_map_copyin in host_zone_info.
+    < antrik> no idea what vm_map_copyin is to be honest...
+
+
+# IRC, freenode, #hurd, 2011-08-27
+
+    < braunr> mcsim: the primitives are named copyin/copyout, and they are used
+      for messages with inline data
+    < braunr> or copyinmsg/copyoutmsg
+    < braunr> vm_map_copyin/out should be used for chunks larger than a page
+      (or roughly a page)
+    < braunr> also, when writing to a task space, see which is better suited:
+      vm_map_copyout or vm_map_copy_overwrite
+    < mcsim> braunr: and what will be src_map for vm_map_copyin/out?
+    < braunr> the caller map
+    < braunr> which you can get with current_map() iirc
+    < mcsim> braunr: thank you
+    < braunr> be careful not to leak anything in the transferred buffers
+    < braunr> memset() to 0 if in doubt
+    < mcsim> braunr:ok
+    < braunr> antrik: vm_map_copyin() is roughly vm_read()
+    < antrik> braunr: what is it used for?
+    < braunr> antrik: 01:11 < antrik> mcsim: Mach doesn't have
+      copy_{from,to}_user -- instead, large chunks of data are transferred as
+      out-of-line data in IPC messages (i.e. using VM magic)
+    < braunr> antrik: that "VM magic" is partly implemented using vm_map_copy*
+      functions
+    < antrik> braunr: oh, you mean it doesn't actually copy data, but only page
+      table entries? if so, that's *not* really comparable to
+      copy_{from,to}_user()...
+
+
+# IRC, freenode, #hurd, 2011-08-28
+
+    < braunr> antrik: the equivalent of copy_{from,to}_user are
+      copy{in,out}{,msg}
+    < braunr> antrik: but when the data size is about a page or more, it's
+      better not to copy, of course
+    < antrik> braunr: it's actually not clear at all that it's really better to
+      do VM magic than to copy...
+
+
+# IRC, freenode, #hurd, 2011-08-29
+
+    < braunr> antrik: at least, that used to be the general idea, and with a
+      simpler VM i suspect it's still true
+    < braunr> mcsim: did you progress on your host_zone_info replacement ?
+    < braunr> mcsim: i think you should stick to what the original
+      implementation did
+    < braunr> which is making an inline copy if caller provided enough space,
+      using kmem_alloc_pageable otherwise
+    < braunr> specify ipc_kernel_map if using kmem_alloc_pageable
+    < mcsim> braunr: yes. And it works. But I use kmem_alloc, not pageable. Is
+      it worse?
+    < mcsim> braunr: host_zone_info replacement is pushed to savannah
+      repository. 
+    < braunr> mcsim: i'll have a look
+    < mcsim> braunr: I've pushed one more commit just now, which has attitude
+      to host_zone_info.
+    < braunr> mem_alloc_early_init should be renamed mem_bootstrap
+    < mcsim> ok
+    < braunr> mcsim: i don't understand your call to kmem_free
+    < mcsim> braunr: It shouldn't be there?
+    < braunr> why should it be there ?
+    < braunr> you're freeing what the copy object references
+    < braunr> it's strange that it even works
+    < braunr> also, you shouldn't pass infop directly as the copy object
+    < braunr> i guess you get a warning for that
+    < braunr> do what the original code does: use an intermediate copy object
+      and a cast
+    < mcsim> ok
+    < braunr> another error (without consequence but still, you should mind it)
+    < braunr> simple_lock(&mem_cache_list_lock);
+    < braunr> [...]
+    < braunr> kr = kmem_alloc(ipc_kernel_map, &info, info_size);
+    < braunr> you can't hold simple locks while allocating memory
+    < braunr> read how the original implementation works around this
+    < mcsim> ok
+    < braunr> i guess host_zone_info assumes the zone list doesn't change much
+      while unlocked
+    < braunr> or that's it's rather unimportant since it's for debugging
+    < braunr> a strict snapshot isn't required
+    < braunr> list_for_each_entry(&mem_cache_list, cache, node) max_caches++;
+    < braunr> you should really use two separate lines for readability
+    < braunr> also, instead of counting each time, you could just maintain a
+      global counter
+    < braunr> mcsim: use strncpy instead of strcpy for the cache names
+    < braunr> not to avoid overflow but rather to clear the unused bytes at the
+      end of the buffer
+    < braunr> mcsim: about kmem_alloc vs kmem_alloc_pageable, it's a minor
+      issue
+    < braunr> you're handing off debugging data to a userspace application
+    < braunr> a rather dull reporting tool in most cases, which doesn't require
+      wired down memory
+    < braunr> so in order to better use available memory, pageable memory
+      should be used
+    < braunr> in the future i guess it could become a not-so-minor issue though
+    < mcsim> ok. I'll fix it
+    < braunr> mcsim: have you tried to run the kernel with MC_VERIFY always on
+      ?
+    < braunr> MEM_CF_VERIFY actually
+    < mcsim1> yes.
+    < braunr> oh
+    < braunr> nothing wrong 
+    < braunr> ?
+    < mcsim1> it is always set
+    < braunr> ok
+    < braunr> ah, you set it in macros.h ..
+    < braunr> don't
+    < braunr> put it in mem.c if you want, or better, make it a compile-time
+      option
+    < braunr> macros.h is a tiny macro library, it shouldn't define such
+      unrelated options
+    < mcsim1> ok.
+    < braunr> mcsim1: did you try fault injection to make sure the checking
+      code actually works and how it behaves when an error occurs ?
+    < mcsim1> I think that when I finish I'll merge files cpu.h and macros.h
+      with mem.c
+    < braunr> yes that would simplify things
+    < mcsim1> Yes. When I confused with types mem_buf_fill worked wrong and
+      panic occurred.
+    < braunr> very good
+    < braunr> have you progressed concerning the measurements you wanted to do
+      ?
+    < mcsim1> not much.
+    < braunr> ok
+    < mcsim1> I think they will be ready in a few days.
+    < antrik> what measurements are these?
+    < mcsim1> braunr: What maximal size for static data and stack in kernel?
+    < braunr> what do you mean ?
+    < braunr> kernel stacks are one page if i'm right
+    < braunr> static data (rodata+data+bss) are limited by grub bugs only :)
+    < mcsim1> braunr: probably they are present, because when I created too big
+      array I couldn't boot kernel
+    < braunr> local variable or static ?
+    < mcsim1> static
+    < braunr> how large ?
+    < mcsim1> 4Mb
+    < braunr> hm
+    < braunr> it's not a grub bug then
+    < braunr> i was able to embed as much as 32 MiB in x15 while doing this
+      kind of tests
+    < braunr> I guess it's the gnu mach boot code which only preallocates one
+      page for the initial kernel mapping
+    < braunr> one PTP (page table page) maps 4 MiB
+    < braunr> (x15 does this completely dynamically, unlike mach or even
+      current BSDs)
+    < mcsim1> antrik: First I want to measure time of each cache
+      creation/allocation/deallocation and then compile kernel.
+    < braunr> cache creation is irrelevant
+    < braunr> because of the cpu pools in the new allocator, you should test at
+      least two different allocation patterns
+    < braunr> one with quick allocs/frees
+    < braunr> the other with large numbers of allocs then their matching frees
+    < braunr> (larger being at least 100)
+    < braunr> i'd say the cpu pool layer is the real advantage over the
+      previous zone allocator
+    < braunr> (from a performance perspective)
+    < mcsim1> But there is only one cpu
+    < braunr> it doesn't matter
+    < braunr> it's stil a very effective cache
+    < braunr> in addition to reducing contention
+    < braunr> compare mem_cpu_pool_pop() against mem_cache_alloc_from_slab()
+    < braunr> mcsim1: work is needed to polish the whole thing, but getting it
+      actually working is a nice achievement for someone new on the project
+    < braunr> i hope it helped you learn about memory allocation, virtual
+      memory, gnu mach and the hurd in general :)
+    < antrik> indeed :-)

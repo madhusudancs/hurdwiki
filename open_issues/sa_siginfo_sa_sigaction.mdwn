@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2011 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -45,3 +45,50 @@ IRC, #hurd, August / September 2010:
     <youpi> (i.e. replace with 0 in your example)
     <giselher> ok
     <youpi> when SA_SIGINFO becomes available, it'll just be used
+
+IRC, freenode, #hurd, 2011-08-20:
+
+    < youpi> erf, tcpwrappers will need si_pid
+    < jkoenig> I could implement it not too far away in the future, we just
+      need a version of msg_sig_post() with a siginfo argument or something.
+    < youpi> I can also see a lot of packages using SA_SIGINFO for no reason...
+    < youpi> (probably copy/pasty code)
+    < youpi>   sa.sa_flags = SA_SIGINFO;
+    < youpi>   sa.sa_handler = parse_config;
+    < youpi> void parse_config(int)
+    < youpi> yay
+    < youpi>     if(siginf->si_signo == SIGXCPU)
+    < youpi>       fprintf(stderr, "Exceeded CPU usage.\n");
+    < youpi> ...
+    < youpi> jkoenig: actually most package don't actually use the SA_SIGINFO
+      they request...
+    < youpi> jkoenig: si_pid should get us almost all actually used coverage
+    < youpi> I've seen only one example using si_errno
+    < jkoenig> ok
+    < youpi> oh, it's actually supported by your patch
+    < youpi> (errno)
+    < jkoenig> but I guess since implementing si_pid will require a new RPC, we
+      might as well plan for the rest
+    < youpi> jkoenig: indeed
+    < jkoenig> youpi, hmm I doubt it's properly filled in in all circumstances?
+    < youpi> ok, well, we'll see
+    < pinotree> jkoenig: if it can be of help, boost::unit_test queries various
+      fields of siginfo_t depending on the signal
+    < pinotree> jkoenig: also, pulseaudio uses siginfo_t for remapping faulting
+      memory on SIGBUS
+    < jkoenig> pinotree, oh ok good to know
+    < pinotree> *faulty
+    < youpi> jkoenig: well, I guess you had checked that the si_addr field is
+      correct in a few simple testcase :)
+    < jkoenig> hmm I think so, yes
+    < jkoenig> I ran like, "* (char *) 0x12345678;" or something IIRC
+    < youpi> ok
+    < jkoenig> I seem to remember mach generated SIGBUS instead of SIGSEGV
+      depending on the upper bit, or something (I can't quite remember)
+    < jkoenig> but when sigsegv was generated si_addr was right.
+    < pinotree> jkoenig: (see boost/test/impl/execution_monitor.ipp in boost
+      sources)
+    < pinotree> maybe you can try the unit tests for boost::unit_tests, if any
+      :)
+    < pinotree> (while src/pulsecore/memtrap.c in PA)
+     * pinotree stops doing MrObvious™

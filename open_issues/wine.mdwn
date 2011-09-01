@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2011 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -19,3 +19,51 @@ requirements Wine has: only libc / POSIX / etc., or if there are
 
 [[Samuel|samuelthibault]] suspects that *there's some need for LDT table
 allocation. There is kernel support for this,* however.
+
+
+IRC, freenode, #hurd, 2011-08-11
+
+    < arethusa> I've been trying to make Wine work inside a Debian GNU/Hurd VM,
+      and to that end, I've successfully compiled the latest sources from Git
+      after installing the libc (devel) packages from experimental and
+      personally patching Wine with http://pastebin.com/rg6dx09G
+
+[[rg6dx09G.patch]]
+
+    < arethusa> my question is, when trying to launch Wine, I'm seeing "wine
+      client error:0: sendmsg: (os/kern) invalid address" from the client side,
+      whereas the wineserver seems to be starting and running correctly, how
+      could I debug this issue further? using rpctrace doesn't seem to help, as
+      the trace just hangs when run on the Wine loader instead of yielding
+      insight
+    < kilobug> arethusa: isn't there a wine debuguer that can start a gdb when
+      wine encounters an error or something like that ?
+    < arethusa> it's too early for that
+    < kilobug> or least give you a full traceback of the wine code where the
+      error occur ?
+    < arethusa> the error is happening during initial connect to the
+      wineserver, in dlls/ntdll/server.c
+    < arethusa> but that doesn't help me figure out why sendmsg would error out
+      in this way
+    < arethusa>
+      http://source.winehq.org/git/wine.git/blob/HEAD:/dlls/ntdll/server.c#l361
+    < azeem_> arethusa: probably some of the msghdr entries are not supported
+      by the Hurd's glib
+    < azeem_> c
+    < pinotree> haha, socket credentials, which we don't support yet
+    < azeem_> yep
+    < pinotree> youpi: ↑ another case ;)
+    < azeem_> arethusa: just implement those and it should work
+    < kilobug> in pflocal ? or glibc ?
+    < pinotree> pflocal
+    < arethusa> azeem_: hmm, okay, thanks
+    < pinotree> arethusa: their lack is a known issue, and makes things like
+      dbus and gamin not work
+    < arethusa> it's
+      https://www.gnu.org/software/hurd/open_issues/sendmsg_scm_creds.html and
+      related links I assume?
+
+[[sendmsg_scm_creds]]
+
+    < youpi> yes
+    < pinotree> (but that patch is lame)

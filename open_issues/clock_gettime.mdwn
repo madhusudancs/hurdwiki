@@ -12,8 +12,30 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_glibc open_issue_gnumach]]
 
-Missing clock_gettime(CLOCK_MONOTONIC) (e.g. for iceweasel)
+Missing `clock_gettime(CLOCK_MONOTONIC)` (e.g. for iceweasel)
 
-It could be a mere matter of extending the mappable clock: add it to mapped_time_value_t in gnumach, handle it in gnumach/kern/mach_clock.c, and make clock_gettime use it.
+It could be a mere matter of extending the mappable clock: add it to
+`mapped_time_value_t` in gnumach, handle it in `gnumach/kern/mach_clock.c`, and
+make `clock_gettime` use it.
 
-BTW, also make gettimeofday() use it, since it's way more efficient and some applications assume that it is.
+BTW, also make `gettimeofday()` use it, since it's way more efficient and some
+applications assume that it is.
+
+What about adding a nanosecond-precision clock, too?  --[[tschwinge]]
+
+IRC, freenode, #hurd, 2011-08-26:
+
+    < pinotree> youpi: thing is: apparently i found a simple way to have a
+      monotonic clock as mmap-able device inside gnumach
+    < pinotree> currently, in kern/mach_clock.c there's a variable 'time',
+      which gets increased on clock interrupt, and optionally modified by
+      host_set_time
+    < pinotree> ()
+    < pinotree> if i add a new variable next to it, only increasing it on
+      interrupt but not modifying it at all otherwise, would that give me a
+      monotonic clock?
+    < pinotree> at least on sme basic tests i did, it seems it could work that
+      way
+    < youpi> yes, it should work
+    < braunr> sure
+    < youpi> and that's the way I was considering implementing it
