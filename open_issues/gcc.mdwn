@@ -64,11 +64,15 @@ testsuite.
 
         Looks OK.
 
+      * fe5ef4a01870545d0344e670cd528ad096ebab1d
+
+        OK.
+
 
 # Configuration
 
-Last reviewed up to the [[Git mirror's 6678cb4ef6c7d8d9232249b5d722a0d6dfd328b5
-(2011-07-22) sources|source_repositories/gcc]].
+Last reviewed up to the [[Git mirror's 3d83581faf4eaf52c1cf52cc0d11cc7dd1264275
+(2011-09-05) sources|source_repositories/gcc]].
 
 <http://gcc.gnu.org/install/configure.html> has documentation for the
 `configure` switches.
@@ -95,7 +99,7 @@ Last reviewed up to the [[Git mirror's 6678cb4ef6c7d8d9232249b5d722a0d6dfd328b5
   * [[`libmudflap`|libmudflap]].
 
   * Might [`-fsplit-stack`](http://nickclifton.livejournal.com/6889.html) be
-    worthwhile w.r.t. our multithreaded libraries?
+    worthwhile w.r.t. our [[multithreaded|multithreading]] libraries?
 
       * Also see `libgcc/config/i386/morestack.S`: comments w.r.t
         `TARGET_THREAD_SPLIT_STACK_OFFSET`; likely needs porting.
@@ -124,8 +128,6 @@ Last reviewed up to the [[Git mirror's 6678cb4ef6c7d8d9232249b5d722a0d6dfd328b5
   * `--enable-werror`
 
   * `--enable-checking`
-
-  * `--enable-build-with-cxx`
 
   * `--enable-linker-build-id`
 
@@ -173,26 +175,22 @@ Last reviewed up to the [[Git mirror's 6678cb4ef6c7d8d9232249b5d722a0d6dfd328b5
 
 # Build
 
-  * Waiting: ef3c41c78d877ac478ddaac3942243f9bd0844f3 switches to g++.
-
 Here's a log of a GCC build run; this is from our [[Git repository's
-09ba3e78c07654e08c8bef82761dbbb26d3c00c9 (2011-07-18)
+93608b32ee627438dbe8a1844254bf8c305c5dc1 (2011-09-05)
 sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
     $ (cd ../master/ && contrib/gcc_update --touch)
     $ ../master/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 2>&1 | tee log_build
     [...]
-    $ LIBRARY_PATH=$(echo /usr/lib/i386*-gnu) make 2>&1 | tee log_build_
+    $ make 2>&1 | tee log_build_
     [...]
 
 Different hosts may default to different shells and compiler versions; thus
 harmonized.
 
-Setting `LIBRARY_PATH` is needed until [[!debbug 629819]] is resolved.
-
-This takes up around 2.3 GiB, and needs roughly 2.75 h on kepler.SCHWINGE, and
-11 h on coulomb.SCHWINGE.
+This takes up around 2.9 GiB, and needs roughly 2.75 h on kepler.SCHWINGE and
+13.25 h on coulomb.SCHWINGE.
 
 
 ## Analysis
@@ -250,6 +248,9 @@ This takes up around 2.3 GiB, and needs roughly 2.75 h on kepler.SCHWINGE, and
 
         -cat ../../hurd/gcc/config/i386/pmm_malloc.h > mm_malloc.h
         +cat ../../hurd/gcc/config/i386/gmm_malloc.h > mm_malloc.h
+
+    Comes from `gcc/config.gcc`: `i386/t-pmm_malloc` vs. `i386/t-gmm_malloc`
+    for `i[34567]86-*-linux*` vs. `i[34567]86-*-*`.
 
   * *libgomp*
 
@@ -345,13 +346,11 @@ This takes up around 2.3 GiB, and needs roughly 2.75 h on kepler.SCHWINGE, and
 
 # Install
 
-    $ LIBRARY_PATH=$(echo /usr/lib/i386*-gnu) make install 2>&1 | tee log_install
+    $ make install 2>&1 | tee log_install
     [...]
 
-Setting `LIBRARY_PATH` is needed until [[!debbug 629819]] is resolved.
-
-This takes up around 0.6 GiB, and needs roughly 4 min on kepler.SCHWINGE, and
-35 min on coulomb.SCHWINGE.
+This takes up around 630 MiB, and needs roughly 4 min on kepler.SCHWINGE and 35
+min on coulomb.SCHWINGE.
 
 
 ## Analysis
@@ -371,16 +370,28 @@ This takes up around 0.6 GiB, and needs roughly 4 min on kepler.SCHWINGE, and
 
 <http://gcc.gnu.org/install/test.html>
 
-    $ LIBRARY_PATH=$(echo /usr/lib/i386*-gnu) make -k check 2>&1 | tee log_check
-    [...]
-
-Setting `LIBRARY_PATH` is needed until [[!debbug 629819]] is resolved.
-
 Testing on GNU/Hurd is blocked on
 [[fork_mach_port_mod_refs_ekern_urefs_owerflow]].
 
+    $ make -k check 2>&1 | tee log_check
+    [...]
+
+This needs roughly TODO min on kepler.SCHWINGE and TODO min on
+coulomb.SCHWINGE.
+
+    $ ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && sed < hurd/master.build/gcc/TODO -e "s%\(/media/data\)\?${PWD}%[...]%g"' > open_issues/gcc/sum_linux
+    $ ssh coulomb.SCHWINGE 'cd tmp/gcc/ && sed < hurd/master.build/gcc/TODO -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > open_issues/gcc/sum_hurd
+
+Comparing the results files, [[sum_linux]] to [[sum_hurd]]:
+
+    $ diff -u -F ^Running open_issues/gcc/sum_linux open_issues/gcc/sum_hurd > open_issues/gcc/sum.diff
+
+[[open_issues/gcc/sum.diff]].
+
 
 ## Analysis
+
+TODO.
 
 
 # Specific Languages

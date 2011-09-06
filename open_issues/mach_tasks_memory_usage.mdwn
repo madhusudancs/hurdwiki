@@ -10,7 +10,7 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_documentation]]
 
-IRC, #hurd, 2011-01-06.
+IRC, freenode, #hurd, 2011-01-06
 
     <antrik> hm, odd... vmstat tells me that ~500 MiB of RAM are in use; but
       the sum of all RSS is <300 MiB... what's the rest?
@@ -98,3 +98,50 @@ IRC, #hurd, 2011-01-06.
     <kilobug> braunr: yeah for bootstrapping issues, makes sense
     <braunr> it may also depends on the pic/pie options used when building
       libraries
+
+
+IRC, freenode, #hurd, 2011-07-24
+
+    < braunr> the panic is probably due to memory shortage
+    < braunr> so as antrik suggested, use more swap
+    < antrik> gg0: you could run "vmstat 1" in another terminal to watch memory
+      usage
+    < antrik> that way we will know for sure whether it's related
+    < braunr> antrik: it's trickier than that
+    < braunr> it depends if the zones used are pageable
+    < antrik> braunr: well, if it's a zone map exhaustion, then the swap size
+      won't change anything?...
+    < braunr> antrik: in this case no, but if the zone is pageable and the
+      pager (backing anonymous memory) refuses to create memory because it
+      estimates it's full (all swap space is reserved), it will fail to
+    < braunr> too
+    < braunr> but i don't think there are much pageable zones in the kernel
+    < antrik> yes, but in that case we can see the exhaustion in vmstat :-)
+    < braunr> many*
+    < braunr> i'm not sure
+    < braunr> reserved swap space doesn't mean it's used
+    < braunr> that's one of the major changes in freebsd 4 or 5 i was
+      mentioning
+    < antrik> if it's reserved, it wouldn't show up as "free", would it?...
+    < braunr> (btw, it's also what makes anonymous memory merging so hard)
+    < braunr> yes it would
+    < braunr> well, it could, i'm not sure
+    < braunr> anonymous memory is considered as a file
+    < braunr> one big file filled with zeroes, which is the swap partition
+    < braunr> when you allocate pageable anonymous memory, a part of this
+      "file" is reserved
+    < braunr> but i don't know if the reported number if the reserved
+      (allocated) space, or used (actually containing data)
+    < braunr> is*
+    < braunr> i also suspect wired allocations can fail because of a full swap
+      (because the kernel is unable to make free pages)
+    < braunr> in this case vmstat will show it
+    < antrik> what does it matter whether there is data there or not? if it's
+      reserved, it's not free. if it behaves differently, I'd consider that a
+      serious bug
+    < braunr> maybe the original developers intended to monitor its actual
+      usage
+    < braunr> antrik: i've just checked how the free count gets updated, and it
+      looks like it is on both seqnos_memory_object_data_initialize and
+      seqnos_memory_object_data_write
+    < braunr> antrik: so i guess reserved memory is accounted for

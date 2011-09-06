@@ -40,8 +40,36 @@ IRC, OFTC, #debian-hurd, 2011-07-21.
 
 The fix thus being: link the main application with -lpthread.
 
-The same symptom appears in an odd case, for instance:
+IRC, freenode, #hurd, 2011-08-17
 
+    < youpi> i.e. openjade apparently dlopen()s modules which use pthreads, but
+      openjade itself is not liked against libpthread
+    < youpi> which means unexpectedly  loading pthreads on the fly, which is
+      not implemented
+    < youpi> (and hard to implement of course)
+    < youpi> gnu_srs: so simply tell openjade people to link it with -lpthread
+    < gnu_srs> Shuoldn't missing linking with pthread create an error when
+      building openjade then?
+    < youpi> no
+    < youpi> because it's just a module which needs pthread
+    < youpi> and that module _is_ linked with -lpthread
+    < youpi> and dlopen() loads libpthreads too due to that
+    < youpi> but that's unexpected, for the libpthread initialization stuff
+    < youpi> (and too late to fix initlaization)
+    < gnu_srs> How come that other OSes build opensp w/o problems?
+    < youpi> because there are stubs in the libc
+    < gnu_srs> Sorry for the delay: What hinders stubs to be present also in
+      the Hurd libc parts too, to cope with this problem?
+    < youpi> doing it
+    < youpi> which is hard because you need libpthread bits inside the libc
+    < youpi> making it simpler would need building libpthread at the same time
+      as libc
+
+[[packaging_libpthread]]
+
+---
+
+The same symptom appears in an odd case, for instance:
 
     buildd@hurd:~$ ldd /usr/bin/openjade
             libthreads.so.0.3 => /lib/libthreads.so.0.3 (0x0103d000)

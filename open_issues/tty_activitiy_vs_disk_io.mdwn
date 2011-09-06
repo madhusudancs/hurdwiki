@@ -1,0 +1,81 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+IRC, freenode, #hurd, 2011-07-25
+
+    < youpi> Mmm, typing something on the mach console triggers a write on the
+      disk
+    < youpi> because the /dev/console node gets updated
+    < youpi> I don't really see why
+    < youpi> (yes, just typing at the bash prompt, not even running something)
+    < youpi> typing during the sleep command (i.e. mere tty echo) doesn't
+      trigger it, however
+    < youpi> running bash's echo does trigger it
+    < braunr> during sleep, the glibc stream functions handle I/O, while with
+      bash, its readline takes care of it, right ?
+    < youpi>  /bin/echo too
+    < youpi> during sleep it's the tty process which handles I/O
+    < braunr> the write may be due to a write time update on the inode
+    < braunr> modification* time
+    < youpi> probably yes, but how so?
+    < youpi> ext2fs is only supposed to pass the thing to the console
+      translator
+    < braunr> not sure
+    < youpi> actually, ext2fs even isn't supposed to come into play when it's
+      about typing at the bash prompt
+    < youpi> once it's opened, isn't the port for /dev/console supposed to be
+      directly to the translator there?
+    < braunr> i think so
+    < youpi> (s/tty/term/ in what I said)
+    < braunr> well, it's certain
+    < youpi> so I don't see how ext2fs can be triggered to write an atime or
+      mtime
+    < braunr> what does rpctrace say ?
+    < youpi> io_read_request and io_write_request
+    < youpi> braunr: it doesn't happen at the login prompt
+    < youpi> interestingly, atime is always 3-4 secs earlier than ctime & mtime
+    < youpi> doesn't happen with dash
+    < braunr> we should implement relatime and experiment with it
+    < braunr> it shouldn't be hard
+    < youpi> well, there's noatime already
+    < youpi> but my point is that this update shouldn't happen
+    < youpi> and I believe it's the source of the i_file_acl e2fsck warning
+    < braunr> i wasn't saying that concerning this problem, it was just a
+      separate idea (noatime is more problematic than relatime)
+    < braunr> and i agree, it shouldn't happen :)
+    < youpi> ok, it's set_node_times which gets called
+
+IRC, freenode, #hurd, 2011-07-27
+
+    < antrik> BTW, I'm not sure it's still relevant; but the reason accessing
+      translators such as the console modifies the underlying node is that most
+      stat information is generally passed through
+    < antrik> (in some cases it might be unintentional though, simply using the
+      default implementation from trivfs carelessly...)
+    < youpi> I know
+    < youpi> I've seen that in the code
+    < antrik> OK
+    < youpi> it is still relevant: I still find it useless to write it on the
+      disk
+    < youpi> though w uses it to show idle time over reboot
+    < braunr> is it useful to keep the information across reboots ?
+    < youpi> for some value of "useful" for w
+    < braunr> i wonder what would break if this was entierly kept in memory
+    < youpi> nothing, probably
+    < youpi> note that it doesn't overload ext2fs so much, it just adds a write
+      every ~5s
+    < youpi> (at worse, i.e. when keeping showing text, for instance)
+    < braunr> indeed, the behaviour seems the same on linux
+    < antrik> ah... that explains why the disk doesn't spin down while IRC is
+      active... always wondered about that :-)
+    < youpi> that's not very power-saving, yes
+    < youpi> well, we might want to put /dev on ram someday
