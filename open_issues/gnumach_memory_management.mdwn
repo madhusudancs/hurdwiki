@@ -1320,3 +1320,95 @@ There is a [[!FF_project 266]][[!tag bounty]] on this task.
     < braunr> i hope it helped you learn about memory allocation, virtual
       memory, gnu mach and the hurd in general :)
     < antrik> indeed :-)
+
+
+# IRC, freenode, #hurd, 2011-09-06
+
+    [some performance testing]
+    <braunr> i'm not sure such long tests are relevant but let's assume balloc
+      is slower
+    <braunr> some tuning is needed here
+    <braunr> first, we can see that slab allocation occurs more often in balloc
+      than page allocation does in zalloc
+    <braunr> so yes, as slab allocation is slower (have you measured which part
+      actually is slow ? i guess it's the kmem_alloc call)
+    <braunr> the whole process gets a bit slower too
+    <mcsim> I used alloc_size = 4096 for zalloc
+    <braunr> i don't know what that is exactly
+    <braunr> but you can't hold 500 16 bytes buffers in a page so zalloc must
+      have had free pages around for that
+    <mcsim> I use kmem_alloc_wired
+    <braunr> if you have time, measure it, so that we know how much it accounts
+      for
+    <braunr> where are the results for dealloc ?
+    <mcsim> I can't give you result right now because internet works very
+      bad. But for first DEALLOC result are the same, exept some cases when it
+      takes balloc for more than 1000 ticks
+    <braunr> must be the transfer from the cpu layer to the slab layer
+    <mcsim> as to kmem_alloc_wired. I think zalloc uses this function too for
+      allocating objects in zone I test.
+    <braunr> mcsim: yes, but less frequently, which is why it's faster
+    <braunr> mcsim: another very important aspect that should be measured is
+      memory consumption, have you looked into that ?
+    <mcsim> I think that I made too little iterations in test SMALL
+    <mcsim> If I increase constant SMALL_TESTS will it be good enough?
+    <braunr> mcsim: i don't know, try both :)
+    <braunr> if you increase the number of iterations, balloc average time will
+      be lower than zalloc, but this doesn't remove the first long
+      initialization step on the allocated slab
+    <mcsim> SMALL_TESTS to 500, I mean
+    <braunr> i wonder if maintaining the slabs sorted through insertion sort is
+      what makes it slow
+    <mcsim> braunr: where do you sort slabs? I don't see this.
+    <braunr> mcsim: mem_cache_alloc_from_slab and its free counterpart
+    <braunr> mcsim: the mem_source stuff is useless in gnumach, you can remove
+      it and directly call the kmem_alloc/free functions
+    <mcsim> But I have to make special allocator for kernel map entries.
+    <braunr> ah right
+    <mcsim> btw. It turned out that 256 entries are not enough.
+    <braunr> that's weird
+    <braunr> i'll make a patch so that the mem_source code looks more like what
+      i have in x15 then
+    <braunr> about the results, i don't think the slab layer is that slow
+    <braunr> it's the cpu_pool_fill/drain functions that take time
+    <braunr> they preallocate many objects (64 for your objects size if i'm
+      right) at once
+    <braunr> mcsim: look at the first result page: some times, a number around
+      8000 is printed
+    <braunr> the common time (ticks, whatever) for a single object is 120
+    <braunr> 8132/120 is 67, close enough to the 64 value
+    <mcsim> I forgot about SMALL tests here are they:
+      http://paste.debian.net/128533/ (balloc) http://paste.debian.net/128534/
+      (zalloc)
+    <mcsim> braunr: why do you divide 8132 by 120?
+    <braunr> mcsim: to see if it matches my assumption that the ~8000 number
+      matches the cpu_pool_fill call
+    <mcsim> braunr: I've got it
+    <braunr> mcsim: i'd be much interested in the dealloc results if you can
+      paste them too
+    <mcsim> dealloc: http://paste.debian.net/128589/
+      http://paste.debian.net/128590/
+    <braunr> mcsim: thanks
+    <mcsim> second dealloc: http://paste.debian.net/128591/
+      http://paste.debian.net/128592/
+    <braunr> mcsim: so the main conclusion i retain from your tests is that the
+      transfers from the cpu and the slab layers are what makes the new
+      allocator a bit slower
+    <mcsim> OPERATION_SMALL dealloc: http://paste.debian.net/128593/
+      http://paste.debian.net/128594/
+    <braunr> mcsim: what needs to be measured now is global memory usage
+    <mcsim> braunr: data from /proc/vmstat after kernel compilation will be
+      enough?
+    <braunr> mcsim: let me check
+    <braunr> mcsim: no it won't do, you need to measure kernel memory usage
+    <braunr> the best moment to measure it is right after zone_gc is called
+    <mcsim> Are there any facilities in gnumach for memory measurement?
+    <braunr> it's specific to the allocators
+    <braunr> just count the number of used pages
+    <braunr> after garbage collection, there should be no free page, so this
+      should be rather simple
+    <mcsim> ok
+    <mcsim> braunr: When I measure memory usage in balloc, what formula is
+      better cache->nr_slabs * cache->bufs_per_slab * cache->buf_size or
+      cache->nr_slabs * cache->slab_size?
+    <braunr> the latter

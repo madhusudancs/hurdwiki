@@ -10,7 +10,7 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_documentation open_issue_gnumach]]
 
-IRC, freenode, #hurd, 2011-08-05
+IRC, freenode, #hurd, 2011-08-05:
 
     < neal> braunr: For instance, memory objects are great as they allow you to
       specify the mapping policy in user space.
@@ -22,3 +22,44 @@ IRC, freenode, #hurd, 2011-08-05
     < neal> I'm not sure what you mean by page cache lru appoximateion
     < braunr> the kernel eviction policy :)
     < neal> that's an implementation detail
+
+IRC, freenode, #hurd, 2011-09-05:
+
+    <braunr> mach isn't a true modern microkernel, it handles a lot of
+      resources, such as high level virtual memory and cpu time
+    <braunr> for example, the page replacement mechanism can't be implemented
+      outside the kernel
+    <braunr> yet, it provides nothing to userspace server to easily allocate
+      resources on behalf of clients
+    <braunr> so, when a thread calls an RPC, the cpu time used to run that RPC
+      is accounted on the server task
+    <braunr> the hurd uses lots of external memory managers
+
+[[external_pager_mechanism]].
+
+    <braunr> but they can't decide how to interact with the page cache
+    <braunr> the kernel handles the page cache, and initiates the requests to
+      the pagers
+    <cjuner> braunr, why can't they decide that?
+    <braunr> because it's implemented in the kernel
+    <braunr> and there is nothing provided by mach to do that some other way
+    <slpz_> braunr: you probably already know this, but the problem with client
+      requests being accounted on behalf the server, is fixed in Mach with
+      Migrating Threads
+
+[[open_issues/mach_migrating_threads]].
+
+    <braunr> slpz_: migrating threads only fix the issue for the resources
+      managed by mach, not the external servers
+    <braunr> slpz_: but it's a (imo necessary) step to completely solve the
+      issue
+    <braunr> in addition to being a great feature for performance (lighter
+      context switchers, less state to track)
+    <braunr> it also helps priority inversion problems
+    <slpz_> braunr: I was referring just to cpu-time, but I agree with you an
+      interface change is needed for external pagers
+    <braunr> slpz_: servers in general, not necessarily pagers
+    <slpz_> as a way to mitigate the effect of Mach paging out to external
+      pagers, the folks at OSF implemented an "advisory pageout", so servers
+      are "warned" that they should start paging out, and can decide which
+      pages are going to be flushed by themselves
