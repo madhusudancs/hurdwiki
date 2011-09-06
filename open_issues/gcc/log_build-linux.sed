@@ -6,4 +6,4 @@ s%-Werror -ftls-model=initial-exec -march=i486 -pthread -mtune=i686%-pthread -We
 s%libgomp/config/linux/%libgomp/config/[SYSDEP]/%g
 s%libgomp/config/posix/%libgomp/config/[SYSDEP]/%g
 
-s%/usr/lib/i386-linux-gnu%[SYSTEM_MULTILIB]%g
+s%/i386-linux-gnu%/[ARCH]%g
