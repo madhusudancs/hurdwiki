@@ -39,7 +39,7 @@ Last reviewed up to the [[Git mirror's 9f94d2ea71aaf73f964f8c1de5da85df94ef25bb
   * t/init-first.c
 
     Have to revert 53b56b1101fc9bb4f295f23f54e7e19f8da8da16 to keep it working
-    with GCC 4.4.  Figure out what's going on.
+    with GCC 4.4.  Figure out what's going on.  Also see [[glibc_init_first]].
 
   * t/tls
 
@@ -176,7 +176,8 @@ Last reviewed up to the [[Git mirror's 9f94d2ea71aaf73f964f8c1de5da85df94ef25bb
       * 451f001b50870604e1f2daef12f04f9f460d3997 +
         a85b5cb4d4a5fc56e2b38638d270bf2daa67eb6c -- BZ10484.  `nptl/Versions
         [libc] (GLIBC_PRIVATE): Export __libc_alloca_cutoff`.  We don't even
-        define it yet.
+        define it yet.  Also see
+        [[glibc___libc_alloca_cutoff_should_be_lowered]].
       * 1086d70d916fd0eb969b3d89ff88abd35f6a5c34
       * cfa28e560ef69372b9e15e9a2d924a0fbcfc7bca
       * 8cf8ce1702c354a8266e3cfa6ab54c2467d1873f
@@ -264,8 +265,6 @@ Comparing the results files, [[sum_linux]] to [[sum_hurd]]:
 
 ## Analysis
 
-This is from *2010-04* sources.
-
 There is quite a baseline of failures.
 
 ### Additional Failures Compared to Debian
@@ -279,18 +278,6 @@ There is quite a baseline of failures.
 
         dlopen failed: libstdc++.so.6: cannot open shared object file: No such file or directory
 
-  * `posix/bug-ga1`
-
-        *** glibc detected *** /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/posix/bug-ga1: free(): invalid pointer: 0x01026000 ***
-
-  * `elf/circleload1`, `elf/loadtest`, `elf/neededtest`, `elf/neededtest2`,
-    `elf/neededtest3`, `elf/neededtest4`, `elf/unload`, `elf/unload2`
-
-        /usr/bin/ld: ^Q: invalid DSO for symbol `_r_debug@@GLIBC_2.2.6' definition
-        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/elf/ld.so.1: could not read symbols: Bad value
-        collect2: ld returned 1 exit status
-        make[2]: *** [/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/elf/circleload1] Error 1
-
   * `io/ftwtest`, `posix/globtest`, `iconvdata/iconv-test`, `intl/tst-gettext`,
     `malloc/tst-mtrace`, `elf/tst-pathopt`, `iconvdata/tst-tables`,
     `grp/tst_fgetgrent`, `dlfcn/tststatic`, `dlfcn/tststatic2`,
@@ -299,13 +286,6 @@ There is quite a baseline of failures.
         /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/io/ftwtest: error while loading shared libraries: libmachuser.so.1: cannot open shared object file: No such file or directory
 
     Should be using the build-directory one anyway!
-
-  * `elf/noload`
-
-        /usr/bin/ld: ^R: invalid DSO for symbol `dlclose@@GLIBC_2.2.6' definition
-        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/dlfcn/libdl.so.2: could not read symbols: Bad value
-        collect2: ld returned 1 exit status
-        make[2]: *** [/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/elf/noload] Error 1
 
   * `math/test-idouble`, `math/test-ifloat`, `math/test-ildoubl`,
     `math/test-ldouble`
@@ -326,7 +306,8 @@ There is quite a baseline of failures.
         make[2]: *** [/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/rt/tst-aio10] Error 1
 
   * `rt-tst-aio2`, `rt-tst-aio3`, `rt/tst-mqueue3`, `rt/tst-mqueue6`,
-    `rt/tst-mqueue8`, `elf/tst-thrlock`, `rt/tst-timer3`
+    `rt/tst-mqueue8`, `elf/tst-thrlock`, `rt/tst-timer3`,
+    `nss//libnss_test1.so`
 
     Compilation: missing `pthread_attr_init`, `pthread_barrier_init`,
     `pthread_create`, etc.
@@ -338,11 +319,6 @@ There is quite a baseline of failures.
   * `inet/tst-ether_line`
 
         tst-ether_line.c:19: error: 'ETH_ALEN' undeclared (first use in this function)
-
-  * `posix/tst-getaddrinfo`, `posix/tst-getaddrinfo2`, `posix/tst-getaddrinfo3`
-
-        *** glibc detected *** /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/posix/tst-getaddrinfo: free(): invalid pointer: 0x01026000 ***
-        Didn't expect signal from child: got `Aborted'
 
   * `posix/tst-getconf`
 
@@ -368,19 +344,13 @@ There is quite a baseline of failures.
         tst-sysconf.c:43: error: '_POSIX_SPIN_LOCKS' undeclared here (not in a function)
         tst-sysconf.c:45: error: '_POSIX_SYNCHRONIZED_IO' undeclared here (not in a function)
 
-  * `elf/tst-tls1`, `elf/tst-tls2`, `elf/tst-tls3`
+  * `posix/bug-regex31-mem`, `posix/tst-fnmatch-mem`
 
-        /usr/bin/ld: ^R: invalid DSO for symbol `___tls_get_addr@@GLIBC_2.3' definition
-        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/elf/ld.so.1: could not read symbols: Bad value
-        collect2: ld returned 1 exit status
-        make[2]: *** [/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/elf/tst-tls3] Error 1
+    *output* files: some memory not freed.
 
-  * `elf/tst-tls10`, `elf/tst-tls11`, `elf/tst-tls12`
+  * `string/test-strnlen`
 
-        /usr/bin/ld: ^O: invalid DSO for symbol `f6a' definition
-        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/elf/tst-tlsmod7.so: could not read symbols: Bad value
-        collect2: ld returned 1 exit status
-        make[2]: *** [/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/elf/tst-tls10] Error 1
+        /media/erich/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker/string/test-strnlen.c:87: undefined reference to `MIN'
 
 
 ## OLD
