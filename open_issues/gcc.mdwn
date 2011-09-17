@@ -172,6 +172,40 @@ Last reviewed up to the [[Git mirror's 3d83581faf4eaf52c1cf52cc0d11cc7dd1264275
 
     `check_effective_target_pie` should include `*-*-gnu*`, too.
 
+  * [low] [[toolchain/cross-gnu]] toolchain bootstrap vs. `fenv.h` in libgcc's
+    libbid:
+
+        [...]/xgcc [...] -DIN_LIBGCC2 -fbuilding-libgcc [...] -Dinhibit_libc [...] -o bid_decimal_globals.o [...] -c [...]/libgcc/config/libbid/bid_decimal_globals.c
+        [...]/libgcc/config/libbid/bid_decimal_globals.c:47:18: fatal error: fenv.h: No such file or directory
+        compilation terminated.
+        make[1]: *** [bid_decimal_globals.o] Error 1
+        make[1]: Leaving directory `/media/boole-data/thomas/tmp/gnu-0/src/gcc.obj/i686-pc-gnu/libgcc'
+        make: *** [all-target-libgcc] Error 2
+
+    See threads at
+    *id:"AANLkTinY1Cd4_qO_9euYJN8zev4hdr7_ANpjNG+yGRMn@mail.gmail.com"*,
+    *id:"20110328225532.GE5293@synopsys.com"*,
+    *id:"4D52D522.1040804@gmail.com"*.  Can simply configure the first GCC with
+    `--disable-decimal-float`.
+
+    Alternatively, can we use `#ifndef inhibit_libc` for this (these?) file(s)?
+    See `generic-nonstrack.c`, for example.  The latter (and also
+    `generic-morestack-thread.c`) also has a nice explanation of `inhibit_libc`
+    which could be centralized at one place, for example definition of
+    `inhibit_libc`.
+
+  * [low] [[toolchain/cross-gnu]]
+
+        The directory that should contain system headers does not exist:
+          /media/boole-data/thomas/tmp/gnu-0/sys_root/usr/include
+        make[2]: *** [stmp-fixinc] Error 1
+        make[2]: Leaving directory `/media/boole-data/thomas/tmp/gnu-0/src/gcc.obj/gcc'
+        make[1]: *** [all-gcc] Error 2
+        make[1]: Leaving directory `/media/boole-data/thomas/tmp/gnu-0/src/gcc.obj'
+
+    `mkdir` the directory for now, but what is really going on?  GCC has *use
+    `/usr/include` patch*, but glibc still installs into `/include/`?
+
 
 # Build
 
