@@ -1,0 +1,477 @@
+[[!meta copyright="Copyright © 2007, 2008, 2010, 2011 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_glibc]]
+
+Here's what's to be done for maintaining glibc.
+
+[[!toc levels=2]]
+
+
+# [[General information|/glibc]]
+
+
+# [[Sources|source_repositories/glibc]]
+
+
+# [[Debian]] Cheat Sheet
+
+
+# Configuration
+
+Last reviewed up to the [[Git mirror's 9f94d2ea71aaf73f964f8c1de5da85df94ef25bb
+(2011-01-19) sources|source_repositories/glibc]].
+
+  * t/dup3
+
+    [[tschwinge]] is not convinced that
+    22542dcc89805af8d9bd9209129259d2737372b5 (and then also
+    ff3f3a789ba08b656dbaa3901091b6410bb883f8) are correct.
+
+  * t/init-first.c
+
+    Have to revert 53b56b1101fc9bb4f295f23f54e7e19f8da8da16 to keep it working
+    with GCC 4.4.  Figure out what's going on.
+
+  * t/tls
+
+      * Discuss d2431f633e6139a62e1575ec18830f7e81160cf0 with Samuel.
+
+      * `TLS_INIT_TP_EXPENSIVE` is unused; Hurd def. can be removed.
+
+  * [[toolchain/cross-gnu]], without `--disable-multi-arch`
+
+        i686-pc-gnu-gcc ../sysdeps/i386/i686/multiarch/strcmp.S -c [...]
+        ../sysdeps/i386/i686/multiarch/../strcmp.S: Assembler messages:
+        ../sysdeps/i386/i686/multiarch/../strcmp.S:31: Error: symbol `strcmp' is already defined
+        make[2]: *** [/media/boole-data/thomas/tmp/gnu-0/src/glibc.obj/string/strcmp.o] Error 1
+        make[2]: Leaving directory `/media/boole-data/thomas/tmp/gnu-0/src/glibc/string'
+
+    Might simply be a missing patch(es) from master.
+
+  * --build=X
+
+    `long double` test: due to `cross_compiling = maybe` wants to execute a
+    file, which fails.  Thus `--build=X` has to be set.
+
+  * Check what all these are:
+
+        running configure fragment for sysdeps/mach/hurd
+        checking Hurd header version... ok
+        running configure fragment for sysdeps/mach
+        checking for i586-pc-gnu-mig... i586-pc-gnu-mig
+        checking for mach/mach_types.h... yes
+        checking for mach/mach_types.defs... yes
+        checking for task_t in mach/mach_types.h... task_t
+        checking for thread_t in mach/mach_types.h... thread_t
+        checking for creation_time in task_basic_info... yes
+        checking for mach/mach.defs... yes
+        checking for mach/mach4.defs... yes
+        checking for mach/clock.defs... no
+        checking for mach/clock_priv.defs... no
+        checking for mach/host_priv.defs... no
+        checking for mach/host_security.defs... no
+        checking for mach/ledger.defs... no
+        checking for mach/lock_set.defs... no
+        checking for mach/processor.defs... no
+        checking for mach/processor_set.defs... no
+        checking for mach/task.defs... no
+        checking for mach/thread_act.defs... no
+        checking for mach/vm_map.defs... no
+        checking for mach/memory_object.defs... yes
+        checking for mach/memory_object_default.defs... yes
+        checking for mach/default_pager.defs... yes
+        checking for mach/i386/mach_i386.defs... yes
+        checking for egrep... grep -E
+        checking for host_page_size in mach_host.defs... no
+        checking for mach/machine/ndr_def.h... no
+        checking for machine/ndr_def.h... no
+        checking for i386_io_perm_modify in mach_i386.defs... yes
+        checking for i386_set_gdt in mach_i386.defs... yes
+        checking whether i586-pc-gnu-mig supports the retcode keyword... yes
+
+  * `make` has rebuilt `configure`, then:
+
+        -checking whether ranlib is necessary... no
+        +checking whether ranlib is necessary... yes
+
+    Very likely due to (improper) caching.  But ranlib will be removed in a
+    later sourceware master commit.
+
+  * `elf/stackguard-macros.h`
+
+  * Verify 77c84aeb81808c3109665949448dba59965c391e against
+    `~/shared/glibc/make_TAGS.patch`.
+
+  * `HP_SMALL_TIMING_AVAIL` not defined anywhere.
+
+  * Unify `CPUCLOCK_WHICH` stuff in `clock_*` files.
+
+  * Not all tests are re-run in a `make -k tests; make tests-clean; make -k
+    tests` cycle.
+
+  * `CPUCLOCK_WHICH`, `t/cpuclock`
+
+        /media/boole-data/thomas/tmp/gnu-0/src/glibc.obj/rt/librt_pic.a(clock_settime.os): In function `clock_settime':
+        /media/boole-data/thomas/tmp/gnu-0/src/glibc/rt/../sysdeps/unix/clock_settime.c:113: undefined reference to `CPUCLOCK_WHICH'
+        /media/boole-data/thomas/tmp/gnu-0/src/glibc/rt/../sysdeps/unix/clock_settime.c:114: undefined reference to `CPUCLOCK_WHICH'
+        collect2: error: ld returned 1 exit status
+        make[2]: *** [/media/boole-data/thomas/tmp/gnu-0/src/glibc.obj/rt/librt.so] Error 1
+        make[2]: Leaving directory `/media/boole-data/thomas/tmp/gnu-0/src/glibc/rt'
+        make[1]: *** [rt/others] Error 2
+        make[1]: Leaving directory `/media/boole-data/thomas/tmp/gnu-0/src/glibc'
+        make: *** [all] Error 2
+
+  * verify baseline changes, if we need any follow-up changes
+
+      * a11ec63713ea3903c482dc907a108be404191a02
+      * 7e2b0c8562b35155820f87b5ff02a8b6850344cc
+      * 8c0677fe5d91b7269364ca08fa08ed09e4c2d8c9
+      * 5a2a1d75043138e696222ced4560de2fb90b8024
+      * 5ae958d74180e2572d198bd7872c86f391de6da7
+      * 5b08ac571ff8e94fe96511a532f0d20997de5f52
+      * 3d04ff3a5d3ce3616837e1d15e03b6e1b360cf26
+      * b2ef2c014b9c66995a3eb4f310ae7c5c510279bf
+      * 63c4ed22b5048c8701d8806026c23cc95f0df756
+      * ac2b484c02b01307ab6bbe5d45ddbf16d64edf8c
+      * e35fcef8b739ed24e083ff8a3078ac14e101cf67
+      * 6fb8cbcb58a29fff73eb2101b34caa19a7f88eba
+      * 8a492a675e566dc1e666df0a86cbf541442cb179
+      * 5dbc3b6cc0b759bf4b22d851ccb9cbf3e3cbc6ef
+      * c86434ccb576a3ce35b5a74f72b9f03bd45b522a
+      * d22e4cc9397ed41534c9422d0b0ffef8c77bfa53
+      * 15bac72bac03faeb3b725b1d208c62160f0c3ad7
+      * c08fb0d7bba4015078406b28d3906ccc5fda9d5a
+      * 10b3bedcb03386cc280113f552479793e4bac35f
+      * 754f7da38b0904b4b989d3500cc8dd5be625cf6a
+      * 3cdaa6adb113a088fdfb87aa6d7747557eccc58d
+      * 962dba7828cf251a9025ccb43bc6effa30379b72
+      * 3162f12e58c3a848db883916843b332b9f8c9d39
+      * 1c06ba3100847da6bd1f2e011dc24fa8debd9615
+      * 84b9230c404aed4fd3a7bb3d045ca367043dde8c
+      * 090555538d4347a52807ba9f08cf20ed13206afe
+      * 817328eea788c746131cf151b64fd250200da333
+      * c3758feebf7c8786231465da664743c6f0ec79cc
+      * 1ac7a2c7b448c851eb8976fcc290a906a4075203
+      * c21cc9bcb38a87ff638d1099ca871d94a2192b31
+      * 6484ba5ef092b62b7d2112c0d976dbd6d1a40fde
+      * b8b4863d78bf26b39918fc753b03ed98ef262903
+      * b76b818e6fe2061e778b3a9bbe63c554c3f9b3c1
+      * 8e9f92e9d5d7737afdacf79b76d98c4c42980508 -- `_dl_map_object` in
+        `sysdeps/mach/hurd/dl-sysdep.c`
+      * 0e516e0e14f2f9783a21cd1727bc53776341f857
+      * a1fb5e3ebe9d38b5ae6c5bfbfaa04882d52355bc
+      * cf7c9078a5acdbb435498ace92cd81009637a971
+      * db753e2cfb2051ebf20dc089f87c5b1297cc2cff
+      * 4a531bb0b3b582cb693de9f76d2d97d970f9a5d5 -- looks good.
+      * 5bd6dc5c2c68fe98691db9b40f87d9b68ea9565b
+      * 451f001b50870604e1f2daef12f04f9f460d3997 +
+        a85b5cb4d4a5fc56e2b38638d270bf2daa67eb6c -- BZ10484.  `nptl/Versions
+        [libc] (GLIBC_PRIVATE): Export __libc_alloca_cutoff`.  We don't even
+        define it yet.
+      * 1086d70d916fd0eb969b3d89ff88abd35f6a5c34
+      * cfa28e560ef69372b9e15e9a2d924a0fbcfc7bca
+      * 8cf8ce1702c354a8266e3cfa6ab54c2467d1873f
+      * 68dc949774cb651d53541df4abdc60327f7e096b
+      * 70181fddf1467996bea393d13294ffe76b8a0853
+      * a77e8cbc394ab098aa1fc3f0a6645a38348d21ca
+      * 32465c3ea007065acd8ca8199f130cdf4068130d
+      * 18ba70a559c52719fd94a713cc380514d9d19125
+      * 620a05296fe3380b7441ba7720e8b25c48a8c28c
+
+
+# Build
+
+Here's a log of a glibc build run; this is from our [[Git repository's
+d1517b24ef07438a09baf9fd512cc9defabbba2d (2011-09-17; 2011-01-19)
+sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
+
+    $ export LC_ALL=C
+    $ ../Roger_Whittaker/configure --without-cvs --prefix=/usr --disable-profile --disable-multi-arch --build=i486-gnu --host=i486-gnu CC=gcc-4.4 CXX=g++-4.4 2>&1 | tee log_build
+    [...]
+    $ make 2>&1 | tee log_build_
+    [...]
+
+This takes up around 400 MiB and needs roughly TODO min on coulomb.SCHWINGE.
+
+<!--
+    $ (make && touch .go-check) 2>&1 | tee log_build_ && test -f .go-check && make -k check 2>&1 | tee log_check
+    $ find ./ -name \*.o -o -name \*.os -o -name \*.oS | while read f; do ~/tmp/gcc/git/contrib/compare-debug --preserve ../Roger_Whittaker.build-gcc-4.4-486.O/"$f" "$f"; done 2>&1 | less 
+    $ while read f; do (readelf -a "$f" && objdump -xDrtw "$f") > N && (cd ../Roger_Whittaker.build-gcc-4.4-486.O/ && readelf -a "$f" && objdump -xDrtw "$f") > O && diff -u O N | less; done
+    $ find ./ -name \*.o -o -name \*.os -o -name \*.oS | while read f; do readelf -h "$f" | grep OS/ABI | (read a b && [ x"$b" != x'UNIX - System V' ] && echo "### $f: $b"); done
+
+-->
+
+
+## Analysis
+
+TODO.
+
+
+# Install
+
+TODO.
+
+<!--
+    $ make install 2>&1 | tee log_install
+    [...]
+
+This takes up around 50 MiB, and needs roughly 1 min on kepler.SCHWINGE and 3
+min on coulomb.SCHWINGE.
+-->
+
+
+## Analysis
+
+TODO.
+
+<!--
+    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gdb/ && cat hurd/master.build/log_install | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' | sed -f open_issues/gdb/log_install-linux.sed) <(ssh coulomb.SCHWINGE 'cd tmp/gdb/ && cat hurd/master.build/log_install | sed "s%\(/media/erich\)\?${PWD}%[...]%g"' | sed -f open_issues/gdb/log_install-hurd.sed) > open_issues/gdb/log_install.diff
+
+[[log_install.diff]].
+
+  * `libtool: finish`: `ldconfig` is not run for the Hurd.
+
+-->
+
+
+# Testsuite
+
+    $ make -k check 2>&1 | tee log_check
+    [...]
+
+This needs roughly 50 min on coulomb.SCHWINGE.
+
+<!--
+    $ ssh kepler.SCHWINGE 'cd tmp/source/gdb/ && sed < hurd/master.build/gdb/testsuite/gdb.sum -e "s%\(/media/data\)\?${PWD}%[...]%g"' > open_issues/gdb/sum_linux
+    $ ssh coulomb.SCHWINGE 'cd tmp/gdb/ && sed < hurd/master.build/gdb/testsuite/gdb.sum -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > open_issues/gdb/sum_hurd
+
+Comparing the results files, [[sum_linux]] to [[sum_hurd]]:
+
+    $ diff -u -F ^Running open_issues/gdb/sum_linux open_issues/gdb/sum_hurd > open_issues/gdb/sum.diff
+
+[[open_issues/gdb/sum.diff]].
+-->
+
+
+## Analysis
+
+This is from *2010-04* sources.
+
+There is quite a baseline of failures.
+
+### Additional Failures Compared to Debian
+
+    $ bash ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/convertlog.sh log_check  > log_check.filtered
+    $ bash ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/compare.sh ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/expected-results-i486-gnu-libc log_check.filtered
+
+  * `bug-atexit3.out`, `debug/tst-chk4`, `debug/tst-lfschk4`,
+    `debug/tst-lfschk5`, `debug/tst-lfschk6`, `debug/tst-chk5`,
+    `debug/tst-chk6`
+
+        dlopen failed: libstdc++.so.6: cannot open shared object file: No such file or directory
+
+  * `posix/bug-ga1`
+
+        *** glibc detected *** /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/posix/bug-ga1: free(): invalid pointer: 0x01026000 ***
+
+  * `elf/circleload1`, `elf/loadtest`, `elf/neededtest`, `elf/neededtest2`,
+    `elf/neededtest3`, `elf/neededtest4`, `elf/unload`, `elf/unload2`
+
+        /usr/bin/ld: ^Q: invalid DSO for symbol `_r_debug@@GLIBC_2.2.6' definition
+        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/elf/ld.so.1: could not read symbols: Bad value
+        collect2: ld returned 1 exit status
+        make[2]: *** [/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/elf/circleload1] Error 1
+
+  * `io/ftwtest`, `posix/globtest`, `iconvdata/iconv-test`, `intl/tst-gettext`,
+    `malloc/tst-mtrace`, `elf/tst-pathopt`, `iconvdata/tst-tables`,
+    `grp/tst_fgetgrent`, `dlfcn/tststatic`, `dlfcn/tststatic2`,
+    `posix/wordexp-tst`
+
+        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/io/ftwtest: error while loading shared libraries: libmachuser.so.1: cannot open shared object file: No such file or directory
+
+    Should be using the build-directory one anyway!
+
+  * `elf/noload`
+
+        /usr/bin/ld: ^R: invalid DSO for symbol `dlclose@@GLIBC_2.2.6' definition
+        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/dlfcn/libdl.so.2: could not read symbols: Bad value
+        collect2: ld returned 1 exit status
+        make[2]: *** [/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/elf/noload] Error 1
+
+  * `math/test-idouble`, `math/test-ifloat`, `math/test-ildoubl`,
+    `math/test-ldouble`
+
+    SIGSEGV.
+
+  * `rt/tst-aio10`, `rt/tst-aio9`
+
+        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/rt/tst-aio10.o: In function `do_test':
+        tst-aio10.c:(.text+0x1b): undefined reference to `pthread_self'
+        tst-aio10.c:(.text+0x78): undefined reference to `pthread_barrier_init'
+        tst-aio10.c:(.text+0xf7): undefined reference to `pthread_create'
+        tst-aio10.c:(.text+0x10b): undefined reference to `pthread_barrier_wait'
+        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/rt/tst-aio10.o: In function `tf':
+        tst-aio10.c:(.text+0x5ae): undefined reference to `pthread_barrier_wait'
+        tst-aio10.c:(.text+0x5ef): undefined reference to `pthread_kill'
+        collect2: ld returned 1 exit status
+        make[2]: *** [/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/rt/tst-aio10] Error 1
+
+  * `rt-tst-aio2`, `rt-tst-aio3`, `rt/tst-mqueue3`, `rt/tst-mqueue6`,
+    `rt/tst-mqueue8`, `elf/tst-thrlock`, `rt/tst-timer3`
+
+    Compilation: missing `pthread_attr_init`, `pthread_barrier_init`,
+    `pthread_create`, etc.
+
+  * `elf/tst-audit1`, `elf/tst-audit2`
+
+    SIGKILL.
+
+  * `inet/tst-ether_line`
+
+        tst-ether_line.c:19: error: 'ETH_ALEN' undeclared (first use in this function)
+
+  * `posix/tst-getaddrinfo`, `posix/tst-getaddrinfo2`, `posix/tst-getaddrinfo3`
+
+        *** glibc detected *** /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/posix/tst-getaddrinfo: free(): invalid pointer: 0x01026000 ***
+        Didn't expect signal from child: got `Aborted'
+
+  * `posix/tst-getconf`
+
+        /bin/sh -e tst-getconf.sh /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/ /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/elf/ ld.so.1
+        make[2]: *** [/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/posix/tst-getconf.out] Error 127
+
+  * `time/tst-mktime2`
+
+        tst-mktime2.c:132: error: 'INT_MAX' undeclared (first use in this function)
+
+  * `io/tst-readlinkat`
+
+        /media/erich/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker/io/tst-readlinkat.c:109: warning: warning: readlinkat is not implemented and will always fail
+
+  * `gmon/tst-sprofil`
+
+        Floating point exception
+
+  * `posix/tst-sysconf`
+
+        tst-sysconf.c:32: error: '_POSIX_PRIORITIZED_IO' undeclared here (not in a function)
+        tst-sysconf.c:33: error: '_POSIX_PRIORITY_SCHEDULING' undeclared here (not in a function)
+        tst-sysconf.c:43: error: '_POSIX_SPIN_LOCKS' undeclared here (not in a function)
+        tst-sysconf.c:45: error: '_POSIX_SYNCHRONIZED_IO' undeclared here (not in a function)
+
+  * `elf/tst-tls1`, `elf/tst-tls2`, `elf/tst-tls3`
+
+        /usr/bin/ld: ^R: invalid DSO for symbol `___tls_get_addr@@GLIBC_2.3' definition
+        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/elf/ld.so.1: could not read symbols: Bad value
+        collect2: ld returned 1 exit status
+        make[2]: *** [/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/elf/tst-tls3] Error 1
+
+  * `elf/tst-tls10`, `elf/tst-tls11`, `elf/tst-tls12`
+
+        /usr/bin/ld: ^O: invalid DSO for symbol `f6a' definition
+        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/elf/tst-tlsmod7.so: could not read symbols: Bad value
+        collect2: ld returned 1 exit status
+        make[2]: *** [/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/elf/tst-tls10] Error 1
+
+
+## OLD
+
+`configure --without-cvs --prefix= --disable-profile --build=i486-gnu
+--host=i486-gnu`
+
+`make -k check` changes from 538603af899057a9ef9583cc447804ec602a45e5 to
+c9fd33ef070def49c078c94f8d9bc9f8a8e267f7.
+
+Configured with `--prefix=/usr` instead of `--prefix=`.
+
+Resolved failures:
+
+  * localedata/tst_mblen.out
+  * localedata/tst_mbrlen.out
+  * localedata/tst_mbrtowc.out
+  * localedata/tst_mbsrtowcs.out
+  * localedata/tst_mbstowcs.out
+  * localedata/tst_mbtowc.out
+  * localedata/tst_swscanf.out
+  * localedata/tst_wcrtomb.out
+  * localedata/tst_wcsrtombs.out
+  * localedata/tst_wcstombs.out
+  * localedata/tst_wctob.out
+  * localedata/tst_wctomb.out
+  * localedata/bug-iconv-trans.out
+  * localedata/tst-wctype.out
+  * math/test-float.out
+  * math/test-double.out
+  * posix/tst-vfork3-mem
+  * io/tst-mkdirat.out
+
+New:
+
+  * A lot of `error while loading shared libraries: libmachuser.so.1: cannot
+    open shared object file: No such file or directory`.  Is it perhaps picking
+    that library up from `$prefix/lib/`?
+
+    New failures; likely due to that:
+
+      * iconvdata/iconv-test.out
+      * iconvdata/tst-tables.out
+      * malloc/tst-mtrace.out
+      * grp/tst_fgetgrent.out
+      * posix/globtest.out
+      * posix/wordexp-tst.out
+      * io/ftwtest.out
+      * elf/tst-pathopt.out
+
+    Changed failures; likely due to that:
+
+      * debug/tst-chk4.out / debug/tst-chk5.out
+
+            -error while loading shared libraries: libstdc++.so.6: cannot open shared object file: No such file or directory
+            +error while loading shared libraries: libpthread-stubs.so.0: cannot open shared object file: No such file or directory
+
+---
+
+Changes to b367d4f996512af6841c3cefdb943cb0a826a6a1: nothing interesting.
+
+---
+
+Changes to b85c54a1f7e5241c1ef99dfeaecbd1bf4117564f: nothing interesting.
+
+New failures:
+
+  * posix/bug-glob3.out (SEGFAULT; but also on Linux)
+  * wctype/bug-wctypeh.o (compile error; but also on Linux)
+
+Other things noticed:
+
+  * Running `make -k check` for the second time:
+
+        -i486-gnu-gcc tst-timer2.c -c -std=gnu99 -fgnu89-inline -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -g -Wno-parentheses -Wstrict-prototypes -mpreferred-stack-boundary=2     -I../include -I/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/rt -I/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build -I../sysdeps/i386/elf -I../sysdeps/mach/hurd/i386 -I../sysdeps/mach/hurd -I../sysdeps/gnu -I../sysdeps/unix/bsd/bsd4.4 -I../sysdeps/unix/mman -I../sysdeps/mach/i386 -I../sysdeps/mach -I../sysdeps/i386/i486 -I../sysdeps/i386/fpu -I../sysdeps/i386 -I../sysdeps/wordsize-32 -I../sysdeps/ieee754/ldbl-96 -I../sysdeps/ieee754/dbl-64 -I../sysdeps/ieee754/flt-32 -I../sysdeps/unix/bsd -I../sysdeps/unix/common -I../sysdeps/unix/inet -I../sysdeps/unix -I../sysdeps/posix -I../sysdeps/ieee754 -I../sysdeps/generic/elf -I../sysdeps/generic -I../hurd -I/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/hurd/ -I../mach -I/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/mach/ -I.. -I../libio -I.  -D_LIBC_REENTRANT -include ../include/libc-symbols.h   -DNOT_IN_libc=1    -o /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/rt/tst-timer2.o -MD -MP -MF /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/rt/tst-timer2.o.dt -MT /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/rt/tst-timer2.o
+        -tst-timer2.c: In function ‘do_test’:
+        -tst-timer2.c:33: error: ‘SIGRTMIN’ undeclared (first use in this function)
+        -tst-timer2.c:33: error: (Each undeclared identifier is reported only once
+        -tst-timer2.c:33: error: for each function it appears in.)
+        -make[2]: *** [/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/rt/tst-timer2.o] Error 1
+        +/usr/bin/install -c -m 644 ../include/pthread.h /usr/include/pthread.h
+        +/usr/bin/install: cannot remove `/usr/include/pthread.h': Permission denied
+        +make[2]: *** [/usr/include/pthread.h] Error 1
+
+        -i486-gnu-gcc tst-thrlock.c -c -std=gnu99 -fgnu89-inline -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -g -Wno-parentheses -Wstrict-prototypes -mpreferred-stack-boundary=2     -I../include -I/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf -I/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build -I../sysdeps/i386/elf -I../sysdeps/mach/hurd/i386 -I../sysdeps/mach/hurd -I../sysdeps/gnu -I../sysdeps/unix/bsd/bsd4.4 -I../sysdeps/unix/mman -I../sysdeps/mach/i386 -I../sysdeps/mach -I../sysdeps/i386/i486 -I../sysdeps/i386/fpu -I../sysdeps/i386 -I../sysdeps/wordsize-32 -I../sysdeps/ieee754/ldbl-96 -I../sysdeps/ieee754/dbl-64 -I../sysdeps/ieee754/flt-32 -I../sysdeps/unix/bsd -I../sysdeps/unix/common -I../sysdeps/unix/inet -I../sysdeps/unix -I../sysdeps/posix -I../sysdeps/ieee754 -I../sysdeps/generic/elf -I../sysdeps/generic -I../hurd -I/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/hurd/ -I../mach -I/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/mach/ -I.. -I../libio -I.  -D_LIBC_REENTRANT -include ../include/libc-symbols.h   -DNOT_IN_libc=1    -o /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf/tst-thrlock.o -MD -MP -MF /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf/tst-thrlock.o.dt -MT /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf/tst-thrlock.o
+        -i486-gnu-gcc -nostdlib -nostartfiles -o /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf/tst-thrlock  -Wl,-dynamic-linker=/usr/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/csu/crt1.o /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/csu/crti.o `i486-gnu-gcc  --print-file-name=crtbegin.o` /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf/tst-thrlock.o /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/dlfcn/libdl.so.2  -Wl,-rpath-link=/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/math:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/dlfcn:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/nss:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/nis:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/rt:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/resolv:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/crypt:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/mach:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/hurd /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/libc.so.0.3 /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/libc_nonshared.a -lgcc -Wl,--as-needed -lgcc_s  -Wl,--no-as-needed `i486-gnu-gcc  --print-file-name=crtend.o` /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/csu/crtn.o
+        -/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf/tst-thrlock.o: In function `do_test':
+        -/media/data/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker/elf/tst-thrlock.c:38: undefined reference to `pthread_create'
+        -/media/data/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker/elf/tst-thrlock.c:48: undefined reference to `pthread_join'
+        -collect2: ld returned 1 exit status
+        -make[2]: *** [/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf/tst-thrlock] Error 1
+        +/usr/bin/install -c -m 644 ../include/pthread.h /usr/include/pthread.h
+        +/usr/bin/install: cannot remove `/usr/include/pthread.h': Permission denied
+        +make[2]: *** [/usr/include/pthread.h] Error 1
