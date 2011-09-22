@@ -27,8 +27,8 @@ Here's what's to be done for maintaining glibc.
 
 # Configuration
 
-Last reviewed up to the [[Git mirror's 5a31b2836d55bcc0c5b6f90f1e89245118e7f508
-(2011-06-07) sources|source_repositories/glibc]].
+Last reviewed up to the [[Git mirror's 16292eddd77f66002e2104848e75a0fb4d316692
+(2011-08-04) sources|source_repositories/glibc]].
 
   * t/dup3
 
@@ -50,6 +50,14 @@ Last reviewed up to the [[Git mirror's 5a31b2836d55bcc0c5b6f90f1e89245118e7f508
       * Discuss d2431f633e6139a62e1575ec18830f7e81160cf0 with Samuel.
 
       * `TLS_INIT_TP_EXPENSIVE` is unused; Hurd def. can be removed.
+
+  * t/verify.h
+
+    People didn't like this too much.
+
+    Other examples:
+
+      * 11988f8f9656042c3dfd9002ac85dff33173b9bd -- `static_assert`
 
   * [[toolchain/cross-gnu]], without `--disable-multi-arch`
 
@@ -134,10 +142,12 @@ Last reviewed up to the [[Git mirror's 5a31b2836d55bcc0c5b6f90f1e89245118e7f508
     something to work on, here's a list.
 
     `AT_EMPTY_PATH`, `CLOCK_BOOTTIME`, `CLOCK_BOOTTIME_ALARM`,
-    `CLOCK_REALTIME_ALARM`, `O_PATH`, `RLIMIT_RTTIME`, `clock_adjtime`,
-    `fallocate`, `fallocate64`, `getcontext` (and `setcontext`),
-    `name_to_handle_at`, `open_by_handle_at`, `sendmmsg`, `setns`,
-    `sync_file_range`
+    `CLOCK_REALTIME_ALARM`, `O_PATH`,
+    `PTRACE_*` (for example, cbff0d9689c4d68578b6a4f0a17807232506ea27),
+    `RLIMIT_RTTIME`, `SEEK_DATA` (`unistd.h`), `SEEK_HOLE` (`unistd.h`)
+    `clock_adjtime`, `fallocate`, `fallocate64`, `getcontext` (and
+    `setcontext`), `name_to_handle_at`, `open_by_handle_at`, `sendmmsg`,
+    `setns`, `sync_file_range`
 
       * `syncfs`
 
@@ -153,11 +163,37 @@ Last reviewed up to the [[Git mirror's 5a31b2836d55bcc0c5b6f90f1e89245118e7f508
 
         Do we support `AT_FDCWD` et al.?
 
+      * `MAP_POPULATE` (`mmap`, `sys/mman.h`)
+
+        Is only advisory, so can worked around with `#define 0`.
+
   * Building with GCC 4.5, 4.6, trunk will cause different kinds of faults.
 
   * Create `t/cleanup_kernel-features.h`.
 
   * Add tests from Linux kernel commit messages for `t/dup3` et al.
+
+  * In `sysdeps/unix/sysv/linux/Makefile`, there are a bunch of
+    `-DHAVE_SENDFILE` -- but we do have `sendfile`, too.
+
+  * `/usr/include/pthread.h` overwrite issue
+
+    `make`, after editing `nss/nss_db/db-initgroups.c`:
+
+        [...]
+        make[2]: Leaving directory `/media/erich/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker/resolv'
+        make  subdir=nss -C nss ..=../ others
+        make[2]: Entering directory `/media/erich/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker/nss'
+        /usr/bin/install -c -m 644 ../include/pthread.h /usr/include/pthread.h
+        /usr/bin/install: cannot remove `/usr/include/pthread.h': Permission denied
+        make[2]: *** [/usr/include/pthread.h] Error 1
+        make[2]: Leaving directory `/media/erich/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker/nss'
+        make[1]: *** [nss/others] Error 2
+        make[1]: Leaving directory `/media/erich/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker'
+        make: *** [all] Error 2
+
+    See `id:"871uv99c59.fsf@kepler.schwinge.homeip.net"`.  Passing
+    `install_root=/INVALID` to `make`/`make check` is a cheap cure.
 
   * Verify baseline changes, if we need any follow-up changes:
 
@@ -249,26 +285,58 @@ Last reviewed up to the [[Git mirror's 5a31b2836d55bcc0c5b6f90f1e89245118e7f508
         80e2212d8e59933a1641f029ebd360526ff0e074 +
         4997db742946d08be4378cf91221f558f928bc73 -- `Don't document si_code
         used for raise()`.  Also for `bits/siginfo.h`?
-      * 01f16ab0a581838d44ad79e82c0c3e1691d8506e -- `Prevent loader from
-        loading itself`
+      * 11988f8f9656042c3dfd9002ac85dff33173b9bd -- pldd, Does it work?
+        Probably not: needs `/proc/[PID]/auxv`, `/proc/[PID]/exe`,
+        `/proc/[PID]/mem` ([[!tag open_issue_hurd]],
+        [[hurd/translator/procfs]]).
+      * 78a7eee7fab0802addf500c481335ed6e9899bda +
+        62bede1313c3a1fa477a092006d64436de6821b1 +
+        113ddea44742d006d7a910a0707106c7defcfd9b -- `.ctors/.dtors`.  Watch
+        what happens.  `AC_TRY_LINK` vs. cross compiling/bootstrapping?  Native
+        build: `checking whether to use .ctors/.dtors header and
+        trailer... no`; results in `#define NO_CTORS_DTORS_SECTIONS 1`: OK (as
+        before).
+      * 9113ea1f3f29b3aee710efc829e85a9772bcb836 -- `--experimental-malloc`.
+        Watch what happens.
+      * 4e34ac6a1e256f40ab0d8eeed37aa1ea83440e76 -- `-defsym=_begin=0`.  Watch
+        what happens.  Native build: apparently OK.
+      * f781ef4015504e8a1da649c266584976238aa079 (`--with-default-link`) +
+        1b74661a6b93a892ecb1c717dedeedba5c2a976c +
+        fd5e21c75d8e9221d766f4bc922a237265514ec2.  Watch what happens.  Native
+        build: `use-default-link = no`.
+      * de283087c74f720cf8a7171972e72b5fa2b45e79 (`Handle Lustre filesystem`),
+        4e5f31c847982997c856f03bbc35134e9fd0f61f (`Handle ext4 in
+        {,f}pathconf`).  What about stuff like that for us?
+      * d30cf5bb00bfb286ff14d931fb69f5b53724bcdc (`Find readelf with
+        AC_CHECK_TOOL`).  Aren't there more in other configure.in and Makefile
+        files?
+      * 574920b446870648623a85e00dd8f3ca9f482c0e (`Rewrite -z relro configure
+        check`) + defe906180bad4e356bb55b60b10abd41b7ee3a1 +
+        9fa2c03227e159050e9dc4ec1e315e5909901580.  Watch what happens.  Native
+        build: OK, `yes` (as before).
+      * 5c55070081c27168d27145afdf6a92cd56c9abb3 (`linker
+        --print-output-format`).  Watch what happens.  Native build: OK,
+        `elf32-i386`.
+      * 7a03a9c8c4b37b88ac5e82b557d974f3161ddaf9 (`Add read barriers in
+        cancellation initialization`).  Is this needed in other places, too?
 
 
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-d97df6798c8f0fd8e21c2610a1cfac2e3272b5f1 (2011-09-19; 2011-06-07)
+946cceff76422cedd8ca2f50bced0a672e64a9a9 (2011-09-22; 2011-08-04)
 sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
     $ export LC_ALL=C
-    $ ../Roger_Whittaker/configure --without-cvs --prefix=/usr --disable-profile --disable-multi-arch --build=i486-gnu --host=i486-gnu CC=gcc-4.4 CXX=g++-4.4 2>&1 | tee log_build
+    $ ../Roger_Whittaker/configure AUTOCONF=: --without-cvs --prefix=/usr --disable-profile --disable-multi-arch --build=i486-gnu --host=i486-gnu CC=gcc-4.4 CXX=g++-4.4 2>&1 | tee log_build
     [...]
-    $ make 2>&1 | tee log_build_
+    $ make install_root=/INVALID 2>&1 | tee log_build_
     [...]
 
 This takes up around 400 MiB and needs roughly 120 min on coulomb.SCHWINGE.
 
 <!--
-    $ (make && touch .go-check) 2>&1 | tee log_build_ && test -f .go-check && make -k check 2>&1 | tee log_check
+    $ (make install_root=/INVALID && touch .go-check) 2>&1 | tee log_build_ && test -f .go-check && make -k install_root=/INVALID check 2>&1 | tee log_check
     $ find ./ -name \*.o -o -name \*.os -o -name \*.oS | while read f; do ~/tmp/gcc/git/contrib/compare-debug --preserve ../Roger_Whittaker.build-gcc-4.4-486.O/"$f" "$f"; done 2>&1 | less 
     $ while read f; do (readelf -a "$f" && objdump -xDrtw "$f") > N && (cd ../Roger_Whittaker.build-gcc-4.4-486.O/ && readelf -a "$f" && objdump -xDrtw "$f") > O && diff -u O N | less; done
     $ find ./ -name \*.o -o -name \*.os -o -name \*.oS | while read f; do readelf -h "$f" | grep OS/ABI | (read a b && [ x"$b" != x'UNIX - System V' ] && echo "### $f: $b"); done
@@ -310,7 +378,7 @@ TODO.
 
 # Testsuite
 
-    $ make -k check 2>&1 | tee log_check
+    $ make -k install_root=/INVALID check 2>&1 | tee log_check
     [...]
 
 This needs roughly 50 min on coulomb.SCHWINGE.
@@ -416,10 +484,6 @@ There is quite a baseline of failures.
 
         /media/erich/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker/string/test-strnlen.c:87: undefined reference to `MIN'
 
-  * `assert/test-assert.out` (not seen anymore 1 of 1)
-
-    Out of ten manual invocations, got one successful.
-
   * `stdlib/bug-getcontext.out`
 
         getcontext failed, errno: 1073741902.
@@ -429,6 +493,10 @@ There is quite a baseline of failures.
   * `elf/tst-unique3lib.so`, `elf/tst-unique3lib2.so`, `elf/tst-unique4lib.so`
 
         /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486/elf/tst-unique3lib.os:(.data.DW.ref.__gxx_personality_v0[DW.ref.__gxx_personality_v0]+0x0): undefined reference to `__gxx_personality_v0'
+
+  * `stdio-common/tst-rndseek.out`
+
+    Timeout.
 
 
 ## OLD
@@ -498,28 +566,3 @@ New failures:
 
   * posix/bug-glob3.out (SEGFAULT; but also on Linux)
   * wctype/bug-wctypeh.o (compile error; but also on Linux)
-
-Other things noticed:
-
-  * Running `make -k check` for the second time:
-
-        -i486-gnu-gcc tst-timer2.c -c -std=gnu99 -fgnu89-inline -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -g -Wno-parentheses -Wstrict-prototypes -mpreferred-stack-boundary=2     -I../include -I/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/rt -I/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build -I../sysdeps/i386/elf -I../sysdeps/mach/hurd/i386 -I../sysdeps/mach/hurd -I../sysdeps/gnu -I../sysdeps/unix/bsd/bsd4.4 -I../sysdeps/unix/mman -I../sysdeps/mach/i386 -I../sysdeps/mach -I../sysdeps/i386/i486 -I../sysdeps/i386/fpu -I../sysdeps/i386 -I../sysdeps/wordsize-32 -I../sysdeps/ieee754/ldbl-96 -I../sysdeps/ieee754/dbl-64 -I../sysdeps/ieee754/flt-32 -I../sysdeps/unix/bsd -I../sysdeps/unix/common -I../sysdeps/unix/inet -I../sysdeps/unix -I../sysdeps/posix -I../sysdeps/ieee754 -I../sysdeps/generic/elf -I../sysdeps/generic -I../hurd -I/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/hurd/ -I../mach -I/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/mach/ -I.. -I../libio -I.  -D_LIBC_REENTRANT -include ../include/libc-symbols.h   -DNOT_IN_libc=1    -o /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/rt/tst-timer2.o -MD -MP -MF /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/rt/tst-timer2.o.dt -MT /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/rt/tst-timer2.o
-        -tst-timer2.c: In function ‘do_test’:
-        -tst-timer2.c:33: error: ‘SIGRTMIN’ undeclared (first use in this function)
-        -tst-timer2.c:33: error: (Each undeclared identifier is reported only once
-        -tst-timer2.c:33: error: for each function it appears in.)
-        -make[2]: *** [/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/rt/tst-timer2.o] Error 1
-        +/usr/bin/install -c -m 644 ../include/pthread.h /usr/include/pthread.h
-        +/usr/bin/install: cannot remove `/usr/include/pthread.h': Permission denied
-        +make[2]: *** [/usr/include/pthread.h] Error 1
-
-        -i486-gnu-gcc tst-thrlock.c -c -std=gnu99 -fgnu89-inline -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -g -Wno-parentheses -Wstrict-prototypes -mpreferred-stack-boundary=2     -I../include -I/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf -I/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build -I../sysdeps/i386/elf -I../sysdeps/mach/hurd/i386 -I../sysdeps/mach/hurd -I../sysdeps/gnu -I../sysdeps/unix/bsd/bsd4.4 -I../sysdeps/unix/mman -I../sysdeps/mach/i386 -I../sysdeps/mach -I../sysdeps/i386/i486 -I../sysdeps/i386/fpu -I../sysdeps/i386 -I../sysdeps/wordsize-32 -I../sysdeps/ieee754/ldbl-96 -I../sysdeps/ieee754/dbl-64 -I../sysdeps/ieee754/flt-32 -I../sysdeps/unix/bsd -I../sysdeps/unix/common -I../sysdeps/unix/inet -I../sysdeps/unix -I../sysdeps/posix -I../sysdeps/ieee754 -I../sysdeps/generic/elf -I../sysdeps/generic -I../hurd -I/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/hurd/ -I../mach -I/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/mach/ -I.. -I../libio -I.  -D_LIBC_REENTRANT -include ../include/libc-symbols.h   -DNOT_IN_libc=1    -o /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf/tst-thrlock.o -MD -MP -MF /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf/tst-thrlock.o.dt -MT /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf/tst-thrlock.o
-        -i486-gnu-gcc -nostdlib -nostartfiles -o /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf/tst-thrlock  -Wl,-dynamic-linker=/usr/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/csu/crt1.o /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/csu/crti.o `i486-gnu-gcc  --print-file-name=crtbegin.o` /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf/tst-thrlock.o /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/dlfcn/libdl.so.2  -Wl,-rpath-link=/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/math:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/dlfcn:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/nss:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/nis:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/rt:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/resolv:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/crypt:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/mach:/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/hurd /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/libc.so.0.3 /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/libc_nonshared.a -lgcc -Wl,--as-needed -lgcc_s  -Wl,--no-as-needed `i486-gnu-gcc  --print-file-name=crtend.o` /home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/csu/crtn.o
-        -/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf/tst-thrlock.o: In function `do_test':
-        -/media/data/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker/elf/tst-thrlock.c:38: undefined reference to `pthread_create'
-        -/media/data/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker/elf/tst-thrlock.c:48: undefined reference to `pthread_join'
-        -collect2: ld returned 1 exit status
-        -make[2]: *** [/home/tschwinge/tmp/glibc/tschwinge--Roger_Whittaker.build/elf/tst-thrlock] Error 1
-        +/usr/bin/install -c -m 644 ../include/pthread.h /usr/include/pthread.h
-        +/usr/bin/install: cannot remove `/usr/include/pthread.h': Permission denied
-        +make[2]: *** [/usr/include/pthread.h] Error 1
