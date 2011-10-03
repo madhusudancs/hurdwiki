@@ -1412,3 +1412,368 @@ There is a [[!FF_project 266]][[!tag bounty]] on this task.
       better cache->nr_slabs * cache->bufs_per_slab * cache->buf_size or
       cache->nr_slabs * cache->slab_size?
     <braunr> the latter
+
+
+# IRC, freenode, #hurd, 2011-09-07
+
+    <mcsim> braunr: I've disabled calling of mem_cpu_pool_fill and allocator
+      became faster
+    <braunr> mcsim: sounds nice
+    <braunr> mcsim: i suspect the free path might not be as fast though
+    <mcsim> results for first calling: http://paste.debian.net/128639/ second:
+      http://paste.debian.net/128640/ and with many alloc/free:
+      http://paste.debian.net/128641/
+    <braunr> mcsim: thanks
+    <mcsim> best result are for second call: average time decreased from 159.56
+      to 118.756
+    <mcsim> First call slightly worse, but this is because I've added some
+      profiling code
+    <braunr> i still see some ~8k lines in 128639
+    <braunr> even some around ~12k
+    <mcsim> I think this is because of mem_cache_grow I'm investigating it now
+    <braunr> i guess so too
+    <mcsim> I've measured time for first call in cache and from about 22000
+      mem_cache_grow takes 20000
+    <braunr> how did you change the code so that it doesn't call
+      mem_cpu_pool_fill ?
+    <braunr> is the cpu layer still used ?
+    <mcsim> http://paste.debian.net/128644/
+    <braunr> don't forget the free path
+    <braunr> mcsim: anyway, even with the previous slightly slower behaviour we
+      could observe, the performance hit is negligible
+    <mcsim> Is free path a compilation? (I'm sorry for my english)
+    <braunr> mcsim: mem_cache_free
+    <braunr> mcsim: the last two measurements i'd advise are with big (>4k)
+      object sizes and, really, kernel allocator consumption
+    <mcsim> http://paste.debian.net/128648/ http://paste.debian.net/128646/
+      http://paste.debian.net/128649/ (first, second, small)
+    <braunr> mcsim: these numbers are closer to the zalloc ones, aren't they ?
+    <mcsim> deallocating slighty faster too
+    <braunr> it may not be the case with larger objects, because of the use of
+      a tree
+    <mcsim> yes, they are closer
+    <braunr> but then, i expect some space gains
+    <braunr> the whole thing is about compromise
+    <mcsim> ok. I'll try to measure them today. Anyway I'll post result and you
+      could read them in the morning
+    <braunr> at least, it shows that the zone allocator was actually quite good
+    <braunr> i don't like how the code looks, there are various hacks here and
+      there, it lacks self inspection features, but it's quite good
+    <braunr> and there was little room for true improvement in this area, like
+      i told you :)
+    <braunr> (my allocator, like the current x15 dev branch, focuses on mp
+      machines)
+    <braunr> mcsim: thanks again for these numbers
+    <braunr> i wouldn't have had the courage to make the tests myself before
+      some time eh
+    <mcsim> braunr: hello. Look at the small_4096 results
+      http://paste.debian.net/128692/ (balloc) http://paste.debian.net/128693/
+      (zalloc)
+    <braunr> mcsim: wow, what's that ? :)
+    <braunr> mcsim: you should really really include your test parameters in
+      the report
+    <braunr> like object size, purpose, and other similar details
+    <mcsim> for balloc I specified only object_size = 4096
+    <mcsim> for zalloc object_size = 4096, alloc_size = 4096, memtype = 0;
+    <braunr> the results are weird
+    <braunr> apart from the very strange numbers (e.g. 0 or 4429543648), none
+      is around 3k, which is the value matching a kmem_alloc call
+    <braunr> happy to see balloc behaves quite good for this size too
+    <braunr> s/good/well/
+    <mcsim> Oh
+    <mcsim> here is significant only first 101 lines
+    <mcsim> I'm sorry
+    <braunr> ok
+    <braunr> what does the test do again ? 10 loops of 10 allocs/frees ?
+    <mcsim> yes
+    <braunr> ok, so the only slowdown is at the beginning, when the slabs are
+      created
+    <braunr> the two big numbers (31844 and 19548) are strange
+    <mcsim> on the other hand time of compilation is 
+    <mcsim> balloc               zalloc
+    <mcsim> 38m28.290s  38m58.400s 
+    <mcsim> 38m38.240s  38m42.140s 
+    <mcsim> 38m30.410s  38m52.920s 
+    <braunr> what are you compiling ?
+    <mcsim> gnumach kernel
+    <braunr> in 40 mins ?
+    <mcsim> yes
+    <braunr> you lack hvm i guess
+    <mcsim> is it long?
+    <mcsim> I use real PC
+    <braunr> very
+    <braunr> ok
+    <braunr> so it's normal
+    <mcsim> in vm it was about 2 hours)
+    <braunr> the difference really is negligible
+    <braunr> ok i can explain the big numbers
+    <braunr> the slab size depends on the object size, and for 4k, it is 32k
+    <braunr> you can store 8 4k buffers in a slab (lines 2 to 9)
+    <mcsim> so we need use kmem_alloc_* 8 times?
+    <braunr> on line 10, the ninth object is allocated, which adds another slab
+      to the cache, hence the big number
+    <braunr> no, once for a size of 32k
+    <braunr> and then the free list is initialized, which means accessing those
+      pages, which means tlb misses
+    <braunr> i guess the zone allocator already has free pages available
+    <mcsim> I see
+    <braunr> i think you can stop performance measurements, they show the
+      allocator is slightly slower, but so slightly we don't care about that
+    <braunr> we need numbers on memory usage now (at the page level)
+    <braunr> and this isn't easy
+    <mcsim> For balloc I can get numbers if I summarize nr_slabs*slab_size for
+      each cache, isn't it?
+    <braunr> yes
+    <braunr> you can have a look at the original implementation, function
+      mem_info
+    <mcsim> And for zalloc I have to summarize of cur_size and then add
+      zalloc_wasted_space?
+    <braunr> i don't know :/
+    <braunr> i think the best moment to obtain accurate values is after zone_gc
+      removes the collected pages
+    <braunr> for both allocators, you could fill a stats structure at that
+      moment, and have an rpc copy that structure when a client tool requests
+      it
+    <braunr> concerning your tests, there is another point to have in mind
+    <braunr> the very first loop in your code shows a result of 31844
+    <braunr> although you disabled the call to cpu_pool_fill
+    <braunr> but the reason why it's so long is that the cpu layer still exists
+    <braunr> and if you look carefully, the cpu pools are created as needed on
+      the free path
+    <mcsim> I removed cpu_pool_drain
+    <braunr> but not cpu_pool_push/pop i guess
+    <mcsim> http://paste.debian.net/128698/
+    <braunr> see, you still allocate the cpu pool array on the free path
+    <mcsim> but I don't fill it
+    <braunr> that's not the point
+    <braunr> it uses mem_cache_alloc
+    <braunr> so in a call to free, you can also have an allocation, that can
+      potentially create a new slab
+    <mcsim> I see, so I have to create cpu_pool at the initialization stage?
+    <braunr> no, you can't
+    <braunr> there is a reason why they're allocated on the free path
+    <braunr> but since you don't have the fill/drain functions, i wonder if you
+      should just comment out the whole cpu layer code
+    <braunr> but hmm
+    <braunr> no really, it's not worth the effort
+    <braunr> even with drains/fills, the results are really good enough
+    <braunr> it makes the allocator smp ready
+    <braunr> we should just keep it that way
+    <braunr> mcsim: fyi, the reason why cpu pool arrays are allocated on the
+      free path is to avoid recursion
+    <braunr> because cpu pool arrays are allocated from caches just as almost
+      everything else
+    <mcsim> ok
+    <mcsim> summ of cur_size and then adding zalloc_wasted_space gives 0x4e1954
+    <mcsim> but this value isn't even page aligned
+    <mcsim> For balloc I've got 0x4c6000 0x4aa000 0x48d000
+    <braunr> hm can you report them in decimal, >> 10 so that values are in KiB
+      ?
+    <mcsim> 4888 4776 4660 for balloc
+    <mcsim> 4998 for zalloc
+    <braunr> when ?
+    <braunr> after boot ?
+    <mcsim> boot, compile, zone_gc
+    <mcsim> and then measure
+    <braunr> ?
+    <mcsim> I call garbage collector before measuring
+    <mcsim> and I measure after kernel compilation
+    <braunr> i thought it took you 40 minutes
+    <mcsim> for balloc I got results at night
+    <braunr> oh so you already got them
+    <braunr> i can't beleive the kernel only consumes 5 MiB
+    <mcsim> before gc it takes about 9052 Kib
+    <braunr> can i see the measurement code ?
+    <braunr> oh, and how much ram does your machine have ?
+    <mcsim> 758 mb
+    <mcsim> 768
+    <braunr> that's really weird
+    <braunr> i'd expect the kernel to consume much more space
+    <mcsim> http://paste.debian.net/128703/
+    <mcsim> it's only dynamically allocated data
+    <braunr> yes
+    <braunr> ipc ports, rights, vm map entries, vm objects, and lots of other
+      hanging buffers
+    <braunr> about how much is zalloc_wasted_space ?
+    <braunr> if it's small or constant, i guess you could ignore it
+    <mcsim> about 492
+    <mcsim> KiB
+    <braunr> well it's another good point, mach internal structures don't imply
+      much overhead
+    <braunr> or, the zone allocator is underused
+
+    <tschwinge> mcsim, braunr: The memory allocator project is coming along
+      good, as I get from your IRC messages?
+    <braunr> tschwinge: yes, but as expected, improvements are minor
+    <tschwinge> But at the very least it's now well-known, maintainable code.
+    <braunr> yes, it's readable, easier to understand, provides self inspection
+      and is smp ready
+    <braunr> there also are less hacks, but a few less features (there are no
+      way to avoid sleeping so it's unusable - and unused - in interrupt
+      handlers)
+    <braunr> is* no way
+    <braunr> tschwinge: mcsim did a good job porting and measuring it
+
+
+# IRC, freenode, #hurd, 2011-09-08
+
+    <antrik> braunr: note that the zalloc map used to be limited to 8 MiB or
+      something like that a couple of years ago... so it doesn't seems
+      surprising that the kernel uses "only" 5 MiB :-)
+    <antrik> (yes, we had a *lot* of zalloc panics back then...)
+
+
+# IRC, freenode, #hurd, 2011-09-14
+
+    <mcsim> braunr: hello. I've written a constructor for kernel map entries
+      and it can return resources to their source. Can you have a look at it?
+      http://paste.debian.net/130037/ If all be OK I'll push it tomorrow.
+    <braunr> mcsim: send the patch through mail please, i'll apply it on my
+      copy
+    <braunr> are you sure the cache is reapable ?
+    <mcsim> All slabs, except first I allocate with kmem_alloc_wired.
+    <braunr> how can you be sure ?
+    <mcsim> First slab I allocate during bootstrap and use pmap_steal_memory
+      and further I use only kmem_alloc_wired
+    <braunr> no, you use kmem_free
+    <braunr> in kentry_dealloc_cache()
+    <braunr> which probably creates a recursion
+    <braunr> using the constructor this way isn't a good idea
+    <braunr> constructors are good for preconstructed state (set counters to 0,
+      init lists and locks, that kind of things, not allocating memory)
+    <braunr> i don't think you should try to make this special cache reapable
+    <braunr> mcsim: keep in mind constructors are applied on buffers at *slab*
+      creation, not at object allocation
+    <braunr> so if you allocate a single slab with, say, 50 or 100 objects per
+      slab, kmem_alloc_wired would be called that number of times
+    <mcsim> why kentry_dealloc_cache can create recursion? kentry_dealloc_cache
+      is called only by mem_cache_reap.
+    <braunr> right
+    <braunr> but are you totally sure mem_cache_reap() can't be called by
+      kmem_free() ?
+    <braunr> i think you're right, it probably can't
+
+
+# IRC, freenode, #hurd, 2011-09-25
+
+    <mcsim> braunr: hello. I rewrote constructor for kernel entries and seems
+      that it works fine. I think that this was last milestone. Only moving of
+      memory allocator sources to more appropriate place and merge with main
+      branch left.
+    <braunr> mcsim: it needs renaming and reindenting too
+    <mcsim> for reindenting C-x h Tab in emacs will be enough?
+    <braunr> mcsim: make sure which style must be used first
+    <mcsim> and what should I rename and where better to place allocator? For
+      example, there is no lib directory, like in x15. Should I create it and
+      move list.* and rbtree.* to lib/ or move these files to util/ or
+      something else?
+    <braunr> mcsim: i told you balloc isn't a good name before, use something
+      more meaningful (kmem is already used in gnumach unfortunately if i'm
+      right)
+    <braunr> you can put the support files in kern/
+    <mcsim> what about vm_alloc?
+    <braunr> you should prefix it with vm_
+    <braunr> shouldn't
+    <braunr> it's a top level allocator
+    <braunr> on top of the vm system
+    <braunr> maybe mcache
+    <braunr> hm no
+    <braunr> maybe just km_
+    <mcsim> kern/km_alloc.*?
+    <braunr> no
+    <braunr> just km
+    <mcsim> ok.
+
+
+# IRC, freenode, #hurd, 2011-09-27
+
+    <mcsim> braunr: hello. When I've tried to speed of new allocator and bad
+      I've removed function mem_cpu_pool_fill. But you've said to undo this. I
+      don't understand why this function is necessary. Can you explain it,
+      please?
+    <mcsim> When I've tried to compare speed of new allocator and old*
+    <braunr> i'm not sure i said that
+    <braunr> i said the performance overhead is negligible
+    <braunr> so it's better to leave the cpu pool layer in place, as it almost
+      doesn't hurt
+    <braunr> you can implement the KMEM_CF_NO_CPU_POOL I added in the x15 mach
+      version
+    <braunr> so that cpu pools aren't used by default, but the code is present
+      in case smp is implemented
+    <mcsim> I didn't remove cpu pool layer. I've just removed filling of cpu
+      pool during creation of slab.
+    <braunr> how do you fill the cpu pools then ?
+    <mcsim> If object is freed than it is added to cpu poll
+    <braunr> so you don't fill/drain the pools ?
+    <braunr> you try to get/put an object and if it fails you directly fall
+      back to the slab layer ?
+    <mcsim> I drain them during garbage collection
+    <braunr> oh
+    <mcsim> yes
+    <braunr> you shouldn't touch the cpu layer during gc
+    <braunr> the number of objects should be small enough so that we don't care
+      much
+    <mcsim> ok. I can drain cpu pool at any other time if it is prohibited to
+      in mem_gc.
+    <mcsim> But why do we need to fill cpu poll during slab creation?
+    <mcsim> In this case allocation consist of: get object from slab -> put it
+      to cpu pool -> get it from cpu pool
+    <mcsim> I've just remove last to stages
+    <braunr> hm cpu pools aren't filled at slab creation
+    <braunr> they're filled when they're empty, and drained when they're full
+    <braunr> so that the number of objects they contain is increased/reduced to
+      a value suitable for the next allocations/frees
+    <braunr> the idea is to fall back as little as possible to the slab layer
+      because it requires the acquisition of the cache lock
+    <mcsim> oh. You're right. I'm really sorry. The point is that if cpu pool
+      is empty we don't need to fill it first
+    <braunr> uh, yes we do :)
+    <mcsim> Why cache locking is so undesirable? If we have free objects in
+      slabs locking will not take a lot if time.
+    <braunr> mcsim: it's undesirable on a smp system
+    <mcsim> ok.
+    <braunr> mcsim: and spin locks are normally noops on a up system
+    <braunr> which is the case in gnumach, hence the slightly better
+      performances without the cpu layer
+    <braunr> but i designed this allocator for x15, which only supports mp
+      systems :)
+    <braunr> mcsim: sorry i couldn't look at your code, sick first, busy with
+      server migration now (new server almost ready for xen hurds :))
+    <mcsim> ok.
+    <mcsim> I ended with allocator if didn't miss anything important:)
+    <braunr> i'll have a look soon i hope :)
+
+
+# IRC, freenode, #hurd, 2011-09-27
+
+    <antrik> braunr: would it be realistic/useful to check during GC whether
+      all "used" objects are actually in a CPU pool, and if so, destroy them so
+      the slab can be freed?...
+    <antrik> mcsim: BTW, did you ever do any measurements of memory
+      use/fragmentation?
+    <mcsim> antrik: I couldn't do this for zalloc
+    <antrik> oh... why not?
+    <antrik> (BTW, I would be interested in a comparision between using the CPU
+      layer, and bare slab allocation without CPU layer)
+    <mcsim> Result I've got were strange. It wasn't even aligned to page size.
+    <mcsim> Probably is it better to look into /proc/vmstat?
+    <mcsim> Because I put hooks in the code and probably I missed something
+    <antrik> mcsim: I doubt vmstat would give enough information to make any
+      useful comparision...
+    <braunr> antrik: isn't this draining cpu pools at gc time ?
+    <braunr> antrik: the cpu layer was found to add a slight overhead compared
+      to always falling back to the slab layer
+    <antrik> braunr: my idea is only to drop entries from the CPU cache if they
+      actually prevent slabs from being freed... if other objects in the slab
+      are really in use, there is no point in flushing them from the CPU cache
+    <antrik> braunr: I meant comparing the fragmentation with/without CPU
+      layer. the difference in CPU usage is probably negligable anyways...
+    <antrik> you might remember that I was (and still am) sceptical about CPU
+      layer, as I suspect it worsens the good fragmentation properties of the
+      pure slab allocator -- but it would be nice to actually check this :-)
+    <braunr> antrik: right
+    <braunr> antrik: the more i think about it, the more i consider slqb to be
+      a better solution ...... :>
+    <braunr> an idea for when there's time
+    <braunr> eh
+    <antrik> hehe :-)

@@ -1,0 +1,322 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_gnumach]]
+
+[[!toc]]
+
+
+# IRC, freenode, #hurd, 2011-09-14
+
+Coming from [[translators_set_up_by_untrusted_users]], 2011-09-14 discussion:
+
+    <slpz> antrik: I think a tunable option for preventing non-root users from
+      creating pagers and attaching translators could also be desirable
+    <antrik> slpz: why would you want to prevent creating pagers and attaching
+      translators?
+    <tschwinge> Preventing resource exhaustion, I guess.
+    <slpz> antrik: security and (as tschwinge says) for prevent a rouge pager
+      from exhausting the system.
+    <slpz> antrik: without the ability to use translators for non-root users,
+      Hurd can provide (almost) the same level of resource protection than
+      other *nixes
+
+See also: [[translators_set_up_by_untrusted_users]],
+[[hurd/translator/tmpfs/tmpfs_vs_defpager]].
+
+    <braunr> the hurd is about that though
+    <slpz> there should be also a limit on the number of outstanding requests
+      that a task can have, and some other easily traceable values
+    <braunr> port messages queues have limits
+    <antrik> slpz: anything can exhaust the system. there are much more basic
+      limits that are missing... and I don't see how translators or pagers are
+      special in that regard
+    <slpz> braunr: that's what I said tunable. If I don't share my computer
+      with untrusted users, I want full functionality. Otherwise, I can enable
+      that limitation
+    <slpz> braunr: but I think those limits are on reception
+    <braunr> that's a wrong solution
+    <slpz> antrik: because pagers are external memory objects, and those are
+      treated differently
+    <braunr> compared to what ?
+    <braunr> and yes, the limit is on the message queue, on reception
+    <braunr> why is that a problem ?
+    <slpz> antrik: forbidding the use of translator was for security, to avoid
+      the problem of traversing an untrusted FS
+    <slpz> braunr: compared to anonymous memory
+    <slpz> braunr: because if the limit is on reception, a task can easily do a
+      DoS against a server
+    <braunr> hm actually, the problems we have with swap handling is that
+      anonymous memory is handled in a very similar way as other objects
+    <slpz> braunr: I want to limit the number of outstanding (unprocessed
+      messages in queues) requests
+    <braunr> slpz: the solution isn't about forbidding the use of translators,
+      but changing common code (libc i guess) not to use them, they can still
+      run beside
+    <slpz> braunr: that's because, currently, the external page limit is not
+      enforced
+    <braunr> i'm also not sure about DoS attacks
+    <braunr> if i'm right, there is often one port for each managed object,
+      which usually exist per client
+    <slpz> braunr: yes, that could an option too (for translators, not for
+      pagers)
+    <braunr> i don't see how pagers wouldn't be translators on the hurd
+    <slpz> braunr: all pagers are translators, but not all translators are
+      pagers ;-)
+    <braunr> so if it works for translators, it also works for pagers
+    <slpz> braunr: it would fix the security issue, but not the resource
+      exhaustion problem, with only affects to pagers
+    <braunr> i just don't see a point in implementing resource limits before
+      even fixing other fundamental issues
+    <braunr> the only way to avoid resource exhaustion is resource limits
+    <antrik> slpz: just not following untrusted translators is much more useful
+      than forbidding them alltogether
+    <braunr> and the main problem of mach is resource accounting
+    <braunr> so first, fix that, using the critique as a starting point
+
+[[hurd/critique]].
+
+    <slpz> braunr: i'm not saying that this should be implemented right now,
+      i'm just pointing out this possibility
+    <braunr> i think we're all mostly aware of it
+    <slpz> braunr: resource accounting, as it's expressed in the critique,
+      would be wonderful, but it's just too complex IMHO
+    <braunr> it requires carefully designed changes to the interface yes
+    <slpz> to the interface, to the internals, to user space tasks...
+    <braunr> the internals wouldn't be impacted that much
+    <braunr> user space tasks would mostly include hurd servers
+    <braunr> if the changes are centralized in libraries, it should be easy to
+      provide to the servers
+
+
+# IRC, freenode, #hurd, 2011-09-22
+
+    <slpz> antrik: I've also implemented a simple resource control on dirty
+      pages and changed pageout_scan to free external pages, and only touch
+      anonymous memory if it's really needed
+    <slpz> antrik: those combined make the system work better under heavy load
+    <slpz> antrik: 1.5 GB of RAM and another 1.5 GB of swap helps a lot, too
+      :-)
+    <antrik> hm... I'm not sure what these things mean exactly TBH... but I
+      wonder whether some of these could fix the performance degradation (and
+      ultimate crash) I described recently...
+
+[[/open_issues/default_pager]], [[system performance degradation
+(?)|performance/degradation]].
+
+    <antrik> care to explain them to a noob like me?
+    <slpz> probably not. During my tests, I've noticed that, at some points,
+      the system performance starts to degrade, and this doesn't change until
+      it's restarted
+    <slpz> but I wasn't able to create a test case to reproduce the bug...
+    <slpz> antrik: Sure. First, I've changed GNU Mach to:
+    <slpz>  - Classify all pages from data_supply as external, and count them
+      in vm_page_external_count (previously, this variable was always zero)
+
+[[/open_issues/mach_vm_pageout]]
+
+    <slpz>  - Count all pages for which a  data_unlock has been requested as
+      potentially dirty pages
+    <antrik> there is one important bit I forgot to mention in my recent
+      report: one "reliable" way to cause growing swap usage is simply
+      installing a lot of debian packages (e.g. running an apt-get upgrade)
+    <antrik> some other kinds of I/O also seem to have such an effect, but I
+      wasn't able to pinpoint specific situations
+    <slpz>  - Establish a limit on how many potentially dirty pages are
+      allowed. If it's reached, a notification (right now it's just a bogus
+      m_o_data_unlock, to avoid implementing a new RPC) it's sent to the pager
+      which has generated the page fault
+    <slpz>  - Establish a hard limit on those dirt pages. If it's reached,
+      threads asking for a data_unlock are blocked until someone cleans some
+      pages. This should be improved with a forced pageout, if needed.
+    <slpz>  - And finally, in vm_pageout_scan, run over the inactive queue
+      searching for clean, external pages, freeing them. If it's not possible
+      to free enough pages, or if vm_page_external_count is less than 10% of
+      system's memory, the "normal" pageout is used.
+    <slpz> I need to clean up things a little, but I want to send a preliminary
+      patch to bug-hurd ASAP, to have more people testing it.
+    <slpz> antrik: Do you thing that performance degradation can be related
+      with the number of threads of your ext2fs translators?
+    <antrik> slpz: hm... I didn't watch that recently; but in the past, I
+      observe that the thread count is pretty constant after it reaches
+      something like 14000 on heavy load...
+    <antrik> err... wait, 14000 was ports :-)
+    <antrik> I doubt my system would survive 14000 threads ;-)
+    <antrik> don't remember thread count... I guess I should start watching
+      this again
+    <slpz> antrik: I was thinking that 14000 threads sound like a lot :-)
+    <slpz> what I know for sure, is that when operating with large files, the
+      deactivation of all pages of the memory object which is done after every
+      operation really hurts to performance
+    <antrik> right now my root FS has 5100 ports and a mere 71 thread... but
+      then, it's almost freshly booted :-)
+    <slpz> that's why I've just commented that operation in my code, since it's
+      not really needed anymore :-)
+    <slpz> anyway, after submitting all my pending mails to bug-hurd, I'll try
+      to hunt that bug. Sounds funny.
+    <antrik> regarding your explanation, I'm still trying to wrap my head
+      around some of the details. I must admit that I don't remember what
+      data_unlock does... or maybe I never fully understood it
+    <antrik> the limit on dirty pages is global?
+    <slpz> yes, right now it's global
+    <marcusb> I try to find the old discussion of the thread storm stuff
+    <marcusb> there was some concern about deadlocks
+    <slpz> marcusb: yes, because we were talking about putting an static limit
+      for the server threads of a translators
+    <slpz> marcusb: and that was wrong (my fault, I was even dumber back then
+      :-P)
+    <marcusb> oh boy digging in old mail is no fun.  first I see mistakes in my
+      english.  then I see quite complicated pager stuff I don't ever remember
+      touching.  but there is a patch, and it has my name on it
+    <marcusb> I think I lost a couple of the early years of my hurd hacking :)
+    <antrik> hm... I reread the chapter on locking, and it's still above me :-(
+    <marcusb> not sure what you are talking about, but if there are any
+      specific questions...
+    <antrik> marcusb: external pager interface
+
+[[microkernel/mach/external_pager_mechanism]].
+
+    <marcusb> uuuuh ;)
+    <antrik> memory_object_lock_request(), memory_object_lock_completed(),
+      memory_object_data_unlock()
+    <marcusb> is that from the mach manual?
+    <antrik> yes
+    <antrik> I didn't really understand that part when I first read it a couple
+      of years ago, and I still don't understand it now :-(
+    <marcusb> I am sure I didn't understand it either
+    <marcusb> and maybe I missed my window :)
+    <marcusb> let's see
+    <antrik> hehe
+    <antrik> slpz: what exactly do you mean by "the pager which has generated
+      the page fault"?
+    <antrik> marcusb: essentially I'm trying to understand the explanation of
+      the changes slpz did, but there are several bits totally obscure to me
+      :-(
+    <slpz> antrik: when a I/O operation is requested to ext2fs, it maps the
+      object in question to it's own space, and then memcpy's from/to there
+    <slpz> antrik: so the translator (which is also a pager) is the one who
+      generates the page fault
+    <marcusb> yeah
+    <marcusb> antrik: it's important to understand which messages are sent by
+      the kernel to the manager and which are sent the other way
+    <marcusb> if the dest port is memory_object_t, that indicates a msg from
+      kernel to manager.  if it is memory_object_control_t, it's a msg from
+      manager to kernel
+    <slpz> antrik: m_o_lock_request it's used by the pager to "settle" the
+      status of a memory object, m_o_lock_completed is the answer from the
+      kernel when the lock has been completed (only if the client has requested
+      to be notified), and m_o_data_unlock is a request from the kernel to
+      change the level of protection for a page (it's called from vm_fault.c)
+    <marcusb> slpz: but it's not pagers generating page faults, but users of
+      the memory object on the other side
+    <antrik> marcusb: well, I think the direction is clear to me... but the
+      purpose not really :-)
+    <marcusb> ie a client that mapped a file
+    <slpz> antrik: in ext2fs, all pages are initially provided to the kernel
+      (via data_supply) write protected. When a write operation is done over
+      one of those pages, a page fault it's generated, which sends a
+      m_o_data_unlock to the pager, which answers (if convenient) which a
+      page_lock decreasing the protection level
+    <marcusb> antrik: one use of lock_request is when you want to shut down
+      cleanly and want to get the dirty pages written back to you from the
+      kernel.
+    <marcusb> antrik: the other thing may be COW strategies
+    <slpz> marcusb: well, pagers and clients are in the same task for most
+      translators, like ext2fs
+    <marcusb> slpz: oh.
+    <slpz> marcusb: but yes, a read operation in a mmap'ed file would trigger
+      the fault in a client user task
+    <marcusb> slpz: I think I forgot everything about pagers :)
+    <slpz> marcusb: pager-memcpy.c is the key :-)
+    <marcusb> slpz: what becomes of the fault then?  the kernel sees it's a
+      mapped memory object.  will it then talk to the manager or to a pager? 
+    <antrik> slpz: the translator causes the faults itself when it handles
+      io_read()/io_write() requests I suppose, as opposed to clients accessing
+      mmap()ed objects which then generate the faults?...
+    <antrik> ah, that's actually what you already said above :-)
+    <slpz> marcusb: I'm not sure what do you mean by "manager"...
+    <marcusb> manager == memory object
+    <marcusb> mh
+    <slpz> marcusb: for all external objects, it will ask to their current
+      pager
+    <marcusb> slpz: I think I am missing a couple of details, so nevermind.
+      It's starting to come back to me, but I am a bit afraid of that ;)
+    <marcusb> what I love about the Hurd is how damn readable the code is
+    <marcusb> considering it's an object system, it's so much nicer to read
+      than gtk stuff
+    <slpz> when you get the big picture, it's actually somewhat fun to see how
+      data moves around just to fulfill a simple read()
+    <marcusb> you should make a diagram!
+    <marcusb> bonus point for animated video ;)
+
+[[hurd/IO_path]].
+
+    <slpz> marcusb: heh, take a look at the hurd specific parts of glibc... I
+      cry in pain every time a do that...
+    <marcusb> slpz: oh yeah, rdwr-internal.
+    <marcusb> oh man
+    <marcusb> slpz: funny thing, I just looked at them the other day because of
+      the security issue
+    <slpz> marcusb: I think there was one, maybe a slice from someone's
+      presentation...
+    <marcusb> I think I was always confused about the pager/memobj/kernel
+      interactions
+    <slpz> marcusb: I'm barely able to read Roland's glibc code. I think it's
+      out of my reach.
+    <antrik> marcusb: I think part of the problem is confusing terminology
+    <marcusb> it's good that you are instrumenting the mach kernel to see
+      what's actually going on in there.  it was a black book for me, but neal
+      too a peek and got a much better understanding of the performance issues
+      than I ever did
+    <antrik> when talking about "pager", we usually mean the process doing the
+      paging; but in mach terminology this actually seems to be the "manager",
+      while a "pager" is an individual object in the manager process... or
+      something like that ;-)
+    <marcusb> antrik: I just never took a look at the big picture.  I look at
+      the parts
+    <marcusb> I knew the tail, ears, and legs of the elephant.
+    <marcusb> it's a lot of code for a beginner
+    <antrik> I never understood the distinction between "pager" and "memory
+      object" though...
+    <antrik> maybe "pager" refers to the object in the external pager, while
+      "memory object" is the part managed in Mach itself?...
+    <marcusb> memory object is a real object, to which you can send messages.
+      it's implemented in the server
+    <antrik> hm... maybe it's the other way around then ;-)
+    <marcusb> there is also the default pager
+    <marcusb> I think the pager is just another name for the process that
+      serves the memory object (default pager == memory object for anonymous
+      memory == swap)
+    <marcusb> but!
+    <marcusb> there is also libpager
+
+[[hurd/libpager]]
+
+    <marcusb> and that's a more complicated beast
+    <antrik> actually, the correct term seems to be "default memory manager"...
+    <marcusb> yeah
+    <marcusb> from mach's pov
+    <marcusb> we always called it default pager in the Hurd
+    <antrik> marcusb: problem is that "pager" is sometimes used in the Mach
+      documentation to refer to memory object ports IIRC
+    <marcusb> isn't it defpager executable?
+    <marcusb> could be
+    <marcusb> it's the same thing, really
+    <antrik> indeed, the program implementing the default memory manager is
+      called "default pager"... so the terminology is really inconsistent
+    <marcusb> the hurd's pager library is a high level abstraction for mach's
+      external memory object interface.
+    <marcusb> i wouldn't worry about it too much
+    <antrik> I never looked at libpager
+    <marcusb> you should!
+    <marcusb> it's an important beast
+    <antrik> never seemed relevant to anything I did so far...
+    <antrik> though maybe it would help understanding
+    <marcusb> it's related to what you are looking now :)
