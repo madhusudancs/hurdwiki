@@ -22,6 +22,66 @@ There is a separate page about [[System_API_Limitations]].
 You may ask on the [[mailing lists/bug-hurd]] mailing list for details or
 questions about fixing bugs.
 
+## <a name="GNU build system"> GNU build system </a>
+
+For a good overview of the components in the GNU build system, see
+<http://en.wikipedia.org/wiki/GNU_build_system> and
+<http://www.gnu.org/s/hello/manual/autoconf/index.html>.
+
+The GNU build system distinguishes between 'build', 'host' and 'target' machines.
+The 'build' machine is where compilers are run, the 'host' machine where the package 
+being built will run, and for cross compiling the 'target' machine, on which the compiler
+built will generate code for.
+
+When using GNU autotools to configure a package config.guess and config.sub from autotools-dev
+are used to find out the build machine identity: CPU_TYPE-MANUFACTURER-OPERATING_SYSTEM.
+For GNU/Hurd config.guess gives 'i686-unknown-gnu0.3'. Sometimes a quadruple is used
+adding KERNEL, e.g. for Linux on an amd64: 'x86_64-unknown-linux-gnu'. This
+is however actually a triple, it just happens that the operating system part
+unfortunately contains a '-'. config.sub is used to 
+canonicalize on these triplets, e.g. config.sub i686-gnu gives 'i686-pc-gnu'.
+
+On Debian systems the build Makefile is debian/rules and some Debian packages will set $host to 
+'i486-pc-gnu'. This is accomplished with the 'dpkg-architecture -qDEB_HOST_GNU_TYPE' construct
+forwarded  to configure in debian/rules, e.g. configure --host=$DEB_HOST_GNU_TYPE. 
+Another way to set $build, $host etc is via the Debian dh_auto_configure script from the debhelper 
+package which uses the Perl code autoconf.pm to find out these variables.
+
+## <a name="autoconf"> Fixing configure.{ac,in} </a>
+
+The GNU/Hurd (and GNU/kFreeBSD) toolchain is extremely close to the GNU/Linux toolchain.
+configure.ac thus very often just needs to be fixed by using the same cases as Linux, that is, turn
+
+    switch "$host_os" in
+        case linux*)
+
+into
+
+    switch "$host_os" in
+       case linux*|k*bsd-gnu*|gnu*)
+
+for a host_os case statement, or
+
+    switch "$host" in
+        case *-linux*)
+
+into
+
+    switch "$host" in
+       case *-linux*|*-k*bsd-gnu*|*-gnu*)
+
+If separate case is needed, make sure to put *-gnu* *after* *-linux*: 
+
+    switch "$host" in
+       case *-linux*|*-k*bsd-gnu*)
+           something;;
+
+       case *-gnu*)
+           something else;;
+
+because else *-gnu* would catch i386-pc-linux-gnu for instance...
+
+Note: some of such statements are not from the source package itself, but from aclocal.m4 which is actually from libtool. In such case, the package simply needs to be re-libtoolize-d.
 
 ## <a name="Undefined_bits_confname_h_tt_mac"> Undefined `bits/confname.h` macros (`PIPE_BUF`, ...) </a>
 
@@ -192,7 +252,11 @@ then be found.
 
 ## <a name="SA_SIGINFO"> `SA_SIGINFO` </a>
 
-Not implemented, packages may be fixed for working around this: use void sighandler(int num) prototype and sa_handler field.
+Implemented by Jeremie Koenig, pending upload in Debian eglibc 2.13-19.
+
+## <a name="SA_NOCLDWAIT"> `SA_NOCLDWAIT` </a>
+
+Not implemented yet.
 
 ## <a name="SOL_IP"> `SOL_IP` </a>
 
@@ -279,9 +343,13 @@ With Python, you can use the [`errno` module](http://docs.python.org/library/err
       err.errno == errno.ENOENT:
         ...
 
-## <a name="linux_headers"> Missing `linux/types.h`, `asm/types.h`, `linux/limits.h`, `asm/byteorder.h`, `sys/endian.h`, `asm/ioctl.h`, `asm/ioctls.h` </a>
+## <a name="libdl"> undefined reference to `dlopen`, `dlsym`, `dlclose` </a>
 
-These are often used (from lame rgrep results) instead of their standard equivalents: `sys/types.h` (or `stdint.h` for fixed-size types), `limits.h`, `endian.h`, `sys/ioctl.h`.
+Configure script often hardcode the library that contains dlopen & such (`-ldl'), and only for Linux. Simply add the other GNU OS cases: replace `linux*' with `linux*|gnu*|k*bsd*-gnu`
+
+## <a name="linux_headers"> Missing `linux/types.h`, `asm/types.h`, `linux/limits.h`, `asm/byteorder.h`, `sys/endian.h`, `asm/ioctl.h`, `asm/ioctls.h`, `linux/soundcard.h` </a>
+
+These are often used (from lame rgrep results) instead of their standard equivalents: `sys/types.h` (or `stdint.h` for fixed-size types), `limits.h`, `endian.h`, `sys/ioctl.h`, `sys/soundcard.h`
 
 ## <a name="linux_features"> Missing `sys/*.h`, `linux/*.h`</a>
 

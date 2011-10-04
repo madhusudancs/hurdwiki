@@ -1,0 +1,37 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+IRC, freenode, #hurd, 2011-08-11
+
+    < youpi> in which error cases a reply port will actually have been consumed
+      by mach_msg ?
+    < youpi> it seems at least MACH_SEND_NOTIFY_IN_PROGRESS do?
+    < braunr>
+      http://www.gnu.org/software/hurd/gnumach-doc/Message-Send.html#Message-Send
+    < braunr> "These return codes imply that the message was returned to the
+      caller with a pseudo-receive operation: "
+    < braunr> isn't it what you're looking for ?
+    < youpi> well, it's hard to tell from the name
+    < youpi> I don't know what "pseudo-receiv operation" means
+    < braunr> it's described below
+    < youpi> ew
+    < braunr> it looks close enough to a normal receive to assume it consumes
+      the reply port
+    < youpi> so it's even more complex than what I thought
+    < youpi> well, no, it returns the right
+    < youpi> actually the error I'm getting is MACH_RCV_INVALID_NAME
+    < youpi> which I guess means the sending part succeeded
+    < youpi> the case at stake is proc/mgt.c: S_proc_exception_raise()
+    < youpi> when the proc_exception_raise() forward fails
+    < youpi> currently we always return 0, but if proc_exception_raise()
+      actually managed to send the message, the reply port was consumed and
+      MIG_NO_REPLY should be returned instead

@@ -8,9 +8,10 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
-[[!tag open_issue_hurd]]
+[[!tag open_issue_gnumach open_issue_hurd]]
 
-\#hurd, freenode, 2010
+
+# IRC, freenode, #hurd, 2010
 
     <slpz> humm... why does tmpfs try to use the default pager? that's a bad
       idea, and probably will never work correctly...
@@ -120,3 +121,113 @@ License|/fdl]]."]]"""]]
       memory, gives them a reference to the default pager by calling
       vm_object_pager_create
     <slpz> this is not really important, but worth noting ;-)
+
+
+# IRC, freenode, #hurd, 2011-09-28
+
+    <slpz> mcsim: "Fix tmpfs" task should be called "Fix default pager" :-)
+    <slpz> mcsim: I've been thinking about modifying tmpfs to actually have
+      it's own storeio based backend, even if a tmpfs with storage sounds a bit
+      stupid.
+    <slpz> mcsim: but I don't like the idea of having translators messing up
+      with the default pager...
+    <antrik> slpz: messing up?...
+    <slpz> antrik: in the sense of creating a number of arbitrarily sized
+      objects
+    <antrik> slpz: well, it doesn't really matter much whether a process
+      indirectly eats up arbitrary amounts of swap through tmpfs, or directly
+      through vm_allocate()...
+    <antrik> though admittedly it's harder to implement resource limits with
+      tmpfs
+    <slpz> antrik: but I've talked about having its own storeio device as
+      backend. This way Mach can pageout memory to tmpfs if it's needed.
+    <mcsim> Do I understand correctly that the goal of tmpfs task is to create
+      tmpfs in RAM?
+    <slpz> mcsim: It is. But it also needs some kind of backend, just in case
+      it's ordered to page out data to free some system's memory.
+    <slpz> mcsim: Nowadays, this backend is another translator that acts as
+      default pager for the whole system
+    <antrik> slpz: pageout memory to tmpfs? not sure what you mean
+    <slpz> antrik: I mean tmpfs acting as its own pager
+    <antrik> slpz: you mean tmpfs not using the swap partition, but some other
+      backing store?
+    <slpz> antrik: Yes.
+
+See also: [[open_issues/resource_management_problems/pagers]].
+
+    <antrik> slpz: I don't think an extra backing store for tmpfs is a good
+      idea. the whole point of tmpfs is not having a backing store... TBH, I'd
+      even like to see a single backing store for anonymous memory and named
+      files
+    <slpz> antrik: But you need a backing store, even if it's the default pager
+      :-)
+    <slpz> antrik: The question is, Should users share the same backing store
+      (swap space) or provide their own?
+    <antrik> slpz: not sure what you mean by "users" in this context :-)
+    <slpz> antrik: Real users with the ability of setting tmpfs translators
+    <antrik> essentially, I'd like to have a single partition that contains
+      both swap space and the main filesystem (at least /tmp, but probably also
+      all of /run, and possibly even /home...)
+    <antrik> but that's a bit off-topic :-)
+    <antrik> well, ideally all storage should be accounted to a user,
+      regardless whether it's swapped out anonymous storage, temporary named
+      files, or permanent files
+    <slpz> antrik: you could use a file as backend for tmpfs
+    <antrik> slpz: what's the point of using tmpfs then? :-)
+    <pinotree> (and then store the file in another tmpfs)
+    <slpz> antrik: mach-defpager could be modified to use storeio instead of
+      Mach's device_* operations, but by the way things work right now, that
+      could be dangerous, IMHO
+    <antrik> pinotree: hehe
+    <pinotree> .. recursive tmpfs'es ;)
+    <antrik> slpz: hm, sounds interesting
+    <slpz> antrik: tmpfs would try to keep data in memory always it's possible
+      (not calling m_o_lock_request would do the trick), but if memory is
+      scarce an Mach starts paging out, it would write it to that
+      file/device/whatever
+    <antrik> ideally, all storage used by system tasks for swapped out
+      anonymous memory as well as temporary named files would end up on the
+      /run partition; while all storage used by users would end up in /home/*
+    <antrik> if users share a partition, some explicit storage accounting would
+      be useful too...
+    <antrik> slpz: is that any different from what "normal" filesystems do?...
+    <antrik> (and *should* it be different?...)
+    <slpz> antrik: Yes, as most FS try to synchronize to disk at a reasonable
+      rate, to prevent data losses.
+    <slpz> antrik: tmpfs would be a FS that wouldn't synchronize until it's
+      forced to do that (which, by the way, it's what's currently happening
+      with everyone that uses the default pager).
+    <antrik> slpz: hm, good point...
+    <slpz> antrik: Also, metadata in never written to disk, only kept in memory
+      (which saves a lot of I/O, too).
+    <slpz> antrik: In fact, we would be doing the same as every other kernel
+      does, but doing it explicitly :-)
+    <antrik> I see the use in separating precious data (in permanent named
+      files) from temporary state (anonymous memory and temporary named files)
+      -- but I'm not sure whether having a completely separate FS for the
+      temporary data is the right approach for that...
+    <slpz> antrik: And giving the user the option to specify its own storage,
+      so we don't limit him to the size established for swap by the super-user.
+    <antrik> either way, that would be a rather radical change... still would
+      be good to fix tmpfs as it is first if possible
+    <antrik> as for limited swap, that's precisely why I'd prefer not to have
+      an extra swap partition at all...
+    <slpz> antrik: It's not much o fa change, it's how it works right now, with
+      the exception of replacing the default pager with its own.
+    <slpz> antrik: I think it's just a matter of 10-20 hours, as
+      much. Including testing.
+    <slpz> antrik: It could be forked with another name, though :-)
+    <antrik> slpz: I don't mean radical change in the implementation... but a
+      radical change in the way it would be used
+    <slpz> antrik: I suggest "almosttmpfs" as the name for the forked one :-P
+    <antrik> hehe
+    <antrik> how about lazyfs?
+    <slpz> antrik: That sound good to me, but probably we should use a more
+      descriptive name :-)
+
+
+## 2011-09-29
+
+    <tschwinge> slpz, antrik: There is a defpager in the Hurd code.  It is not
+      currently being used, and likely incomplete.  It is backed by libstore.
+      I have never looked at it.

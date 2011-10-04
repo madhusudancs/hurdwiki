@@ -1,0 +1,71 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="clock_gettime"]]
+
+[[!tag open_issue_glibc open_issue_gnumach]]
+
+Missing `clock_gettime(CLOCK_MONOTONIC)` (e.g. for iceweasel)
+
+It could be a mere matter of extending the mappable clock: add it to
+`mapped_time_value_t` in gnumach, handle it in `gnumach/kern/mach_clock.c`, and
+make `clock_gettime` use it.
+
+BTW, also make `gettimeofday()` use it, since it's way more efficient and some
+applications assume that it is.
+
+What about adding a nanosecond-precision clock, too?  --[[tschwinge]]
+
+IRC, freenode, #hurd, 2011-08-26:
+
+    < pinotree> youpi: thing is: apparently i found a simple way to have a
+      monotonic clock as mmap-able device inside gnumach
+    < pinotree> currently, in kern/mach_clock.c there's a variable 'time',
+      which gets increased on clock interrupt, and optionally modified by
+      host_set_time
+    < pinotree> ()
+    < pinotree> if i add a new variable next to it, only increasing it on
+      interrupt but not modifying it at all otherwise, would that give me a
+      monotonic clock?
+    < pinotree> at least on sme basic tests i did, it seems it could work that
+      way
+    < youpi> yes, it should work
+    < braunr> sure
+    < youpi> and that's the way I was considering implementing it
+
+IRC, freenode, #hurd, 2011-09-06:
+
+    <pinotree> yeah, i had a draft of improved idea for also handling
+      nanoseconds
+    <tschwinge> pinotree: Ah, nice, I thought about nanoseconds as well.
+    <tschwinge> pinotree, youpi: This memory page is all-zero by default,
+      right?
+    <tschwinge> Can't we then say that its last int is a version code, and if
+      it is 0 (as it is now), we only have the normal mapped time field, if it
+      is 1, we also have the monotonic cliock and ns precision on address 8 and
+      16 (or whatever)?
+    <tschwinge> In case that isn't your plan anyway.
+    <youpi> it's all-zero, yes
+    <tschwinge> Or, we say if a field is != 0 it is valid.
+    <youpi> making the last int a version code limits the size to one page
+    <youpi> I was thinking a field != 0  being valid is simpler
+    <youpi> but it's probably a problem too
+    <youpi> in that glibc usually caches whether interfaces are supported
+    <tschwinge> Wrap-around?
+    <youpi> for some clocks, it may be valid that the value is 0
+    <youpi> wrap-around is another issue too
+    <tschwinge> Well, then we can do the version-field thing, but put it right
+      after the current time field (address 8, I think)?
+    <youpi> yes
+    <youpi> it's a bit ugly, but it's hidden behind the structure
+    <tschwinge> It's not too bad, I think.
+    <youpi> yes
+    <tschwinge> And it will forever be a witness of the evolving of this
+      map_time interface.  :-)

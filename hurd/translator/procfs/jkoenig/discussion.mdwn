@@ -166,3 +166,50 @@ IRC, freenode, #hurd, 2011-03-28
       mentoring the previous procfs implementation
     <antrik> (though I never got around to look at his buggy code...)
     <jkoenig> ok
+
+IRC, freenode, #hurd, 2011-07-22
+
+    <pinotree> hm, why /proc/$pid/stat is 600 instead of 644 of linux?
+    <jkoenig> pinotree, it reveals information which, while not that sensitive,
+      would not be available to users through the normal proc interface.
+    <jkoenig> (it's available through the ps command which is setuid root)
+    <jkoenig> we discussed at some point making it 644, IIRC.
+    <pinotree> hm, then why is it not a problem on eg linux?
+    <jkoenig> (btw you can change it with the -s option.)
+    <jkoenig> pinotree, it's not a problem because the information is not that
+      sensitive, but when rewriting procfs I preferred to play it self and
+      consider it's not procfs' job to decide what is sensitive or not.
+    <jkoenig> IIRC it's not sensitive but you need the task port to query it.
+    <jkoenig> like, thread times or something.
+    <pinotree> status is 644 though
+    <jkoenig> but status contains information which anyone can ask to the proc
+      server anyway, I think.
+
+
+# `/proc/mounts`, `/proc/$pid/mounts`
+
+IRC, freenode, #hurd, 2011-07-25
+
+    < pinotree> jkoenig: btw, what do you think about providing empty
+      /proc/mounts and /proc/$pid/mounts files?
+    < jkoenig> pinotree, I guess one would have to evaluate the consequences
+      wrt. existing use cases (in other words, "I have absolutely no clue
+      whatsoever about whether that would be desirable" :-)
+    < jkoenig> pinotree, the thing is, an error message like "/proc/mounts: No
+      such file or directory" is rather explicit, whereas errors which would be
+      caused by missing data in /proc/mounts would maybe be harder to track
+    < braunr> this seems reasonable though
+    < braunr> there already are many servers with e.g. grsecurity or chrooted
+      environments where mounts is empty
+    < pinotree> well, currently we also have an empty mtab
+    < braunr> pinotree: but what do you need that for ?
+    < braunr> pinotree: the init system ?
+    < pinotree> and the mnt C api already returns no entries (or it bails out,
+      i don't remember)
+    < pinotree> not a strict need
+
+
+# `/proc/[PID]/auxv`, `/proc/[PID]/exe`, `/proc/[PID]/mem`
+
+Needed by glibc's `pldd` tool (commit
+11988f8f9656042c3dfd9002ac85dff33173b9bd).

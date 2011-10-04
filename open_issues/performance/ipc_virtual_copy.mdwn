@@ -1,0 +1,395 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+IRC, freenode, #hurd, 2011-09-02:
+
+    <slpz> what's the usual throughput for I/O operations (like "dd
+      if=/dev/zero of=/dev/null") in one of those Xen based Hurd machines
+      (*bber)?
+    <braunr> good question
+    <braunr> slpz: but don't use /dev/zero and /dev/null, as they don't have
+      anything to do with true I/O operations
+    <slpz> braunr: in fact, I want to test the performance of IPC's virtual
+      copy operations
+    <braunr> ok
+    <slpz> braunr: sorry, the "I/O" was misleading
+    <braunr> use bs=4096 then i guess
+    <slpz> bs > 2k
+    <braunr> ?
+    <slpz> braunr: everything about 2k is copied by vm_map_copyin/copyout
+    <slpz> s/about/above/
+    <slpz> braunr: MiG's stubs check for that value and generate complex (with
+      out_of_line memory) messages if datalen is above 2k, IIRC
+    <braunr> ok
+    <braunr> slpz: found it, thanks
+    <tschwinge> tschwinge@strauss:~ $ dd if=/dev/zero of=/dev/null bs=4k & p=$!
+      && sleep 10 && kill -s INFO $p && sleep 1 && kill $p
+    <tschwinge> [1] 13469
+    <tschwinge> 17091+0 records in
+    <tschwinge> 17090+0 records out
+    <tschwinge> 70000640 bytes (70 MB) copied, 17.1436 s, 4.1 MB/s
+    <tschwinge> Note, however 10 s vs. 17 s!
+    <tschwinge> And this is slow compared to heal hardware:
+    <tschwinge> thomas@coulomb:~ $ dd if=/dev/zero of=/dev/null bs=4k & p=$! &&
+      sleep 10 && kill -s INFO $p && sleep 1 && kill $p
+    <tschwinge> [1] 28290
+    <tschwinge> 93611+0 records in
+    <tschwinge> 93610+0 records out
+    <tschwinge> 383426560 bytes (383 MB) copied, 9.99 s, 38.4 MB/s
+    <braunr> tschwinge: is the first result on xen vm ?
+    <tschwinge> I think so.
+    <braunr> :/
+    <slpz> tschwinge: Thanks! Could you please try with a higher block size,
+      something like 128k or 256k?
+    <tschwinge> strauss is on a machine that also hosts a buildd, I think.
+    <braunr> oh ok
+    <pinotree> yes, aside either rossini or mozart
+    <tschwinge> And I can confirm that with dd if=/dev/zero of=/dev/null bs=4k
+      running, a parallel sleep 10 takes about 20 s (on strauss).
+
+[[open_issues/time]]
+
+    <braunr> slpz: i'll set up xen hosts soon and can try those tests while
+      nothing else runs to have more accurate results
+    <tschwinge> tschwinge@strauss:~ $ dd if=/dev/zero of=/dev/null bs=256k &
+      p=$! && sleep 10 && kill -s INFO $p && sleep 1 && kill $p
+    <tschwinge> [1] 13482
+    <tschwinge> 4566+0 records in
+    <tschwinge> 4565+0 records out
+    <tschwinge> 1196687360 bytes (1.2 GB) copied, 13.6751 s, 87.5 MB/s
+    <braunr> slpz: gains are logarithmic beyond the page size
+    <tschwinge> thomas@coulomb:~ $ dd if=/dev/zero of=/dev/null bs=256k & p=$!
+      && sleep 10 && kill -s INFO $p && sleep 1 && kill $p
+    <tschwinge> [1] 28295
+    <tschwinge> 6335+0 records in
+    <tschwinge> 6334+0 records out
+    <tschwinge> 1660420096 bytes (1.7 GB) copied, 9.99 s, 166 MB/s
+    <tschwinge> This time a the sleep 10 decided to take 13.6 s.
+      ``Interesting.''
+    <slpz> tschwinge: Thanks again. The results for the Xen machine are not bad
+      though. I can't obtain a throughput over 50MB/s with KVM.
+    <tschwinge> slpz: Want more data (bs)?  Just tell.
+    <braunr> slpz: i easily get more than that
+    <braunr> slpz: what buffer size do you use ?
+    <slpz> tschwinge: no, I just wanted to see if Xen has an upper limit beyond
+      KVM's. Thank you.
+    <slpz> braunr: I try with different sizes until I find the maximum
+      throughput for a certain amount of requests (count)
+    <slpz> braunr: are you working with KVM?
+    <braunr> yes
+    <braunr> slpz: my processor is a model name      : Intel(R) Core(TM)2 Duo
+      CPU     E7500  @ 2.93GHz
+    <braunr> Linux silvermoon 2.6.32-5-amd64 #1 SMP Tue Jun 14 09:42:28 UTC
+      2011 x86_64 GNU/Linux
+    <braunr> (standard amd64 squeeze kernel)
+    <slpz> braunr: and KVM's version?
+    <braunr> squeeze (0.12.5)
+    <braunr> bbl
+    <gnu_srs> 212467712 bytes (212 MB) copied, 9.95 s, 21.4 MB/s on kvm for me!
+    <slpz> gnu_srs: which block size?
+    <gnu_srs> 4k, and  61.7 MB/s with 256k
+    <slpz> gnu_srs: could you try with 512k and 1M?
+    <gnu_srs> 512k: 56.0 MB/s, 1024k: 40.2 MB/s Looks like the peak is around a
+      few 100k
+    <slpz> gnu_srs: thanks!
+    <slpz> I've just obtained 1.3GB/s with bs=512k on other (newer) machine
+    <braunr> on which hw/vm ?
+    <slpz> I knew this is a cpu-bound test, but I couldn't imagine faster
+      processors could make this difference
+    <slpz> braunr: Intel(R) Core(TM) i5 CPU         650  @ 3.20GHz
+    <slpz> braunr: KVM
+    <braunr> ok
+    <braunr> how much time did you wait before reading the result ?
+    <slpz> that was 20x times better than the same test on my Intel(R)
+      Core(TM)2 Duo CPU     T7500  @ 2.20GHz
+    <slpz> braunr: I've repeated the test with a fixed "count"
+    <gnu_srs> My box is: Intel(R) Core(TM)2 Quad CPU    Q6600  @ 2.40GHz: Max
+      is 67 MB/s around 140k block size
+    <braunr> yes but how much time did dd run ?
+    <gnu_srs>  10 s plus/minus a few fractions of a second,
+    <braunr> try waiting 30s
+    <slpz> braunr: didn't check, let me try again
+    <braunr> my kvm peaks at 130 MiB/s with bs 512k / 1M
+    <gnu_srs> 2029690880 bytes (2.0 GB) copied, 30.02 s, 67.6 MB/s, bs=140k
+    <braunr> gnu_srs: i'm very surprised with slpz's result of 1.3 GiB/s
+    <slpz> braunr: over 60 s running, same performance
+    <braunr> nice
+    <braunr> i wonder what makes it so fast
+    <braunr> how much cache ?
+    <gnu_srs> Me too, I cannot get better values than around 67 MB/s
+    <braunr> gnu_srs: same questions
+    <slpz> braunr: 4096KB, same as my laptop
+    <braunr> slpz: l2 ? l3 ?
+    <gnu_srs> kvm: cache=writeback, CPU: 4096 KB
+    <braunr> gnu_srs: this has nothing to do with the qemu option, it's about
+      the cpu
+    <slpz> braunr: no idea, it's the first time I touch this machine. I going
+      to see if I find the model in processorfinder
+    <braunr> under my host linux system, i get a similar plot, that is,
+      performance drops beyond bs=1M
+    <gnu_srs> braunr: OK, bu I gave you the cache size too, same as slpz.
+    <braunr> i wonder what dd actually does
+    <braunr> read() and writes i guess
+    <slpz> braunr: read/write repeatedly, nothing fancy 
+    <braunr> slpz: i don't think it's a good test for virtual copy
+    <braunr> io_read_request, vm_deallocate, io_write_request, right
+    <braunr> slpz: i really wonder what it is about i5 that improves speed so
+      much
+    <slpz> braunr: me too
+    <slpz> braunr: L2: 2x256KB, L3: 4MB
+    <slpz> and something calling "SmartCache"
+    <gnu_srs> slpz: where did you find these values?
+    <slpz> gnu_srs: ark.intel.com and wikipedia
+    <gnu_srs> aha, cpuinfo just gives cache size.
+    <slpz> that "SmartCache" thing seems to be just L2 cache sharing between
+      cores. Shouldn't make a different since we're using only one core, and I
+      don't see KVM hooping between them.
+    <manuel> with bs=256k: 7004487680 bytes (7.0 GB) copied, 10 s, 700 MB/s
+    <manuel> (qemu/kvm, 3 * Intel(R) Xeon(R) E5504 2GHz, cache size 4096 KB)
+    <slpz> manuel: did you try with 512k/1M?
+    <manuel> bs=512k: 7730626560 bytes (7.7 GB) copied, 10 s, 773 MB/s
+    <manuel> bs=1M: 7896825856 bytes (7.9 GB) copied, 10 s, 790 MB/s
+    <slpz> manuel: those are pretty good numbers too
+    <braunr> xeon processor
+    <gnu_srs> lshw gave me: L1 Cache 256KiB, L2 cache 4MiB
+    <slpz> sincerely, I've never seen Hurd running this fast. Just checked
+      "uname -a" to make sure I didn't take the wrong image :-)
+    <manuel> for bs=256k, 60s: 40582250496 bytes (41 GB) copied, 60 s, 676 MB/s
+    <braunr> slpz: i think you can assume processor differences alter raw
+      copies too much to get any valuable results about virtual copy operations
+    <braunr> you need a specialized test program
+    <manuel> and bs=512k, 60s, 753 MB/s
+    <slpz> braunr: I'm using the mach_perf suite from OSFMach to do the
+      "serious" testing. I just wanted a non-synthetic test to confirm the
+      readings.
+
+[[!taglink open_issue_gnumach]] -- have a look at *mach_perf*.
+
+    <braunr> manuel: how much cache ? 2M ?
+    <braunr> slpz: ok
+    <braunr> manuel: hmno, more i guess
+    <manuel> braunr: /proc/cpuinfo says cache size      : 4096 KB
+    <braunr> ok
+    <braunr> manuel: performance should drop beyond bs=2M
+    <braunr> but that's not relevant anyway
+    <gnu_srs> Linux:  bs=1M, 10.8 GB/s
+    <slpz> I think this difference is too big to be only due to a bigger amount
+      of CPU cycles...
+    <braunr> slpz: clearly
+    <slpz> gnu_srs: your host system has 64 or 32 bits?
+    <slpz> braunr: I'm going to investigate a bit
+    <slpz> but this accidental discovery just made my day. We're able to run
+      Hurd at decent speeds on newer hardware!
+    <braunr> slpz: what result do you get with the same test on your host
+      system ?
+    <manuel> interestingly, running it several times has made the performance
+      drop quite much (i'm getting 400-500MB/s with 1M now, compared to nearly
+      800 fifteen minutes ago)
+
+[[Degradataion]].
+
+    <slpz> braunr: probably an almost infinite throughput, but I don't consider
+      that a valid test, since in Linux, the write operation to "/dev/null"
+      doesn't involve memory copying/moving
+    <braunr> manuel: i observed the same behaviour
+    <gnu_srs> slpz: Host system is 64 bit
+    <braunr> slpz: it doesn't on the hurd either
+    <braunr> slpz: (under 2k, that is)
+    <braunr> over*
+    <slpz> braunr: humm, you're right, as the null translator doesn't "touch"
+      the memory, CoW rules apply
+    <braunr> slpz: the only thing which actually copies things around is dd
+    <braunr> probably by simply calling read()
+    <braunr> which gets its result from a VM copy operation, but copies the
+      content to the caller provided buffer
+    <braunr> then vm_deallocate() the data from the storeio (zero) translator
+    <braunr> if storeio isn't too dumb, it doesn't even touch the transfered
+      buffer (as anonymous vm_map()ped memory is already cleared)
+
+[[!taglink open_issue_documentation]]
+
+    <braunr> so this is a good test for measuring (profiling?) our ipc overhead
+    <braunr> and possibly the vm mapping operations (which could partly explain
+      why the results get worse over time)
+    <braunr> manuel: can you run vminfo | wc -l on your gnumach process ?
+    <slpz> braunr: Yes, unless some special situation apply, like the source
+      address/offset being unaligned, or if the translator decides to return
+      the result in a different buffer (which I assume is not the case for
+      storeio/zero)
+    <manuel> braunr: 35
+    <braunr> slpz: they can't be unaligned, the vm code asserts that
+    <braunr> manuel: ok, this is normal
+    <slpz> braunr: address/offset from read()
+    <braunr> slpz: the caller provided buffer you mean ?
+    <slpz> braunr: yes, and the offset of the memory_object, if it's a pager
+      based translator
+    <braunr> slpz: highly unlikely, the compiler chooses appropriate alignments
+      for such buffers
+    <slpz> braunr: in those cases, memcpy is used over vm_copy
+    <braunr> slpz: and the glibc memcpy() optimized versions can usually deal
+      with that
+    <braunr> slpz: i don't get your point about memory objects
+    <braunr> slpz: requests on memory objects always have aligned values too
+    <slpz> braunr: sure, but can't deal with the user requesting non
+      page-aligned sizes
+    <braunr> slpz: we're considering our dd tests, for which we made sure sizes
+      were page aligned
+    <slpz> braunr: oh, I was talking in a general sense, not just in this dd
+      tests, sorry
+    <slpz> by the way, dd on the host tops at 12 GB/s with bs=2M
+    <braunr> that's consistent with our other results
+    <braunr> slpz: you mean, even on your i5 processor with 1.3 GiB/s on your
+      hurd kvm ?
+    <slpz> braunr: yes, on the GNU/Linux which is running as host
+    <braunr> slpz: well that's not consistent
+    <slpz> braunr: consistent with what?
+    <braunr> slpz: i get roughly the same result on my host, but ten times less
+      on my hurd kvm
+    <braunr> slpz: what's your kernel/kvm versions ?
+    <slpz> 2.6.32-5-amd64 (debian's build) 0.12.5
+    <braunr> same here
+    <braunr> i'm a bit clueless
+    <braunr> why do i only get 130 MiB/s where you get 1.3 .. ? :)
+    <slpz> well, on my laptop, where Hurd on KVM tops on 50 MB/s, Linux gets a
+      bit more than 10 GB/s
+    <braunr> see
+    <braunr> slpz: reduce bs to 256k and test again if you have time please
+    <slpz> braunr: on which system?
+    <braunr> slpz: the fast one
+    <braunr> (linux host)
+    <slpz> braunr: Hurd?
+    <slpz> ok
+    <slpz> 12 GB/s
+    <braunr> i get 13.3
+    <slpz> same for 128k, only at 64k starts dropping
+    <slpz> maybe, on linux we're being limited by memory speed, while on Hurd's
+      this test is (much) more CPU-bound?
+    <braunr> slpz: maybe
+    <braunr> too bad processor stalls aren't easy to measure
+    <slpz> braunr: that's very true. It's funny when you read a paper which
+      measures performance by cycles on an old RISC processor. That's almost
+      impossible to do (with reliability) nowadays :-/
+    <slpz> I wonder which throughput can achieve Hurd running bare-metal on
+      this machine...
+    <antrik> both the Xeon and the i5 use cores based on the Nehalem
+      architecture
+    <antrik> apparently Nehalem is where Intel first introduces nested page
+      tables
+    <antrik> which pretty much explains the considerably lower overhead of VM
+      magic
+    <cjuner> antrik, what are nested page tables? (sounds like the 4-level page
+      tables we already have on amd64, or 2-level or 3-level on x86 pae)
+    <antrik> page tables were always 2-level on x86
+    <antrik> that's unrelated
+    <antrik> nested page tables means there is another layer of address
+      translation, so the VMM can do it's own translation and doesn't care what
+      the guest system does => no longer has to intercept all page table
+      manipulations
+    <braunr> antrik: do you imply it only applies to virtualized systems ?
+    <antrik> braunr: yes
+    <slpz> antrik: Good guess. Looks like Intel's EPT are doing the trick by
+      allowing the guest OS deal with its own page faults
+    <slpz> antrik: next monday, I'll try disabling EPT support in KVM on that
+      machine (the fast one). That should confirm your theory empirically.
+    <slpz> this also means that there're too many page faults, as we should be
+      doing virtual copies of memory that is not being accessed
+    <slpz> and looking at how the value of "page faults" in "vmstat" increases,
+      shows that page faults are directly proportional to the number of pages
+      we are asking from the translator
+    <slpz> I've also tried doing a long read() directly, to be sure that "dd"
+      is not doing something weird, and it shows the same behaviour.
+    <braunr> slpz: dd does copy buffers
+    <braunr> slpz: i told you, it's not a good test case for pure virtual copy
+      evaluation
+    <braunr> antrik: do you know if xen benefits from nested page tables ?
+    <antrik> no idea
+
+[[!taglink open_issue_xen]]
+
+    <slpz> braunr: but my small program doesn't, and still provokes a lot of
+      page faults
+    <braunr> slpz: are you certain it doesn't ?
+    <slpz> braunr: looking at google, it looks like recent Xen > 3.4 supports
+      EPT
+    <braunr> ok
+    <braunr> i'm ordering my new server right now, core i5 :)
+    <slpz> braunr: at least not explicitily. I need to look at MiG stubs again,
+      I don't remember if they do something weird.
+    <antrik> braunr: sandybridge or nehalem? :-)
+    <braunr> antrik: no idea
+    <antrik> does it tell a model number?
+    <braunr> not yet
+    <braunr> but i don't have a choice for that, so i'll order it first, check
+      after
+    <antrik> hehe
+    <antrik> I'm not sure it makes all that much difference anyways for a
+      server... unless you are running it at 100% load ;-)
+    <braunr> antrik: i'm planning on running xen guests suchs as new buildd
+    <antrik> hm... note though that some of the nehalem-generation i5s were
+      dual-core, while all the new ones are quad
+    <braunr> it's a quad
+    <antrik> the newer generation has better performance per GHz and per
+      Watt... but considering that we are rather I/O-limited in most cases, it
+      probably won't make much difference
+    <antrik> not sure whether there are further virtualisation improvements
+      that could be relevant...
+    <braunr> buildds spend much time running gcc, so even such improvements
+      should help
+    <braunr> there, server ordered :)
+    <braunr> antrik: model name      : Intel(R) Core(TM) i5-2400 CPU @ 3.10GHz
+
+IRC, freenode, #hurd, 2011-09-06:
+
+    <slpz> youpi: what machines are being used for buildd? Do you know if they
+      have EPT/RVI?
+    <youpi> we use PV Xen there
+    <slpz> I think Xen could also take advantage of those technologies. Not
+      sure if only in HVM or with PV too.
+    <youpi> only in HVM
+    <youpi> in PV it does not make sense: the guest already provides the
+      translated page table
+    <youpi> which is just faster than anything else
+
+IRC, freenode, #hurd, 2011-09-09:
+
+    <antrik> oh BTW, for another data point: dd zero->null gets around 225 MB/s
+      on my lowly 1 GHz Pentium3, with a blocksize of 32k
+    <antrik> (but only half of that with 256k blocksize, and even less with 1M)
+    <antrik> the system has been up for a while... don't know whether it's
+      faster on a freshly booted one
+
+IRC, freenode, #hurd, 2011-09-15:
+
+    <sudoman>
+      http://www.reddit.com/r/gnu/comments/k68mb/how_intelamd_inadvertently_fixed_gnu_hurd/
+    <sudoman> so is the dd command pointed to by that article a measure of io
+      performance?
+    <antrik> sudoman: no, not really
+    <antrik> it's basically the baseline of what is possible -- but the actual
+      slowness we experience is more due to very unoptimal disk access patterns
+    <antrik> though using KVM with writeback caching does actually help with
+      that...
+    <antrik> also note that the title of this post really makes no
+      sense... nested page tables should provide similar improvements for *any*
+      guest system doing VM manipulation -- it's not Hurd-specific at all
+    <sudoman> ok, that makes sense. thanks :)
+
+IRC, freenode, #hurd, 2011-09-16:
+
+    <slpz> antrik: I wrote that article (the one about How AMD/Intel fixed...)
+    <slpz> antrik: It's obviously a bit of an exaggeration, but it's true that
+      nested pages supposes a great improvement in the performance of Hurd
+      running on virtual machines
+    <slpz> antrik: and it's Hurd specific, as this system is more affected by
+      the cost of page faults
+    <slpz> antrik: and as the impact of virtualization on the performance is
+      much higher than (almost) any other OS.
+    <slpz> antrik: also, dd from /dev/zero to /dev/null it's a measure on how
+      fast OOL IPC is.

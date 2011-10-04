@@ -1,0 +1,116 @@
+diff --git a/dlls/ntdll/directory.c b/dlls/ntdll/directory.c
+index 42b3639..7484608 100644
+--- a/dlls/ntdll/directory.c
++++ b/dlls/ntdll/directory.c
+@@ -3145,14 +3145,14 @@ static void WINAPI read_changes_user_apc( void *arg, IO_STATUS_BLOCK *io, ULONG
+ static NTSTATUS read_changes_apc( void *user, PIO_STATUS_BLOCK iosb, NTSTATUS status, void **apc )
+ {
+     struct read_changes_info *info = user;
+-    char data[PATH_MAX];
++    char data[4096];
+     NTSTATUS ret;
+     int size;
+ 
+     SERVER_START_REQ( read_change )
+     {
+         req->handle = wine_server_obj_handle( info->FileHandle );
+-        wine_server_set_reply( req, data, PATH_MAX );
++        wine_server_set_reply( req, data, 4096 );
+         ret = wine_server_call( req );
+         size = wine_server_reply_size( reply );
+     }
+diff --git a/dlls/ntdll/signal_i386.c b/dlls/ntdll/signal_i386.c
+index 6c8e8e2..e949227 100644
+--- a/dlls/ntdll/signal_i386.c
++++ b/dlls/ntdll/signal_i386.c
+@@ -180,6 +180,36 @@ __ASM_GLOBAL_FUNC(vm86_enter,
+ 
+ #endif  /* linux */
+ 
++#ifdef __GNU__
++
++typedef ucontext_t SIGCONTEXT;
++
++#define EAX_sig(context)     ((context)->uc_mcontext.gregs[REG_EAX])
++#define EBX_sig(context)     ((context)->uc_mcontext.gregs[REG_EBX])
++#define ECX_sig(context)     ((context)->uc_mcontext.gregs[REG_ECX])
++#define EDX_sig(context)     ((context)->uc_mcontext.gregs[REG_EDX])
++#define ESI_sig(context)     ((context)->uc_mcontext.gregs[REG_ESI])
++#define EDI_sig(context)     ((context)->uc_mcontext.gregs[REG_EDI])
++#define EBP_sig(context)     ((context)->uc_mcontext.gregs[REG_EBP])
++#define ESP_sig(context)     ((context)->uc_mcontext.gregs[REG_ESP])
++
++#define CS_sig(context)      ((context)->uc_mcontext.gregs[REG_CS])
++#define DS_sig(context)      ((context)->uc_mcontext.gregs[REG_DS])
++#define ES_sig(context)      ((context)->uc_mcontext.gregs[REG_ES])
++#define SS_sig(context)      ((context)->uc_mcontext.gregs[REG_SS])
++#define FS_sig(context)      ((context)->uc_mcontext.gregs[REG_FS])
++#define GS_sig(context)      ((context)->uc_mcontext.gregs[REG_GS])
++
++#define EFL_sig(context)     ((context)->uc_mcontext.gregs[REG_EFL])
++#define EIP_sig(context)     ((context)->uc_mcontext.gregs[REG_EIP])
++#define TRAP_sig(context)    ((context)->uc_mcontext.gregs[REG_TRAPNO])
++#define ERROR_sig(context)   ((context)->uc_mcontext.gregs[REG_ERR])
++
++#define FPU_sig(context)     ((FLOATING_SAVE_AREA *)&(context)->uc_mcontext.fpregs.fp_reg_set.fpchip_state)
++#define FPUX_sig(context)    NULL
++
++#endif  /* __GNU__ */
++
+ #ifdef BSDI
+ 
+ #include <machine/frame.h>
+diff --git a/dlls/shell32/shfldr_unixfs.c b/dlls/shell32/shfldr_unixfs.c
+index 9649df8..cdd1798 100644
+--- a/dlls/shell32/shfldr_unixfs.c
++++ b/dlls/shell32/shfldr_unixfs.c
+@@ -369,7 +369,7 @@ static inline BOOL UNIXFS_is_pidl_of_type(LPCITEMIDLIST pIDL, SHCONTF fFilter) {
+ static BOOL UNIXFS_get_unix_path(LPCWSTR pszDosPath, char *pszCanonicalPath)
+ {
+     char *pPathTail, *pElement, *pCanonicalTail, szPath[FILENAME_MAX], *pszUnixPath, has_failed = 0, mb_path[FILENAME_MAX];
+-    WCHAR wszDrive[] = { '?', ':', '\\', 0 }, dospath[PATH_MAX], *dospath_end;
++    WCHAR wszDrive[] = { '?', ':', '\\', 0 }, dospath[MAX_PATH], *dospath_end;
+     int cDriveSymlinkLen;
+     void *redir;
+ 
+diff --git a/dlls/winex11.drv/xrender.c b/dlls/winex11.drv/xrender.c
+index ad8e08b..a8d6329 100644
+--- a/dlls/winex11.drv/xrender.c
++++ b/dlls/winex11.drv/xrender.c
+@@ -2440,8 +2440,8 @@ void X11DRV_XRender_UpdateDrawable(X11DRV_PDEVICE *physDev)
+   return;
+ }
+ 
+-BOOL XRender_AlphaBlend( X11DRV_PDEVICE *devDst, X11DRV_PDEVICE *devSrc,
+-                         struct bitblt_coords *dst, struct bitblt_coords *src, BLENDFUNCTION blendfn )
++BOOL XRender_AlphaBlend( X11DRV_PDEVICE *devDst, struct bitblt_coords *dst,
++                         X11DRV_PDEVICE *devSrc, struct bitblt_coords *src, BLENDFUNCTION blendfn )
+ {
+   FIXME("not supported - XRENDER headers were missing at compile time\n");
+   return FALSE;
+diff --git a/libs/wine/ldt.c b/libs/wine/ldt.c
+index 3098061..b3fee13 100644
+--- a/libs/wine/ldt.c
++++ b/libs/wine/ldt.c
+@@ -96,6 +96,11 @@ static inline int set_thread_area( struct modify_ldt_s *ptr )
+ #include <i386/user_ldt.h>
+ #endif
+ 
++#ifdef __GNU__
++#include <mach/i386/mach_i386.h>
++#include <mach/mach_traps.h>
++#endif
++
+ /* local copy of the LDT */
+ #ifdef __APPLE__
+ struct __wine_ldt_copy wine_ldt_copy = { { 0, 0, 0 } };
+@@ -203,6 +208,9 @@ static int internal_set_entry( unsigned short sel, const LDT_ENTRY *entry )
+ #elif defined(__APPLE__)
+     if ((ret = i386_set_ldt(index, (union ldt_entry *)entry, 1)) < 0)
+         perror("i386_set_ldt");
++#elif defined(__GNU__)
++    if ((ret = i386_set_ldt(mach_thread_self(), sel, (descriptor_list_t)entry, 1)) != KERN_SUCCESS)
++        perror("i386_set_ldt");
+ #else
+     fprintf( stderr, "No LDT support on this platform\n" );
+     exit(1);

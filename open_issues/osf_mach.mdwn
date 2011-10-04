@@ -1,0 +1,237 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_glibc open_issue_gnumach open_issue_hurd]]
+
+IRC, freenode, #hurd, 2011-09-07
+
+    <slpz> tschwinge: do you think that should be possible/convenient to
+      maintain hurd and glibc versions for OSF Mach as branches in the offical
+      git repo?
+    <tschwinge> Is OSF Mach the MkLinux one?
+    <slpz> Yes, it is
+    <tschwinge> slpz: If there's a suitable license, then yes, of course!
+    <tschwinge> Unless there is a proper upstream, of course.
+    <tschwinge> But I don't assume there is?
+    <tschwinge> slpz: What is interesting for us about OSF Mach?
+    <slpz> tschwinge: Peter Bruin and Jose Marchesi did a gnuified version some
+      time ago (gnu-osfmach), so I suppose the license is not a problem. But
+      I'm going to check it, though
+    <slpz> OSF Mach has a number of interesting features
+    <slpz> like migrating threads, advisory pageout, clustered pageout, kernel
+      loaded tasks, short circuited RPC...
+    <tschwinge> Oh!
+    <tschwinge> Good.
+    <slpz> right now I'm testing if it's really worth the effort
+    <tschwinge> Yes.
+    <tschwinge> But if the core codebase is the same (is it?) it may be
+      possible to merge some things?
+    <tschwinge> If the changes can be identified reasonably...
+    <slpz> comparing performance of the specialized RPC of OSF Mach with
+      generic IPC
+    <slpz> That was my first intention, but I think that porting all those
+      features will be much more work than porting Hurd/glibc to it
+    <braunr> slpz: ipc performance currently matters less than clustered
+      pageouts
+    <braunr> slpz: i'm really not sure ..
+    <braunr> i'd personnally adapt the kernel
+    <slpz> braunr: well, clustered pageouts is one of the changes that can be
+      easily ported
+    <slpz> braunr: We can consider OSF Mach code as reasonably stable, and
+      porting its features to GNU Mach will take us to the point of having to
+      debug all that code again
+    <slpz> probably, the hardest feature to be ported is migrating threads
+    <braunr> isn't that what was tried for gnu mach 2 ? or was it only about
+      oskit ?
+    <slpz> IIRC only oskit
+    <tschwinge> slpz: But there have been some advancements in GNU Mach, too.
+      For example the Xen port.
+    <tschwinge> But wen can experiment with it, of course.
+    <slpz> tschwinge: I find easier to move the Xen support from GNU Mach to
+      OSF Mach, than porting MT in the other direction
+    <tschwinge> slpz: And I think MkLinux is a single-server, so I don't this
+      they used IPC as much as we did?
+    <tschwinge> slpz: OK, I see.
+    <braunr> slpz: MT aren't as needed as clustered pageouts :p
+    <braunr> gnumach already has ipc handoff, so MT would just consume less
+      stack space, and only slightly improve raw ipc performance
+    <tschwinge> slpz: But we will surely accept patches that get the Hurd/glibc
+      ported to OSF Mach, no question.
+    <braunr> (it's required for other issues we discussed already, but not a
+      priority imo)
+    <slpz> tschwinge: MkLinux makes heavy use of IPC, but it tries to
+      "short-circuit" it when running as a kernel loaded task
+    <tschwinge> And it's obviously best to keep it in one place.  Luckily it's
+      not CVS branches anymore...  :-)
+    <slpz> braunr: well, I'm a bit obsessed with IPC peformance, if the RPC on
+      OSF Mach really makes a difference, I want it for Hurd right now
+    <slpz> braunr: clustered pages can be implemented at any time :-)
+    <slpz> tschwinge: great!
+    <tschwinge> slpz: In fact, haven'T there already been some Savannah
+      repositories created, several (five?) years ago?
+    <braunr> slpz: the biggest performance issue on the hurd is I/O
+    <braunr> and the easiest way to improve that is better VM transfers
+    <slpz> tschwinge: yes, the HARD project, but I think it wasn't too well
+      received...
+    <tschwinge> slpz: Quite some things changed since then, I'd say.
+    <slpz> braunr: I agree, but IPC is the hardest part to optimize
+    <slpz> braunr: If we have a fast IPC, the rest of improvements are way
+      easier
+    <braunr> slpz: i don't see how faster IPC makes I/O faster :(
+    <braunr> slpz: read
+      http://www.sceen.net/~rbraun/the_increasing_irrelevance_of_ipc_performance_for_microkernel_based_operating_systems.pdf
+      again :)
+    <slpz> braunr: IPC puts the upper limit of how fast I/O could be
+    <braunr> the abstract for my thesis on x15 mach was that the ipc code was
+      the most focused part of the kernel
+    <braunr> so my approach was to optimize everything *else*
+    <braunr> the improvements in UVM (and most notably clustered page
+      transfers) show global system improvements up to 30% in netbsd
+    <braunr> we should really focus on the VM first (which btw, is a pain in
+      the ass with the crappy panicking swap code in place)
+    <braunr> and then complete the I/O system
+    <slpz> braunr: If a system can't transfer data between translators faster
+      than 100 MB/s, faster devices doesn't make much sense
+    <guillem> has anyone considered switching the syscalls to use
+      sysenter/syscall instead of soft interrupts?
+    <slpz> braunr: but I agree on the VM part
+    <braunr> guillem: it's in my thesis .. but only there :)
+    <braunr> slpz: let's reach 100 MiB/s first, then improve IPC
+    <slpz> guillem: that's a must do, also moving to 64 bits :-)
+    <braunr> guillem: there are many tiny observations in it, like the use of
+      global page table entries, which was added by youpi around that time
+    <guillem> slpz: I wanted to fix all warnings first before sending my first
+      batch of 64 bit fixes, but I think I'll just send them after checking
+      they don't introduce regressions on i386
+    <guillem> braunr: interesting I think I might have skimmed over your
+      thesis, maybe I should read it properly some time :)
+    <slpz> braunr: I see exactly as the opposite. First push IPC to its limit,
+      then improve devices/VM
+    <slpz> guillem: that's great :-)
+    <braunr> slpz: improving ipc now will bring *nothing*, whereas improving
+      vm/io now will make the system considerably more useable
+    <guillem> but then fixing 64-bit issues in the Linux code is pretty
+      annoying given that the latest code from upstream has that already fixed,
+      and we are “supposed” to drop the linux code from gnumach at some point
+      :)
+    <braunr> slpz: that's a basic principle in profiling, improve what brings
+      the best gains
+    <slpz> braunr: I'm not thinking about today, I'm thinking about how fast
+      Hurd could be when running on Mach. And, as I said, IPC is the absolute
+      upper limit.
+    <braunr> i'm really not convinced
+    <braunr> there are that many tasks making extensive use of IPCs
+    <braunr> most are cpu/IO bound
+    <slpz> but I have to acknowledge that this concern has been really
+      aliviated by the EPT improvement discovery
+    <braunr> there aren't* that many tasks
+    <slpz> braunr: create a ramdisk an write some files on it
+    <slpz> braunr: there's no I/O in that case, an performance it's really low
+      too
+    <braunr> well, ramdisks don't even work correctly iirc
+    <slpz> I must say that I consider improvements in OOL data moving as if it
+      were in IPC itself
+    <slpz> braunr: you can simulate one with storeio
+    <braunr> slpz: then measure what's slow
+    <braunr> slpz: it couldn't simply be the vm layer
+    <slpz> braunr:
+      http://www.gnu.org/s/hurd/hurd/libstore/examples/ramdisk.html
+    <braunr> ok, it's not a true ramdisk
+    <braunr> it's a stack of a ramdisk and extfs servers
+    <braunr> ext2fs*
+    <braunr> i was thinking about tmpfs
+    <slpz> True, but one of Hurd main advantages is the ability of doing that
+      kind of things
+    <slpz> so they must work with a reasonable performance
+    <braunr> other systems can too ..
+    <braunr> anyway
+    <braunr> i get your point, you want faster IPCs, like everyone does
+    <slpz> braunr: yes, and I also want to know how fast could be, to have a
+      reference when profiling complex services
+    <antrik> slpz: really improving IPC performance probably requires changing
+      the semantics... but we don't know which semantics we want until we have
+      actually tried fixing the existing bottlenecks
+    <antrik> well, not only bottlenecks... also other issues such as resource
+      management
+    <slpz> antrik: I think fixing bottlenecks would probably require changes in
+      some Mach interfaces, not in the IPC subsystem
+    <slpz> antrik: I mean, IPC semantics just provide the basis for messaging,
+      I don't think we will need to change them further
+    <antrik> slpz: right, but only once we have addressed the bottlenecks (and
+      other major shortcomings), we will know how the IPC mechanisms needs to
+      change to get further improvements...
+    <antrik> of course improving Mach IPC performance is interesting too -- if
+      nothing else, then to see how much of a difference it really makes... I
+      just don't think it should be considered an overriding priority :-)
+    <youpi> slpz: I agree with braunr, I don't think improving IPC will bring
+      much on the short term
+    <youpi> the buildds are slow mostly because of bad VM
+    <youpi> like lack of read-ahead, the randomness of object cache pageout,
+      etc.
+    <youpi> that doesn't mean IPC shouldn't be improved of course
+    <youpi> but we have a big margin for iow
+    <youpi> s/iow/now
+    <slpz> youpi: I agree with you and with braunr in that regard. I'm not
+      looking for an inmediate improvement, I just want to see how fast the IPC
+      (specially, OOL data transfers) could be.
+    <slpz> also, migrating threads will help to fix some problems related with
+      resource management
+    <antrik> slpz: BTW, what about Apple's Mach? isn't it essentialy OSF Mach
+      with some further improvements?...
+    <slpz> antrik: IPC is an area with very little room for improvement, so I
+      don't we will fix that bottlenecks by applying some changes there
+    <antrik> well, for large OOL transfers, the limiting facter is certainly
+      also VM rather than the thread model?...
+    <slpz> antrik: yes, but I think is encumbered with the APPLv2 license
+    <antrik> ugh
+    <slpz> antrik: for OOL transfers, VM plays a big role, but IPC also has
+      great deal of responsibility
+    <antrik> as for resource management, migrating threads do not really help
+      much IMHO, as they only affect CPU scheduling. memory usage is a much
+      more pressing issue
+    <antrik> BTW, I have thought about passive objects in the past, but didn't
+      reach any conclusion... so I'm a bit ambivalent about migrating threads
+      :-)
+    <slpz> As an example, in Hurd on GNU Mach, an io_read can't take advantage
+      from copy-on-write, as buffers from the translator always arrive outside
+      user's buffer
+    <slpz> antrik: well, I think cpu scheduling is a big deal ;-)
+    <slpz> antrik: and for memory management, until a better design is
+      implemented, some fixes could be applied to get us to the same level as a
+      monolithic kernel
+    <antrik> to get even close to monolithic systems, we need either a way to
+      account server resources used on client's behalf, or to make servers use
+      client-provided resources. both require changes in the IPC mechanism I
+      think...
+    <antrik> (though *if* we go for the latter option, the CPU scheduling
+      changes of migrating threads would of course be necessary, in addition to
+      any changes regarding memory management...)
+    <antrik> slpz: BTW, I didn't get the point about io_read and COW...
+    <slpz> antrik: AFAIK, the FS cache (which is our primary concern) in most
+      monolithic system is agnostic with respect the users, and only deals with
+      absolute numbers. In our case we can do almost the same by combining Mach
+      and pagers knowledege.
+    <antrik> slpz: my primary concern is that anything program having a hiccup
+      crashes the system... and I'm not sure this can be properly fixed without
+      working memory accounting
+    <antrik> (I guess in can be worked around to some extent by introducing
+      various static limits on processes... but I'm not sure how well)
+    <antrik> it can
+    <slpz> antrik: monolithic system also suffer that problem (remember fork
+      bombs) and it's "solved" by imposing static limits to user processes
+      (ulimit).
+    <slpz> antrik: we do have more problems due to port management, but I think
+      some degree of control can be archieved with a reasonably amount of
+      changes.
+    <antrik> slpz: in a client-server architecture static limits are much less
+      effective... that problem exists on traditional systems too, but only in
+      some specific cases (such as X server); while on a microkernel system
+      it's ubiquitous... that's why we need a *better* solution to this problem
+      to get anywhere close to monolithic systems

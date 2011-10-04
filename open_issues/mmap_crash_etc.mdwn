@@ -1,0 +1,95 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+Several issues here:
+
+  * [[!tag open_issue_glibc open_issue_gnumach]] Even invalid `mmap` shoudn't
+    crash the process.
+
+  * [[!tag open_issue_documentation]] The memory layout example should be
+    documented.
+
+  * [[!tag open_issue_gnumach]] New `vm_map` allocation strategy may be
+    desirable; see also [[placement_of_virtual_memory_regions]].
+
+  * [[!tag open_issue_glibc]] *task X deallocating an invalid port Y, most
+    probably a bug*.
+
+IRC, freenode, #hurd, 2011-08-11
+
+    < zyg> oh, mmap sigsegvs, strange.
+    < braunr> hwo do you see that ?
+    < zyg> braunr: I'll try to paste a minimal case
+    < braunr> zyg: make sure you have a sane memory setup
+    < braunr> 512 RAM / 1G swap seems good
+    < braunr> have more swap than RAM
+    < zyg> I have those. Still it shouldn't sigsegv.
+    < braunr> gnumach is picky about that
+    < braunr> and yes, the hurd shouldn't have bugs
+    < zyg> braunr: ready to crash? #include <stdio.h> #include <sys/mman.h> int
+      main (int argc, char **argv) { mmap(0x10000, 0x8000, PROT_READ, MAP_ANON
+      | MAP_FIXED, -1, 0); return 0; }
+    < braunr> a fixed mapping at such an address is likely to fail, yes
+    < braunr> but a crash, hm
+    < zyg> why should it fail?
+    < braunr> because the hurd doesn't have a common text data bss heap stack
+      layout
+    < braunr> e.g. there are mappings below text, as show by vminfo :
+    < braunr> $ vminfo $$
+    < braunr>          0[0x1000] (prot=0)
+    < braunr>     0x1000[0x21000] (prot=RX, max_prot=RWX, mem_obj=105)
+    < braunr>    0x22000[0x1000] (prot=R, max_prot=RWX, mem_obj=105)
+    < braunr>    0x23000[0x1000] (prot=RW, max_prot=RWX, mem_obj=105)
+    < braunr>    0x24000[0x1000] (prot=0, max_prot=RWX)
+    < braunr>    0x25000[0xfff000] (prot=RWX, mem_obj=106)
+    < braunr>  0x1024000[0x1000] (prot=RWX, mem_obj=107)
+    < braunr>  0x1025000[0x1000] (prot=RW, max_prot=RWX, mem_obj=108)
+    < braunr>  0x1026000[0x1000] (prot=RW, max_prot=RWX, mem_obj=108,
+      offs=0x1000)
+    < braunr>  0x1027000[0x1000] (prot=RW, max_prot=RWX, mem_obj=109)
+    < braunr>  0x1028000[0x2000] (prot=RW, max_prot=RWX, mem_obj=110,
+      offs=0x1000)
+    < braunr>  0x102a000[0x1000] (prot=RW, max_prot=RWX, mem_obj=111)
+    < braunr> (sorry for the long paste)
+    < zyg> oh.. my mmap falls into an occupied range?
+    < braunr> seems so
+    < zyg> thanks, that was really useful.
+    < braunr> MAP_FIXED isn't portable, this is clearly stated in most man
+      pages
+    < zyg> yes, implementation specific it says
+    < braunr> well the behaviour isn't specific, it's well defined, but the
+      memory layout isn't
+    < braunr> i personally think vm_map() should be slightly changed to include
+      a new flag for top-down allocations
+    < braunr> so that our stack and libraries are at high addresses, below the
+      kernel
+    < braunr> zyg: what kind of error do you get ? i don't get sigsegv
+    < zyg> I get both sigsegv and sigill depending on addr
+    < braunr> ok
+    < braunr> i get sigill with your example
+    < braunr> the error is the same (wrong memory access) but the behaviour
+      changes because of the special memory configuration
+    < zyg> yes.. I guess the usecase is too uncommon. Else mmap would have an
+      guard
+    < braunr> some accesses cause invalid page faults (which are sent as
+      segmentation faults) while other cause general protection faults (which
+      are sent as illegal instructions)
+    < braunr> (this is quite weird since the GP fault is likely because the
+      access targets something out of the data or code segment eh)
+    < zyg> braunr: that's very os-specific. Do you mean hurd behaves that way?
+    < braunr> gnumach
+    < braunr> on i386
+    < braunr> the segmant configuration isn't completely flat
+    < braunr> segment*
+    < braunr> hm nice
+    < braunr> your small program triggers the "task X deallocating an invalid
+      port Y, most probably a bug." message
+    < zyg> where do you see that?
+    < braunr> on the mach console

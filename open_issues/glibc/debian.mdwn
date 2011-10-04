@@ -1,0 +1,46 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+
+# Open Issues
+
+`threads = yes` is set in `debian/sysdeps/linux.mk` and
+`debian/sysdeps/kfreebsd.mk`, `debian/sysdeps/hurd.mk` set to `no`.  But this
+is only read in `debian/rules` for deciding some `nscd` package issue?
+
+`debian/sysdeps/hurd.mk`'s `libc_extra_install` for `ld.so`: check with GCC
+configuration.
+
+Could add a toggle to `$(stamp)build_%` in `debian/rules.d/build.mk` to skip
+locale stuff.
+
+`--disable-compatible-utmp`?
+
+
+# Building
+
+Run `debian/rules patch` to apply patches (instead of having it done during the
+build).  Then you can edit files manually.
+
+Several passes: `libc`, `i686`, `xen`; `EGLIBC_PASSES='libc i686'`, etc.
+
+If building with `EGLIBC_PASSES=libc` (more specifically, without `xen`), the
+`libc0.3-dev_extra_pkg_install` rule in `debian/sysdeps/hurd-i386.mk` will
+fail.  (Same for `libc6-dev_extra_pkg_install` in `debian/sysdeps/i386.mk`, for
+example.)  Why is this special handling only done for `xen`, but not for
+`i686`?
+
+Do `export LC_ALL=C` before building, otherwise the testsuite/make error
+messages will be different from those stored in the
+`debian/testsuite-checking/expected-results-*` files.
+
+Run `debian/rules build-arch DEB_BUILD_OPTIONS=parallel=2 [EGLIBC_PASSES=...]`.
+Can stop with `C-c` during locale stuff or testsuite if only interested in the
+build tree.

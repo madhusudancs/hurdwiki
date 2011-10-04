@@ -1,0 +1,44 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_documentation open_issue_hurd]]
+
+IRC, freenode, #hurd, 2011-07-25
+
+Set an *active* (not *passive*) `/hurd/symlink` translator on a node.
+
+    < antrik> that's strange: the file doesn't look like a symlink in ls output
+      -- but it behaves like one...
+    < antrik> using firmlink instead of symlink yields less confusing
+      results...
+    < gg0> how does it behaves like one?
+    < antrik> perhaps the symlink mechanism only fully works for a passive
+      symlink translator, not an active one
+    < antrik> gg0: if you access it, you actually get the linked file contents
+    < antrik> it's only ls that's confused
+    < antrik> it might be because ls -l uses O_NOFOLLOW, which results in
+      O_NOTRANS, so it sees the original file contents
+    < gg0> stat says it's still 12264 bytes
+    < antrik> stat also seems to use NOFOLLOW
+    < antrik> wc will show the "correct" size
+    < gg0> ok
+    < antrik> if you set it as passive translator, it works as expected... but
+      then you better don't forget removing it, as it won't go away after a
+      reboot :-)
+    < antrik> but as I said, you can just ignore the weirdness -- or use
+      firmlink instead
+    < antrik> the thing is, if symlink is set as a passive translator, the
+      filesystem handles it specially, so it really looks like a symlink to
+      programs using NOFOLLOW. that's not the case with an active symlink... so
+      programs using NOFOLLOW simply do not see the active symlink at all
+    < antrik> firmlink OTOH ignores NOFOLLOW, so you always see the linked-to
+      file
+
+  * [[hurd/translator/short-circuiting]]

@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2008, 2010 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2008, 2010, 2011 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -10,21 +11,77 @@ License|/fdl]]."]]"""]]
 
 [[!meta title="I/O Path"]]
 
+[[!tag open_issue_documentation]] <!-- Someone still needs to make a pass over
+this text.  -->
 
-# read
+[[!toc]]
 
-  * [[glibc]]'s `read` is in `glibc/sysdeps/mach/hurd/read.c:__libc_read`.
 
-  * That calls `glibc/hurd/fd-read.c:_hurd_fd_read()`.
+# `read`, [[libtrivfs]]
 
-  * That calls `__io_read`, which is an [[RPC]], i.e., that actually results
-    into the [[translator/ext2fs]] server calling
-    `hurd/libdiskfs/io-read.c:diskfs_S_io_read`.
+[[glibc]]'s `read` is in `glibc/sysdeps/mach/hurd/read.c:__libc_read`.
 
-  * That calls `_diskfs_rdwr_internal`, which calls
-    `hurd/libpager/pager-memcpy.c:pager_memcpy`, which usually basically just
-    tell the kernel to virtually project the memory object corresponding to the
-    file in the caller process's memory.  No read is actually done.
+A buffer (and its size) to store the to-be-read data in is supplied by the
+caller of `read`.
+
+> `__libc_read` calls `glibc/hurd/fd-read.c:_hurd_fd_read`.
+
+>> `_hurd_fd_read` calls `__io_read`, which is an [[RPC]]:
+>> `hurd/hurd/io.defs:io_read`.
+
+>>> Enter user-side RPC stub `glibc.obj/hurd/RPC_io_read.c:__io_read`.  Process
+>>> stuff, switch to kernel, etc.
+
+(For example) [[translator/hello]] server, [[libtrivfs]]-based.  Enter
+server-side RPC stub `hurd.obj/libtrivfs/ioServer.c:_Xio_read`.  Process stuff,
+call `hurd/trans/hello.c:trivfs_S_io_read`.
+
+A 2048 byte buffer is provided.
+
+> `trivfs_S_io_read`.  Depending on the internal state, either a new memory
+> region is set-up (and returned as out-of-line data), or the desired amount of
+> data is returned in-line.
+
+Back in `_Xio_read`.
+
+If the 2048 byte buffer is not decided to be used (out-of-line case or bigger
+than 2048 bytes case; server decides to instead provide a new memory region),
+the [[`dealloc`|microkernel/mach/mig/dealloc]] flag is being set, which causes
+Mach to unmap that memory region from the server's address space, i.e., doing a
+memory *move* from the server to the client.
+
+Leave server-side RPC stub `_Xio_read`.
+
+>>> Return from kernel, continue client-side RPC stub `io_read`.  Have to copy
+>>> data.  Three cases: out-of-line data (pass pointer to memory area);
+>>> returned more data than fits into the originally supplied buffer (allocate
+>>> new buffer, copy all data into it, pass pointer of new buffer); otherwise
+>>> copy as much data as is available into the originally supplied buffer.
+>>> I.e., in all cases *all* data which was provided by the server is made
+>>> available to the caller.
+
+>> Back in `_hurd_fd_read`.  If a new buffer has been allocated previously, or
+>> the out-of-line mechanism has been used, the returned data now has to be
+>> copied into the originally supplied buffer.  If the server returned more
+>> data than requested, this is a [[protocol_violation|EGRATUITOUS]].
+
+> Back in `__libc_read`.
+
+
+# `read`, [[hurd/translator/ext2fs]]/[[hurd/libdiskfs]]
+
+(For example) [[translator/ext2fs]] server, enter server-side RPC stub
+`hurd.obj/libdiskfs/ioServer.c:_Xio_read`.  Process stuff, call
+`hurd/libdiskfs/io-read.c:diskfs_S_io_read`.
+
+A 2048 byte buffer is provided.
+
+> `diskfs_S_io_read` calls `_diskfs_rdwr_internal`.
+
+>> That calls `hurd/libpager/pager-memcpy.c:pager_memcpy`, which usually
+>> basically just tells the kernel to virtually project the memory object
+>> corresponding to the file in the caller process's memory.  No read is
+>> actually done.
 
   * Then, when the process actually reads the data, the kernel gets the user
     page fault (`gnumach/i386/i386/trap.c:user_trap`), which calls `vm_fault`,
@@ -50,7 +107,3 @@ License|/fdl]]."]]"""]]
     nice overview of the related layering inside the Linux kernel,
     including the VFS layer, page cache and directory entry cache
     (dcache).
-
-
-[[!tag open_issue_documentation]] <!-- Merge kepler.SCHWINGE/master-io_path.
--->
