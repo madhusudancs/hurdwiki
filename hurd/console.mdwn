@@ -1,3 +1,88 @@
+[[!meta copyright="Copyright © 2002, 2003, 2004, 2005, 2006, 2007, 2009, 2011
+Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+The Hurd console's implementation is broken into two pieces each running on
+it's own process, the console client and server.
+
+The console server is also splitted into modules (input driver, display driver,
+speaker, ...) but they all run in the same process.
+
+The console server puts itself as a translator on top of `/dev/vcs` folder
+presenting the following hierarchy:
+
+       + /dev/vcs
+        \ 
+         +- 1
+             \
+              +- console
+              +- input
+              +- display
+         +- ..
+         +- n
+
+where the numbered nodes represent virtual consoles and their contents are all
+alike.
+
+As the following graph shows, the console, input and display nodes are the
+interfaces used by the terminal server, input driver and display drivers
+respectively.
+
+       +------------------+                                 +-----------------+
+       |   Input driver   |                                 | Terminal Server |
+       |                  |                                 |                 |
+       |      pc-kbd      |                                 |                 |
+       +------------------+                                 +-----------------+
+                | _cons_vcons_input                                 |
+                | writes to                                   reads |
+                | vcs/i/input                         vcs/i/console |
+                |                +-----------------+                |
+                |                | Console Server  |                |
+                |                |  /hurd/console  |                |
+                |  input_enqueue | --------------- | input_dequeue  |
+                +--------------->|   Input Queue   |>---------------+
+                                 | --------------- |
+                +--------------->|  Output Buffer  |>---------------+
+                |                +-----------------+                |
+                |                                                   |
+                | writes                                      reads |
+                | vcs/i/console                       vcs/i/display |
+                |                                                   |
+       +----------------+                                   +-----------------+
+       | Teminal Server |                                   | Display driver  |
+       |                |                                   |                 |
+       |   /hurd/term   |                                   |      vga        |
+       +----------------+                                   +-----------------+
+
+The input driver takes scancodes from the in-kernel kbd queue, translates them
+into characters and writes them to the input node.  Then the terminal server
+reads the console node taking the characters out of the console server.
+
+Each of theese actions is actually an RPC handled by the translator on
+`/dev/vcs`.  Writes to input nodes are handled by calling `input_enqueue` to
+put the character into a queue.  And reads from console nodes are handled by
+calling `input_dequeue` which takes out charecters from the queue and gives
+them to the reader.
+
+It's important to note here that both `input_enqueue` and `input_dequeue` are
+blocking operations and a blocked `input_dequeue` necessarily needs an
+`input_enqueue` call to continue.
+
+[[RPC]]s are handled by the console server with the help of [[hurd/libports]]'
+`ports_manage_multithreaded` API.
+
+
+---
+
+/!\ old content; [[!taglink open_issue_documentation]]: cleanup needed.
+
 The below is a reworked version of Marcus Brinkmann's [letter to the debian-hurd list](http://lists.debian.org/debian-hurd/2002/debian-hurd-200209/msg00054.html). It describes how to setup the new console server for the Hurd. I am testing this right now, so this document is a work in progress.
 
 -- [[Main/JoachimNilsson]] - 21 Jan 2003
