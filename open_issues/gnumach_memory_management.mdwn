@@ -1777,3 +1777,36 @@ There is a [[!FF_project 266]][[!tag bounty]] on this task.
     <braunr> an idea for when there's time
     <braunr> eh
     <antrik> hehe :-)
+
+
+# IRC, freenode, #hurd, 2011-10-13
+
+    <braunr> mcsim: what's the current state of your gnumach branch ?
+    <mcsim> I've merged it with master in September
+    <braunr> yes i've seen that, but does it build and run fine ?
+    <mcsim> I've tested it on gnumach from debian repository, but for building
+      I had to make additional change in device/ramdisk.c, as I mentioned.
+    <braunr> mcsim: why ?
+    <mcsim> And it runs fine for me.
+    <braunr> mcsim: why did you need to make other changes ?
+    <mcsim> because there is a patch which comes with from-debian-repository
+      kernel and it addes some code, where I have to make changes. Earlier
+      kernel_map was a pointer to structure, but I change that and now
+      kernel_map is structure. So handling to it should be by taking the
+      address (&kernel_map)
+    <braunr> why did you do that ?
+    <braunr> or put it another way: what made you do that type change on
+      kernel_map ?
+    <mcsim> Earlier memory for kernel_map was allocating with zalloc. But now
+      salloc can't allocate memory before it's initialisation
+    <braunr> that's not a good reason
+    <braunr> a simple workaround for your problem is this :
+    <braunr> static struct vm_map kernel_map_store;
+    <braunr> vm_map_t kernel_map = &kernel_map_store;
+    <mcsim> braunr: Ok. I'll correct this.
+
+
+# IRC, freenode, #hurd, 2011-11-01
+
+    <braunr> etenil: but mcsim's work is, for one, useful because the allocator
+      code is much clearer, adds some debugging support, and is smp-ready

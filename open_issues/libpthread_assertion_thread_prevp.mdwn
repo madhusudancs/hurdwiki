@@ -1,0 +1,52 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="libpthread: __pthread_enqueue: Assertion `thread->prevp == 0'
+failed"]]
+
+[[!tag open_issue_libpthread]]
+
+IRC, OFTC, #debian-hurd, 2011-10-21:
+
+    [Python testsuite]
+    <pinotree> [169/340/1] test_logging
+    <pinotree> python:
+      /home/pino/sources/hurd/hurd-20110519/./libpthread/pthread/pt-internal.h:109:
+      __pthread_enqueue: Assertion `thread->prevp == 0' failed.
+    <pinotree> sigh
+
+IRC, freenode, #hurd, 2011-10-21:
+
+    <pinotree> am i missing anything, or in libpthread the __pthread_threads
+      list does not ever has elements removed from it?
+    <pinotree> ... thus potentially causing
+      "./libpthread/pthread/pt-internal.h:109: __pthread_enqueue: Assertion
+      `thread->prevp == 0' failed." because threads can be appended on
+      __pthread_dealloc() to the __pthread_free_threads list as well?
+    <pinotree> maybe reusing the same next+prevp pointers in the __pthread
+      struct for more than one list at the same time isn't a good idea...
+
+2011-10-23:
+
+    <youpi> pinotree: I don't understand the relation between thread->prevp !=
+      0 and the __pthread_threads list
+    <youpi> the list never has elements removed indeed, since libpthread never
+      frees __pthread structures apparently
+    <pinotree> youpi: ye sorry, that relation is indeed nonsense
+    <youpi> in which condition did you get prevp != 0
+    <pinotree> i wa trying to find some explaination for the "thread->prevp ==
+      0" assertion in the _queue function
+    <youpi> ?
+    <pinotree> *was
+    <youpi> it's not obvious to me how libpthread makes sure the various
+      cond/mutex/rwlock make sure that it's not queued several times
+    <pinotree> yeah
+    <pinotree> apparently prevp/next are used for lists of held
+      waitcond/mutex/rwlock and free threads

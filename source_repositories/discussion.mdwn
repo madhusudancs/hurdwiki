@@ -1,0 +1,193 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!toc]]
+
+
+# Integrating Development Braches/External Sources
+
+[[!taglink open_issue_documentation]]
+
+IRC, freenode, #hurd, 2011-10-11:
+
+    <tschwinge> braunr: About integrating salloc (I'll just use this name).
+    <tschwinge> braunr: Ideally, as this is an external import, there should be
+      an empty Git branch where the initial-import code (right out of your
+      tree, for example) is added.
+    <tschwinge> braunr: Then this is merged into a GNU Mach salloc branch and
+      moved into the destination directory.
+    <tschwinge> Then, any bug fix patches that do not concern salloc itself,
+      should stay separately.
+    <tschwinge> Also, any improvements that are not specific to salloc itself.
+    <tschwinge> All other salloc development commits (try this; no this; fix
+      other thing; etc.) can be combined into one commit on the salloc branch.
+    <tschwinge> Does that make sense?
+    <tschwinge> braunr: The idea of the separate external/braunr-salloc-import
+      branch is that any external updates are applied to this branch (where
+      they'll apply) cleanly, and then it is merged into GNU Mach salloc (or
+      later master, once salloc is merged) again.
+    <antrik> tschwinge: if you really want to use a branch for the external
+      code import, better actually import it with its history, not just as a
+      snapshot
+    <antrik> (disclaimer: haven't actually tried how well this works in
+      practice...)
+    <tschwinge> antrik: Yes, generally this is even better, but:
+    <tschwinge> antrik: But typically the external code we want to import is
+      just a subset of its external repository.  And I don't think we want to
+      have all of the external development history.
+    <antrik> that's the only sane way to do proper followup merges...
+    <antrik> admittedly it makes git log a bit confusing...
+    <tschwinge> antrik: Why is it the only sane way?
+    <braunr> tschwinge: "an empty Git branch", out of the gnumach git
+      repository ?
+    <braunr> tschwinge: then imported "into a GNU Mach salloc branch" ?
+    <antrik> tschwinge: otherwise you don't have merge history. you get no idea
+      why anything changed in the external code; and it's hard to merge any
+      changes happening in the local repository vs. the imports
+    <tschwinge> antrik: Of course, importing all the history may make sense at
+      times, but if we use the [Linux]/include/gcc-atomic.h header, we're
+      surely not going to import all the Linux kernel history for that.
+      Instead we would update our import branch with every upstream Linux
+      release, for example.
+    <tschwinge> braunr: You want me to clarify these points?
+    <braunr> tschwinge: yes please
+    <tschwinge> braunr: Start with an empty Git repository: mkdir import && cd
+      import/ && git init
+    <tschwinge> braunr: Add the files to-be-imported in there, adn commit that
+      as ``import ... version/Git commit from ...''.
+    <pinotree> tschwinge: maybe
+      http://book.git-scm.com/5_creating_new_empty_branches.html ?
+    <tschwinge> pinotree: Oh nice.
+    <tschwinge> pinotree: Thanks.
+    <pinotree> np
+    <tschwinge> Yes, can also do that, or a new Git repository as I said.
+    <tschwinge> braunr: Prefereably add the files in a salloc directory right
+      away to avoid any merge conflicts later on.
+    <tschwinge> braunr: Then, in GNU Mach, branch off of master: git checkout
+      -b salloc origin/master
+    <tschwinge> This will be the salloc integration working branch.
+    <tschwinge> braunr: Actually not ``in a salloc directory'', but with the
+      name the thing has in your upstream repository.
+    <tschwinge> Then, make the external import branch known here: git fetch
+      ../import master:external/import-braunr-allocator
+    <tschwinge> Then you can merge the external branch into the salloc branch:
+      git merge external/import-braunr-allocator
+    <braunr> got most of it, except for the "salloc directory"
+    <tschwinge> Then, move everything in place, and either commit --amend it to
+      the merge, or a separate commit.
+    <braunr> ah, you really suggest a separate directory not to have any
+      conflict
+    <braunr> then a move
+    <tschwinge> Right.
+    <braunr> but there maybe conflict afterwards
+    <tschwinge> I take it that the alloc files live in [x15]/kern/allocator, so
+      you'd put them into kern/allocator in the new repository, and then (after
+      merging that branch) move them to kern/salloc (or similar).
+    <braunr> i'm not sure i get the point
+    <braunr> no they won't
+    <braunr> it will live in kern/salloc.c, and the additional required files
+      like list.h may be put there too
+    <tschwinge> Aha, OK.
+    <braunr> but these are clearly separate files, so it should give the same
+      results, right ?
+    <tschwinge> Well, you could in the import branch put them all into x15/,
+      then merge, then move the files to kern/salloc.c, misc/list.h, etc.
+    <braunr> hm let's call it salloc/ :)
+    <braunr> but ok
+    <tschwinge> It's just that the import branch should have the same structure
+      than upstream has.
+    <tschwinge> To faciliate further imports later on.
+    <braunr> well, that's why i don't see the point of the move
+    <tschwinge> And after the merge it should have the file system structure as
+      used by GNU Mach.
+    <braunr> and there will be no upstream; once it's in gnu mach, it has its
+      own life
+    <tschwinge> Ah, OK.
+    <tschwinge> Well, then it won't matter too much.
+    <braunr> wouldn't it be better to make "upstream" (maskym's branch) have
+      the same structure as gnu mach already has before even creating the
+      integration branch ?
+    <tschwinge> I though X15 is the upstream.
+    <braunr> maksym*
+    <braunr> the upstream was actually the userspace library, before x15 got
+      its own derived version
+    <tschwinge> OK, I see.
+    <tschwinge> Then we really don't care too much, and yes, you can put it all
+      in the right places right away.
+    <braunr> ok
+    <tschwinge> But is my approach understandable given there is an upstream
+      from which we may want to import later changes?
+    <tschwinge> given there *were*
+    <braunr> (fyi, the userspace code was merely a first step which purpose was
+      to eliminate as many bugs as possible and profile a little)
+    <braunr> i don't intend to maintain the userspace code, no
+    <braunr> and the x15 version already has some system specific changes that
+      don't apply to gnu mach
+    <tschwinge> OK, I understand.
+    <tschwinge> braunr: Then, what remains is essentially this:
+    <tschwinge> <tschwinge> Then, any bug fix patches that do not concern
+      salloc itself, should stay separately.
+    <tschwinge> <tschwinge> Also, any improvements that are not specific to
+      salloc itself.
+    <tschwinge> <tschwinge> All other salloc development commits (try this; no
+      this; fix other thing; etc.) can be combined into one commit on the
+      salloc branch.
+    <tschwinge> Right?
+    <braunr> ok
+    <braunr> hm, what about the history of maksym's branch ?
+    <tschwinge> braunr: We don't really need it, do we?
+    <tschwinge> If there are distinct commits that make sense to be kept
+      separate, then that is fine, but all the development commits can usually
+      be merged.
+    <tschwinge> ``squashed''
+    <braunr> i don't think we do, no
+    <braunr> ok so, i'll use his branch as a starting point in a private git
+      repository, until it's good enough to be merged upstream, then we'll
+      create the salloc integration branch and later merge that into master
+    <braunr> tschwinge: did i get it right ? :)
+    <tschwinge> We can still either keep Maksym's development branch open, or
+      perhaps create a tag named salloc-before-merge.
+    <tschwinge> Well, I think if we don't need to do the upstream-import thing,
+      then you can create a salloc integration branch right away, and prepare
+      everything in there.
+    <braunr> ok
+    <braunr> i'm not very familiar with remote branches
+    <tschwinge> OK.  This way you don't need any.
+    <tschwinge> Just branch off of master (either your local master branch or
+      origin/master): git checkout -b salloc origin/master
+    <antrik> braunr: BTW, I'm not sure it has been clear, so let me restate it:
+      what large projects using Git usually do when merging new features
+      upstream is, they entirely drop the development history of the feature,
+      instead creating a new branch (or reworking the old one) which is
+      master-centric -- it is a series of commits, which get from the original
+      master to a state with the new feature implemented in the most
+      straightforward way
+    <braunr> antrik: in one commit ?
+    <braunr> antrik: or a few ofc
+    <antrik> depends. the commits should be bisectable as usual... i.e. don't
+      put things that can be separate into one commit, but don't separate
+      things that depend on each other into separate commits either :-)
+    <antrik> the bulk of the new code often goes in single large commit; but
+      the various changes to existing code necessary to make it work can often
+      make a pretty long series. but it can differ quite a lot depending on the
+      specific case
+    <antrik> just imagine you are someone reading the history in the future,
+      and tries to understand what changed while zalloc was replaced by
+      salloc. what series of commits makes this most obvious?
+    <braunr> sure
+    <braunr> antrik: new code first in a single commit first, then the
+      replacements from zalloc to salloc, then if any, special adjustements in
+      a third commit
+    <braunr> (ok twice first, remove one at will :p)
+    <antrik> yeah, something along these lines
+    <antrik> sometimes we also need praparation commits in advance, changing
+      the code structure so that the new feature can be added in a
+      straightforward fashion
+    <antrik> or cleanups afterwards

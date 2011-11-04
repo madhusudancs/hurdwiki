@@ -1,0 +1,46 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_gnumach]]
+
+IRC, freenode, #hurd, 2011-10:
+
+    <braunr> antrik: about our physical memory limitations, i told you some
+      time ago that part of it was due to the linux drivers
+    <braunr> and i mentioned the paper concerning the integration of the linux
+      drivers written at the time
+    <braunr> it does indeed tell that mach, which used the common 3G->4G area
+      for the kernel space had to be adapted
+    <braunr> because linux used segmentation so that kernel addresses matched
+      physical addresses
+    <braunr> and it looks like some (many) drivers require that
+    <braunr> our current gnumach actually does this (which i found surprising
+      when i first found it)
+    <braunr> and i believe the easy solution to exceed this limitation is to
+      use a strategy similar to what linux still does on i386
+    <braunr> some highmem support
+    <braunr> we could alter the vm_resident module so that, by default, it
+      still looks for pages in the low 0-800 (or 0-1800 on debian patched
+      kernels) area
+    <braunr> but for everything else than the kernel, e.g. all user processes
+    <braunr> we could use a flag or a specialized function that would first
+      look in the highmem pool for available physical pages to map
+    <braunr> the only thing i'm not yet sure of is about user/kernel transfers
+    <braunr> if virtual addresses and copies are always cleanly done, then it's
+      ok
+    <braunr> and i really hope our linux drivers do so :)
+    <braunr> (i mean ,the glue code ofc)
+
+2011-10-23:
+
+    <youpi> braunr: I believe, like Linus, that highmem support is a nightmare
+    <antrik> braunr: uhm... the drivers want virtual addressses to match
+      physical ones? I guess that means switching address spaces before any
+      driver code is executed?...
