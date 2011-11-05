@@ -37,10 +37,28 @@ fail.  (Same for `libc6-dev_extra_pkg_install` in `debian/sysdeps/i386.mk`, for
 example.)  Why is this special handling only done for `xen`, but not for
 `i686`?
 
+> Samuel: Historically because it's done that way in linux-i386. I don't know
+> the real reason.
+
 Do `export LC_ALL=C` before building, otherwise the testsuite/make error
 messages will be different from those stored in the
-`debian/testsuite-checking/expected-results-*` files.
+`debian/testsuite-checking/expected-results-*` files, resulting in a spurious
+build failure.
 
-Run `debian/rules build-arch DEB_BUILD_OPTIONS=parallel=2 [EGLIBC_PASSES=...]`.
-Can stop with `C-c` during locale stuff or testsuite if only interested in the
-build tree.
+Run `debian/rules build-arch DEB_BUILD_OPTIONS=parallel=2 [EGLIBC_PASSES=...]`
+to build (or `build` instead of `build-arch` to build the arch-independent
+stuff, too).  Can interrupt with `C-c` during locale stuff or testsuite if only
+interested in the build tree.
+
+Run `fakeroot debian/rules binary DEB_BUILD_OPTIONS=parallel=2
+[EGLIBC_PASSES=...]` to build Debian packages or `binary-arch` for just the
+architecture-dependent ones.
+
+The latter two steps can also be combined as `dpkg-buildpackage -R'debian/rules
+EGLIBC_PASSES=libc' -nc -b -uc`.  `-nc` will prevent the *clean step* which
+would first try to un-patch, which may conflict if you have done any edits
+apter applying patches.
+
+If the Debian symbol versioning file is not up to date and the build of Debian
+packages fails due to this, putting `DPKG_GENSYMBOLS_CHECK_LEVEL=0` in the
+environment \`\`helps''; see `man dpkg-gensymbols`.

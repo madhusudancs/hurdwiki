@@ -1,0 +1,246 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_gnumach]]
+
+IRC, freenode, #hurd, 2011-10-16:
+
+    <youpi> braunr: I realize that kmem_alloc_wired maps the allocated pages in
+      the kernel map
+    <youpi> it's a bit of a waste when my allocation is exactly a page size
+    <youpi> is there a proper page allocation which would simply return its
+      physical address?
+    <youpi> pages returned by vm_page_grab  may get swapped out, right?
+    <youpi> so could it be a matter of calling vm_page_alloc then vm_page_wire
+      (with lock_queues held) ?
+    <youpi> s/alloc/grab/
+    <braunr> vm_page_grab() is only used at boot iirc
+    <braunr> youpi: mapping allocated memory in the kernel map is normal, even
+      if it's only a page
+    <braunr> the allocated area usually gets merged with an existing
+      vm_map_entry
+    <braunr> youpi: also, i'm not sure about what you're trying to do here, so
+      my answers may be out of scope :p
+    <youpi> saving addressing space
+    <youpi> with that scheme we're using twice as much addressing space for
+      kernel buffers
+    <braunr> kernel or user task ?
+    <youpi> kernl
+    <braunr> hm are there so many wired areas ?
+    <youpi> several MiBs, yes
+    <youpi> there are also the zalloc areas
+    <braunr> that's pretty normal
+    <youpi> which I've recently incrased
+    <braunr> hm forget what i've just said about vm_page_grab()
+    <braunr> youpi: is there a particular problem caused by kernel memory
+      exhaustion ?
+    <youpi> I currently can't pass the dh_strip stage of iceweasel due to this
+    <youpi> it can not allocate a stack 
+    <braunr> a kernel thread stack ?
+    <youpi> yes
+    <braunr> that's surprising
+    <youpi> it'd be good to have a kernel memory profile
+    <braunr> vminfo is able to return the kernel map
+    <youpi> well, it's not suprising if the kernel map is full
+    <youpi> but it doesn't tell what allocates which p ieces
+    <braunr> that's what i mean, it's surprising to have a full kernel map
+    <youpi> (that's what profiling is about)
+    <braunr> right
+    <youpi> well, it's not really surprising, considering that the krenel map
+      size is arbitrarily chosen
+    <braunr> youpi: 2 GiB is really high enough
+    <youpi> it's not 2GiB, precisely
+    <youpi> there is much of the 2GiB addr space which is spent on physical
+      memory mapping
+    <youpi> then there is the virtual mapping
+    <braunr> are you sure we're talking about the kernel map, or e.g. the kmem
+      map
+    <youpi> which is currently only 192MiB
+    <youpi> the kmem_map part of kernel_map
+    <braunr> ok, the kmem_map submap then
+    <braunr> netbsd has used 128 MiB for yeas with almost no issue
+    <braunr> mach uses more kernel objects so it's reasonable to have a bigger
+      map
+    <braunr> but that big ..
+    <youpi> I've made the zalloc areas quite big
+    <youpi> err, not only zalloc area
+    <braunr> kernel stacks are allocated directly from the kernel map
+    <youpi> kalloc to 64MiB, zalloc to 64MiB
+    <youpi> ipc map size to 8MiB
+    <braunr> youpi: it could be the lack of kernel map entries
+    <youpi> and the device io map to 16MiB
+    <braunr> do you have the exact error message ?
+    <youpi> no more room for vm_map_find_entry in 71403294
+    <youpi> no more rooom for kmem_alloc_aligned in 71403294
+    <braunr> ah, aligned
+    <youpi> for a stack
+    <youpi> which is 4 pages only
+    <braunr> memory returned by kmem functions always return pages
+    <braunr> hum
+    <braunr> kmem functions always return memory in page units
+    <youpi> and my xen driver is allocating 1MiB memory for the network buffer
+    <braunr> 4 pages for kernel stacks ?
+    <youpi> through kmem_alloc_wire
+    <braunr> that seems a lot
+    <youpi> that's needed for xen page updates
+    <youpi> without having to split the update in several parts
+    <braunr> ok
+    <braunr> but are there any alignment requirements ?
+    <youpi> I guess mach  uses the alignment trick to find "self"
+    <youpi> anyway, an alignment on 4pages shouldn't be a problem
+    <braunr> i think kmem_alloc_aligned() is the generic function used both for
+      requests with and without alignment constraints
+    <youpi> so I was thinking about at least moving my xen net driver to
+      vm_grab_page instead of kmem_alloc
+    <youpi> and along this, maybe others
+    <braunr> but you only get a vm_page, you can't access the memory it
+      describes
+    <youpi> non, a lloc_aligned always aligns
+    <youpi> why?
+    <braunr> because it's not mapped
+    <youpi> there's even vm_grab_page_physical_addr
+    <youpi> it is, in the physical memory map
+    <braunr> ah, you mean using the direct mapped area
+    <youpi> yes
+    <braunr> then yes
+    <braunr> i don't know that part much
+    <youpi> what I'm afraid of is the wiring
+    <braunr> why ?
+    <youpi> because I don't want to see my page swapped out :)
+    <youpi> or whatever might happen if I don't wire it
+    <braunr> oh i'm almost sure you won't
+    <youpi> why?
+    <youpi> why some people need to wire it, and I won't?
+    <braunr> because in most mach vm derived code i've seen, you have to
+      explicitely tell the vm your area is pageable
+    <youpi> ah,  mach does such thing indeed
+    <braunr> wiring can be annoying when you're passing kernel data to external
+      tasks
+    <braunr> you have to make sure the memory isn't wired once passed
+    <braunr> but that's rather a security/resource management problem
+    <youpi> in the net driver case, it's not passed to anything else
+    <youpi> I'm seeing 19MiB kmem_alloc_wired atm
+    <braunr> looks ok to me
+    <braunr> be aware that the vm_resident code was meant for single page
+      allocations
+    <youpi> what does this mean?
+    <braunr> there is no buddy algorithm or anything else decent enough wrt
+      performance
+    <braunr> vm_page_grab_contiguous_pages() can be quite slow
+    <youpi> err, ok, but what is the relation with the question at stake ?
+    <braunr> you need 4 pages of direct mapped memory for stacks
+    <braunr> those pages need to be physically contiguous if you want to avoid
+      the mapping
+    <braunr> allocating physically contiguous pages in mach is slow
+    <braunr> :)
+    <youpi> I didn't mean I wanted to avoid the mapping for stacks
+    <youpi> for anything more than a page, kmem mapping should be fine
+    <youpi> I'm concerned with code which allocates only page per page
+    <youpi> which thus really doesn't need any mapping
+    <braunr> i don't know the mach details but in derived implementations,
+      there is almost no overhead when allocating single pages
+    <braunr> except for the tlb programming
+    <youpi> well, there is: twice as much addressing space
+    <braunr> well
+    <braunr> netbsd doesn't directly map physical memory
+    <braunr> and for others, like freebsd
+    <braunr> the area is just one vm_map_entry
+    <braunr> and on modern mmus, 4 MiBs physical mappings are used in pmap
+    <youpi> again, I don't care about tlb & performance
+    <youpi> just about the addressing space
+    <braunr> hm
+    <braunr> you say "twice"
+    <youpi> which is short when you're trying to link crazy stuff like
+      iceweasel & co
+    <youpi> yes
+    <braunr> ok, the virtual space is doubled
+    <youpi> yes
+    <braunr> but the resources consume to describe them aren't
+    <braunr> even on mach
+    <youpi> since you have both the physical mapping and the kmem mapping
+    <youpi> I don't care much about the resources
+    <youpi> but about addressing space
+    <braunr> well there are a limited numbers of solutions
+    <youpi> the space it takes  and has to be taken from something else, that
+      is,  here physical memory available to Mach
+    <braunr> reduce the physical mapping
+    <braunr> increase the kmem mapping
+    <braunr> or reduce kernel memory consumption
+    <youpi> and instead of taking the space from physical  mapping, we can as
+      well avoid doubling the space consumption when it's trivial lto
+    <youpi> yes, the hird
+    <youpi> +t
+    <youpi> that's what I'm asking from the beginning :)
+    <braunr> 18:21 < youpi> I don't care much about the resources
+    <braunr> actually, you care :)
+    <youpi> yes and no
+    <braunr> i understand what you mean
+    <youpi> not in the sense "it takes a page_t to allocate a page"
+    <braunr> you want more virtual space, and aren't that much concerned about
+      the number of objects used
+    <youpi> yes
+    <braunr> then it makes sense
+    <braunr> but in this case, it could be a good idea to generalize it
+    <braunr> have our own kmalloc/vmalloc interfaces
+    <braunr> maybe a gsoc project :)
+    <youpi> err, don't we have them already?
+    <youpi> I mean, what exactly do you want to generalize?
+    <braunr> mach only ever had vmalloc
+    <youpi> we already have a hell lot of allocators :)
+    <youpi> and it's a pain to distribute the available space to them
+    <braunr> yes
+    <braunr> but what you basically want is to introduce something similar to
+      kmalloc for single pages
+    <youpi> or just patch the few cases that need it into just grabbing a page
+    <youpi> there are probably not so many
+    <braunr> ok
+    <braunr> i've just read vm_page_grab()
+    <braunr> it only removes a page from the free list
+    <braunr> other functions such as vm_page_alloc insert them afterwards
+    <braunr> if a page is in no list, it can't be paged out
+    <braunr> so i think it's probably safe to assume it's naturally wired
+    <braunr> you don't even need a call to vm_page_wire or a flag of some sort
+    <youpi> ok
+    <braunr> although considering the low amount of work done by
+      vm_page_wire(), you could, for clarity
+    <youpi> braunr: I was also wondering about the VM_PAGE_FREE_RESERVED & such
+      constants
+    <youpi> they're like 50 pages
+    <youpi> is this still reasonable  nowadays?
+    <braunr> that's a question i'm still asking myself quite often :)
+    <youpi> also, the BURST_{MAX,MIN} & such in vm_pageout.c are probably out
+      of date?
+    <braunr> i didn't study the pageout code much
+    <youpi> k
+    <braunr> but correct handling of low memory thresholds is a good point to
+      keep in mind
+    <braunr> youpi: i often wonder how linux can sometimes have so few free
+      pages left and still be able to work without any visible failure
+    <youpi> well, as long as you have enough pages to be able to make progress,
+      you're fine
+    <youpi> that' the point of the RESERVED pages in mach I guess
+    <braunr> youpi: yes but, obviously, hard values are *bad*
+    <braunr> linux must adjust it, depending on the number of processors, the
+      number of pdflush threads, probably other things i don't have in mind
+    <braunr> i don't know what should make us adjust that value in mach
+    <youpi> which value?
+    <braunr> the size of the reserved pool
+    <youpi> I don't think it's adjusted
+    <braunr> that's what i'm saying
+    <braunr> i guess there is an #ifndef line for arch specific definitions
+    <youpi> err, you just said linux must adjust it :
+    <youpi> ))
+    <youpi> there is none
+    <braunr> linux adjusts it dynamically
+    <braunr> well ok
+    <braunr> that's another way to say it
+    <braunr> we don't have code to get rid of this macro
+    <braunr> but i don't even know how we, as maintainers, are supposed to
+      guess it

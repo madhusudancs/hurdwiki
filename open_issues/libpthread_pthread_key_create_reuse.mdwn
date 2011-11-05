@@ -10,9 +10,9 @@ License|/fdl]]."]]"""]]
 
 [[!meta title="libpthread: pthread_key_create, reuse"]]
 
-IRC, FreeNode, #hurd, 2011-07-02
-
 [[!tag open_issue_libpthread]]
+
+IRC, FreeNode, #hurd, 2011-07-02:
 
     < pinotree> hm, maybe i found a libpthread bug
     * pinotree tries a testcase
@@ -47,3 +47,36 @@ IRC, FreeNode, #hurd, 2011-07-02
       veeery quick glance
 
 Test program: [[pthread_key_create_reuse.c]]
+
+
+2011-11-01:
+
+    <pinotree> youpi: about the bug with pthread keys (reuse): would be an
+      acceptable solution having a mutex for the thread_specifics of each
+      thread?
+    <youpi> you mean one per thread, one global, or one per key, or ?
+    <youpi> what is it supposed to protect?
+    <pinotree> the thread_specifics of each thread
+    <youpi> pinotree: but against what?
+    <pinotree> the idea would be: when destroying a key, iterate over all the
+      exiting threads and remove the key data from the thread_specifics of each
+      thread
+    <youpi> one of the issue is getting to browse through the whole list of
+      threads
+    <youpi> the other is concurrency between that, and a thread dying
+    <pinotree> there's the __pthread_threads_lock rwlock
+    <youpi> it should be enough to keep it locked during the iteration
+    <pinotree> but that wouldn't be enough when one thread is destroying a key,
+      and another one is doing {get,set}specific() on that key
+    <youpi> that's not supposed to happen
+    <pinotree> mmm
+    <youpi> “The effect of calling pthread_getspecific() or
+      pthread_setspecific() with a     key value not obtained from
+      pthread_key_create() or after key has been     deleted with
+      pthread_key_delete() is undefined.”
+    <youpi> undefined -> you are allowed to just blow up
+    <pinotree> but it's not been deleted yet... :)
+    <youpi> it could be, just a matter of time
+    <youpi> you're not supposed to rely on time-luckyness :)
+    <pinotree> mmm
+    <pinotree> bah, you've convinced me ( :) )

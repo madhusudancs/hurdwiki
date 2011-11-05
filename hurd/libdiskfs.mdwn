@@ -1,0 +1,42 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+
+# Paging
+
+In the course of Maksym's [[translator/tmpfs]] work:
+
+IRC, freenode, #hurd, 2011-10-24:
+
+    <mcsim> I've compared the way pagers are handled in ext2fs and found out
+      that for every file new pager is created when occurs reading or writing
+      to this file. Is it necessary? And can one pager handle several memory
+      objects?
+    <antrik> mcsim: yes, this in necessary. one pager port corresponds to one
+      memory object
+    <antrik> mcsim: note that a pager, from the kernel's point of view, is
+      essentially just the port used to communicated with the process
+      responsible for paging the object. how your process manages multiple
+      pager ports is up to you
+    <mcsim> so, how can I attach those pager_* functions, which are declared
+      now in pager-stubs.c to new pager?
+    <mcsim> or is it done automatically with all pagers, which I create, If
+      only I'm not using default one?
+    <antrik> I'm not sure how libpager works; but I suspect it's based on
+      libports. you probably need a port class for the pager ports, and add the
+      port for each new pager your create to that class
+    <antrik> (of course you also need to add it to some port bucket. if you use
+      a single dispatcher for everything, this would be the default bucket; if
+      you want a separate thread for pager handling, you'd have to create an
+      extra bucket for the pagers)
+
+This is the `diskfs_get_filemap` function that a `libdiskfs` client has to
+provide; used in `libdiskfs/rdwr-internal.c:_diskfs_rdwr_internal`, which in
+turn is used by the [[interface/io_read]]/[[interface/io_write]] RPCs.

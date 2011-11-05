@@ -40,12 +40,12 @@ Last reviewed up to the [[Git mirror's 187da0aedcd9d0a2fb34477bef41549681ba1273
         `t/dup3`: hidden def.  ed690b2f24bbc4d9c541fc81a7c67e6dc5678a96 -- why
         not for dup3, too?  Because it is a syscall (that is always inlined)?
 
-  * t/init-first.c
+  * `t/init-first.c`
 
-    Have to revert 53b56b1101fc9bb4f295f23f54e7e19f8da8da16 to keep it working
-    with GCC 4.4.  Figure out what's going on.  Also see [[glibc_init_first]].
-
-    There is a `RETURN_ADDRESS` macro in glibc.
+    Follow up here: [[!message-id "20070722171859.GN25744@fencepost.gnu.org"]]
+    or [[!message-id "87mxe4kwws.fsf@gnu.org"]].  Close [[!GNU_Savannah_bug
+    17647]].  Debian: [[!message-id "E1Qup1U-0006Zc-39@vasks.debian.org"]]
+    (part of Ludo's patch; the part that is not harmful to GCC 4.4).
 
   * `t/kernel-features.h_includes`
 
@@ -58,6 +58,8 @@ Last reviewed up to the [[Git mirror's 187da0aedcd9d0a2fb34477bef41549681ba1273
       * Discuss d2431f633e6139a62e1575ec18830f7e81160cf0 with Samuel.
 
       * `TLS_INIT_TP_EXPENSIVE` is unused; Hurd def. can be removed.
+
+  * [[t/tls-threadvar]]
 
   * t/verify.h
 
@@ -191,8 +193,6 @@ Last reviewed up to the [[Git mirror's 187da0aedcd9d0a2fb34477bef41549681ba1273
 
         Need changes equivalent to c55fbd1ea768f9fdef34a01377702c0d72cbc213 +
         14d96785125abee5e9a49a1c3037f35a581750bd.
-
-  * Building with GCC 4.5, 4.6, trunk will cause different kinds of faults.
 
   * Create `t/cleanup_kernel-features.h`.
 
@@ -371,7 +371,7 @@ Last reviewed up to the [[Git mirror's 187da0aedcd9d0a2fb34477bef41549681ba1273
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-8cb1875ef1e3211ec133d8eea328dbe59538c2a7 (2011-10-11)
+0abded0927c62f02399658395837917548d5e281 (2011-10-14)
 sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -383,7 +383,7 @@ sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 This takes up around 400 MiB and needs roughly 120 min on coulomb.SCHWINGE.
 
 <!--
-    $ (make install_root=/INVALID && touch .go-check) 2>&1 | tee log_build_ && test -f .go-check && make -k install_root=/INVALID check 2>&1 | tee log_check
+    $ (make install_root=/INVALID && touch .go-check) 2>&1 | tee log_build_ && test -f .go-check && make -k install_root=/INVALID check TIMEOUTFACTOR=100 2>&1 | tee log_check
     $ find ./ -name \*.o -o -name \*.os -o -name \*.oS | while read f; do ~/tmp/gcc/git/contrib/compare-debug --preserve ../Roger_Whittaker.build-gcc-4.4-486.O/"$f" "$f"; done 2>&1 | less 
     $ while read f; do (readelf -a "$f" && objdump -xDrtw "$f") > N && (cd ../Roger_Whittaker.build-gcc-4.4-486.O/ && readelf -a "$f" && objdump -xDrtw "$f") > O && diff -u O N | less; done
     $ find ./ -name \*.o -o -name \*.os -o -name \*.oS | while read f; do readelf -h "$f" | grep OS/ABI | (read a b && [ x"$b" != x'UNIX - System V' ] && echo "### $f: $b"); done
