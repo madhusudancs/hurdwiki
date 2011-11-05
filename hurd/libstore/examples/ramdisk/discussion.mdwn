@@ -1,0 +1,72 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+
+# IRC, freenode, #hurd, 2011-10-15
+
+    <antrik> youpi: I'm not at all talking about ordinary tmpfs. I'm talking
+      about the proposed variant using a separate backing store
+    <antrik> youpi: and as you might remember, I once came up with a crazy
+      passive translator command line (based on another crazy passive
+      translator command line from tschwinge) that can automatically do the
+      mkfs
+    <antrik> so there is really very little benefit in using something else
+      than ext2fs when not paging to the swap partition
+    <antrik> real tmpfs IMHO is mostly useful precisely because it uses the
+      ordinary swap, and doesn't have an explicit size limit...
+    <youpi> well, it is still quite a waste to bounce data betwen page cache
+      and memory storage
+    <youpi> or is ext2fs able to map the store data directly?
+    <youpi> then there's only the medata bounce which is spurious
+    <youpi> and still, even a one-liner settrans doesn't fit with the "is just
+      an fs alternative for the existing tmpfs-mounting scripts"
+    <antrik> youpi: well, if the invocation is the major concern, it would be
+      trivial to write a tiny wrapper binary or script that acts like a
+      "normal" FS...
+    <youpi> antrik: could you write it then?
+    <antrik> you mean a shell script that uses ext2fs on a memory store to act
+      like a "proper" tmpfs?
+    <youpi> I mean whatever that permits to just run mount none /tmp -t tmpfs
+    <youpi> and just works already nowadays
+    <youpi> which we could e.g. ship instead of our currently-completely bugged
+      tmpfs
+    <antrik> I suspect the mount script just looks for /hurd/tmpfs in this
+      case? if so, that should indeed be pretty trivial. let's see if I can dig
+      up my crazy command line -- turning that into a "proper" script should be
+      quite easy I hope...
+    <antrik> hm... I digged up
+      http://lists.gnu.org/archive/html/bug-hurd/2007-04/msg00013.html ; but I
+      wonder how much of it is really necessary for a generic pseudo-tmpfs...
+    <antrik> the major complication seems to be the chmod, which I guess we
+      don't need for most use cases...
+    <youpi> I actually don't see why it's inlined there
+    <youpi> doesn't the caller do it if it needs it?
+    <youpi> ah, well, here there is no caller, it's just a passive entry
+    <antrik> is it a problem that this solution needs an extra node for the
+      store?
+    <youpi> yes
+    <youpi> because you need to say where it resides
+    <youpi> and there's no safe place
+    <youpi> since such safe place would typically be a mounted tmpfs
+    <antrik> I feared that much...
+    <antrik> I suspect we could work around this by not attaching the store to
+      any node; but this a) doesn't work in a shell script, and b) is much more
+      involved...
+    <antrik> hm... can we assume /dev/fd to be present? I have a vague crazy
+      idea...
+    <youpi> yes
+    <antrik> I consider hacking settrans so it grows an option which allows
+      passing the port to the translator as an FD, instead of attaching it to
+      any node... this way, we could work with anonymous translators in shell
+      scripts :-)
+    <antrik> (of course that's not less work than just doing the wrapper in
+      C... but it could be useful in other cases)

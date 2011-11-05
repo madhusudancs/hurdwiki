@@ -1,0 +1,52 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_documentation]]
+
+IRC, freenode, #hurd, 2011-10-31:
+
+    <pinotree> is there some example of translator replying to custom ioctl's?
+    <pinotree> let's say you define some ioctl (those which can be represented)
+      using the _IOW etc macros; how would a translator (or something else)
+      "register" and reply to them?
+    <youpi> it's not an easy thing
+    <youpi> see hurd/hurd/tioctl.defs for instance
+    <youpi> that's where the 't' ioctls end up
+    <youpi> ('t' being the group in the _IOW macro)
+    <braunr> it's not that hard either
+    <pinotree> youpi: so you "roll" the ioctl to an ipc call with proper
+      parameters?
+    <braunr> yes
+    <pinotree> ah ok, i thought there was some way to hook new ioctl's, and
+      have libc send the whole stuff at once
+    <braunr> and the proper number (with a clear name)
+    <braunr> hm
+    <braunr> for many ioctls, you don't have to change libc
+    <youpi> yes, there's a script which produces the .defs from _IOW calls,
+      iirc
+    <youpi> or something like this
+    <youpi> there's also a hook thing in glibc, but for "sane" ioctls, that's
+      not needed
+    <youpi> (_hurd_lookup_ioctl_handler called by ioctl())
+    <youpi> yes, see the rules in hurd/hurd/Makefile
+    <youpi> "The following rules assist in creating an `Xioctl.defs' file  to
+      define RPCs that are sent primarily by ioctl commands."
+    <antrik> well, you can have perfectly sane ioctl()s that still can't be
+      expressed within the constraints of the IO* macros... but admittedly
+      that's rather uncommon
+    <antrik> (unless you consider passing of structs generally insane...)
+    <youpi> I didn't want to spend time on finding an appropriate adjective
+      instaed of "sane"
+    <youpi> while I knew he would understand what I meant (and you did)
+    <youpi> (though  maybe not actually)
+    <youpi> by "sane", I mean, which use _IOW properly
+    <youpi> i.e. with a group, proper numbers, etc.
+    <youpi> (the imposed contraints on the parameters is obviously a flaw in
+      the hurdish ioctl design, and not insanity from structures)
