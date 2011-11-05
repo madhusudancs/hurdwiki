@@ -8,75 +8,11 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
-[[!meta title="libpthread: pthread_key_create, reuse"]]
+[[!meta title="libpthread vs. licq"]]
 
 [[!tag open_issue_libpthread]]
 
 IRC, FreeNode, #hurd, 2011-07-02:
 
-    < pinotree> hm, maybe i found a libpthread bug
-    * pinotree tries a testcase
-    < pinotree> yesssss, found the bug :)
-    < pinotree> youpi: it's a problem of the key reuse in pthread_key_create()
-    < youpi> it doesn't reset it?
-    < youpi> were you looking at the licq issue?
-    < pinotree> no, gtest
-    < youpi> k
     < youpi> licq has a failing threadspecific issue
     < youpi> [  FAILED  ] ThreadSpecificData.dataDeletedWhenThreadExits
-    < pinotree> basically, pthread_key_delete() does not delete the key values
-      from the "thread_specifics" ihash
-    < pinotree> but those were new keys, so i'm not sure it is allowed to
-      return values of previous keys?
-    < pinotree> after all, the actual key value is an implementation detail,
-      applications shouldn't care about it being reused
-    < pinotree> (imho)
-    < youpi> Upon key creation, the value NULL shall be associated with the new
-      key in all active threads.
-    < youpi> ok, so we have to clear it in all threads
-    < youpi> that's a pity
-    < pinotree> or just remove the entry from the hash on key removal
-    < youpi> pinotree: from all the hashes, you mean?
-    < pinotree> youpi: from how i see it, adding a snippet like
-      http://paste.debian.net/121690/ in pthread_key_delete() should do the job
-    < youpi> that only drops from the current thread
-    < pinotree> ah hm, other threads
-    < youpi> we need to drop from all  threads
-    < youpi> that's the pity part
-    < pinotree> youpi: the licq case could look like a similar issue, at a
-      veeery quick glance
-
-Test program: [[pthread_key_create_reuse.c]]
-
-
-2011-11-01:
-
-    <pinotree> youpi: about the bug with pthread keys (reuse): would be an
-      acceptable solution having a mutex for the thread_specifics of each
-      thread?
-    <youpi> you mean one per thread, one global, or one per key, or ?
-    <youpi> what is it supposed to protect?
-    <pinotree> the thread_specifics of each thread
-    <youpi> pinotree: but against what?
-    <pinotree> the idea would be: when destroying a key, iterate over all the
-      exiting threads and remove the key data from the thread_specifics of each
-      thread
-    <youpi> one of the issue is getting to browse through the whole list of
-      threads
-    <youpi> the other is concurrency between that, and a thread dying
-    <pinotree> there's the __pthread_threads_lock rwlock
-    <youpi> it should be enough to keep it locked during the iteration
-    <pinotree> but that wouldn't be enough when one thread is destroying a key,
-      and another one is doing {get,set}specific() on that key
-    <youpi> that's not supposed to happen
-    <pinotree> mmm
-    <youpi> “The effect of calling pthread_getspecific() or
-      pthread_setspecific() with a     key value not obtained from
-      pthread_key_create() or after key has been     deleted with
-      pthread_key_delete() is undefined.”
-    <youpi> undefined -> you are allowed to just blow up
-    <pinotree> but it's not been deleted yet... :)
-    <youpi> it could be, just a matter of time
-    <youpi> you're not supposed to rely on time-luckyness :)
-    <pinotree> mmm
-    <pinotree> bah, you've convinced me ( :) )
