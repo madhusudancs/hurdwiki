@@ -9,11 +9,31 @@ is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
 [[!toc]]
-Notes on tmpfs
-==============
+#Notes on tmpfs
+
+## mach-defpager
+
+    <tschwinge>: 1. On every system there is a ``default pager'' (mach-defpager).  That one is responsible 
+    for all ``anonymous memory''.  For example, when you do malloc(10 MiB), and then there is memory pressure, 
+    this 10 MiB memory region is backed by the default pager, whose job then is it to provide the backing store for this.
+    <tschwinge>: This is what commonly would be known as a swap partition.
+    <tschwinge>: And this is also the way tmpfs works (as I understand it).
+    <tschwinge>: malloc(10 MiB) can also be mmap(MAP_ANONYMOUS, 10 MIB); that's the same, essentially.
+    <tschwinge>: Now, for ext2fs or any other disk-based file system, this is different:
+    <tschwinge>: The ext2fs translator implements its own backing store, namely it accesses the disk for storing 
+    changed file content, or to read in data from disk if a new file is opened.
+
+## Steps
+
+1. Find out what causes crashes in tmpfs with defpager
+
+2. Write own pager
+
+    6.11.11 Reading/writing for files that fit in vm_page_size works
 
 #Debugging
 
 To debug tmpfs, using libraries from "$PWD"/lib and trace rpc:
 
-settrans -ca foo /usr/bin/env LD_LIBRARY_PATH="$PWD"/lib utils/rpctrace -I /usr/share/msgids/ tmpfs/tmpfs 1M
+    settrans -ca foo /usr/bin/env LD_LIBRARY_PATH="$PWD"/lib utils/rpctrace -I /usr/share/msgids/ tmpfs/tmpfs 1M
+    LD_LIBRARY_PATH="$PWD"/lib gdb tmpfs/tmpfs 698 
