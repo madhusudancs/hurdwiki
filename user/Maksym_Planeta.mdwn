@@ -13,16 +13,6 @@ License|/fdl]]."]]"""]]
 
 ## mach-defpager
 
-    <tschwinge>: 1. On every system there is a ``default pager'' (mach-defpager).  That one is responsible 
-    for all ``anonymous memory''.  For example, when you do malloc(10 MiB), and then there is memory pressure, 
-    this 10 MiB memory region is backed by the default pager, whose job then is it to provide the backing store for this.
-    <tschwinge>: This is what commonly would be known as a swap partition.
-    <tschwinge>: And this is also the way tmpfs works (as I understand it).
-    <tschwinge>: malloc(10 MiB) can also be mmap(MAP_ANONYMOUS, 10 MIB); that's the same, essentially.
-    <tschwinge>: Now, for ext2fs or any other disk-based file system, this is different:
-    <tschwinge>: The ext2fs translator implements its own backing store, namely it accesses the disk for storing 
-    changed file content, or to read in data from disk if a new file is opened.
-
 [[defpager|http://www.bddebian.com:8888/~hurd-web/user/Maksym_Planeta/#defpager81111]]
 
 ## Steps
@@ -41,6 +31,21 @@ License|/fdl]]."]]"""]]
 
     Symlinks behavior: [[links|http://www.bddebian.com:8888/~hurd-web/user/Maksym_Planeta/#links81111]]
 
+    8.11.11 Symlinks work.
+
+4. Control of used space by tmpfs.
+
+    TODO: Make tmpfs use not more space than it was allowed.
+
+5. Thread safety.
+
+    TODO: During execution tmpfs hangs in random places. The most possible is variant is deadlocks,
+    because nothing was undertaken for thread safety.
+
+6. After sometime of inactivity tmpfs exits.
+
+    TODO: Find out why and correct this.
+
 #Debugging
 
 To debug tmpfs, using libraries from "$PWD"/lib and trace rpc:
@@ -49,6 +54,7 @@ To debug tmpfs, using libraries from "$PWD"/lib and trace rpc:
     LD_LIBRARY_PATH="$PWD"/lib gdb tmpfs/tmpfs 698 
 
 For debugging ext2fs:
+
     settrans --create --active ramdisk0 /hurd/storeio -T copy zero:32M  && \
     /sbin/mkfs.ext2 -F -b 4096 ramdisk0 && \
     settrans --active --orphan ramdisk0 /usr/bin/env LD_LIBRARY_PATH="$PWD"/lib utils/rpctrace -I /usr/share/msgids/ \
@@ -76,6 +82,20 @@ For debugging ext2fs:
     (10:32:35) braunr: baz -> bar
 
 ### defpager<a id="defpager81111"/>
+
+    earlier:
+    <tschwinge>: 1. On every system there is a ``default pager'' (mach-defpager).  That one is responsible 
+    for all ``anonymous memory''.  For example, when you do malloc(10 MiB), and then there is memory pressure, 
+    this 10 MiB memory region is backed by the default pager, whose job then is it to provide the backing store for this.
+    <tschwinge>: This is what commonly would be known as a swap partition.
+    <tschwinge>: And this is also the way tmpfs works (as I understand it).
+    <tschwinge>: malloc(10 MiB) can also be mmap(MAP_ANONYMOUS, 10 MIB); that's the same, essentially.
+    <tschwinge>: Now, for ext2fs or any other disk-based file system, this is different:
+    <tschwinge>: The ext2fs translator implements its own backing store, namely it accesses the disk for storing 
+    changed file content, or to read in data from disk if a new file is opened.
+    
+    ...
+
     (10:36:14) mcsim: who else uses defpager besides tmpfs and kernel?
     (10:36:27) braunr: normally, nothing directly
     (10:37:04) mcsim: than why tmpfs should use defpager?
@@ -89,7 +109,6 @@ For debugging ext2fs:
     (10:41:27) braunr: anonymous memory uses swap space as its backing store too
     (10:43:47) braunr: but be aware that this part of the vm system is known to have deficiencies
     (10:44:14) braunr: which is why all mach based implementations have rewritten their default pager
-    (10:44:41) youpi: ArneBab: the intro is already in in my qemu image
     (10:45:11) mcsim: what kind of deficiencies?
     (10:45:16) braunr: bugs
     (10:45:39) braunr: and design issues, making anonymous memory fragmentation horrible
