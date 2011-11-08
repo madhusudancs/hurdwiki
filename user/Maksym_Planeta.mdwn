@@ -87,3 +87,14 @@ To debug tmpfs, using libraries from "$PWD"/lib and trace rpc:
     (10:45:11) mcsim: what kind of deficiencies?
     (10:45:16) braunr: bugs
     (10:45:39) braunr: and design issues, making anonymous memory fragmentation horrible
+    
+    ...
+
+    (15:23:33) antrik: mcsim: vm_allocate doesn't return a memory object; so it can't be passed to clients for mmap()
+    (15:50:37) mcsim: antrik: I use vm_allocate in pager_read_page
+    (15:54:43) antrik: mcsim: well, that means that you have to actually implement a pager yourself
+    (15:56:10) antrik: also, when the kernel asks the pager to write back some pages, it expects the memory to become free.
+    if you are "paging" to ordinary anonymous memory, this doesn't happen; so I expect it to have a very bad effect
+    on system performance
+    (15:56:54) antrik: both can be avoided by just passing a real anonymous memory object, i.e. one provided by the defpager
+    (15:57:07) antrik: only problem is that the current defpager implementation can't really handle that...
