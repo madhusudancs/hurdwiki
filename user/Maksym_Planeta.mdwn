@@ -23,16 +23,23 @@ License|/fdl]]."]]"""]]
     <tschwinge>: The ext2fs translator implements its own backing store, namely it accesses the disk for storing 
     changed file content, or to read in data from disk if a new file is opened.
 
+[[defpager|http://www.bddebian.com:8888/~hurd-web/user/Maksym_Planeta/#defpager81111]]
+
 ## Steps
 
 1. Find out what causes crashes in tmpfs with defpager
 
-http://www.gnu.org/s/hurd/hurd/translator/tmpfs/notes_various.html 
+[[http://www.gnu.org/s/hurd/hurd/translator/tmpfs/notes_various.html]]
 
 2. Write own pager
 
     6.11.11 Reading/writing for files that fit in vm_page_size works
+
     7.11.11 Works for any size.
+
+3. Make links work
+
+    Symlinks behavior: [[links|http://www.bddebian.com:8888/~hurd-web/user/Maksym_Planeta/#links81111]]
 
 #Debugging
 
@@ -40,3 +47,43 @@ To debug tmpfs, using libraries from "$PWD"/lib and trace rpc:
 
     settrans -ca foo /usr/bin/env LD_LIBRARY_PATH="$PWD"/lib utils/rpctrace -I /usr/share/msgids/ tmpfs/tmpfs 1M
     LD_LIBRARY_PATH="$PWD"/lib gdb tmpfs/tmpfs 698 
+
+#Conversations
+
+## 8.11.11
+
+### links<a id="links81111"/>
+    (10:29:11) braunr: mcsim: ln -s foo/bar foo/baz means the link name is baz in the foo directory,
+    and its target (relative to its directory) is foo/bar (which would mean /tmp/foo/foo/bar in canonical form)
+    (10:29:42) braunr: youpi: tschwinge: what did ludovic achieve ?
+    (10:30:06) tschwinge: mcsim: As Richard says, symlink targets are always relative to the directory they're contained in.
+    (10:30:51) tschwinge: braunr: This Hydra/Nix (I wtill mix it all up) thing is kind of a package managing system.
+    (10:31:17) tschwinge: He has written scripts for bootstrapping a Hurd toolchain.
+    (10:31:26) braunr: oh ok
+    (10:31:27) mcsim: so, if I want to create link in cd, first I need to cd there?
+    (10:31:28) tschwinge: And then uses that to build a whole bootable image.
+    (10:31:36) mcsim: in foo*
+    (10:31:36) braunr: mcsim: just provide the right paths
+    (10:32:11) braunr: $ touch foo/bar
+    (10:32:14) braunr: $ ln -s bar foo/baz
+    (10:32:32) braunr: bar
+    (10:32:35) braunr: baz -> bar
+
+### defpager<a id="defpager81111"/>
+    (10:36:14) mcsim: who else uses defpager besides tmpfs and kernel?
+    (10:36:27) braunr: normally, nothing directly
+    (10:37:04) mcsim: than why tmpfs should use defpager?
+    (10:37:22) braunr: it's its backend
+    (10:37:28) braunr: backign store rather
+    (10:37:38) braunr: the backing store of most file systems are partitions
+    (10:37:44) braunr: tmpfs has none, it uses the swap space
+    (10:39:31) mcsim: if we allocate memory for tmpfs using vm_allocate, will it be able to use swap partition?
+    (10:39:56) braunr: it should
+    (10:40:27) braunr: vm_allocate just maps anonymous memory
+    (10:41:27) braunr: anonymous memory uses swap space as its backing store too
+    (10:43:47) braunr: but be aware that this part of the vm system is known to have deficiencies
+    (10:44:14) braunr: which is why all mach based implementations have rewritten their default pager
+    (10:44:41) youpi: ArneBab: the intro is already in in my qemu image
+    (10:45:11) mcsim: what kind of deficiencies?
+    (10:45:16) braunr: bugs
+    (10:45:39) braunr: and design issues, making anonymous memory fragmentation horrible
