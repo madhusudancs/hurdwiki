@@ -23,20 +23,29 @@ My vision of the problem in short: when user tries to access to the memory backe
 
 ## Steps
 
-1. Find out what causes crashes in tmpfs with defpager
+### Find out what causes crashes in tmpfs with defpager
 
 [[http://www.gnu.org/s/hurd/hurd/translator/tmpfs/notes_various.html]]
 
 TODO: Consider deleting of parameter "port" in function mach-defpager/default_pager.c:pager_port_list_insert
 since this parameter is unused
 
-2. Write own pager
+Probably pager_request shouldn't be stored because request may arrive from different kernels (or from kernel and translator), so this parameter doesn't have any sense.
+
+In d_p_set_size memory_object_lock_request is used for manipulating of object size. There is a function memory_object_data_unavailable, which can increase space, provided for memory object. TODO: Consider using it.
+
+### Write own pager
 
     6.11.11 Reading/writing for files that fit in vm_page_size works
 
     7.11.11 Works for any size.
 
-3. Make links work
+    TODO: During execution tmpfs hangs in random places. The most possible is variant is deadlocks,
+    because nothing was undertaken for thread safety.
+
+    TODO: Make tmpfs use not more space than it was allowed.
+
+### Make links work
 
     Symlinks behavior: [[links|http://www.bddebian.com:8888/~hurd-web/user/Maksym_Planeta/#links81111]]
 
@@ -44,20 +53,11 @@ since this parameter is unused
 
     [[Patch by Ben Asselstine.|http://thread.gmane.org/gmane.os.hurd.bugs/11829/focus=12098]]
 
-4. Control of used space by tmpfs.
-
-    TODO: Make tmpfs use not more space than it was allowed.
-
-5. Thread safety.
-
-    TODO: During execution tmpfs hangs in random places. The most possible is variant is deadlocks,
-    because nothing was undertaken for thread safety.
-
-6. After sometime of inactivity tmpfs exits.
+### After sometime of inactivity tmpfs exits.
 
     TODO: Find out why and correct this.
 
-7. Passive translator doesn't work
+### Passive translator doesn't work
 
 #Chalanges
 
