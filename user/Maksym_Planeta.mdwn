@@ -32,7 +32,7 @@ since this parameter is unused
 
 Probably pager_request shouldn't be stored because request may arrive from different kernels (or from kernel and translator), so this parameter doesn't have any sense.
 
-In d_p_set_size memory_object_lock_request is used for manipulating of object size. There is a function memory_object_data_unavailable, which can increase space, provided for memory object. TODO: Consider using it.
+22.11.11 Reading/writing for any size works, [[this|http://lists.gnu.org/archive/html/bug-hurd/2011-11/msg00127.html]] works, but fsx test fails ([[see|http://www.bddebian.com:8888/~hurd-web/user/Maksym_Planeta/#fsx_fail2211]]).
 
 ### Write own pager
 
@@ -153,3 +153,34 @@ For debugging ext2fs:
     on system performance
     (15:56:54) antrik: both can be avoided by just passing a real anonymous memory object, i.e. one provided by the defpager
     (15:57:07) antrik: only problem is that the current defpager implementation can't really handle that...
+
+#Pastes
+
+## fsx test on 22.11.11 <a id="fsx_fail2211"/>
+    $ ~/src/fsx/fsx -W -R -t 4096 -w 4096 -r 4096 bar
+    mapped writes DISABLED
+    truncating to largest ever: 0x32000
+    truncating to largest ever: 0x39000
+    READ BAD DATA: offset = 0x16000, size = 0xd9a0
+    OFFSET  GOOD    BAD     RANGE
+    0x1f000 0x0000  0x01a0  0x 2d14
+    operation# (mod 256) for the bad data may be 1
+    LOG DUMP (16 total operations):
+    1(1 mod 256): WRITE     0x1f000 thru 0x21d28    (0x2d29 bytes) HOLE     ***WWWW
+    2(2 mod 256): WRITE     0x10000 thru 0x15bfe    (0x5bff bytes)
+    3(3 mod 256): READ      0x1d000 thru 0x21668    (0x4669 bytes)
+    4(4 mod 256): READ      0xa000 thru 0x16a59     (0xca5a bytes)
+    5(5 mod 256): READ      0x8000 thru 0x8f2c      (0xf2d bytes)
+    6(6 mod 256): READ      0xa000 thru 0x17fe8     (0xdfe9 bytes)
+    7(7 mod 256): READ      0x1b000 thru 0x20f33    (0x5f34 bytes)
+    8(8 mod 256): READ      0x15000 thru 0x1c05b    (0x705c bytes)
+    9(9 mod 256): TRUNCATE UP       from 0x21d29 to 0x32000
+    10(10 mod 256): READ    0x3000 thru 0x5431      (0x2432 bytes)
+    11(11 mod 256): WRITE   0x29000 thru 0x34745    (0xb746 bytes) EXTEND
+    12(12 mod 256): TRUNCATE DOWN   from 0x34746 to 0x19000 ******WWWW
+    13(13 mod 256): READ    0x14000 thru 0x186d8    (0x46d9 bytes)
+    14(14 mod 256): TRUNCATE UP     from 0x19000 to 0x39000 ******WWWW
+    15(15 mod 256): WRITE   0x28000 thru 0x3548c    (0xd48d bytes)
+    16(16 mod 256): READ    0x16000 thru 0x2399f    (0xd9a0 bytes)  ***RRRR***
+    Correct content saved for comparison
+    (maybe hexdump "bar" vs "bar.fsxgood")
