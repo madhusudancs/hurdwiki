@@ -43,7 +43,14 @@ Probably pager_request shouldn't be stored because request may arrive from diffe
     TODO: During execution tmpfs hangs in random places. The most possible is variant is deadlocks,
     because nothing was undertaken for thread safety.
 
+> Is this only a problem in your new *own pager* implementation, or also in the
+> existing tmpfs implementation?  --[[tschwinge]]
+
     TODO: Make tmpfs use not more space than it was allowed.
+
+> Is this only a problem in your new *own pager* implementation, or also in the
+> existing tmpfs implementation?  It is supposed to already obey this limit.
+> --[[tschwinge]]
 
 ### Make links work
 
@@ -57,7 +64,20 @@ Probably pager_request shouldn't be stored because request may arrive from diffe
 
     TODO: Find out why and correct this.
 
+> This may perhaps be the standard translator
+> shutdown-after-a-period-of-inactivity functionality?  This is of course not
+> valid in the tmpfs case, as all its state (file system content) is not stored
+> on any non-volatile backend.  Can this auto-shutdown functionality be
+> disabled (in [[hurd/libdiskfs]], perhaps?  See `libdiskfs/init-first.c`, the
+> call to `ports_manage_port_operations_multithread`, the `global_timeout`
+> paramenter (see the [[hurd/reference_manual]]) (here: `server_timeout`).
+> Probably this should be set to `0` in tmpfs to disable timing out?
+> --[[tschwinge]]
+
 ### Passive translator doesn't work
+
+> Must be some bug: `diskfs_set_translator` is implemented in `node.c`, so this
+> is supposed to work.  --[[tschwinge]]
 
 #Chalanges
 
@@ -86,8 +106,19 @@ For debugging ext2fs:
 #Questions
 
 1. What are sequence numbers? What are they used for?
+
+> See [[microkernel/mach/ipc/sequence_numbering]].  --[[tschwinge]]
+
 2. Is there any way to debug mach-defpager? When I set breakpoint to any function in it, pager never breaks.
+
+> Is that still an unresolved problem?  If not, what was the problem?  --[[tschwinge]]
+
 3. Is it normal that defpager panics and breaks on any wrong data?
+
+> No server must ever panic (or reach any other invalid state), whichever input
+> data it receives from untrusted sources (which may include every possible
+> source).  All input data must be checked for validity before use; anything
+> else is a bug.  --[[tschwinge]]
 
 #Links
 
