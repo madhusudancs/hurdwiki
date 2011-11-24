@@ -7,7 +7,7 @@ any later version published by the Free Software Foundation; with no Invariant
 Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
-
+ 
 [[!toc]]
 #Notes on tmpfs
 
@@ -35,6 +35,17 @@ since this parameter is unused
 Probably pager_request shouldn't be stored because request may arrive from different kernels (or from kernel and translator), so this parameter doesn't have any sense.
 
 22.11.11 Reading/writing for any size works, [[this|http://lists.gnu.org/archive/html/bug-hurd/2011-11/msg00127.html]] works, but fsx test fails ([[see|http://www.bddebian.com:8888/~hurd-web/user/Maksym_Planeta/#fsx_fail2211]]).
+
+24.11.11 The problem with fsx.
+
+Here are follow operations:
+
+1. Write some data at address 0x100 with size 0x20
+2. Truncate file to size 0x80. First written data should be lost.
+3. Write some data at address 0x200 size of 0x20. By this operation file size is increased up to 0x220.
+4. Read data at address 0x110. Fsx expects here zeros, but in fact here is data, that was written at step 1.
+
+When fsx tries to read data kernel calls pager with seqno_memory_object_data_request, and pager returns on step 4 zeros either with memory_object_data_provided or memory_object_data_unavailable. Before this, in default_pager_set_size memory_object_lock_request called to flush any kernel caches, that could hold data to be truncated. When I set offset to 0 and size to limit in memory_object_lock_request it appeared another error ([[see|http://www.bddebian.com:8888/~hurd-web/user/Maksym_Planeta/#fsx_fail2411]]). Both these behaviors appear to be quite strange for me. It is quite late now, so i put these notes to not forget this and went sleep. Continue tomorrow.
 
 ### Write own pager
 
@@ -208,5 +219,23 @@ For debugging ext2fs:
     14(14 mod 256): TRUNCATE UP     from 0x19000 to 0x39000 ******WWWW
     15(15 mod 256): WRITE   0x28000 thru 0x3548c    (0xd48d bytes)
     16(16 mod 256): READ    0x16000 thru 0x2399f    (0xd9a0 bytes)  ***RRRR***
+    Correct content saved for comparison
+    (maybe hexdump "bar" vs "bar.fsxgood")
+
+## fsx test on 24.11.11 <a id="fsx_fail2411"/>
+  
+    $ ~/src/fsx/fsx bar 
+    truncating to largest ever: 0x13e76
+    READ BAD DATA: offset = 0x1f62e, size = 0x2152
+    OFFSET  GOOD    BAD     RANGE
+    0x1f62e 0x0206  0x0000  0x 213e
+    operation# (mod 256) for the bad data unknown, check HOLE and EXTEND ops 
+    LOG DUMP (6 total operations):
+    1(1 mod 256): TRUNCATE UP       from 0x0 to 0x13e76
+    2(2 mod 256): WRITE     0x17098 thru 0x26857    (0xf7c0 bytes) HOLE     ***WWWW
+    3(3 mod 256): READ      0xc73e thru 0x1b801     (0xf0c4 bytes)
+    4(4 mod 256): MAPWRITE 0x32e00 thru 0x331fc     (0x3fd bytes)
+    5(5 mod 256): MAPWRITE 0x7ac1 thru 0x11029      (0x9569 bytes)
+    6(6 mod 256): READ      0x1f62e thru 0x2177f    (0x2152 bytes)  ***RRRR***
     Correct content saved for comparison
     (maybe hexdump "bar" vs "bar.fsxgood")
