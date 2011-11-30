@@ -12,7 +12,10 @@ License|/fdl]]."]]"""]]
 
 There is a [[!FF_project 272]][[!tag bounty]] on this task.
 
-IRC, OFTC, #debian-hurd, 2011-03-24
+[[!toc]]
+
+
+# IRC, OFTC, #debian-hurd, 2011-03-24
 
     <youpi> I still believe we have an ext2fs page cache swapping leak, however
     <youpi> as the 1.8GiB swap was full, yet the ld process was only 1.5GiB big
@@ -24,7 +27,7 @@ IRC, OFTC, #debian-hurd, 2011-03-24
     <youpi> yes
     <youpi> the disk content, basicallyt :)
 
-IRC, freenode, #hurd, 2011-04-18
+# IRC, freenode, #hurd, 2011-04-18
 
     <antrik> damn, a cp -a simply gobbles down swap space...
     <braunr> really ?
@@ -173,3 +176,84 @@ IRC, freenode, #hurd, 2011-04-18
       backing store of memory objects created from its pager
     <braunr> so you can view swap as the file system for everything that isn't
       an external memory object
+
+
+# IRC, freenode, #hurd, 2011-11-15
+
+    <braunr> hm, now my system got unstable
+    <braunr> swap is increasing, without any apparent reason
+    <antrik> you mean without any load?
+    <braunr> with load, yes
+    <braunr> :)
+    <antrik> well, with load is "normal"...
+    <antrik> at least for some loads
+    <braunr> i can't create memory pressure to stress reclaiming without any
+      load
+    <antrik> what load are you using?
+    <braunr> ftp mirrorring
+    <antrik> hm... never tried that; but I guess it's similar to apt-get
+    <antrik> so yes, that's "normal". I talked about it several times, and also
+      wrote to the ML
+    <braunr> antrik: ok
+    <antrik> if you find out how to fix this, you are my hero ;-)
+    <braunr> arg :)
+    <antrik> I suspect it's the infamous double swapping problem; but that's
+      just a guess
+    <braunr> looks like this
+    <antrik> BTW, if you give me the exact command, I could check if I see it
+      too
+    <braunr> i use lftp (mirror -Re) from a linux git repository
+    <braunr> through sftp
+    <braunr> (lots of small files, big content)
+    <antrik> can't you just give me the exact command? I don't feel like
+      figuring it out myself
+    <braunr> antrik: cd linux-stable; lftp sftp://hurd_addr/
+    <braunr> inside lftp: mkdir linux-stable; cd linux-stable; mirror -Re
+    <braunr> hm, half of physical memory just got freed
+    <braunr> our page cache is really weird :/
+    <braunr> (i didn't delete any file when that happened)
+    <antrik> hurd_addr?
+    <braunr> ssh server ip address
+    <braunr> or name
+    <braunr> of your hurd :)
+    <antrik> I'm confused. you are mirroring *from* the Hurd box?
+    <braunr> no, to it
+    <antrik> ah, so you login via sftp and then push to it?
+    <braunr> yes
+    <braunr> fragmentation looks very fine
+    <braunr> even for the huge pv_entry cache and its 60k+ entries
+    <braunr> (and i'm running a kernel with the cpu layer enabled)
+    <braunr> git reset/status/diff/log/grep all work correctly
+    <braunr> anyway, mcsim's branch looks quite stable to me
+    <antrik> braunr: I can't reproduce the swap leak with ftp. free memory
+      idles around 6.5 k (seems to be the threshold where paging starts), and
+      swap use is constant
+    <antrik> might be because everything swappable is already present in swap
+      from previous load I guess...
+    <antrik> err... scratch that. was connected to the wrong host, silly me
+    <antrik> indeed swap gets eaten away, as expected
+    <antrik> but only if free memory actually falls below the
+      threshold. otherwise it just oscillates around a constant value, and
+      never touches swap
+    <antrik> so this seems to confirm the double swapping theory
+    <youpi> antrik: is that "double swap" theory written somewhere?
+    <youpi> (no, a quick google didn't tell me)
+
+
+## IRC, freenode, #hurd, 2011-11-16
+
+    <antrik> youpi:
+      http://lists.gnu.org/archive/html/l4-hurd/2002-06/msg00001.html talks
+      about "double paging". probably it's also the term others used for it;
+      however, the term is generally used in a completely different meaning, so
+      I guess it's not really suitable for googling either ;-)
+    <antrik> IIRC slpz (or perhaps someone else?) proposed a solution to this,
+      but I don't remember any details
+    <youpi> ok so it's the same thing I was thinking about with swap getting
+      filled
+    <youpi> my question was: is there something to release the double swap,
+      once the ext2fs pager managed to recover?
+    <antrik> apparently not
+    <antrik> the only way to free the memory seems to be terminating the FS
+      server
+    <youpi> uh :/
