@@ -1810,3 +1810,205 @@ There is a [[!FF_project 266]][[!tag bounty]] on this task.
 
     <braunr> etenil: but mcsim's work is, for one, useful because the allocator
       code is much clearer, adds some debugging support, and is smp-ready
+
+
+# IRC, freenode, #hurd, 2011-11-14
+
+    <braunr> i've just realized that replacing the zone allocator removes most
+      (if not all) static limit on allocated objects
+    <braunr> as we have nothing similar to rlimits, this means kernel resources
+      are actually exhaustible
+    <braunr> and i'm not sure every allocation is cleanly handled in case of
+      memory shortage
+    <braunr> youpi: antrik: tschwinge: is this acceptable anyway ?
+    <braunr> (although IMO, it's also a good thing to get rid of those limits
+      that made the kernel panic for no valid reason)
+    <youpi> there are actually not many static limits on allocated objects
+    <youpi> only a few have one
+    <braunr> those defined in kern/mach_param.h
+    <youpi> most of them are not actually enforced
+    <braunr> ah ?
+    <braunr> they are used at zinit() time
+    <braunr> i thought they were
+    <youpi> yes,  but most zones are actually fine with overcoming the max
+    <braunr> ok
+    <youpi> see zone->max_size += (zone->max_size >> 1);
+    <youpi> you need both !EXHAUSTIBLE and FIXED
+    <braunr> ok
+    <pinotree> making having rlimits enforced would be nice...
+    <pinotree> s/making//
+    <braunr> pinotree: the kernel wouldn't handle many standard rlimits anyway
+
+    <braunr> i've just committed my final patch on mcsim's branch, which will
+      serve as the starting point for integration
+    <braunr> which means code in this branch won't change (or only last minute
+      changes)
+    <braunr> you're invited to test it
+    <braunr> there shouldn't be any noticeable difference with the master
+      branch
+    <braunr> a bit less fragmentation
+    <braunr> more memory can be reclaimed by the VM system
+    <braunr> there are debugging features
+    <braunr> it's SMP ready
+    <braunr> and overall cleaner than the zone allocator
+    <braunr> although a bit slower on the free path (because of what's
+      performed to reduce fragmentation)
+    <braunr> but even "slower" here is completely negligible
+
+
+# IRC, freenode, #hurd, 2011-11-15
+
+    <mcsim> I enabled cpu_pool layer and kentry cache exhausted at "apt-get
+      source gnumach && (cd gnumach-* && dpkg-buildpackage)"
+    <mcsim> I mean kernel with your last commit
+    <mcsim> braunr: I'll make patch how I've done it in a few minutes, ok? It
+      will be more specific.
+    <braunr> mcsim: did you just remove the #if NCPUS > 1 directives ?
+    <mcsim> no. I replaced macro NCPUS > 1 with SLAB_LAYER, which equals NCPUS
+      > 1, than I redefined macro SLAB_LAYER
+    <braunr> ah, you want to make the layer optional, even on UP machines
+    <braunr> mcsim: can you give me the commands you used to trigger the
+      problem ?
+    <mcsim> apt-get source gnumach && (cd gnumach-* && dpkg-buildpackage)
+    <braunr> mcsim: how much ram & swap ?
+    <braunr> let's see if it can handle a quite large aptitude upgrade
+    <mcsim> how can I check swap size?
+    <braunr> free
+    <braunr> cat /proc/meminfo
+    <braunr> top
+    <braunr> whatever
+    <mcsim>              total       used       free     shared    buffers
+      cached
+    <mcsim> Mem:        786368     332296     454072          0          0
+      0
+    <mcsim> -/+ buffers/cache:     332296     454072
+    <mcsim> Swap:      1533948          0    1533948
+    <braunr> ok, i got the problem too
+    <mcsim> braunr: do you run hurd in qemu?
+    <braunr> yes
+    <braunr> i guess the cpu layer increases fragmentation a bit
+    <braunr> which means more map entries are needed
+    <braunr> hm, something's not right
+    <braunr> there are only 26 kernel map entries when i get the panic
+    <braunr> i wonder why the cache gets that stressed
+    <braunr> hm, reproducing the kentry exhaustion problem takes quite some
+      time
+    <mcsim> braunr: what do you mean?
+    <braunr> sometimes, dpkg-buildpackage finishes without triggering the
+      problem
+    <mcsim> the problem is in apt-get source gnumach
+    <braunr> i guess the problem happens because of drains/fills, which
+      allocate/free much more object than actually preallocated at boot time
+    <braunr> ah ?
+    <braunr> ok
+    <braunr> i've never had it at that point, only later
+    <braunr> i'm unable to trigger it currently, eh
+    <mcsim> do you use *-dbg kernel?
+    <braunr> yes
+    <braunr> well, i use the compiled kernel, with the slab allocator, built
+      with the in kernel debugger
+    <mcsim> when you run apt-get source gnumach, you run it in clean directory?
+      Or there are already present downloaded archives?
+    <braunr> completely empty
+    <braunr> ah just got it
+    <braunr> ok the limit is reached, as expected
+    <braunr> i'll just bump it
+    <braunr> the cpu layer drains/fills allocate several objects at once (64 if
+      the size is small enough)
+    <braunr> the limit of 256 (actually 252 since the slab descriptor is
+      embedded in its slab) is then easily reached
+    <antrik> mcsim: most direct way to check swap usage is vmstat
+    <braunr> damn, i can't live without slabtop and the amount of
+      active/inactive cache memory any more
+    <braunr> hm, weird, we have active/inactive memory in procfs, but not
+      buffers/cached memory
+    <braunr> we could set buffers to 0 and everything as cached memory, since
+      we're currently unable to communicate the purpose of cached memory
+      (whether it's used by disk servers or file system servers)
+    <braunr> mcsim: looks like there are about 240 kernel map entries (i forgot
+      about the ones used in kernel submaps)
+    <braunr> so yes, addin the cpu layer is what makes the kernel reach the
+      limit more easily
+    <mcsim> braunr: so just increasing limit will solve the problem?
+    <braunr> mcsim: yes
+    <braunr> slab reclaiming looks very stable
+    <braunr> and unfrequent
+    <braunr> (which is surprising)
+    <pinotree> braunr: "unfrequent"?
+    <braunr> pinotree: there isn't much memory pressure
+    <braunr> slab_collect() gets called once a minute on my hurd
+    <braunr> or is it infrequent ?
+    <braunr> :)
+    <pinotree> i have no idea :)
+    <braunr> infrequent, yes
+
+
+# IRC, freenode, #hurd, 2011-11-16
+
+    <braunr> for those who want to play with the slab branch of gnumach, the
+      slabinfo tool is available at http://git.sceen.net/rbraun/slabinfo.git/
+    <braunr> for those merely interested in numbers, here is the output of
+      slabinfo, for a hurd running in kvm with 512 MiB of RAM, an unused swap,
+      and a short usage history (gnumach debian packages built, aptitude
+      upgrade for a dozen of packages, a few git commands)
+    <braunr> http://www.sceen.net/~rbraun/slabinfo.out
+    <antrik> braunr: numbers for a long usage history would be much more
+      interesting :-)
+
+
+## IRC, freenode, #hurd, 2011-11-17
+
+    <braunr> antrik: they'll come :)
+    <etenil> is something going on on darnassus? it's mighty slow
+    <braunr> yes
+    <braunr> i've rebooted it to run a modified kernel (with the slab
+      allocator) and i'm building stuff on it to stress it
+    <braunr> (i don't have any other available machine with that amount of
+      available physical memory)
+    <etenil> ok
+    <antrik> braunr: probably would be actually more interesting to test under
+      memory pressure...
+    <antrik> guess that doesn't make much of a difference for the kernel object
+      allocator though
+    <braunr> antrik: if ram is larger, there can be more objects stored in
+      kernel space, then, by building something large such as eglibc, memory
+      pressure is created, causing caches to be reaped
+    <braunr> our page cache is useless because of vm_object_cached_max
+    <braunr> it's a stupid arbitrary limit masking the inability of the vm to
+      handle pressure correctly 
+    <braunr> if removing it, the kernel freezes soon after ram is filled
+    <braunr> antrik: it may help trigger the "double swap" issue you mentioned
+    <antrik> what may help trigger it?
+    <braunr> not checking this limit
+    <antrik> hm... indeed I wonder whether the freezes I see might have the
+      same cause
+
+
+## IRC, freenode, #hurd, 2011-11-19
+
+    <braunr> http://www.sceen.net/~rbraun/slabinfo.out <= state of the slab
+      allocator after building the debian libc packages and removing all files
+      once done
+    <braunr> it's mostly the same as on any other machine, because of the
+      various arbitrary limits in mach (most importantly, the max number of
+      objects in the page cache)
+    <braunr> fragmentation is still quite low
+    <antrik> braunr: actually fragmentation seems to be lower than on the other
+      run...
+    <braunr> antrik: what makes you think that ?
+    <antrik> the numbers of currently unused objects seem to be in a similar
+      range IIRC, but more of them are reclaimable I think
+    <antrik> maybe I'm misremembering the other numbers
+    <braunr> there had been more reclaims on the other run
+
+
+# IRC, freenode, #hurd, 2011-11-25
+
+    <braunr> mcsim: i've just updated the slab branch, please review my last
+      commit when you have time
+    <mcsim> braunr: Do you mean compilation/tests?
+    <braunr> no, just a quick glance at the code, see if it matches what you
+      intended with your original patch
+    <mcsim> braunr: everything is ok
+    <braunr> good
+    <braunr> i think the branch is ready for integration

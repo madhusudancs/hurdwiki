@@ -233,3 +233,40 @@ See also: [[open_issues/resource_management_problems/pagers]].
       I have never looked at it.
 
 [[open_issues/mach-defpager_vs_defpager]].
+
+
+# IRC, freenode, #hurd, 2011-11-08
+
+    <mcsim> who else uses defpager besides tmpfs and kernel?
+    <braunr> normally, nothing directly
+    <mcsim> than why tmpfs should use defpager?
+    <braunr> it's its backend
+    <braunr> backign store rather
+    <braunr> the backing store of most file systems are partitions
+    <braunr> tmpfs has none, it uses the swap space
+    <mcsim> if we allocate memory for tmpfs using vm_allocate, will it be able
+      to use swap partition?
+    <braunr> it should
+    <braunr> vm_allocate just maps anonymous memory
+    <braunr> anonymous memory uses swap space as its backing store too
+    <braunr> but be aware that this part of the vm system is known to have
+      deficiencies
+    <braunr> which is why all mach based implementations have rewritten their
+      default pager
+    <mcsim> what kind of deficiencies?
+    <braunr> bugs
+    <braunr> and design issues, making anonymous memory fragmentation horrible
+    <antrik> mcsim: vm_allocate doesn't return a memory object; so it can't be
+      passed to clients for mmap()
+    <mcsim> antrik: I use vm_allocate in pager_read_page
+    <antrik> mcsim: well, that means that you have to actually implement a
+      pager yourself
+    <antrik> also, when the kernel asks the pager to write back some pages, it
+      expects the memory to become free. if you are "paging" to ordinary
+      anonymous memory, this doesn't happen; so I expect it to have a very bad
+      effect on system performance
+    <antrik> both can be avoided by just passing a real anonymous memory
+      object, i.e. one provided by the defpager
+    <antrik> only problem is that the current defpager implementation can't
+      really handle that...
+    <antrik> at least that's my understanding of the situation
