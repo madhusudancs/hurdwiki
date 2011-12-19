@@ -7,9 +7,23 @@ any later version published by the Free Software Foundation; with no Invariant
 Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
-
+ 
 [[!toc]]
 #Notes on tmpfs
+
+## Current state
+
+7.12.11
+
+There left 4 bugs, I found:
+
+1. Passive translator doesn't work. (Haven't investigate yet)
+
+2. After sometime of inactivity tmpfs exits. (8.12.11, Fixed)
+
+3. Writing by freed address somewhere. As workaround I set kalloc_max in mach-defpager/kalloc.c to 3, so vm_allocate is always used.
+
+4. Fsx still breaks with 11 from 12 seeds, I tested the problem was in first 4 Kb. In 12th case problem was in range between 4 Kb and 8 Kb. I find this quite odd. Usual amount of operations before fsx breaks passes 100 000.
 
 ## mach-defpager
 
@@ -21,45 +35,83 @@ License|/fdl]]."]]"""]]
 
 My vision of the problem in short: when user tries to access to the memory backed by tmpfs first time, kernel asks defpager to initialize memory object and sets it's request port to some value. But sometimes user directly accesses to defpager and supplies it own request port. So defpager should handle different request port, what causes errors.
 
+TODO: pager_extend always frees old pagemap and allocates new. Consider if it is necessary.
+
 ## Steps
 
-1. Find out what causes crashes in tmpfs with defpager
+### Find out what causes crashes in tmpfs with defpager
 
 [[http://www.gnu.org/s/hurd/hurd/translator/tmpfs/notes_various.html]]
 
 TODO: Consider deleting of parameter "port" in function mach-defpager/default_pager.c:pager_port_list_insert
 since this parameter is unused
 
-2. Write own pager
+Probably pager_request shouldn't be stored because request may arrive from different kernels (or from kernel and translator), so this parameter doesn't have any sense.
+
+22.11.11 Reading/writing for any size works, [[this|http://lists.gnu.org/archive/html/bug-hurd/2011-11/msg00127.html]] works, but fsx test fails ([[see|http://www.bddebian.com:8888/~hurd-web/user/Maksym_Planeta/#fsx_fail2211]]).
+
+24.11.11 The problem with fsx.
+
+Here are follow operations:
+
+1. Write some data at address 0x100 with size 0x20
+2. Truncate file to size 0x80. First written data should be lost.
+3. Write some data at address 0x200 size of 0x20. By this operation file size is increased up to 0x220.
+4. Read data at address 0x110. Fsx expects here zeros, but in fact here is data, that was written at step 1.
+
+When fsx tries to read data kernel calls pager with seqno_memory_object_data_request, and pager returns on step 4 zeros either with memory_object_data_provided or memory_object_data_unavailable. Before this, in default_pager_set_size memory_object_lock_request called to flush any kernel caches, that could hold data to be truncated. When I set offset to 0 and size to limit in memory_object_lock_request it appeared another error ([[see|http://www.bddebian.com:8888/~hurd-web/user/Maksym_Planeta/#fsx_fail2411]]). Both these behaviors appear to be quite strange for me. It is quite late now, so i put these notes to not forget this and went sleep. Continue tomorrow.
+
+5.12.11 Here is a problem with writing by address, which was freed already. It happens in function dealloc_direct in macros invalidate_block. This function is called from pager_truncate in branch when condition "if (!INDIRECT_PAGEMAP(old_size))" is true. But I didn't find why reference to freed object is kept. As workaround we can reduce kalloc_max in hurd/mach-defpager/kalloc.c to 3 to make allocator use vm_allocate always. The drawback is that allocator will allocate only multiple of vm_page_size, but this is temporary tradeoff. Till now fsx reaches operation number 14277.
+
+6.12.11 fsx works quite long and doesn't interrupt. I've stopped at 124784. Continued. It broke at 181091.
+
+### Write own pager
 
     6.11.11 Reading/writing for files that fit in vm_page_size works
 
     7.11.11 Works for any size.
 
-3. Make links work
-
-    Symlinks behavior: [[links|http://www.bddebian.com:8888/~hurd-web/user/Maksym_Planeta/#links81111]]
-
-    8.11.11 Symlinks work.
-
-4. Control of used space by tmpfs.
-
-    TODO: Make tmpfs use not more space than it was allowed.
-
-5. Thread safety.
-
     TODO: During execution tmpfs hangs in random places. The most possible is variant is deadlocks,
     because nothing was undertaken for thread safety.
 
-6. After sometime of inactivity tmpfs exits.
+    TODO: Make tmpfs use not more space than it was allowed.
+
+### Make links work
+
+Symlinks behavior: [[links|http://www.bddebian.com:8888/~hurd-web/user/Maksym_Planeta/#links81111]]
+
+8.11.11 Symlinks work.
+
+[[Patch by Ben Asselstine.|http://thread.gmane.org/gmane.os.hurd.bugs/11829/focus=12098]]
+
+### After sometime of inactivity tmpfs exits.
 
     TODO: Find out why and correct this.
 
-#Translators vs FUSE
+> This may perhaps be the standard translator
+> shutdown-after-a-period-of-inactivity functionality?  This is of course not
+> valid in the tmpfs case, as all its state (file system content) is not stored
+> on any non-volatile backend.  Can this auto-shutdown functionality be
+> disabled (in [[hurd/libdiskfs]], perhaps?  See `libdiskfs/init-first.c`, the
+> call to `ports_manage_port_operations_multithread`, the `global_timeout`
+> paramenter (see the [[hurd/reference_manual]]) (here: `server_timeout`).
+> Probably this should be set to `0` in tmpfs to disable timing out?
+> --[[tschwinge]]
+
+### Passive translator doesn't work
+
+> Must be some bug: `diskfs_set_translator` is implemented in `node.c`, so this
+> is supposed to work.  --[[tschwinge]]
+
+#Chalanges
+
+Translators vs FUSE:
 
 [[What can a translator do that FUSE can't?|http://lists.gnu.org/archive/html/bug-hurd/2010-07/msg00061.html]]
 
 [[Re: Hurd translators on FUSE|http://lists.gnu.org/archive/html/l4-hurd/2009-09/msg00146.html]]
+
+[[Example of sane utilization of filesystem stored in RAM|http://habrahabr.ru/blogs/gdev/131043/]] (Russian). Author of this article copied some resources of game "World of Tanks" to RAM-drive and game started load much faster. Although he used Windows in this article, this could be good example of benefits, which filesystem, stored in RAM, could give.
 
 #Debugging
 
@@ -78,7 +130,19 @@ For debugging ext2fs:
 #Questions
 
 1. What are sequence numbers? What are they used for?
+
+> See [[microkernel/mach/ipc/sequence_numbering]].  --[[tschwinge]]
+
 2. Is there any way to debug mach-defpager? When I set breakpoint to any function in it, pager never breaks.
+
+> Is that still an unresolved problem?  If not, what was the problem?  --[[tschwinge]]
+
+3. Is it normal that defpager panics and breaks on any wrong data?
+
+> No server must ever panic (or reach any other invalid state), whichever input
+> data it receives from untrusted sources (which may include every possible
+> source).  All input data must be checked for validity before use; anything
+> else is a bug.  --[[tschwinge]]
 
 #Links
 
@@ -93,11 +157,8 @@ For debugging ext2fs:
     and its target (relative to its directory) is foo/bar (which would mean /tmp/foo/foo/bar in canonical form)
     (10:29:42) braunr: youpi: tschwinge: what did ludovic achieve ?
     (10:30:06) tschwinge: mcsim: As Richard says, symlink targets are always relative to the directory they're contained in.
-    (10:30:51) tschwinge: braunr: This Hydra/Nix (I wtill mix it all up) thing is kind of a package managing system.
-    (10:31:17) tschwinge: He has written scripts for bootstrapping a Hurd toolchain.
     (10:31:26) braunr: oh ok
     (10:31:27) mcsim: so, if I want to create link in cd, first I need to cd there?
-    (10:31:28) tschwinge: And then uses that to build a whole bootable image.
     (10:31:36) mcsim: in foo*
     (10:31:36) braunr: mcsim: just provide the right paths
     (10:32:11) braunr: $ touch foo/bar
@@ -147,3 +208,52 @@ For debugging ext2fs:
     on system performance
     (15:56:54) antrik: both can be avoided by just passing a real anonymous memory object, i.e. one provided by the defpager
     (15:57:07) antrik: only problem is that the current defpager implementation can't really handle that...
+
+#Pastes
+
+## fsx test on 22.11.11 <a id="fsx_fail2211"/>
+    $ ~/src/fsx/fsx -W -R -t 4096 -w 4096 -r 4096 bar
+    mapped writes DISABLED
+    truncating to largest ever: 0x32000
+    truncating to largest ever: 0x39000
+    READ BAD DATA: offset = 0x16000, size = 0xd9a0
+    OFFSET  GOOD    BAD     RANGE
+    0x1f000 0x0000  0x01a0  0x 2d14
+    operation# (mod 256) for the bad data may be 1
+    LOG DUMP (16 total operations):
+    1(1 mod 256): WRITE     0x1f000 thru 0x21d28    (0x2d29 bytes) HOLE     ***WWWW
+    2(2 mod 256): WRITE     0x10000 thru 0x15bfe    (0x5bff bytes)
+    3(3 mod 256): READ      0x1d000 thru 0x21668    (0x4669 bytes)
+    4(4 mod 256): READ      0xa000 thru 0x16a59     (0xca5a bytes)
+    5(5 mod 256): READ      0x8000 thru 0x8f2c      (0xf2d bytes)
+    6(6 mod 256): READ      0xa000 thru 0x17fe8     (0xdfe9 bytes)
+    7(7 mod 256): READ      0x1b000 thru 0x20f33    (0x5f34 bytes)
+    8(8 mod 256): READ      0x15000 thru 0x1c05b    (0x705c bytes)
+    9(9 mod 256): TRUNCATE UP       from 0x21d29 to 0x32000
+    10(10 mod 256): READ    0x3000 thru 0x5431      (0x2432 bytes)
+    11(11 mod 256): WRITE   0x29000 thru 0x34745    (0xb746 bytes) EXTEND
+    12(12 mod 256): TRUNCATE DOWN   from 0x34746 to 0x19000 ******WWWW
+    13(13 mod 256): READ    0x14000 thru 0x186d8    (0x46d9 bytes)
+    14(14 mod 256): TRUNCATE UP     from 0x19000 to 0x39000 ******WWWW
+    15(15 mod 256): WRITE   0x28000 thru 0x3548c    (0xd48d bytes)
+    16(16 mod 256): READ    0x16000 thru 0x2399f    (0xd9a0 bytes)  ***RRRR***
+    Correct content saved for comparison
+    (maybe hexdump "bar" vs "bar.fsxgood")
+
+## fsx test on 24.11.11 <a id="fsx_fail2411"/>
+  
+    $ ~/src/fsx/fsx bar 
+    truncating to largest ever: 0x13e76
+    READ BAD DATA: offset = 0x1f62e, size = 0x2152
+    OFFSET  GOOD    BAD     RANGE
+    0x1f62e 0x0206  0x0000  0x 213e
+    operation# (mod 256) for the bad data unknown, check HOLE and EXTEND ops 
+    LOG DUMP (6 total operations):
+    1(1 mod 256): TRUNCATE UP       from 0x0 to 0x13e76
+    2(2 mod 256): WRITE     0x17098 thru 0x26857    (0xf7c0 bytes) HOLE     ***WWWW
+    3(3 mod 256): READ      0xc73e thru 0x1b801     (0xf0c4 bytes)
+    4(4 mod 256): MAPWRITE 0x32e00 thru 0x331fc     (0x3fd bytes)
+    5(5 mod 256): MAPWRITE 0x7ac1 thru 0x11029      (0x9569 bytes)
+    6(6 mod 256): READ      0x1f62e thru 0x2177f    (0x2152 bytes)  ***RRRR***
+    Correct content saved for comparison
+    (maybe hexdump "bar" vs "bar.fsxgood")

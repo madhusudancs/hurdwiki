@@ -27,8 +27,17 @@ Here's what's to be done for maintaining glibc.
 
 # Configuration
 
-Last reviewed up to the [[Git mirror's 187da0aedcd9d0a2fb34477bef41549681ba1273
-(2011-10-08) sources|source_repositories/glibc]].
+<!--
+
+git checkout reviewed
+git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc ..sourceware/master
+-i
+/^commit |^---$|hurd|linux|gs:|__ASSUME
+
+-->
+
+Last reviewed up to the [[Git mirror's 9d65ea3a9b83ac3961229ba296a7caf90abce68d
+(2011-11-17) sources|source_repositories/glibc]].
 
   * t/dup3
 
@@ -53,13 +62,9 @@ Last reviewed up to the [[Git mirror's 187da0aedcd9d0a2fb34477bef41549681ba1273
 
         $ git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc -S__ASSUME_ top-bases/t/kernel-features.h_includes..baseline
 
-  * t/tls
+  * [[`t/tls`|t/tls]]
 
-      * Discuss d2431f633e6139a62e1575ec18830f7e81160cf0 with Samuel.
-
-      * `TLS_INIT_TP_EXPENSIVE` is unused; Hurd def. can be removed.
-
-  * [[t/tls-threadvar]]
+  * [[`t/tls-threadvar`|t/tls-threadvar]]
 
   * t/verify.h
 
@@ -156,7 +161,8 @@ Last reviewed up to the [[Git mirror's 187da0aedcd9d0a2fb34477bef41549681ba1273
     `PTRACE_*` (for example, cbff0d9689c4d68578b6a4f0a17807232506ea27),
     `RLIMIT_RTTIME`, `SEEK_DATA` (`unistd.h`), `SEEK_HOLE` (`unistd.h`)
     `clock_adjtime`, `fallocate`, `fallocate64`, `getcontext` (and
-    `setcontext`), `name_to_handle_at`, `open_by_handle_at`, `sendmmsg`,
+    `setcontext`), `name_to_handle_at`, `open_by_handle_at`,
+    `process_vm_readv`, `process_vm_writev`, `sendmmsg`,
     `setns`, `sync_file_range`
 
       * `syncfs`
@@ -193,6 +199,14 @@ Last reviewed up to the [[Git mirror's 187da0aedcd9d0a2fb34477bef41549681ba1273
 
         Need changes equivalent to c55fbd1ea768f9fdef34a01377702c0d72cbc213 +
         14d96785125abee5e9a49a1c3037f35a581750bd.
+
+      * `madvise`, `MADV_DONTNEED`
+
+        [[glibc_madvise_vs_static_linking]].
+
+      * `msync`
+
+        Then define `_POSIX_MAPPED_FILES`, `_POSIX_SYNCHRONIZED_IO`.
 
   * Create `t/cleanup_kernel-features.h`.
 
@@ -366,12 +380,23 @@ Last reviewed up to the [[Git mirror's 187da0aedcd9d0a2fb34477bef41549681ba1273
       * a7c8e6a1478de9f990b11e5e853318ccbe4330f2 (`Fix invalid conversion in
         __cmsg_nxthdr`).  Probably just a C++ thing and not relevant for us;
         see [[message-id "87r52nk1kx.fsf@kepler.schwinge.homeip.net"]].
+      * [high] `__ctype_init`, fd5bdc0924e0cfd1688b632068c1b26f3b0c88da.
+        Probably need to mirror `init-first.c` change.
+      * [high] `__attribute__ ((__leaf__))`, `BZ #13344`,
+        aa78043a4aafe5db1a1a76d544a833b63b4c5f5c +
+        49a43d80ec5c97cf6136b1ee2687414773b2d5aa +
+        3871f58f065dac3917eb18220a479e9591769c8c +
+        9beb2334930db81ceada5aa6051fe5ac0554db32 +
+        0ffc4f3ebaace42cd545db55a2ac50b6e0cc7d89 +
+        edc5984d4d18296d7aa3d8f4ed8f7336a743170e +
+        57769839788e2c62b68d9dfbf4b35052321278ba.
+        <http://gcc.gnu.org/onlinedocs/gcc-4.6.1/gcc/Function-Attributes.html>.
 
 
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-0abded0927c62f02399658395837917548d5e281 (2011-10-14)
+d740cf9d201dc9ecb0335b0a585828dea9cce793 (2011-10-25)
 sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -383,7 +408,7 @@ sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 This takes up around 400 MiB and needs roughly 120 min on coulomb.SCHWINGE.
 
 <!--
-    $ (make install_root=/INVALID && touch .go-check) 2>&1 | tee log_build_ && test -f .go-check && make -k install_root=/INVALID check TIMEOUTFACTOR=100 2>&1 | tee log_check
+    $ (make install_root=/INVALID && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install_root="$PWD".install install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && make -k install_root=/INVALID check TIMEOUTFACTOR=100 2>&1 | tee log_check
     $ find ./ -name \*.o -o -name \*.os -o -name \*.oS | while read f; do ~/tmp/gcc/git/contrib/compare-debug --preserve ../Roger_Whittaker.build-gcc-4.4-486.O/"$f" "$f"; done 2>&1 | less 
     $ while read f; do (readelf -a "$f" && objdump -xDrtw "$f") > N && (cd ../Roger_Whittaker.build-gcc-4.4-486.O/ && readelf -a "$f" && objdump -xDrtw "$f") > O && diff -u O N | less; done
     $ find ./ -name \*.o -o -name \*.os -o -name \*.oS | while read f; do readelf -h "$f" | grep OS/ABI | (read a b && [ x"$b" != x'UNIX - System V' ] && echo "### $f: $b"); done
@@ -401,7 +426,7 @@ TODO.
 TODO.
 
 <!--
-    $ make install 2>&1 | tee log_install
+    $ make install_root="$PWD".install install 2>&1 | tee log_install
     [...]
 
 This takes up around 50 MiB, and needs roughly 1 min on kepler.SCHWINGE and 3
@@ -538,6 +563,8 @@ There is quite a baseline of failures.
     Is not implemented; see above.
 
   * `elf/tst-unique3lib.so`, `elf/tst-unique3lib2.so`, `elf/tst-unique4lib.so`
+
+    Only with GCC 4.4; no longer with 4.5 or 4.6:
 
         /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486/elf/tst-unique3lib.os:(.data.DW.ref.__gxx_personality_v0[DW.ref.__gxx_personality_v0]+0x0): undefined reference to `__gxx_personality_v0'
 

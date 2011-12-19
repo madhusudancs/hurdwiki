@@ -1,0 +1,58 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_mig]]
+
+
+# IRC, freenode, #hurd, 2011-11-14
+
+    <braunr> also, what's the best way to deal with types such as
+    <braunr> type cache_info_t = struct[23] of integer_t;
+    <braunr> whereas cache_info_t contains longs, which are obviously not
+      integer-wide on 64-bits processors
+    <braunr> ?
+    <youpi> you mean, to port mach to 64bit?
+    <braunr> no, to make the RPC declaration portable
+    <braunr> just in case :)
+    <youpi> refine integer_t into something more precise
+    <youpi> such as size_t, off_t, etc.
+    <braunr> i can't use a single line then
+    <braunr> struct cache_info contains ints, vm_size_t, longs
+    <braunr> should i just use the maximum size it can get ?
+    <braunr> or declare two sizes depending on the word size ?
+    <youpi> well, I'd say three
+    <braunr> youpi: three ?
+    <youpi> the ints, the vm_size_ts, and the longs
+    <braunr> youpi: i don't get it
+    <braunr> youpi: how would i write it in mig language ?
+    <youpi> I don't know the mig language
+    <braunr> me neither :)
+    <youpi> but I'd say don't lie
+    <braunr> i just see struct[23] of smething
+    <braunr> the original zone_info struct includes both integer_t and
+      vm_size_t, and declares it as
+    <braunr> type zone_info_t = struct[9] of integer_t;
+    <braunr> in its mig defs file
+    <braunr> i don't have a good example to reuse
+    <youpi> which is lying
+    <braunr> yes
+    <braunr> which is why i was wondering if mach architects themselves
+      actually solved that problem :)
+    <braunr> "There is no way to specify the fields of  a
+    <braunr> C  structure  to  MIG. The size and type-desc are just used to
+      give the size of
+    <braunr> the structure.
+    <braunr> "
+    <braunr> well, this sucks :/
+    <braunr> well, i'll do what the rest of the code seems to do, and let it
+      rot until a viable solution is available
+    <antrik> braunr: we discussed the problem of expressing structs with MIG in
+      the libburn thread
+    <antrik> (which I still need to follow up on... [sigh])

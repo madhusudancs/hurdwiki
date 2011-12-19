@@ -1,0 +1,28 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+`libthreads` a.k.a. C threads.
+
+
+# Internals
+
+
+## Threads' Death
+
+C threads death doesn't actually free the thread's stack (and maybe not the
+associated Mach ports either).  That's because there's no way to free the stack
+after the thread dies (because the thread of control is gone); the stack needs
+to be freed by something else, and there's nothing convenient to do it.  There
+are many ways to make it work.
+
+However, it isn't really a leak, because the unfreed resources do get used for
+the next thread.  So the issue is that the shrinkage of resource consumption
+never happens, but it doesn't grow without bounds; it just stays at the maximum
+even if the current number of threads is lower.
