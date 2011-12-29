@@ -37,6 +37,28 @@ You'll also need the counterpart for user space:
 If you try it, please let me know your experience with it.
 
 ### Reduce task map fragmentation
+After some hours of workload over an ext2fs translator, the number of entries in its memory map (which uses to be something around 60 when clean) is increased up to a few thousand. This increases the cost of each vm_map_lookup_entry, and this is perceived from a user perspective as a significant slowdown on the services provided by that translator.
+
+The causes for the fragmentation of the task map are:
+
+#### The problem
+
+- When a big chunk of memory is reserved, and the protection level is changed in small fractions of it, each of those generates a new entry in the map. This happens in glibc's malloc and sysdeps/mach/hurd/brk.c.
+
+- Allocating memory for permanent data structures in small chunks, without putting them at an specific address. GNU Mach has the ability of coalescing similar memory entries, but they must be contiguous. As every Hurd server needs to allocate small, temporal buffers for sending and receiving data, these ones will get in the middle of the permanent chunks, preventing them for being coalesced. This is the case of glibc's hurd/hurdmalloc.c, libpager's pagemap and libthread's per thread stack (and possibly some others).
+
+#### The solution
+
+- GNU Mach should be able of coalescing entries with similar properties after a call to vm_protect. I'm working in this direction.
+
+- The use of vm_allocate/mmap in translators should be avoided, except for temporal buffers for IPC operations.
+
+#### Workaround
+While trying to find the causes of the task map fragmentation, I developed some changes which don't provide a complete, clean solution for this problem, but they minimize it (at least, for ext2fs) without significant drawbacks. You can find them here:
+
+- <http://blogs.nologin.es/slopez/files/glibc-memory_fragmentation.patch>
+- <http://blogs.nologin.es/slopez/files/libpager-memory_fragmentation.patch>
+- <http://blogs.nologin.es/slopez/files/libthreads-memory_fragmentation.patch>
 
 ### memfs (Memory FS translator)
 
