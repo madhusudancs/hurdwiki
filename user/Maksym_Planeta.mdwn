@@ -65,6 +65,22 @@ When fsx tries to read data kernel calls pager with seqno_memory_object_data_req
 
 6.12.11 fsx works quite long and doesn't interrupt. I've stopped at 124784. Continued. It broke at 181091.
 
+4.01.12 I've localized the problem. It is in these lines (starting approx. at hurd/mach-defpager/default_pager.c:1177):
+
+      /* Now reduce the size of the direct map itself.  We don't bother
+	 with kalloc/kfree if it's not shrinking enough that kalloc.c
+	 would actually use less.  */
+      if (PAGEMAP_SIZE (new_size) <= PAGEMAP_SIZE (old_size) / 2)
+	{
+	  const dp_map_t old_mapptr = pager->map;
+	  pager->map = (dp_map_t) kalloc (PAGEMAP_SIZE (new_size));
+	  memcpy (pager->map, old_mapptr, PAGEMAP_SIZE (old_size));
+	  my_tag |= 20;
+	  kfree ((char *) old_mapptr, PAGEMAP_SIZE (old_size));
+	}
+
+I didn't find out yet what is wrong here exactly, but when I exclude this code memory spoiling disappears. Still breaks at 181091.
+
 ### Write own pager
 
     6.11.11 Reading/writing for files that fit in vm_page_size works
