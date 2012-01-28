@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2012 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -2012,3 +2012,84 @@ There is a [[!FF_project 266]][[!tag bounty]] on this task.
     <mcsim> braunr: everything is ok
     <braunr> good
     <braunr> i think the branch is ready for integration
+
+
+# IRC, freenode, #hurd, 2011-12-17
+
+    <braunr> in the slab branch, there now is no use for the defines in
+      kern/mach_param.h
+    <braunr> should the file be removed or left empty as a placeholder for
+      future arbitrary limits ?
+    <braunr> (i'd tend ro remove it as a way of indicating we don't want
+      arbitrary limits but there may be a good reason to keep it around .. :))
+    <youpi> I'd just drop it
+    <braunr> ok
+    <braunr> hmm maybe we do want to keep that one :
+    <braunr> #define IMAR_MAX        (1 << 10)       /* Max number of
+      msg-accepted reqs */
+    <antrik> whatever that is...
+    <braunr> it gets returned in ipc_marequest_info
+    <braunr> but the mach_debug interface has never been used on the hurd
+    <braunr> there now is a master-slab branch in the gnumach repo, feel free
+      to test it
+
+
+# IRC, freenode, #hurd, 2011-12-22
+
+    <youpi> braunr: does the new gnumach allocator has profiling features?
+    <youpi> e.g. to easily know where memory leaks reside
+    <braunr> youpi: you mean tracking call traces to allocated blocks ?
+    <youpi> not necessarily traces
+    <youpi> but at least means to know what kind of objects is filling memory
+    <braunr> it's very close to the zone allocator
+    <braunr> but instead of zones, there are caches
+    <braunr> each named after the type they store
+    <braunr> see http://www.sceen.net/~rbraun/slabinfo.out
+    <youpi> ok, so we can know, per-type, how much memory is used
+    <braunr> yes
+    <youpi> good
+    <braunr> if backtraces can easily be forged, it wouldn't be hard to add
+      that feature too
+    <youpi> does it dump such info when memory goes short?
+    <braunr> no but it can
+    <braunr> i've done this during tests
+    <youpi> it'd be good
+    <youpi> because I don't know in advance when a buildd will crash due to
+      that :)
+    <braunr> each time slab_collect() is called for example
+    <youpi> I mean not on collect, but when it's too late
+    <youpi> and thus always enabled
+    <braunr> ok
+    <youpi> (because there's nothing better to do than at least give infos)
+    <braunr> you just have to define "when it's too late", and i can add that
+    <youpi> when there is no memory left
+    <braunr> you mean when the number of free pages strictly reaches 0 ?
+    <youpi> yes
+    <braunr> ok
+    <youpi> i.e. just before crashing the kernel
+    <braunr> i see
+
+
+# IRC, freenode, #hurdfr, 2012-01-02
+
+    <youpi> braunr: le code du slab allocator, il est écrit from scratch ?
+    <youpi> il y a encore du copyright carnegie mellon
+    <youpi> (dans slab_info.h du moins)
+    <youpi> ipc_hash_global_size = 256;
+    <youpi> il faudrait mettre 256 comme constante dans un header
+    <youpi> sinon c'est encore une valeur arbitraire cachée dans du code
+    <youpi> de même pour ipc_marequest_size etc.
+    <braunr> youpi: oui, from scratch
+    <braunr> slab_info.h est à l'origine zone_info.h
+    <braunr> pour les valeurs fixes, elles étaient déjà présentes de cette
+      façon, j'ai pensé qu'il valait mieux laisser comme ça pour faciliter la
+      lecture des diffs
+    <braunr> je ferai des macros à la place
+    <braunr> du coup il faudra peut-être remettre mach_param.h
+    <braunr> ou alors dans les .h ipc
+
+
+# IRC, freenode, #hurdfr, 2012-01-18
+
+    <braunr> does the slab branch need other reviews/reports before being
+      integrated ?
