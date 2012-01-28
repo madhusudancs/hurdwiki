@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2012 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -8,7 +8,7 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
-[[!tag open_issue_hurd]]
+[[!tag open_issue_gnumach open_issue_hurd]]
 
 There is a [[!FF_project 272]][[!tag bounty]] on this task.
 
@@ -26,6 +26,7 @@ There is a [[!FF_project 272]][[!tag bounty]] on this task.
     <pinotree> so the swap tends to accumulate unuseful stuff, i see
     <youpi> yes
     <youpi> the disk content, basicallyt :)
+
 
 # IRC, freenode, #hurd, 2011-04-18
 
@@ -257,3 +258,107 @@ There is a [[!FF_project 272]][[!tag bounty]] on this task.
     <antrik> the only way to free the memory seems to be terminating the FS
       server
     <youpi> uh :/
+
+
+# IRC, freenode, #hurd, 2011-11-30
+
+    <antrik> slpz: basically, whenever free memory goes below the paging
+      threshold (which seems to be around 6 MiB) while there is other I/O
+      happening, swap usage begins to increase continuously; and only gets
+      freed again when the filesystem translator in question exits
+    <antrik> so it sounds *very* much like pages go to swap because the
+      filesystem isn't quick enough to properly page them out
+    <antrik> slpz: I think it was you who talked about double paging a while
+      back?
+    <slpz> antrik: probably, sounds like me :-)
+    <antrik> slpz: I have some indication that the degenerating performance and
+      ultimate hang issues I'm seeing are partially or entirely caused by
+      double paging...
+    <antrik> slpz: I don't remember, did you propose some possible fix?
+    <slpz> antrik: hmm... perhaps it wasn't me, because I don't remember trying
+      to fix that problem...
+    <slpz> antrik: at which point do you think pages get duplicated?
+    <antrik> slpz: it was a question. I don't remember whether you proposed
+      something or not :-)
+    <antrik> slpz: basically, whenever free memory goes below the paging
+      threshold (which seems to be around 6 MiB) while there is other I/O
+      happening, swap usage begins to increase continuously; and only gets
+      freed again when the filesystem translator in question exits
+    <antrik> so it sounds *very* much like pages go to swap because the
+      filesystem isn't quick enough to properly page them out
+    <tschwinge>
+      http://www.bddebian.com:8888/~hurd-web/open_issues/ext2fs_page_cache_swapping_leak/
+    <slpz> tschwinge: thanks
+    <slpz> antrik: I see
+    <tschwinge> Always at your service.  ;-)
+    <slpz> antrik: I didn't addressed this problem directly, but when I've
+      modified the pageout mechanism to provide a special treatment for
+      external pages, I also removed the possibility of sending them to the
+      default pager
+    <slpz> antrik: this was in my experimental environment, of course
+    <antrik> slpz: oh, nice... so it may fix the issues I'm seeing? :-)
+    <antrik> anything testable yet?
+    <slpz> antrik: yes, only anonymous memory could be swapped with that
+    <slpz> antrik: it works, but is ugly as hell
+    <antrik> tschwinge: these is also your observation about compilations
+      getting slower on further runs, and my followups... I *suspect* it's the
+      same issue
+
+[[performance/degradation]].
+
+    <slpz> antrik: I'm thinking about establishing a repository for these
+      experimental versions, so they don't get lost with the time
+    <antrik> slpz: please do :-)
+    <slpz> antrik: perhaps in savannah's HARD project
+    <antrik> even if it's not ready for upstream, it would be nice if I could
+      test it -- right now it's bothering me more than any other Hurd issues I
+      think...
+    <slpz> also, there's another problem which causes performance degradation
+      with the simple use of the system
+    <tschwinge> slpz: Please just push to Savannah Hurd.  Under your
+      slpz/... or similar.
+    <tschwinge> antrik: Might very well be, yes.
+    <slpz> and I almost sure it is the fragmentation of the task map
+    <slpz> tschwinge: ok
+    <slpz> after playing a bit with a translator, it can easily get more than
+      3000 entries in its map
+    <antrik> slpz: yeah, other issues might play a role here as well. I
+      observed that terminating the problematic FS servers does free most of
+      the memory and remove most of the performance degradation, but in some
+      cases it's still very slow
+    <slpz> that makes vm_map_lookup a lot slower
+    <antrik> on a related note: any idea what can cause paging errors and a
+      system hang even when there is plenty of free swap?
+    <antrik> (I'm not entirely sure, but my impression is that it *might* be
+      related to the swap usage and performance degradation problems)
+    <slpz> I think this degree of fragmentation has something to do with the
+      reiterative mapping of memory objects which is done in pager-memcpy.c
+    <slpz> antrik: which kind of paging errors?
+    <antrik> hm... I don't think I ever noted down the exact message; but I
+      think it's the same you get when actually running out of swap
+    <slpz> antrik: that could be the default pager dying for some internal bug
+    <antrik> well, but it *seems* to go along with the performance degradation
+      and/or swap usage
+    <slpz> I also have the impression that we're using memory objects the wrong
+      way
+    <antrik> basically, once I get to a certain level of swap use and slowness
+      (after about a month of use), the system eventually dies
+    <slpz> antrik: I never had a system running for that time, so it could be a
+      completely different problem from what I've seen before :-/
+    <slpz> Anybody has experience with block-level caches on microkernel
+      environments?
+    <antrik> slpz: yeah, it typically happens after about a month of my normal
+      use... but I can significantly accellerate it by putting some problematic
+      load on it, such as large apt-get runs...
+    <slpz> I wonder if it would be better to put them in kernel or in user
+      space. And in the latter, if it would be better to have one per-device
+      shared for all accesing translators, or just each task should have its
+      own cache...
+    <antrik> slpz:
+      http://lists.gnu.org/archive/html/bug-hurd/2011-09/msg00041.html is where
+      I described the issue(s)
+    <antrik> (should send another update for the most recent findings I
+      guess...)
+    <antrik> slpz: well, if we move to userspace drivers, the kernel part of
+      the question is already answered ;-)
+    <antrik> but I'm not sure about per-device cache vs. caching in FS server

@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2009 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2009, 2012 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -70,3 +70,373 @@ This is a collection of resources concerning *Berkeley Packet Filter*s.
       * [[!GNU_Savannah_patch 6622]] -- pfinet uses the BPF filter
 
       * [[!GNU_Savannah_patch 6851]] -- fix a bug in BPF
+
+
+# IRC
+
+## IRC, freenode, #hurd, 2012-01-13
+
+    <braunr> hm, i think the bpf code needs a complete redesign :p
+    <braunr> unless it's actually a true hurdish way to do things
+    <braunr> antrik: i need your help :)
+    <braunr> antrik: I need advice on the bpf "architecture"
+    <braunr> the current implementation uses a translator installed at /dev/bpf
+    <braunr> which means packets from the kernel are copied to that translator
+      and then to client applications
+    <braunr> does that seem ok to you ?
+    <braunr> couldn't the translator be used to set a direct link between the
+      kernel and the client app ?
+    <braunr> which approach seems the more Hurdish to you ? (<= this is what I
+      need your help on)
+    <pinotree> braunr: so there would be a roundtrip like kernel → bpf
+      translator → pfinet?
+    <antrik> braunr: TBH, I don't see why we need a BPF translator at all...
+    <braunr> antrik: it handles the ioctls
+    <braunr> pinotree: pfinet isn't involved (it was merely modified to use the
+      "new" filter format to specify it used the old packet filter, and not
+      bpf)
+    <antrik> braunr: do we really need to emulate the ioctl()s? can't we assume
+      that all packages using BPF will just use libpcap?
+    <antrik> (and even if we *do* want to emulate ioctl()s, why can't we handle
+      this is libc?)
+    <braunr> antrik: that's what i'm wondering actually
+    <braunr> even if assuming all packages use libpcap, i'd like our bpf
+      interface to be close to what bsds have, and most importantly, what
+      libpcap expects from a bpf interface
+    <antrik> well, why? if we already have a library handling the abstraction,
+      I don't see much point in complicating the design and use by adding
+      another layer :-)
+    <braunr> so you would advise adapting libpcap to include a hurd specific
+      module ?
+    <antrik> there are two reasons for adding translators: more robustness or
+      more flexibility... so far I don't see how a BPF translator would add
+      either
+    <braunr> right
+    <antrik> yes
+    <braunr> so we'd end up with a bpf-like interface, the same instructions
+      and format, with different control calls
+    <antrik> right
+    <antrik> note that I had more or less the same desicion to make for KGI
+      (emulate Linux/BSD ioctl()s, or implement a backend in libggi for
+      handling Hurd-specific RPC; and after much consideration, I decided on
+      the latter)
+
+
+## IRC, freenode, #hurd, 2012-01-16
+
+    <braunr> antrik: is there an existing facility to easily give a send right
+      to the device master port to a task ?
+    <braunr> another function of the bpf translator is to handle the /dev/bpf
+      node, and most importantly its permissions
+    <braunr> so that users which have read/write access to the node have access
+      to the packet filter
+    <braunr> i guess the translator could limit itself to that functionality
+    <braunr> and then provide a device port on which libpcap operates directly
+      by means of device_{g,s}et_status/device_set_filter
+    <antrik> braunr: I don't see the point in seperating permissions for filter
+      from permissions from general network device access...
+    <antrik> as for device master port, all root tasks can obtain it from proc
+      IIRC
+    <braunr> antrik: yes, but how do we allow non-root users to access that
+      facility ?
+    <braunr> on a unix like system, it's a matter of changing the permissions
+      of /dev/bpf
+    <antrik> with devnode, non-root users can get access to specific device
+      nodes, including network devices
+    <braunr> i can't imagine the hurd being less flexible for that
+    <braunr> ah devnode
+    <braunr> good
+    <antrik> so we can for example make /dev/eth0 accessible by users of some
+      group
+    <braunr> what's devnode exactly ?
+    <antrik> it's a very simple translator that implements an FS node that
+      looks somewhat like a file, but the only operation it supports is
+      obtaining a pseudo device master port, giving access to a specific Mach
+      device
+    <braunr> is it already part of the hurd ?
+    <braunr> or hurdextras maybe ?
+    <antrik> it's only in zhengda's branch
+    <braunr> ah
+    <antrik> needed for both eth-multipexer and DDE
+    <braunr> and bpf soon i guess
+    <antrik> indeed :-)
+    <braunr> "obtaining a pseudo device master port", i believe you meant a
+      pseudo device port
+    <antrik> I must admit that I don't remember exactly whether devnode proxies
+      device_open(), so clients direct get a port to the device in question, or
+      whether it implements a pseudo device master port...
+    <antrik> but definitely not a pseudo device port :-)
+    <braunr> i'm almost positive it gives the target device port, otherwise i
+      don't see the point
+    <braunr> i don't understand the user of the "pseudo" word here either
+    <braunr> s/user/use/
+    <braunr> aiui, devnode should be started as root (or in any way which gives
+      it the device master port)
+    <antrik> the point is that the client doesn't need to know the Mach device
+      name, and also is not bound to actual kernel devices
+    <braunr> and when started, implement the required permissions before giving
+      clients a device port to the specific device it was installed for
+    <braunr> right
+    <braunr> but it mustn't be a proxy
+    <antrik> yes, devnode needs access to either the real master device port
+      (for kernel devices), or one provided by eth-multiplexer or the DDE
+      network driver
+    <braunr> well, a very simple proxy for deviceopen
+    <braunr> ok
+    <braunr> that seems exactly what i wanted to do
+    <braunr> we now need to see if we can integrate it separately
+    <braunr> create a separate branch that works for the current gnumach code,
+      and merge dde/other specific code later on
+    <antrik> you mean independent of eth-multiplexer or DDE? yes, it was
+      generally agreed that devnode is a good idea in any case. I have no idea
+      why there are no device nodes for network devices on other UNIX
+      systems...
+    <braunr> i've been wondering that for years too :)
+    <antrik> zhengda's branch has a pfinet modified to a) use devnode, and b)
+      use BPF
+    <braunr> why bpf ?
+    <braunr> for more specific filters maybe ?
+    <antrik> hm... don't remember whether there was any technical reason for
+      going with BPF; I guess it just seemed more reasonable to invest new work
+      in BPF rather than obsolete Mach-specific NPF...
+    <braunr> cspf could be removed altogether, i agree
+    <antrik> another plus side of his modified pfinet is that it actually sets
+      an appropriate filter for TCP/IP and the IP in use, rather than just
+      setting a dummy filter catching app packets (including those irrelevant
+      to the specific pfinet instance)
+    <antrik> err... catching all packets
+    <braunr> that's what i meant by "for more specific filters maybe ?"
+    <braunr> he was probably more comfortable with the bpf interface to write
+      his filter rules
+    <antrik> well, it would probably be doable with NPF too :-) so by itself
+      it's not a reason for switching to BPF...
+    <antrik> it's rather the other way around: as it was necessary to implement
+      filters in eth-multiplexer, and implementing BPF seemed more reasoable,
+      pfinet had to be changed to use BPF...
+    <braunr> antrik: where is zhengda's branch btw ?
+    <antrik> (I guess using proper filters with eth-multiplexer is not strictly
+      necessary; but it would be a major performance hit not to)
+    <antrik> it's in incubator.git
+    <antrik> but it's very messy
+    <braunr> ok
+    <antrik> at some point I asked him to provide cleaned up branches, and I'm
+      pretty sure he said he did, but I totally fail to remember where he
+      published them :-(
+    <braunr> hm, i don't like how devnode is "architectured" :/
+    <braunr> but it makes things a little more easy to get working i guess
+    <LarstiQ> antrik: any idea what to grep the logs on for that?
+    <braunr> ok never mind, devnode is fine
+    <braunr> exactly what i need
+    <braunr> i wonder however if it shouldn't be improved to better handle
+      permissions
+    <braunr> ok, never mind either, permission handling is fine
+    <braunr> so what are we waiting for ? :)
+    <antrik> I remember that there were some issues with permission handling,
+      but I don't remember whether all were fixed :-(
+    <antrik> LarstiQ: hm... good question...
+    <braunr> ah ?
+    <braunr> hm actually, there could be issues for packet filters, yes
+    <braunr> i guess we want to allow e.g. read-only opens for capture only
+    <antrik> braunr: that would have to be handled by the actual BPF
+      implementation I'd say
+    <braunr> it should already be the case
+    <antrik> what's the problem then?
+    <braunr> but when the actual device_open() is performed, the appropriate
+      permissions must be provided
+    <braunr> and checking those is the responsibility of the proxy, devnode in
+      this case
+    <antrik> and it doesn't do that?
+    <braunr> apparently not
+    <braunr> the only check is against the device name
+    <braunr> i'll begin playing with that first
+    <antrik> I vaguely remember that there has been discussion about the
+      relation of underlying device open mode and devnode open mode... but I
+      don't remember the outcome. in fact it was probably one of the
+      discussions I never got around to follow up on... :-(
+    <antrik> before you begin playing, take a look at the relevant messages in
+      the ML archive :-)
+    <antrik> must have been around two years ago
+    <braunr> ok
+    <antrik> some thread with me and scolobb (Sergiu Ivanov +- spelling) and
+      probably zhengda
+    <antrik> there might also be some outstanding patch(es) from scolobb, not
+      sure
+
+
+## IRC, freenode, #hurd, 2012-01-17
+
+    <braunr> antrik: i think i found the thread you mentioned about devnode
+    <braunr> neither sergiu nor zhengda considered the use of a read-only
+      device for packet filtering
+    <braunr> leading to assumptions such as "only receiving packets
+    <braunr> is not terribly useful, in view of the fact that you have to at
+      least
+    <braunr> request them, which implies *sending* packets :-)
+    <braunr> "
+    <braunr> IMO, devnode should definitely check its node permissions to build
+      the device open flags
+    <braunr> good news is that it doesn't depend on anything specific to other
+      incubator projects
+    <braunr> making it almost readily mergeable in the hurd
+    <braunr> i'm not sure devnode is an appropriate name though
+    <braunr> maybe something like device, or devproxy
+    <braunr> proxy-devopen maybe
+    <antrik> braunr: well, I don't remember the details of the disucssion; but
+      as I mentioned in some mail, I did actually want to write a followup,
+      just didn't get around to it... so I was definitely not in agreement with
+      some of the statements made by others. I just don't remember on which
+      point :-)
+    <antrik> which thread was it?
+    <antrik> anyways, this should in no way be specific to network
+      devices... the idea is simply that if the client has only read
+      permissions on the device node, it should only get to open the underlying
+      device for read. it's up to the kernel to handle the read-only status for
+      the device once it's opened
+    <antrik> as for the naming, the idea is that devnode simply makes Mach
+      devices accessible through FS nodes... so the name seemed appropriate
+    <antrik> you may be right though that just "device" might be more
+      straightforward... I don't agree on the other variants
+    <braunr> antrik:
+      http://lists.gnu.org/archive/html/bug-hurd/2009-12/msg00155.html
+    <braunr> antrik: i agree with the general idea behind permission handling,
+      i was just referring to their thoughts about it, which probably led to
+      the hard coded READ | WRITE flags
+    <antrik> braunr: unfortunately, I don't remember the context of the
+      discussion... would take me a while to get into this again :-(
+    <antrik> the discussion seems to be about eth-multiplexer as much as about
+      devnode (if not more), and I don't remember the exact interaction
+
+
+## IRC, freenode, #hurd, 2012-01-18
+
+    <braunr> so, does anyone have an objection to getting devnode into the hurd
+      and calling it something else like e.g. device ?
+    <youpi> braunr: it's Zhengda's work, right?
+    <braunr> yes
+    <youpi> I'm completely for it, it just perhaps needs some cleanup
+    <braunr> i have a few changes to add to what already exists
+    <braunr> ok
+    <braunr> well i'm assigning myself to the task
+    <antrik> braunr: I'm still not convinced just "device" is preferable
+    <antrik> perhaps machdevice ;-)
+    <antrik> but otherwise, I'd LOVE to see it in :-)
+    <braunr> i don't know .. what if the device is actually eth-multiplexer or
+      a dde one ?
+    <braunr> it's not really "mach", is it ?
+    <braunr> or do we only refer to the interface ?
+    <youpi> that translator is only for mach devices
+    <braunr> so you consider dde devices as being mach devices too ?
+    <braunr> it's a simple proxy for device_open really
+    <youpi> will these devices use that translator?
+    <youpi> ah
+    <youpi> I thought it was using a mach-specific RPC
+    <braunr> so we can consider whatever we want
+    <antrik> braunr: yes, the translator is for Mach device interface only. it
+      might be provided by other servers, but it's still Mach devices
+    <youpi> then drop the mach, yes
+    <braunr> i'd tend to agree with antrik
+    <youpi> antrik: I'd say the device interface is part of the hur dinterfaces
+    <braunr> then machdev :p
+    <braunr> no, it's really part of the mach interface
+    <youpi> it's part of the mach interface, yes
+    <youpi> but also of the Hurd, no?
+    <antrik> DDE network servers also use the Mach device interface
+    <braunr> no
+    <youpi> can't we say it's part of it?
+    <youpi> I mean
+    <youpi> even if we change the kernel
+    <braunr> dde is the only thing that implements it besides the kernel that i
+      know of
+    <youpi> we will probably want to keep the same interface
+    <braunr> yes but that's a mach thing
+    <youpi> what we have now is not necessarily a reason
+    <antrik> as for other DDE drivers, I for my part believe they should export
+      proper Hurd (UNIX) device nodes directly... but for some reason zhengda
+      insisted on implementing it as Mach devices too :-(
+    <braunr> antrik: i agree with you on that too
+    <braunr> i was a bit surprised to see the same interface was reused
+    <braunr> youpi: we can, we just have to agree on what we'll do
+    <braunr> what do you mean by "even if we change the kernel" ?
+    <antrik> the problem with "machdev" is that it might suggest the translator
+      actually implements the device... not sure whether this would cause
+      serious confusion
+    <antrik> "devopen" might be another option
+    <antrik> or "machdevopen" to be entirely verbose ;-)
+    <braunr> an option i suggested earlier which you disagreed on :p
+    <braunr> but devopen is the one i'd choose
+    <antrik> youpi: as I already mentioned in the libburn thread, I don't
+      actually think the Mach device interface is very nice; IMHO we should get
+      rid of it as soon as we can, rather than port it to other
+      architectures...
+    <antrik> but even *if* we decided to reuse it after all, it would still be
+      the Mach device interface :-)
+    <braunr> actually, zheng da already suggested that name a long time ago
+    <braunr> http://lists.gnu.org/archive/html/bug-hurd/2008-08/msg00005.html
+    <braunr> no actually antrik did eh
+    <braunr> ok let's use devopen
+    <antrik> braunr: you suggested proxy-devopen, which I didn't like because
+      of the "proxy" part :-)
+    <braunr> not only, but i don't have the logs any more :p
+    <antrik> oh, I already suggested devopen once? didn't expect myself to be
+      that consistent... ;-)
+    <antrik> braunr: you suggested device, devproxy or proxy-devopen
+    <braunr> ah, ok
+    <braunr> devopen is better
+    <antrik> I wonder whether it's more important for clarity to have "mach" in
+      there or "open"... or whether it's really too unweildy to have both
+
+
+## IRC, freenode, #hurd, 2012-01-21
+
+    <braunr> oh btw, i made devopen run today, it shouldn't be hard getting it
+      in properly
+    <braunr> patching libpcap will be somewhat trickier
+    <braunr> i don't even really need it, but it allows having user access to
+      mach devices, which is nice for the libpcap patch and tcpdump tests
+    <braunr> permission checking is actually its only purpose
+    <braunr> well, no, not really, it also allows opening devices implemented
+      by user space servers transparently
+
+
+## IRC, freenode, #hurd, 2012-01-27
+
+    <braunr> hmm, bpf needs more work :(
+    <braunr> or we can use the userspace bpf filter in libpcap, so that it
+      works with both gnumach and dde drivers
+    <antrik> braunr: there is a userspace BPF implementation in libpcap? I'm
+      surprised that zhengda didn't notice it, and ported the one from gnumach
+      instead...
+    <antrik> what is missing in the kernel implementation?
+    <braunr> antrik: filling the bpf header
+    <braunr> frankly, i'm not sure we want to bother with the kernel
+      implementation
+    <braunr> i'd like it to work with both gnumach and dde drivers
+    <braunr> and in the long run, we'll be using userspace drivers anyway
+    <braunr> the bpf header was one of the things the defunct translator did
+    <braunr> which involved ugly memcpy()s :p
+    <antrik> braunr: well, if you want to get rid of the kernel implementation,
+      basically you would have to take up eth-multiplexer and get it into
+      mainline
+    <antrik> (and make sure it's used by default in Debian)
+    <antrik> I frankly believe it's the better design anyways... but quite a
+      major change :-)
+    <braunr> not that major to me
+    <braunr> in the meantime i'll use the libpcap embedded implementation
+    <braunr> we'll have something useful faster, with minimum work when
+      eth-multiplexer is available
+    <antrik> eth-multiplexer is ready for use, it just needs to go upstream
+    <antrik> though it's probably desirable to switch it to the BPF
+      implementation from libpcap
+    <braunr> using the libpcap implementation in libpcap and in eth-multiplexer
+      are two different things
+    <braunr> the latter is preferrable
+    <braunr> (and yes, by available, i meant upstream ofc)
+    <antrik> eth-mulitplexer is already using libpcap anyways (for compiling
+      the filters); I'm sure zhengda just didn't realize it has an actual BPF
+      implementation too...
+    <braunr> we want the filter implementation as close to the packet source as
+      possible
+    <antrik> I have been using eth-multiplexer for at least two years now
+    <braunr> hm, there is a "snoop" source type, using raw sockets
+    <braunr> too far from the packet source, but i'll try it anyway
+    <braunr> hm wrong, snoop was the solaris packet filter fyi
