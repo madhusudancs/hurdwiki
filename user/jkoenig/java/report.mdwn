@@ -1,0 +1,136 @@
+[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+# GSoC 2011 final report (Java on Hurd)
+
+This is my final report regarding my work on Java for Hurd
+as a Google Summer of Code student for the GNU project.
+The work is going on,
+for recent status updates, see my [[java]] page.
+
+## Global signal dispositions and SA_SIGINFO
+
+Signal delivery was implemented in Hurd before POSIX threads were
+defined. As a consequence the current semantics differ from the POSIX
+prescriptions, which libgcj relies on.
+       
+On the Hurd, each thread has its own signal dispositions and
+process-wide signals are always received by the main thread.
+In contrast, POSIX specifies signal dispositions to be global to the
+process (although there is still a per-thread blocking mask), and a
+global signal can be delivered to any thread which does not block it.
+
+To further complicate the matter, the Hurd currently has two options for
+threads: the cthread library, still used by most of the Hurd code, and
+libpthread which was introduced later for compatibility purposes. To
+avoid breaking existing code, cthread programs should continue to run
+with the historical Hurd signal semantics whereas pthread programs are
+expected to rely on the POSIX behavior.
+
+To address this, the patch series I wrote allows selecting a per-thread
+behavior: by default, newly created threads provide historical
+semantics, but they can be marked by libpthread as global signal
+receivers using the new function `_hurd_sigstate_set_global_rcv()`.
+In addition, I refactored some of the signal code to improve
+readability, and fixed a couple of bugs I came across in the process.
+
+Another improvement which was required by OpenJDK was the implementation
+of the `SA_SIGINFO` flag for signal handlers. My signal patch series
+provides the basic infrastructure. However it is not yet complete, as
+some of the information provided by `siginfo_t` structures is not
+available to glibc. Making this information available would require a
+change in the `msg_sig_post()` RPC.
+
+### Related Debian changes
+
+In Debian GNU/Hurd, libpthread is provided the `hurd` package. Hurd also
+uses extern inline functions from glibc which are affected by the new
+symbols. This means that newer Hurd packages which take advantage of
+glibc's support for global signal dispositions cannot run on older C
+libraries and some thought had to be given to the way we could ensure
+smooth upgrades.
+
+An early attempt at using weak symbols proved to be impractical. As a
+consequence I modified the eglibc source package to enable
+dpkg-gensymbols on hurd-i386. This means that packages which are built
+against a newer libc and make use of the new symbols will automatically
+get an appropriately versionned dependency on libc0.3.
+
+### Status as of 2012-01-28
+
+The patch series has not yet been merged upstream. However, it is now
+being used for the Debian package of glibc.
+
+## $ORIGIN substitution in RPATH
+
+Another feature used by OpenJDK which was not implemented in Hurd is the
+substitution of the special string `$ORIGIN` within the ELF `RPATH`
+header. `RPATH` is a per-executable library search path, within which
+`$ORIGIN` should be substituted by the directory part of the binary's
+canonical file name.
+
+Currently, a newly executed program has no way of figuring out which
+binary it was created from. Actually, even the `_hurd_exec()` function,
+which is used in glibc to implement the `exec*()` family, is never
+passed the file name of the executable, but only a port to it.
+Likewise, the `file_exec()`, `exec_exec()` and `exec_startup_get_info()`
+RPCs do not provide a path to transmit the file name from the shell to
+the file system server, to the exec server, to the executed program.
+
+Last year, Emilio Pozuelo Monfort submitted a patch series which fixes
+this problem, up to the exec server. The series' original purpose was to
+replace the guesswork done by `exec` when running shell scripts. It
+provides new versions of `file_exec()` and `exec_exec()` which allow for
+passing the file name. I extended Emilio's patches to add the missing
+link, namely a new `exec_startup_get_info_2()` RPC. New code in glibc
+takes advantage of it to retrieve the file name and use it in a
+Hurd-specific `dl-origin.c` to allow for `RPATH` `$ORIGIN` substitution.
+
+### Status as of 2012-01-28
+
+The (hurd and glibc) patch series for `$ORIGIN` are mostly complete.
+However, there is still an issue related to the canonicalization of the
+executable's file name. Doing it in the dynamic linker (where `$ORIGIN`
+is expanded) is complicated due to the limited set of available
+functions (`realpath()` is not). Unfortunately canonicalizing in
+`_hurd_exec_file_name()` is not an option either because many shell
+scripts use `argv[0]` to alter their behavior, but `argv[0]` is replaced
+by the shell with the file name it's passed.
+
+Another issue is that the patches use a fixed-length string buffer to
+transmit the file name through RPC.
+
+## OpenJDK 7
+
+With the groundwork above being taken care of, I was able to build
+OpenJDK 7 on Hurd, although heavy portability patching was also
+necessary. A similar effort for Debian GNU/kFreeBSD was undertaken
+around the same time by Damien Raude-Morvan, so I intend to submit a
+more general set of "non-Linux" patches.
+
+Due to the lack of a `libpthread_db` library on the Hurd, I was only
+able to build a Zero (interpreter only) virtual machine so far. However,
+it should be possible to disable the debugging agent and build Hotspot.
+
+### Status as of 2012-01-28
+
+I have put together generic `nonlinux-*.diff` patches for the `openjdk7`
+Debian package, however I have not yet tested them on Linux and kFreeBSD.
+
+## Java bindings
+
+Besides improving Java support on Hurd, my original proposal also
+included the creation of Java bindings for the Hurd interfaces.
+My progress on this front has not been as fast as I would have liked.
+However I have started some of the work required to provide safe Java
+bindings for Mach system calls.
+
+See https://github.com/jeremie-koenig/hurd-java.
+
