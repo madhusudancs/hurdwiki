@@ -1,0 +1,203 @@
+[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+
+Porting Guide for Dummies
+=========================
+
+The problems addressed here were encountered while working 
+on fixing **PATH_MAX** and **MAXPATHLEN**.
+
+[[!toc startlevel=2 levels=3]]
+
+
+* * *
+
+
+Test on Hurd
+------------
+
+
+### Installing the required files
+
+As `apt-get source` will download and extract many files, you may want to create a dedicated folder for the package and work from there.
+
+    mkdir PACKAGE
+    cd PACKAGE
+    sudo apt-get build-dep PACKAGE
+    apt-get source PACKAGE
+
+
+### Trying to build the package
+
+    cd PACKAGE_SOURCE
+    dpkg-buildpackage -us -uc -rfakeroot -tc
+
+
+### Test a quick fix
+
+In all the files that use **PATH_MAX**, include those lines at the beginning.
+
+    #ifndef PATH_MAX
+    #define PATH_MAX 4196
+    #endif
+
+Try to rebuild the package and see if it's solved the problem.  
+If yes, you can start working on the package.
+
+
+* * *
+
+
+Basic things
+------------
+
+### Maintaining a original version
+
+    mkdir old
+    cp -r PACKAGE_SOURCE old/
+
+
+### Coding style
+
+Follow the conventions used in the source code!
+
+    if (condition) {
+        do_smthg();
+    }
+
+is not the same as:
+
+    if (condition) 
+    {
+        do_smthg();
+    }
+
+and is not the same as:
+
+    if (condition)
+        do_smthg();
+
+Pay attention to spaces surrounding, or not, arithmetic signs and symbols:
+
+    a = do_smthg( b + c );
+    a = do_smthg(b+c);
+
+
+### Indentation
+
+By default use 8 spaces as the size for 1 tab. 
+Then figure out if the code uses tab + 1/2 tab:
+
+    ....if (condition) {
+    ------->do_smthg();
+    ....}
+
+or tab only:
+
+    ------->if (condition) {
+    ------->------->do_smthg();
+    ------->}
+
+
+### Creating a patch
+
+    diff -Naur old/PACKAGE-VERSION PACKAGE-VERSION > fix_FTBFS4Hurd.patch
+
+
+* * *
+
+
+Known problems
+--------------
+
+### Dynamically allocated buffer returned by a function
+
+Use a static buffer
+
+### Buffer used to format an expression containing an INTEGER
+
+The length of an INTEGER in a string can be up to sizeof (int) * 3 + 1.
+
+> The usual trick for "%d" is to use the constant 'sizeof (int) * 3 + 1'. 
+I included + 1 for the sign, but it's not really necessary 
+if we exepect sizeof(int) >= 2, which we probably should. 
+**Jérémie Koenig**
+
+    log(MAX_INT)
+     = log(2 ^ 32)
+     = 32 * log(2)
+     = 4 * 8 * log(2)
+     = sizeof(int) * 2.40823997
+     < sizeof(int) * 3
+
+
+### Proper use of realloc()
+
+use a new_buff to check if everything went fine Free buf if realloc failed (and prog doesn't exit)
+
+
+### Reading lines from file
+
+Function to read line (no size limit, ending with "\n") from a file.
+
+    +static char *get_line(FILE *f)
+    +{
+    +    char *buff  = NULL;
+    +    char *new_buff  = NULL;
+    +    size_t buff_size = 0;
+    +    size_t last = 0;
+    +
+    +    while (!feof(f)) {
+    +   buff_size = buff_size ? buff_size * 2 : BUFSIZ;
+    +   new_buff = realloc(buff, buff_size);
+    +   if (new_buff == NULL) {
+    +       free(buff);
+    +       return NULL;
+    +   }
+    +   buff = new_buff;
+    +   if (fgets(buff + last, buff_size - last, f) == NULL) {
+    +       free(buff);
+    +       return NULL;
+    +   }
+    +   last = strlen(buff);
+    +   if (buff[last - 1] == '\n')
+    +       return buff;
+    +    }
+    +    return buff;
+    +}
+
+
+### Proper use of readlink()
+
+One has to rely on lstat() to get the size of the link that readlink() returns.
+
+Declare what you need:
+
+    char *linkname = NULL;
+    struct stat sb;
+    ssize_t len = -1;
+
+Call lstat() and check return value:
+
+    if (lstat(filename, &sb) == -1) {
+
+Create a buffer of the appropriate size and check the return value:
+
+    linkname = malloc(sb.st_size + 1);
+    if (linkname == NULL) {
+
+Call readlink(), check return value and set the null char in the linkname:
+
+    len = readlink(filename, linkname, sb.st_size + 1);
+    if (len < 0 || len > sb.st_size) {
+    ...
+    linkname[sb.st_size] = '\0';
+
