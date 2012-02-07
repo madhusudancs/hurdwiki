@@ -148,31 +148,31 @@ use a new_buff to check if everything went fine Free buf if realloc failed (and 
 
 Function to read line (no size limit, ending with "\n") from a file.
 
-    +static char *get_line(FILE *f)
-    +{
-    +    char *buff  = NULL;
-    +    char *new_buff  = NULL;
-    +    size_t buff_size = 0;
-    +    size_t last = 0;
-    +
-    +    while (!feof(f)) {
-    +   buff_size = buff_size ? buff_size * 2 : BUFSIZ;
-    +   new_buff = realloc(buff, buff_size);
-    +   if (new_buff == NULL) {
-    +       free(buff);
-    +       return NULL;
-    +   }
-    +   buff = new_buff;
-    +   if (fgets(buff + last, buff_size - last, f) == NULL) {
-    +       free(buff);
-    +       return NULL;
-    +   }
-    +   last = strlen(buff);
-    +   if (buff[last - 1] == '\n')
-    +       return buff;
-    +    }
-    +    return buff;
-    +}
+    static char *get_line(FILE *f)
+    {
+        char *buff  = NULL;
+        char *new_buff  = NULL;
+        size_t buff_size = 0;
+        size_t last = 0;
+    
+        while (!feof(f)) {
+            buff_size = buff_size ? buff_size * 2 : BUFSIZ;
+            new_buff = realloc(buff, buff_size);
+            if (new_buff == NULL) {
+                free(buff);
+                return NULL;
+            }
+            buff = new_buff;
+            if (fgets(buff + last, buff_size - last, f) == NULL) {
+                free(buff);
+                return NULL;
+            }
+            last = strlen(buff);
+            if (buff[last - 1] == '\n')
+                return buff;
+        }
+        return buff;
+    }
 
 
 ### Proper use of readlink()
@@ -200,4 +200,31 @@ Call readlink(), check return value and set the null char in the linkname:
     if (len < 0 || len > sb.st_size) {
     ...
     linkname[sb.st_size] = '\0';
+
+
+### Alternative use of readlink()
+
+In some cases the above approch doesn't work.for instance when reading from 
+**/proc/*/exe** on Linux. In this case you can try the following function.  
+The code comes from [[https://buildsecurityin.us-cert.gov/bsi/articles/knowledge/coding/806-BSI.html]]
+
+    static char *readlink_malloc(const char *filename)
+    {
+        int size = 100;
+    
+        while (1) {
+            char *buff = malloc(size);
+            if (buff == NULL)
+                return NULL;
+            int nchars = readlink(filename, buff, size);
+            if (nchars < 0)
+                return NULL;
+            if (nchars < size) {
+                buff[nchars] = '\0';
+                return buff;
+            }
+            free (buff);
+            size *= 2;
+        }
+    }
 
