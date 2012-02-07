@@ -28,6 +28,7 @@ Log
 * **Discussed**: [2012-01-21](http://lists.debian.org/debian-hurd/2012/01/msg00081.html)
 * **Draft Submitted**: [2012-01-25](http://lists.debian.org/debian-hurd/2012/01/msg00122.html)
 * **Submitted**: 2012-02-02, Bug#[658384](http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=658384)
+* **Stopped**: 2012-02-07, depends on `/proc` which is not yet totally implemented on the Hurd.
 * **Accepted**: -
 
 
@@ -130,33 +131,15 @@ filename will be declared later.
 Same as above with `FMT_PROC_MAPS`.
 
 
-    +   if (lstat(filename, &sb) == -1) {
-    +       perror("lstat");
-    +       deleted = 1;
-    +   }
-    +   else {
-    +       linkname = malloc(sb.st_size + 1);
-    +       if (linkname == NULL) {
-    +       fprintf(stderr, "insufficient memory\n");
-    +       deleted = 1;
-    +       }
-    +       else {
-    +       len = readlink(filename, linkname, sb.st_size + 1);
-    +       }
-    +   }
-    +   if (len < 0 || len > sb.st_size) {
-            fprintf(stderr, "Cannot read link information for %s\n", filename);
-            deleted = 1;
-        }
-    -   linkname[len] = '\0';
-    +   else {
-    +       linkname[sb.st_size] = '\0';
-    +   }
+    +        char filename[sizeof(FMT_PROC_EXE) + (sizeof(int) * 3) + 1];
+    +        sprintf(filename, FMT_PROC_EXE, pid);
+    +        linkname = readlink_malloc(filename);
+    +        if (linkname == NULL) {
 
-Use `readlink()` as explained in the porting guide. 
-Require lstat to get the link size.
+Use `readlink_malloc()` as explained in the porting guide because `/proc/PID/exe` doesn't work with `readlink()` 
 
 
     +   free(linkname);
+
 Free dynamically allocated variable that is not used anymore.
 
