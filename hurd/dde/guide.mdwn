@@ -173,25 +173,25 @@ we can now build the necessary Hurd and DDE bits:
 
 	$ autoreconf -i && ./configure
 
-	$ make libddekit libmachdev devnode pfinet # Hurd components. This is not needed if you have hurd >= 20120219-1 already installed and running.
+	$ make libddekit libmachdev devnode pfinet # Hurd components. This is not needed if you have the Debian hurd-dev >= 20120219-1 package already installed.
 
-	$ cd libdde_linux26 # common DDE driver code -- uses a different Makefile system than the Hurd components!
+	$ make -C libdde_linux26 # common DDE driver code -- uses a different Makefile system than the Hurd components! This is not needed if you have the Debian hurd-dev >= 20120219-2 package already installed.
 
-	$ make
+If you have the Debian hurd-dev >= 20120219-2 package already installed (and thus skipped the previous steps), run:
 
-	$ cd ../dde_forcedeth # actual driver
+	$ make -C dde_forcedeth PKGDIR=/usr/share/libdde_linux26 # actual driver
 
-	$ make
+otherwise, after doing the previous steps, use:
 
-Install the various built components to their final destinations (as root):
+	$ make -C dde_forcedeth # actual driver
+
+Install the various built components to their final destinations (as root). You only need to install dde_forcedeth if you are already running the Debian gnumach >= 2:1.3.99.dfsg.git20120219-1 and hurd-dev >= 20120219-1 packages:
 
 	$ cd ~me/dde/
 
 	$ cp gnumach/gnumach /boot/gnumach_dde
 
-	$ mkdir /hurd/dde
-
-	$ cp hurd/devnode/devnode hurd/pfinet/pfinet hurd/dde_forcedeth/dde_forcedeth /hurd/dde
+	$ cp hurd/devnode/devnode hurd/pfinet/pfinet hurd/dde_forcedeth/dde_forcedeth /hurd
 
 
 Now everything should be ready.
@@ -204,19 +204,19 @@ in the boottime grub menu while testing.)
 
 Once there, set up the translators for the driver (as root):
 
-	$ settrans -cap /dev/forcedeth /hurd/dde/dde_forcedeth
+	$ settrans -cap /dev/forcedeth /hurd/dde_forcedeth
 
 If that spews error "vm_allocate_contiguous: (ipc/mig) bad request message ID",
 you are mixing things: either use the debian kernel and the dde-debian incubator
 branch, or use your kernel built from the master-user_level_drivers branch and
 the dde incubator branch, but don't make any mixture.
 
-	$ settrans -cap /dev/eth0 /hurd/dde/devnode -M /dev/forcedeth eth0
+	$ settrans -cap /dev/eth0 /hurd/devnode -M /dev/forcedeth eth0
 
 Finally, we can set up the actual network translator,
 using something like:
 
-	$ settrans -cap /servers/socket/2 /hurd/dde/pfinet -i /dev/eth0 -a 192.168.1.194 -g 192.168.1.254 -m 255.255.255.0 
+	$ settrans -cap /servers/socket/2 /hurd/pfinet -i /dev/eth0 -a 192.168.1.194 -g 192.168.1.254 -m 255.255.255.0 
 
 For the exact syntax,
 see the normal network setup documentation.
