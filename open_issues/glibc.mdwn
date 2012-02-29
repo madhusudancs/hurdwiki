@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2007, 2008, 2010, 2011 Free Software Foundation,
-Inc."]]
+[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012 Free Software
+Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -36,8 +36,8 @@ git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc ..sourcewa
 
 -->
 
-Last reviewed up to the [[Git mirror's 9d65ea3a9b83ac3961229ba296a7caf90abce68d
-(2011-11-17) sources|source_repositories/glibc]].
+Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
+(2012-02-28) sources|source_repositories/glibc]].
 
   * t/dup3
 
@@ -208,6 +208,16 @@ Last reviewed up to the [[Git mirror's 9d65ea3a9b83ac3961229ba296a7caf90abce68d
 
         Then define `_POSIX_MAPPED_FILES`, `_POSIX_SYNCHRONIZED_IO`.
 
+      * `sys/epoll.h`
+
+      * `sys/eventfd.h`
+
+      * `sys/inotify.h`
+
+      * `sys/signalfd.h`
+
+      * `sys/timerfd.h`
+
   * Create `t/cleanup_kernel-features.h`.
 
   * Add tests from Linux kernel commit messages for `t/dup3` et al.
@@ -373,13 +383,15 @@ Last reviewed up to the [[Git mirror's 9d65ea3a9b83ac3961229ba296a7caf90abce68d
       * [OK] 22a89187139a9083ca73989bfd11597e0f85cb61 (`malloc: Remove all
         kinds of unused configuration options and dead code.`).  `NO_STARTER`
         changes (should be OK).
-      * [OK] 02d46fc4b969e25e4ba0c54aa95fa98d7279bd05 (`Simplify malloc
-        initialization`).
+      * [high] `pagesize`, 02d46fc4b969e25e4ba0c54aa95fa98d7279bd05 (`Simplify
+        malloc initialization`); aebae0537dcb408100b88c6b7647a7e858c43237, `BZ
+        11929`.  Is this all kosher for us?  See [[!message-id
+        "87mxd9hl2n.fsf@kepler.schwinge.homeip.net"]].
       * [OK] 83cd14204559abbb52635006832eaf4d2f42514a (`Remove --wth-tls
         option, TLS support is required`).
       * a7c8e6a1478de9f990b11e5e853318ccbe4330f2 (`Fix invalid conversion in
         __cmsg_nxthdr`).  Probably just a C++ thing and not relevant for us;
-        see [[message-id "87r52nk1kx.fsf@kepler.schwinge.homeip.net"]].
+        see [[!message-id "87r52nk1kx.fsf@kepler.schwinge.homeip.net"]].
       * [high] `__ctype_init`, fd5bdc0924e0cfd1688b632068c1b26f3b0c88da.
         Probably need to mirror `init-first.c` change.
       * [high] `__attribute__ ((__leaf__))`, `BZ #13344`,
@@ -391,6 +403,23 @@ Last reviewed up to the [[Git mirror's 9d65ea3a9b83ac3961229ba296a7caf90abce68d
         edc5984d4d18296d7aa3d8f4ed8f7336a743170e +
         57769839788e2c62b68d9dfbf4b35052321278ba.
         <http://gcc.gnu.org/onlinedocs/gcc-4.6.1/gcc/Function-Attributes.html>.
+      * [low] implement `timespec_get`,
+        74033a2507841cf077e31221de2481ff30b43d51.
+      * [low] `__volatile`, `BZ #13553`,
+        a784e502472fb3a1afa4d01a47c66b52d23e00f6:
+        `sysdeps/mach/i386/machine-lock.h:typedef __volatile int
+        __spin_lock_t;`, `sysdeps/mach/powerpc/machine-lock.h:typedef
+        __volatile long int __spin_lock_t;`
+      * [high] 6ee65ed6ddbf04402fad0bec6aa9c73b9d982ae4, hopefully OK.
+      * [high] `crti`/`crtn`, 3add8e1353d62d77fdd9b4ca363cdfe7006b0efb,
+        0e7dfaef514bbb3ec08934c6f7f42953bc149257, should just work.
+      * 7638c0fda568726f52ee5a88e1eadcddcd9fa290, `EHWPOISON`, does
+        [[!message-id
+        "Pine.LNX.4.64.1202191652540.3253@digraph.polyomino.org.uk"]] apply for
+        us?
+      * [low] `conformtest`, 3134156779108fe8b46e0f4cd60d837572faaa93 +
+        4efeffc1d583597e4f52985b9747269e47b754e2 +
+        d94a4670800de6e8f088b8630ad5142866127980 -- what does it do for us?
 
 
 # Build
@@ -405,10 +434,18 @@ sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
     $ make install_root=/INVALID 2>&1 | tee log_build_
     [...]
 
-This takes up around 400 MiB and needs roughly 120 min on coulomb.SCHWINGE.
+This takes up around 500 MiB and needs roughly X min on kepler.SCHWINGE and 100
+min on coulomb.SCHWINGE (GCC 4.4/4.5/4.6).
 
 <!--
     $ (make install_root=/INVALID && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install_root="$PWD".install install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && make -k install_root=/INVALID check TIMEOUTFACTOR=100 2>&1 | tee log_check
+
+Mask out gcc-4.X (with possibly a backslash before the dot), GCC 4.5's column
+output for (warning, error) messages, GCC 4.6's `[-Wsomething]` or `[enabled by
+default]` identifiers which warning flag triggered.
+
+    $ for f in log_*; do sed -e 's%gcc-4\\\?.[456]%[GCC]%g' -e 's%g++-4\\\?.[456]%[G++]%g' -e 's%\(:[0-9]\+:\)[0-9]\+:%\1%' -e 's% \[\(-W[a-z-]\+\|enabled by default\)\]$%%' < "$f" > "$f".nv; done
+
     $ find ./ -name \*.o -o -name \*.os -o -name \*.oS | while read f; do ~/tmp/gcc/git/contrib/compare-debug --preserve ../Roger_Whittaker.build-gcc-4.4-486.O/"$f" "$f"; done 2>&1 | less 
     $ while read f; do (readelf -a "$f" && objdump -xDrtw "$f") > N && (cd ../Roger_Whittaker.build-gcc-4.4-486.O/ && readelf -a "$f" && objdump -xDrtw "$f") > O && diff -u O N | less; done
     $ find ./ -name \*.o -o -name \*.os -o -name \*.oS | while read f; do readelf -h "$f" | grep OS/ABI | (read a b && [ x"$b" != x'UNIX - System V' ] && echo "### $f: $b"); done
@@ -420,18 +457,48 @@ This takes up around 400 MiB and needs roughly 120 min on coulomb.SCHWINGE.
 
 TODO.
 
+  * With GCC 4.5, there's a ton of these warnings:
+
+        hurd/hurd.h: In function '__hurd_fail':
+        hurd/hurd.h:73: warning: case value '0' not in enumerated type 'error_t'
+
+    ... as well as a few individual instances:
+
+        hurdselect.c: In function '_hurd_select':
+        hurdselect.c:265: warning: case value '0' not in enumerated type 'error_t'
+        get-host.c: In function '_hurd_get_host_config':
+        get-host.c:38: warning: case value '0' not in enumerated type 'error_t'
+        hurdmsg.c: In function '_S_msg_get_init_ints':
+        hurdmsg.c:186: warning: case value '0' not in enumerated type 'error_t'
+        hurdmsg.c: In function '_S_msg_set_init_ints':
+        hurdmsg.c:273: warning: case value '0' not in enumerated type 'error_t'
+        intr-msg.c: In function '_hurd_intr_rpc_mach_msg':
+        intr-msg.c:363: warning: case value '0' not in enumerated type 'error_t'
+        sysdeps/mach/hurd/setitimer.c: In function 'timer_thread':
+        sysdeps/mach/hurd/setitimer.c:117: warning: case value '0' not in enumerated type 'error_t'
+        sysdeps/mach/hurd/wait4.c: In function '__wait4':
+        sysdeps/mach/hurd/wait4.c:40: warning: case value '0' not in enumerated type 'error_t'
+        sysdeps/mach/hurd/fork.c: In function '__fork':
+        sysdeps/mach/hurd/fork.c:423: warning: case value '0' not in enumerated type 'error_t'
+        sysdeps/mach/hurd/spawni.c: In function '__spawni':
+        sysdeps/mach/hurd/spawni.c:600: warning: case value '0' not in enumerated type 'error_t'
+        sysdeps/mach/hurd/setpriority.c: In function 'setonepriority':
+        sysdeps/mach/hurd/setpriority.c:66: warning: case value '0' not in enumerated type 'error_t'
+        sysdeps/mach/hurd/ioctl.c: In function 'send_rpc':
+        sysdeps/mach/hurd/ioctl.c:177: warning: case value '0' not in enumerated type 'error_t'
+        sysdeps/mach/hurd/ioctl.c: In function '__ioctl':
+        sysdeps/mach/hurd/ioctl.c:306: warning: case value '0' not in enumerated type 'error_t'
+
 
 # Install
 
 TODO.
 
-<!--
     $ make install_root="$PWD".install install 2>&1 | tee log_install
     [...]
 
-This takes up around 50 MiB, and needs roughly 1 min on kepler.SCHWINGE and 3
+This takes up around 100 MiB, and needs roughly X min on kepler.SCHWINGE and 18
 min on coulomb.SCHWINGE.
--->
 
 
 ## Analysis
@@ -470,6 +537,7 @@ Comparing the results files, [[sum_linux]] to [[sum_hurd]]:
 ## Analysis
 
 There is quite a baseline of failures.
+
 
 ### Additional Failures Compared to Debian
 
@@ -555,6 +623,10 @@ There is quite a baseline of failures.
   * `string/test-strnlen`
 
         /media/erich/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker/string/test-strnlen.c:87: undefined reference to `MIN'
+
+  * `assert/test-assert.out`
+
+    Fails sometimes...
 
   * `stdlib/bug-getcontext.out`
 
