@@ -438,7 +438,7 @@ This takes up around 500 MiB and needs roughly X min on kepler.SCHWINGE and 100
 min on coulomb.SCHWINGE (GCC 4.4/4.5/4.6).
 
 <!--
-    $ (make install_root=/INVALID && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install_root="$PWD".install install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && make -k install_root=/INVALID check TIMEOUTFACTOR=100 2>&1 | tee log_check
+    $ (make install_root=/INVALID && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install_root="$PWD".install install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && ln -s /usr/lib/i386-*gnu/libstdc++.so.6 /lib/i386-*gnu/libpthread-stubs.so.0 /lib/i386-*gnu/libgcc_s.so.1 mach/libmachuser.so.1 hurd/libhurduser.so.0.3 ./ && make -k install_root=/INVALID check TIMEOUTFACTOR=100 2>&1 | tee log_check
 
 Mask out gcc-4.X (with possibly a backslash before the dot), GCC 4.5's column
 output for (warning, error) messages, GCC 4.6's `[-Wsomething]` or `[enabled by
@@ -544,20 +544,45 @@ There is quite a baseline of failures.
     $ bash ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/convertlog.sh log_check  > log_check.filtered
     $ bash ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/compare.sh ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/expected-results-i486-gnu-libc log_check.filtered
 
-  * `bug-atexit3.out`, `debug/tst-chk4`, `debug/tst-lfschk4`,
-    `debug/tst-lfschk5`, `debug/tst-lfschk6`, `debug/tst-chk5`,
-    `debug/tst-chk6`
+  * `bug-atexit3.out`, `debug/tst-chk4`, `debug/tst-chk5`, `debug/tst-chk6`,
+    `debug/tst-lfschk4`, `debug/tst-lfschk5`, `debug/tst-lfschk6`
 
         dlopen failed: libstdc++.so.6: cannot open shared object file: No such file or directory
+
+    See [[!message-id "20090420002344.11798.qmail@s461.sureserver.com"]].
+    Hacked around with `ln -s /usr/lib/i386-*gnu/libstdc++.so.6
+    /lib/i386-*gnu/libpthread-stubs.so.0 /lib/i386-*gnu/libgcc_s.so.1 ./`.
+    This is a bug in the glibc test harness.  Should probably use some
+    `configure` magic akin to the `fixincludes` stuff (`gcc-4.4
+    -print-file-name=libstdc++.so.6`, etc.).
+
+  * `debug/tst-chk4`, `debug/tst-chk5`, `debug/tst-chk6`, `debug/tst-lfschk4`,
+    `debug/tst-lfschk5`, `debug/tst-lfschk6`
+
+    Fail in the same way as the C ones, `tst-chk1..3`.
 
   * `io/ftwtest`, `posix/globtest`, `iconvdata/iconv-test`, `intl/tst-gettext`,
     `malloc/tst-mtrace`, `elf/tst-pathopt`, `iconvdata/tst-tables`,
     `grp/tst_fgetgrent`, `dlfcn/tststatic`, `dlfcn/tststatic2`,
-    `posix/wordexp-tst`, `localedata/bug-setlocale1.out`
+    `posix/wordexp-tst`, `localedata/bug-setlocale1.out`, `posix/tst-getconf`
 
         /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/io/ftwtest: error while loading shared libraries: libmachuser.so.1: cannot open shared object file: No such file or directory
 
-    Should be using the build-directory one anyway!
+    Looking into `localedata/bug-setlocale1.c`, it is clear what it going on:
+    only the root of the build directory is added for `--library-path`, but
+    none of the other directories that are additionally used.  This is a bug in
+    the glibc test harness.  Hacked around by `ln -s mach/libmachuser.so.1
+    hurd/libhurduser.so.0.3 ./`.  Hopefully the other instances are similar.
+
+  * `posix/tst-getconf`
+
+    Ends with:
+
+        getconf POSIX_ALLOC_SIZE_MIN /: /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486/posix/getconf: pathconf: /: Invalid argument
+
+  * `dlfcn/tststatic`, `dlfcn/tststatic2`
+
+    No output, SEGFAULT.
 
   * `math/test-idouble`, `math/test-ifloat`, `math/test-ildoubl`,
     `math/test-ldouble`
@@ -591,11 +616,6 @@ There is quite a baseline of failures.
   * `inet/tst-ether_line`
 
         tst-ether_line.c:19: error: 'ETH_ALEN' undeclared (first use in this function)
-
-  * `posix/tst-getconf`
-
-        /bin/sh -e tst-getconf.sh /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/ /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/elf/ ld.so.1
-        make[2]: *** [/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/posix/tst-getconf.out] Error 127
 
   * `time/tst-mktime2`
 
