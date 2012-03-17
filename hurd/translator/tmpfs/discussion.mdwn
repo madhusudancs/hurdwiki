@@ -283,3 +283,96 @@ License|/fdl]]."]]"""]]
     <mcsim> what kind of log do you mean?
     <antrik> vmstat 1 I mean
     <mcsim> ah...
+
+
+## IRC, freenode, #hurd, 2012-02-01
+
+    <mcsim> I run fsx with this command:  fsx -N3000 foo/bar -S4
+      -l$((1024*1024*8)). And after 70 commands it breaks.
+    <mcsim> The strangeness is at address 0xc000 there is text, which was
+      printed in fsx with vfprintf
+    <mcsim> I've lost log. Wait a bit, while I generate new
+    <jkoenig_> mcsim, what's fsx / where can I find it ?
+    <mcsim> fsx is filesystem exersiser
+    <mcsim> http://codemonkey.org.uk/projects/fsx/
+    <jkoenig_> ok thanks
+    <mcsim> i use it to test tmpfs
+    <mcsim> here is fsx that compiles on linux: http://paste.debian.net/154390/
+      and Makefile for it: http://paste.debian.net/154392/ 
+    <jkoenig_> mcsim, hmm, I get a failure with ext2fs too, is it expected?
+    <mcsim> yes
+    <mcsim> i'll show you logs with tmpfs. They slightly differ
+    <mcsim> here: http://paste.debian.net/154399/
+    <mcsim> pre last operation is truncate
+    <mcsim> and last is read
+    <mcsim> during pre-last (or last) starting from address 0xa000, every
+      0x1000 bytes appears text
+    <mcsim> skipping zero size read
+    <mcsim> skipping zero size read
+    <mcsim> truncating to largest ever: 0x705f4b
+    <mcsim> signal 2
+    <mcsim> testcalls = 38
+    <mcsim> this text is printed by fsx, by function prt
+    <mcsim> I've mistaken: this text appears even from every beginning 
+    <mcsim> I know that this text appears exactly at this moment, because I
+      added check of the whole file after every step. And this error appeared
+      only after last truncation.
+    <mcsim> I think that the problem is in defpager (I'm fixing it), but I
+      don't understand where defpager could get this text
+    <jkoenig_> wow I get java code and debconf templates
+    <mcsim> So, my question is: is it possible for defpager to get somehow this
+      text?
+    <jkoenig_> possibly recycled, non-zeroed pages?
+    <mcsim> hmmm... probably you're right
+    <jkoenig_> 0x1000 bytes is consistent with the page size
+    <mcsim> Should I clean these pages in tmpfs?
+    <mcsim> or in defpager?
+    <mcsim> What is proper way?
+    <jkoenig_> mcsim, I'd say defpager should do it, to avoid leaking
+      information, I'm not sure though.
+    <jkoenig_> maybe tmpfs should also not assume the pages have been blanked
+      out.
+    <mcsim> if i do it in both, it could have big influence on performance.
+    <mcsim> i'll do it only in defpager so far.
+    <mcsim> jkoenig_: Thank you a lot
+    <jkoenig_> mcsim, no problem.
+
+
+## IRC, freenode, #hurd, 2012-02-08
+
+    <tschwinge> mcsim: You pushed another branch with cleaned-up patches?
+    <mcsim> yes.
+    <tschwinge> mcsim: Anyway, any data from your report that we could be
+      interested in?  (Though it's not in English.)
+    <mcsim> It's completely in ukrainian an and mostly describes some aspects
+      of hurd's work.
+    <tschwinge> mcsim: OK.  So you ran out of time to do the benchmarking,
+      etc.?
+    <tschwinge> Comparing tmpfs to ext2fs with RAM backend, etc., I mean.
+    <mcsim> tschwinge: I made benchmarking and it turned out that tmpfs up to 6
+      times faster than ext2fs
+    <mcsim> tschwinge: is it possible to have a review of work, I've already
+      done, even if parallel writing doesn't work?
+    <tschwinge> mcsim: Do you need this for university or just a general review
+      for inclusion in the Git master branch?
+    <mcsim> general review
+    <tschwinge> Will need to find someone who feels competent to do that...
+    <mcsim> the branch that should be checked is tmpfs-final
+    <pinotree> cool, i guess you tested also special types of files like
+      sockets and pipes? (they are used in eg /run, /var/run or similar)
+    <mcsim> Oh. I accidentally created this branch. It is my private
+      branch. I'll delete it now and merge everything to mplaneta/tmpfs/master
+    <mcsim> pinotree: Completely forgot about them :( I'll do it by all means
+    <pinotree> mcsim: no worries :)
+    <mcsim> tschwinge: Ready. The right branch is mplaneta/tmpfs/master
+
+
+## IRC, freenode, #hurd, 2012-03-07
+
+    <pinotree> did you test it with sockets and pipes?
+    <mcsim> pinotree: pipes work and sockets seems to work too (I've created
+      new pfinet device for them and pinged it).
+    <pinotree> try with simple C apps
+    <mcsim> Anyway all these are just translators, so there shouldn't be any
+      problems.
+    <mcsim> pinotree: works

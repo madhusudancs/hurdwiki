@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2011, 2012 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -13,3 +14,350 @@ License|/fdl]]."]]"""]]
 [[General Information|/dde]].
 
 Still waiting for interface finalization and proper integration.
+
+[[!toc]]
+
+
+# Upstream Status
+
+
+## IRC, freenode, #hurd, 2012-02-08
+
+At the microkernel davroom at [[community/meetings/FOSDEM_2012]]:
+
+    <antrik> there was quite some talk about DDE. I learnt that there are newer
+      versions in Genode and in Minix (as opposed to the DROPS one we are
+      using)
+    <antrik> but apparently none of the guys involved is interested in creating
+      a proper upstream project with central repository and communication
+      channels :-(
+    <antrik> the original DDE creator was also there, but said he isn't working
+      on it anymore
+    <tschwinge> OK, and the other two projects basically have their own forks.
+    <tschwinge> Or are they actively cooperating?
+    <tschwinge> (If you know about it.)
+    <antrik> well, Genode is also part of the Dresden L4 group; but apart from
+      that, I'd rather call it a fork...
+    <antrik> hm... actually, I'm not sure anymore whether the guy I talked to
+      was from Genode or Nova...
+    <antrik> (both from the Dresdem L4 group)
+
+
+## IRC, freenode, #hurd, 2012-02-19
+
+    <youpi> antrik: do we know exactly which DDE version Zheng Da took as a
+      base ?
+    <youpi> (so as to be able to merge new changes easily)
+    <antrik> youpi: not sure... but from what I gathered at FOSDEM, the version
+      he based on (from DROPS) is not really actively developed right now; if
+      we want to go for newer versions, we probably have to look at other
+      projects (like Genode or Nova or Minix)
+    <youpi> there's no central project for dde ?
+    <youpi> that sucks
+    <antrik> no... and nobody seemed interested in having one :-(
+    <youpi> pff
+    <antrik> which makes me seriously question the original decision to build
+      on DDE...
+    <braunr> ..
+    <antrik> if we have to basically maintain it ourselfs anyways, we could
+      just as well have gone with custom glue
+    <youpi> well, the advantage of DDE is that it already exists now
+    <antrik> on the positive side, one of the projcets (not sure which)
+      apparently have both USB and SATA working with some variant of DDE
+
+
+# IRC, OFTC, #debian-hurd, 2012-02-15
+
+    <pinotree> i have no idea how the dde system works
+    <youpi> gnumach patch to provide access to physical memory and interrupts
+    <youpi> then userland accesses i/o ports by hand to drive things
+    <youpi> but  that assumes that no kernel driver is interfering
+    <youpi> so one has to disable kernel drivers
+    <pinotree> how are dde drivers used? can they be loaded on their own
+      automatically, or you have to settrans yourself to setup a device?
+    <youpi> there's no autoloader for now
+    <youpi> we'd need a bus arbitrer that'd do autoprobing
+    <pinotree> i see
+    <pinotree> (you see i'm not really that low level, so pardon the flood of
+      posssibly-noobish questions ;) )
+    <youpi> I haven't set it up yet, but IIRC you need to specify which driver
+      to be used
+    <youpi> well, I mostly have the same questions actually :)
+    <youpi> I just have some guesswork here :)
+    <pinotree> i wonder whether the following could be feasible:
+    <youpi> I'm wondering how we'll manage to make it work in d-i
+    <pinotree> a) you create a package which would b-d on linux-source, build a
+      selection of (network only for now) drivers and install them in
+      /hurd/dde/
+    <youpi> probably through a choice at the boot menu
+    <youpi> I wouldn't dare depending on linux-source
+    <youpi> dde is usually not up-to-date
+    <pinotree> b) add a small utility over the actual fsys_settrans() which
+      would pick the driver from /hurd/dde/
+    <pinotree> ... so you could do `set-dde-driver b43 <device>` (or something
+      like that)
+    <youpi> we can provide something like b) yes
+    <youpi> although documenting the settrans should be fine enough ;)
+    <pinotree> the a) would help/ease with the fact that you need to compile on
+      your own the drivers
+    <pinotree> otherwise we would need to create a new linux-dde-sources-X.Y.Z
+      only with the sources of the drivers we want from linux X.Y.Z
+    <pinotree> (or hurd-dde-linux-X.Y.Z)
+    <CIA-4> samuel.thibault * raccdec3 gnumach/debian/ (changelog
+      patches/70_dde.patch patches/series): 
+    <CIA-4> Add DDE experimental support
+    <CIA-4> * debian/patches/70_dde.patch: Add experimental support for irq
+      passing and
+    <CIA-4> physical memory allocation for DDE. Also adds nonetdev boot
+      parameter to
+    <CIA-4> disable network device drivers.
+    <youpi> ok, boots fine with the additional nonetdev option
+    <youpi> now I need to try that dde hurd branch :)
+    <CIA-4> samuel.thibault * rf8b9426 gnumach/debian/patches/70_dde.patch: Add
+      experimental.defs to gnuamch-dev
+
+
+# IRC, freenode, #hurd, 2012-02-19
+
+    * youpi got dde almost working
+    <youpi> it's able to send packets, but apparently not receive them
+    <youpi> (e1000)
+    <youpi> ok, rtl8139 works
+    <youpi> antrik: the wiki instructions are correct
+    <youpi> with e1000 I haven't investigated
+    <antrik> (Archhurd guys also reported problems with e1000 IIRC... the one I
+      built a while back works fine though on my T40p with real e1000 NIC)
+    <antrik> maybe I should try with current versions... something might got
+      broken by later changes :-(
+    <youpi> at least testing could tell the changeset which breaks it
+    <youpi> Mmm, it's very odd
+    <youpi> with the debian package, pfinet's call to device_set_filter returns
+      D_INVALID_OPERATION
+    <youpi> and indeed devnode.c returns that
+    <youpi> ah but it's libmachdev which is supposed to answer here
+    <antrik> youpi: so, regarding the failing device_set_filter... I guess you
+      are using some wrong combination of gnumach and pfinet
+    <youpi> no it's actually that my pfinet was not using bpf
+    <youpi> I've now fixed it
+    <antrik> the DDE drivers rely on zhengda's modified pfinet, which uses
+      devnode, but also switched to using proper BPF filters. so you also need
+      his BPF additions/fixes in gnumach
+    <antrik> OK
+    <youpi> that's the latter
+    <youpi> I had already fixed the devnode part
+    <youpi> but hadn't seen that the filter was different
+    <antrik> err... did I say gnumach? that of course doesn't come into play
+      here
+    <antrik> so yes, you just need a pfinet using BPF
+    <youpi> libmachdev does ;)
+    <antrik> I'm just using pfinet from zhengda's DDE branch... I think devnode
+      and BPF are the only modifications
+    <youpi> there's also a libpcap modification in the incubator
+    <youpi> probably for tcpdump etc.
+    <antrik> libpcap is used by the modified pfinet to compile the filter rule
+    <youpi> why does pfinet need to compile the rule ?
+    <youpi> it's libbpf which is used in the dde driver
+    <antrik> it doesn't strictly need to... but I guess zhengda considered it
+      more elegant to put the source rule in pfinet on compile it live, rather
+      than the compiled blob
+    <antrik> I probably discussed this with him myself a few years back... but
+      my memory on this is rather hazy ;-)
+    <antrik> err... and compile it live
+    <youpi> ah, right, it's only used when asking pfinet to change its filter
+    <youpi> but it does not need it for the default filter
+    <youpi> which is hardcoded
+    <antrik> I see
+    <antrik> when would pfinet change its filter?
+    * youpi now completely converting his hurd box to debian packages with dde
+        support
+    <youpi> on SIOCSIFADDR apparently
+    <youpi> to set "arp or (ip host %s)",
+    <antrik> well, that sounds like the default filter...
+    <youpi> the default filter does not choose an IP
+    <antrik> oh, right... pfinet has to readjust the filter when setting the IP
+    <youpi> arg we lack support for kernel options for gnumach in update-grub
+    <antrik> again, I have a vague recollection of discussing this
+    * youpi crosses fingers
+    <youpi> yay, works
+    <antrik> so we *do* need libpcap in pfinet to set proper rules... though I
+      guess it can also work with a static catchall rule (like it did before
+      zhengda's changes), only less efficient
+    <youpi> well in the past we were already catching everything anyway, so at
+      least it's not a regression :)
+    <antrik> right
+
+
+# IRC, freenode, #hurd, 2012-02-20
+
+    <youpi> I was a bit wary of including the ton of dde headers in hurd-dev
+    <youpi> maybe adding another package for that
+    <youpi> but that would have delayed introducing the dde binaries
+    <youpi> probably we can do that for next upload
+    <pinotree> i can try to work on it, if is feasible (ie if the dde drivers
+      can currently be built from outside the hurd source tree)
+    <youpi> it should be, it's a matter of pointing its makefile to a place
+      where the make scripts and include headers are
+    <youpi> (and the libraries)
+    <pinotree> ok
+    <antrik> youpi: you mean DDEKit headers?
+    <antrik> pinotree: actually it doesn't matter where the dde-ified Linux
+      drivers are built -- libdde_linux26 and the actual drivers use a
+      completetly different build system anyways
+    <antrik> in fact we concluded at some point that they should live in a
+      separate repository -- but that change never happened
+    <antrik> only the base stuff (ddekit, libmachdev etc.) belong in the Hurd
+      source tree
+    <youpi> antrik: yes
+    <youpi> antrik: err, not really completely different
+    <youpi> the actual drivers' Makefile include the libdde_linux26 mk files
+    <youpi> the build itself is separate, though
+    <antrik> youpi: yes, I mean both libdde_linux26 and the drivers use a build
+      system that is completely distinct from the Hurd one
+    <youpi> ah, yes
+    <youpi> libdde_linux26 should however be shipped in the system
+    <antrik> ideally libdde_linux26 and all the drivers should be built in one
+      go I'd say...
+    <youpi> it should be easily feasible to also have a separate driver too
+    <youpi> e.g. to quickly try a 2.6 driver
+    <antrik> youpi: I'm not sure about that. it's not even dynamically linked
+      IIRC?...
+    <youpi> with scripts to build it
+    <youpi> it's not
+    <youpi> but that doesn't mean it can't be separate
+    <youpi> .a files are usually shipped in -dev packages
+    <antrik> youpi: ideally we should try to come with a build system that
+      reuses the original Linux makefile snippets to build all the drivers
+      automatically without any manual per-driver work
+    <youpi> there's usually no modification of the drivers themselves?
+    <youpi> but yeah
+    <youpi> "ideally", when somebody takes the time to do it
+    <antrik> unfortunately, it's necessary to include one particular
+      Hurd/DDE-specific header file in each driver :-(
+    <youpi> can't it be done through gcc's -include option?
+    <antrik> zhengda didn't find a way to avoid this... though I still hope
+      that it must be possible somehow
+    <antrik> I think the problem is that it has to be included *after* the
+      other Linux headers. don't remember the details though
+    <youpi> uh
+    <youpi> well, a good script can add a  line after the last occurrence of
+      #include
+    <antrik> yeah... rather hacky, but might work
+    <youpi> even with a bit of grep, tail, cut, and sed it should work :)
+    <antrik> note that this is Hurd-specific; the L4 guys didn't need that
+    <youpi> what is it?
+    <antrik> don't remember off-hand
+
+
+# IRC, freenode, #hurd, 2012-02-22
+
+    <youpi> antrik: AIUI, it should be possible to include all network drivers
+      in just one binary?
+    <youpi> that'd permit to use it in d-i
+    <youpi> and completely replace the mach drivers
+    <youpi> we just need to make sure to include at least what the mach drivers
+      cover
+    <youpi> (all DDE network drivers, I mean)
+    <youpi> of course that doesn't hinder from people to carefully separate
+      drivers in several binaries if they wish
+    <youpi> antrik: it does link at least, I'll give a try later
+    <youpi> yes it works!
+    <youpi> that looks like a plan
+    <youpi> throw all network drivers in a /hurd/dde_net
+    <youpi> settrans it on /dev/dde_net, and settrans devnode on /dev/eth[0-9]
+    <youpi> I'm also uploading a version of hurd which includes headers &
+      libraries, so you just need a make in dde_{e100,e1000,etc,net}
+    <youpi> (uploading it with the dde driver itself :) )
+    <youpi> btw, a nice thing is that we don't really care that all drivers are
+      stuffed into a single binary, since it's a normal process only the useful
+      pages are mapped and actually take memory :)
+    <Tekk_> is that really a nice thing though? compared to other systems I
+      mean
+    <Tekk_> I know on linux it only loads the modules I need, for example. It's
+      definitely a step up for hurd though :D
+    <youpi> that's actually precisely what I mean
+    <youpi> you don't need to load only the modules you need
+    <youpi> you just load them all
+    <youpi> and paging eliminates automatically what's not useful
+    <youpi> even parts of the driver that your device will not need
+    <Tekk_> ooh
+    <Tekk_> awesome
+    <youpi> (actually, it's not even loaded, but the pci tables of the drivers
+      are loaded, then paged out)
+
+
+# IRC, freenode, #hurd, 2012-02-24
+
+    <youpi> antrik_: about the #include <ddekit/timer.h>, I see the issue, it's
+      about jiffies
+    <youpi> it wouldn't be a very good thing to have a jiffies variable which
+      we'd have to update 100times per second
+    <youpi> so ZhengDa preferred to make jiffies a macro which calls a function
+      which reads the mapped time
+    <youpi> however, that break any use of the work "jiffies", e.g. structure
+      members & such
+    <youpi> actually it's not only after headers that the #include has to be
+      done, but after any code what uses the word "jiffies" for something else
+      than the variable
+    <youpi> pb is: it has to be done *before* any code that uses the word
+      "jiffies" for the variable, e.g. inline functions in headers
+    <youpi> in l4dde, there's already the jiffies variable so it's not a
+      problem
+
+
+# IRC, OFTC, #debian-hurd, 2012-02-27
+
+    <tschwinge> I plan to do some light performance testing w.r.t. DDE
+      Ethernet.  That is DDE vs. Mach, etc.
+    <youpi> that'd be good, indeed
+    <youpi> I'm getting 4MiB/s with dde
+    <youpi> I don't remember with mach
+    <tschwinge> Yes.  It just shouldn't regress too much.
+    <tschwinge> Aha, OK.
+
+
+## IRC, freenode, #hurd, 2012-02-27
+
+    <youpi> tschwinge: nttcp tells me ~80Mbps for mach-rtl8139, ~72Mbps for
+      dde-rtl8139, ~72Mbps for dde-e1000
+    <youpi> civodul: ↑ btw
+    <ArneBab> youpi: so the dde network device is not much slower than the
+      kernel-one?
+    <civodul> youpi: yes, looks good
+    <ArneBab> rather almost the same speed
+    <youpi> apparently
+    <ArneBab> that’s quite a deal. 
+    <ArneBab> what speed should it have as maximum?
+    <ArneBab> (means: does the mach version get out all that’s possible?)
+    <ArneBab> differently put: What speed would GNU/Linux get?
+    <youpi> I'm checking that right now
+    <ArneBab> cool!
+    <ArneBab> we need those numbers for the moth after the next
+    <youpi> Mmm, I'm not sure you really want the linux number :)
+    <youpi> 1.6Gbps :)
+    <ArneBab> oh…
+    <youpi> let me check with udp rather than tcp
+    <ArneBab> so the Hurd is a “tiny bit” worse at using the network… 
+    <youpi> it might simply be an issue with tcp tuning in pfinet
+    <ArneBab> hm, yes
+    <ArneBab> tcp is not that cheap
+    <ArneBab> and has some pretty advanced stuff for getting to high speeds
+    <youpi> well, I'm not thinking about being cheap
+    <youpi> but using more recent tuning
+    <youpi> that does not believe only 1Mbps network cards exist :)
+    <ArneBab> like adaptive windows and such?
+    <ArneBab> :)
+    <youpi> yes
+    * ArneBab remembers that TCP was invented when the connections went over
+        phone lines - by audio :)
+    <youpi> yep
+    <ArneBab> what’s the system load while doing the test?
+    <youpi> yes, udp seems not so bad
+    <ArneBab> ah, cool!
+    <youpi> it's very variable (300-3000Mbps), but like on linux
+    <ArneBab> that pushing it into user space has so low cost is pretty nice.
+    * ArneBab thinks that that’s a point where Hurd pays off
+    <youpi> that's actually what AST said to fosdem
+    <youpi> he doesn't care about putting an RPC for each and every port i/o
+    <youpi> because hardware is slow anyway
+    <ArneBab> jupp
+    <ArneBab> but it is important to see that in real life
