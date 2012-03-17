@@ -22,9 +22,14 @@ The whole process is much more cumbersome otherwise.
 It also assumes that apart from networking,
 your Hurd system is already installed and operational.
 
+Debian now already includes dde support in both gnumach (>=
+2:1.3.99.dfsg.git20120219-1) and hurd (>= 20120219-1), so in the steps below,
+building gnumach will not be needed. Also, be sure to use the dde-debian branch
+instead of dde.
+
 
 We start by booting into Debian GNU/Linux,
-so we can download everything we will need for building DDE.
+so we can download everything we will need for building DDE. If you have already a way to download things from the Hurd image, skip to "Get DDE code" below.
 
 Once there, first mount the Hurd partition (as root):
 
@@ -52,13 +57,17 @@ Download the packages for offline installation:
 
 	$ apt-get -c etc/apt/apt.conf.offline build-dep hurd gnumach
 
-	$ apt-get -c etc/apt/apt.conf.offline install git-core build-essential libpciaccess-dev libpcap0.8-dev
+	$ apt-get -c etc/apt/apt.conf.offline install git-core build-essential libpciaccess-dev libpcap0.8-dev hurd-dev zlib1g-dev
 
 Get DDE code:
 
 	$ cd /mnt/home/me # assuming your user name on the Hurd system is "me"
 
 	$ mkdir dde && cd dde
+
+Note: here, use dde-debian instead of dde if you have gnumach >=
+2:1.3.99.dfsg.git20120219-1 already installed and running. Otherwise you will
+get "vm_allocate_contiguous: (ipc/mig) bad request message ID" error messages.
 
 	$ git clone git://git.sv.gnu.org/hurd/incubator.git -b dde hurd
 
@@ -82,10 +91,10 @@ the right source file from Linux:
 
 Point a (JavaScript-capable) web browser at
 
-	http://git.kernel.org/?p=linux/kernel/git/stable/linux-2.6.29.y.git;a=tree;f=drivers/net;hb=HEAD
+	http://git.kernel.org/?p=linux/kernel/git/stable/linux-stable.git;a=tree;f=drivers/net;hb=refs/heads/linux-2.6.29.y
 
-(Note: you **have** to use 2.6.29,
-as this is the version DDE is currently based on.)
+(Note: you **have** to use some 2.6.29.y (whatever the y, prefer the latest), as
+this is the version DDE is currently based on.)
 
 Find the right file to download
 (forcedeth.c in this example);
@@ -105,7 +114,7 @@ Once there, install the packages previously downloaded (again as root):
 
 	$ apt-get build-dep hurd gnumach
 
-	$ apt-get install git-core build-essential libpciaccess-dev libpcap0.8-dev
+	$ apt-get install git-core build-essential libpciaccess-dev libpcap0.8-dev hurd-dev zlib1g-dev
 
 Make sure we can build stuff as normal user:
 
@@ -113,7 +122,7 @@ Make sure we can build stuff as normal user:
 
 Now you can log in with the normal user account to build stuff.
 
-Build a DDE-enabled Mach:
+Build a DDE-enabled Mach. Not needed if you have gnumach >= 2:1.3.99.dfsg.git20120219-1 already installed and running:
 
 	$ cd ~me/dde/gnumach
 
@@ -123,7 +132,7 @@ Build a DDE-enabled Mach:
 
 
 If not already present in DDE,
-we need to prepare the driver for the network card:
+we need to prepare the driver for the network card (else, skip to "Having prepared the driver" below):
 
 	$ cd ~me/dde/hurd
 
@@ -164,27 +173,25 @@ we can now build the necessary Hurd and DDE bits:
 
 	$ autoreconf -i && ./configure
 
-	$ mkdir -p hurd/include/ddekit # workaround for a buildsystem bug... XXX I'm pretty sure this is not necessary anymore
+	$ make libddekit libmachdev devnode pfinet # Hurd components. This is not needed if you have the Debian hurd-dev >= 20120219-1 package already installed.
 
-	$ make libddekit libmachdev devnode pfinet # Hurd components
+	$ make -C libdde_linux26 # common DDE driver code -- uses a different Makefile system than the Hurd components! This is not needed if you have the Debian hurd-dev >= 20120219-2 package already installed.
 
-	$ cd libdde_linux26 # common DDE driver code -- uses a different Makefile system than the Hurd components!
+If you have the Debian hurd-dev >= 20120219-2 package already installed (and thus skipped the previous steps), run:
 
-	$ make
+	$ make -C dde_forcedeth PKGDIR=/usr/share/libdde_linux26 # actual driver
 
-	$ cd ../dde_forcedeth # actual driver
+otherwise, after doing the previous steps, use:
 
-	$ make
+	$ make -C dde_forcedeth # actual driver
 
-Install the various built components to their final destinations (as root):
+Install the various built components to their final destinations (as root). You only need to install dde_forcedeth if you are already running the Debian gnumach >= 2:1.3.99.dfsg.git20120219-1 and hurd-dev >= 20120219-1 packages:
 
 	$ cd ~me/dde/
 
 	$ cp gnumach/gnumach /boot/gnumach_dde
 
-	$ mkdir /hurd/dde
-
-	$ cp hurd/devnode/devnode hurd/pfinet/pfinet hurd/dde_forcedeth/dde_forcedeth /hurd/dde
+	$ cp hurd/devnode/devnode hurd/pfinet/pfinet hurd/dde_forcedeth/dde_forcedeth /hurd
 
 
 Now everything should be ready.
@@ -197,17 +204,24 @@ in the boottime grub menu while testing.)
 
 Once there, set up the translators for the driver (as root):
 
-	$ settrans -c /dev/forcedeth /hurd/dde/forcedeth
+	$ settrans -cap /dev/forcedeth /hurd/dde_forcedeth
 
-	$ settrans -c /dev/eth0 /hurd/dde/devnode -M /dev/forcedeth eth0
+If that spews error "vm_allocate_contiguous: (ipc/mig) bad request message ID",
+you are mixing things: either use the debian kernel and the dde-debian incubator
+branch, or use your kernel built from the master-user_level_drivers branch and
+the dde incubator branch, but don't make any mixture.
+
+	$ settrans -cap /dev/eth0 /hurd/devnode -M /dev/forcedeth eth0
 
 Finally, we can set up the actual network translator,
 using something like:
 
-	$ settrans -c /servers/socket/2 /hurd/dde/pfinet -i /dev/eth0 -a 192.168.1.194 -g 192.168.1.254 -m 255.255.255.0 
+	$ settrans -cap /servers/socket/2 /hurd/pfinet -i /dev/eth0 -a 192.168.1.194 -g 192.168.1.254 -m 255.255.255.0 
 
 For the exact syntax,
 see the normal network setup documentation.
 The only differences here
 are the different location of the pfinet binary,
 and the different syntax for the -i option.
+
+Check Arch/Hurd recipe on git://projects.archhurd.org/packages.git
