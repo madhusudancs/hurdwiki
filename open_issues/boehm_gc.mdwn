@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2012 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -281,3 +281,43 @@ It has last been run and compared on 2010-11-10, based on CVS HEAD sources from
         Git branches (2010-12-15: last change 2009-09).
 
       * <http://www.hpl.hp.com/personal/Hans_Boehm/gc/#users>
+
+
+## IRC, OFTC, #debian-hurd, 2012-02-05
+
+[[!tag open_issue_porting]]
+
+    <pinotree> youpi: i think i found out the possible cause of the ecl and
+      mono issuess
+    <pinotree> -s
+    <youpi> oh
+    <pinotree> basically, we don't have the realtime signals (so no
+      SIGRTMIN/SIGRTMAX defined), hence things use either SIGUSR1 or
+      SIGUSR2... which are used in libgc to resp. stop/resume threads when
+      "collecting"
+    <pinotree> i just patched ecl to use SIGINFO instead of SIGUSR1 (used when
+      no SIGRTMIN+2 is available), and it seems going on for a while
+    <youpi> uh, why would SIGINFO work better than SIGUSR1?
+    <pinotree> it was a test, i tried the first "not common" signal i saw
+    <pinotree> my test was, use any signal different than USR1/2
+    <youpi> ah, sorry, I hadn't understood
+    <youpi> you mean there's a conflict between ecl and mono using SIGUSR1, as
+      well as libgc?
+    <pinotree> yes
+    <pinotree> for example, in ecl sources see src/c/unixint.d,
+      install_process_interrupt_handler()
+    <youpi> SIGINFO seems a sane choice
+    <youpi> SIGPWR could have been a better choice if it was available :)
+    <pinotree> i would have chose an "unassigned" number, say SIGLOST (the
+      bigger one) + 10, but it would be greater than _NSIG (and thus discarded)
+    <youpi> not a good idea indeed
+    <pinotree> it seems that linux, beside the range for rt signals, has some
+      "free space"
+    <pinotree> i'll start now another ecl build, from scratch this time, with
+      s/SIGUSR1/SIGINFO/ (making sure ctags won't bother), and if it works i'll
+      update svante's bug
+
+    <pinotree> mmap(...PROT_NONE...) failed
+    <pinotree> hmm...
+    <pinotree> apparently enabling MMAP_ANON in mono's libgc copy was a good
+      step, let's see

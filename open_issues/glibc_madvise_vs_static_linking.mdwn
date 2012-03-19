@@ -11,6 +11,8 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_glibc]]
 
+[[!sourceware_bug 4822]].
+
     $ echo 'int main() {}' | gcc -o /dev/null -static -x c -
     /usr/lib/gcc/i486-gnu/4.4.5/../../../libcrt.a(malloc.o): In function `_int_free':
     (.text+0xdc3): warning: warning: madvise is not implemented and will always fail
@@ -24,9 +26,22 @@ case of MADV_DONTNEED), but may influence its performance.  The kernel is free
 to ignore the advice.* (`man madvise`), so we may simply want to turn it into a
 no-op in glibc, avoiding the link-time warning.
 
-2011-07: This is what Samuel has done for Debian glibc.
-
 GCC c5db973fdab3db3e13db575e5650c0bcfd3630f4 (2011-10-17) makes use of this.
 As we now export the symbol (and `MADV_DONTNEED`, too), GCC will no longer
 `munmap` pages, but will keep them mapped for later re-use.  This may increase
 memory usage.
+
+2011-07: This is what Samuel has [done for Debian
+glibc](http://anonscm.debian.org/viewvc/pkg-glibc/glibc-package/trunk/debian/patches/hurd-i386/local-madvise_warn.diff).
+
+
+# IRC, freenode, #hurd, 2012-02-16
+
+    <tschwinge> youpi: With Roland's fix the situation will be that just using
+      gcc -static doesn't emit the stub warning, but still will do so in case
+      that the source code itself links in madvise.  Is this acceptable for
+      you/Debian/...?
+    <youpi> packages with -Werror will still bug out
+    <youpi> not that I consider -Werror to be a good idea, though :)
+    <tschwinge> youpi: Indeed.  Compiler warnings can be caused by all kinds of
+      things.  -Werror is good for development, but not for releases.

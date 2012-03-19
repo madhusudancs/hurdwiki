@@ -1,0 +1,273 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_documentation open_issue_hurd open_issue_gnumach]]
+
+
+# IRC, freenode, #hurd, 2012-02-14
+
+    <slpz> Open question: what do you think about dropping the memory object
+      model and implementing a simple block-level cache?
+
+[[microkernel/mach/memory_object]].
+
+    <kilobug> slpz: AFAIK the memory object has more purpose than just cache,
+      it's allow used for passing chunk of data between processes, handling
+      swap (which similar to cache, but still slightly different), ...
+    <slpz> kilobug: user processes usually make their way to data with POSIX
+      operations, so memory objects are only needed for mmap'ed files
+    <slpz> kilobug: and swap can be replaced for an in-kernel system or even
+      could still use the memory object
+    <braunr> slpz: memory objects are used for the page cache
+    <kilobug> slpz: translators (especially diskfs based) make heavy use of
+      memory objects, and if "user processes" use POSIX semantics, Hurd process
+      (translators, pagers, ...) shouldn't be bound to POSIX
+    <slpz> braunr: and page cache could be moved to a lower level, near to the
+      devices
+    <braunr> not likely
+    <braunr> well, it could, but then you'd still have the file system overhead
+    <slpz> kilobug: but the use of memory objects it's not compulsory, you can
+      easily write a fs translator without implementing memory objects at all
+      (except to mmap)
+    <braunr> a unified buffer/VM cache as all modern systems have is probably
+      the most efficient approach
+    <slpz> braunr: I agree. I want to look at *BSD/Linux vfs systems to seem
+      how much cache policy depends on the filesystem
+    <slpz> braunr: Are you aware of any good papers on this matter?
+    <braunr> netbsd UVM, the linux virtual memory system
+    <braunr> both a bit old bit still relevant
+    <slpz> braunr: Thanks.
+    <slpz> the problem in our case is that having FS and cache information at
+      different contexts (kernel vs. translator), I find hard to coordinate
+      them.
+    <slpz> that's why I though about a block-level cache that GNU Mach could
+      manage by itself
+    <slpz> I wonder how QNX deals with this
+    <braunr> the point of having a simple page cache is explicitely about not
+      caring if those pages are blocks or files or whatever
+    <braunr> the kernel (at least, mach) normally has all the accounting
+      information it needs to implement its cache policy
+    <braunr> file system translators shouldn't cache much
+    <braunr> the pager interface could be refined, but it looks ok to me as it
+      is
+    <slpz> Mach has the accounting info, but it's not able to purge the cache
+      without coordination with translators
+    <braunr> which is normal
+    <slpz> And this is a big problem when memory pressure increases, as it
+      doesn't know for sure when memory is going to be freed
+    <braunr> Mach flushes its cache when it decides to, and sends back dirty
+      pages if needed by the pager
+    <braunr> that's the case with every paging implementation
+    <braunr> the main difference is security with untrusted pagers
+    <braunr> but that's another issue
+    <slpz> but in a monolithic implementation, the kernel is able for force a
+      chunk of cache memory to be freed without hoping for other process to do
+      the job
+    <braunr> that's not true
+    <braunr> they're not process, they're threads, but the timing issue is the
+      same
+    <braunr> see pdflush on linux
+    <slpz> no, it isn't.
+    <braunr> when memory is scarce, threads that request memory can either wait
+      or immediately fail, and if they wait, they're usually woken by one of
+      the vm threads once flushing is done
+    <slpz> a kernel thread can access all the information in the kernel, and
+      synchronization is pretty easy.
+    <braunr> on mach, synchronization is done with messages, that's even easier
+      than shared kernel locks
+    <slpz> with processes in different spaces, resource coordination becomes
+      really difficult
+    <braunr> and what kind of info would an external pager need when simply
+      asked to take back its dirty pages
+    <braunr> what resources ?
+    <slpz> just take a look at the thread storm problem when GNU Mach needs to
+      clean a bunch of pages
+    <braunr> Mach is big enough to correctly account memory
+    <braunr> there can be thread storms on monolithic systems
+    <braunr> that's a Mach issue, not a microkernel issue
+    <braunr> that's why linux limits the number of pdflush thread instances
+    <slpz> Mach can account memory, but can't assure when be freed by any
+      means, in a lesser degree than a monolithic system
+    <braunr> again i disagree
+    <braunr> no system can guarantee when memory will be freed with paging
+    <slpz> a block level cache can, for most situations
+    <braunr> slpz: why ?
+    <braunr> slpz: or how i mean ?
+    <slpz> braunr: with a block-level page cache, GNU Mach should be able to
+      flush dirty pages directly to the underlaying device without all the
+      complexity and resource cost involved in a m_o_data_return message. It
+      can also throttle the rate at which pages are being cleaned, and do all
+      this while blocking new page allocations to deal with memory exhaustion
+      cases.
+    <slpz> braunr: in the current state, when cleaning dirty pages, GNU Mach
+      sends a bunch on m_o_data_return to the corresponding pagers, hoping they
+      will do their job as soon and as fast as possible.
+    <slpz> memory is not really freed, but transformed from page cache to
+      anonymous memory pertaining to the corresponding translator
+    <slpz> and GNU Mach never knows for sure when this memory is released, if
+      it ever is.
+    <slpz> not being able to flush dirty pages synchronously is a big problem
+      when you need to throttle memory usage
+    <slpz> and needing allocating more memory when you're trying to free (which
+      is the case for the m_o_data_return mechanism) makes the problem even
+      worse
+    <braunr> your idea of a block level cache means in kernel block drivers
+    <braunr> that's not the direction we're taking
+    <braunr> i agree flushing should be a synchronous process, which was one of
+      the proposed improvements in the thread migration papers
+    <braunr> (they didn't achieve it but thought about it for future works, so
+      that the thread at the origin of the fault would handle it itself)
+    <braunr> but it should be possible to have kernel threads similar to
+      pdflush and throttle flush requests too
+    <braunr> again, i really think it's a mach bug, and having a buffer cache
+      would be stepping backward
+    <braunr> the real design issue is allocating memory while trying to free
+      it, yes
+    <slpz> braunr: thread migration doesn't apply to asynchronous IPC, and the
+      entire paging mechanism is implemented this way
+    <slpz> in fact, trying to do a synchronous m_o_data_return will trigger a
+      deadlock for sure
+    <slpz> to achieve synchronous flushing with translators, the entire paging
+      model must be redesigned
+    <slpz> It's true that I'm not very confident of the viability of user space
+      drivers
+    <slpz> at least, not for every device
+    <slpz> I know this is against the current ideas for most ukernel designs,
+      but if we want to achieve real work functionality, I think some
+      sacrifices must be done. Or at least a reasonable compromise.
+    <braunr> slpz: thread migration for paging requests implies synchronous
+      RPC, we don't care much about the IPC layer there
+    <braunr> and it requires large changes of the VM code in addition, yes
+    <braunr> let's not talk about this, we don't have thread migration anyway
+      :p
+    <braunr> except the allocation-on-free-path issue, i really don't see how
+      the current pager interface or the page cache creates problems wrt
+      flushing ..
+    <braunr> monolithic systems also have that problem, with lower impacts
+      though, but still
+    <slpz> braunr: because as it doesn't know when memory is really freed, 1)
+      it just blindly sends a bunch of m_o_data_return to the pagers, usually
+      overloading them (causing thread storms), and 2) it can't properly
+      throttle new page requests to deal with resource exhaustion
+    <braunr> it does know when memory is really freed
+    <braunr> and yes, it blindly sends a bunch of requests, they can and should
+      be trottled
+    <slpz> but dirty pages freed become indistinguishable from common anonymous
+      chunks released, so it doesn't really know if page flushes are really
+      working or not (i.e. doesn't know how fast a device is processing write
+      requests)
+    <braunr> memory is freed when the pager deallocates it
+    <braunr> the speed of the operation is irrelevant
+    <braunr> no system can rely on disk speed to guarantee correct page flushes
+    <braunr> disk or anything else
+    <slpz> requests can't be throttled if Mach doesn't know when they are being
+      processed
+    <braunr> it can easily know it
+    <braunr> they are processed as soon as the request is sent from the kernel
+    <braunr> and processing is done when the pager acknowledges the end of the
+      flush
+    <braunr> memory backing the flushed pages should be released before
+      acknowleding that to avoid starting new requests too soon
+    <slpz> AFAIK pagers doesn't acknowledge the end of the flush
+    <braunr> well that's where the interface should be refined
+    <slpz> Mach just sends the m_o_data_return and continues on its own
+    <braunr> that's why flushing should be synrhconous
+    <braunr> are you sure about that however ?
+    <slpz> so the entire paging system needs a new design... :)
+    <slpz> pretty sure
+    <braunr> not a new design ..
+    <braunr> there is m_o_supply_completed, i don't see how difficult it would
+      be to add m_o_data_return_completed
+    <braunr> it's not a small change, but not a difficult one either
+    <braunr> i'm more worried about the allocation problem
+    <braunr> the default pager should probably be wired in memory
+    <braunr> maybe others
+    <slpz> let's suppose a case in which Mach needs to free memory due to an
+      increase in its pressure. vm_pageout_daemon starts running, clean pages
+      are freed easily, but for each dirty one a m_o_data_return in sent. 1)
+      when should this daemon stop sending m_o_data_return and start waiting
+      for m_o_data_return_completed? 2) what happens if the translator needs to
+      read new blocks to fulfill a write request (pretty common in ext2fs)?
+    <braunr> it should stop after an arbitrary limit is reached
+    <braunr> a reasonable one
+    <braunr> linux limits the number of pdflush threads for that reason as i
+      mentioned (to 8 iirc)
+    <braunr> the problem of reading blocks while flushing is what i'm worried
+      about too, hence the need to wire that code
+    <braunr> well, i'm nto sure it's needed
+    <braunr> again, a reasonable about of free memory should be reserved for
+      that at all times
+    <slpz> but the work for pdflush seems to be a lot easier, as it only deals
+      directly with block devices (if I understood it correctly, I just started
+      looking at it).
+    <braunr> i don't know how other systems compute that, but this is how they
+      seem to do as well
+    <braunr> no, i don't think so
+    <slpz> well, I'll try to invest a few days understanding how pdflush work,
+      to see if some ideas can be borrowed for Hurd
+    <braunr> iirc, freebsd has thresholds in percent for each part of its cache
+      (active, inactive, free, dirty)
+    <slpz> but I still think simple solutions work better, and using the memory
+      object for page cache is tremendously complex.
+    <braunr> the amount of free cache pages is generally sufficient to
+      guarantee much memory can be released at once if needed, without flushing
+      anything
+    <braunr> yes but that's the whole point of the Mach VM
+    <braunr> and its greatest advance ..
+    <slpz> what, memory objects?
+    <braunr> yes
+    <braunr> using physical memory as a cache for anything, not just block
+      buffers
+    <slpz> memory objects work great as a way to provide a shared image of
+      objects between processes, but as page cache they are an overkill (IMHO).
+    <slpz> or, at least, in the way we're using them
+    <braunr> probably
+    <braunr> http://lwn.net/Articles/326552/
+    <braunr> this can help udnerstand the problems we may have without better
+      knowledge of the underlying devices, yes
+    <braunr> (e.g. not being able to send multiple requests to pagers that
+      don't share the same disk)
+    <braunr> slpz: actually i'm not sure it's that overkill
+    <braunr> the linux vm uses struct vm_file to represent memory objects iirc
+    <braunr> there are many links between that structure and some vfs related
+      subsystems
+    <braunr> when a system very actively uses the page cache, the kernel has to
+      maintain a lot of objects to accurately describe the cache content
+    <braunr> you could consider this overkill at first too
+    <braunr> the mach way of doing it just implies some ipc messages instead of
+      function calls, it's not that overkill for me
+    <braunr> the main problems are recursion (allocation while freeing,
+      handling page faults in order to handle flushes, that sort of things)
+    <braunr> struct file and struct address_space actually
+    <braunr> slpz: see struct address_space, it contains a set of function
+      pointers that can help understanding the linux pager interface
+    <braunr> they probably sufferred from similar caveats and worked around
+      them, adjusting that interface on the way
+    <slpz> but their strategy makes them able to treat the relationship between
+      the page cache and the block devices in a really simple way, almost as a
+      traditional storage cache.
+    <slpz> meanwhile on Mach+pager scenario, the relationship between a block
+      in a file and its underlying storage becomes really blurry
+    <slpz> this is a huge advantage when flusing out data, specially when
+      resources are scarce
+    <slpz> I think the idea of using abstract objects for page cache, loses a
+      bit the point that we just want to avoid accessing constantly to a slow
+      device
+    <slpz> and breaking the tight relationship between the device and its
+      cache, makes things a lot harder
+    <slpz> this also manifest itself when flushing clean pages, as things like
+      having an static maximum for cached memory objects
+    <slpz> we shouldn't care about the number of objects, we just need to
+      control the number of pages
+    <slpz> but as we need the pager to flush pages, we need to keep alive a lot
+      of control ports to them
+    <mcsim> slpz: When mo_data_return is called, once the memory manager no
+      longer needs supplied data, it should be deallocated using
+      vm_deallocate. So this way pagers acknowledges the end of flush.

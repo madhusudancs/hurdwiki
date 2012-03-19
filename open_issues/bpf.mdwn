@@ -440,3 +440,125 @@ This is a collection of resources concerning *Berkeley Packet Filter*s.
     <braunr> hm, there is a "snoop" source type, using raw sockets
     <braunr> too far from the packet source, but i'll try it anyway
     <braunr> hm wrong, snoop was the solaris packet filter fyi
+
+
+## IRC, freenode, #hurd, 2012-01-28
+
+    <braunr> nice, i have tcpdump working :)
+    <braunr> let's see if it's as simple with wireshark
+    <pinotree> \o/
+    <braunr> pinotree: it was actually very simple
+    <pinotree> heh, POV ;)
+    <braunr> yep, wireshark works too
+    <braunr> promiscuous mode is harder to test :/
+    <braunr> but that's a start
+
+
+## IRC, freenode, #hurd, 2012-01-30
+
+    <braunr> ok so next step: get tcpreplay working
+    <antrik> braunr: BTW, when you checked the status of the kernel BPF code,
+      did you take zhengda's enhancements/fixes into account?...
+    <braunr> no
+    <braunr> when did i check it ?
+    <antrik> braunr: well, you said the kernel BPF code has serious
+      shortcomings. did you take zhengda's changes into account?
+    <braunr> antrik: ah, when i mention the issues, i considered the userspace
+      translator only
+    <braunr> antrik: and stuff like non blocking io, exporting a selectable
+      file descriptor
+    <braunr> antrik: deb http://ftp.sceen.net/debian-hurd experimental/
+    <braunr> antrik: this is my easy to use repository with a patched
+      libpcap0.8
+    <braunr> and a small and unoptimized pcap-hurd.c module
+    <braunr> it doesn't use devopen yet
+    <braunr> i thought it would be better to have packet filtering working
+      first as a debian patch, then get the new translator+final patch upstream
+    <jkoenig> braunr, tcpdump works great here (awesome!). I'm probably using
+      exactly the same setup and "hardware" as you do, though :-P
+
+
+## IRC, freenode, #hurd, 2012-01-31
+
+    <braunr> antrik: i tend to think we need a bpf translator, or anything
+      between the kernel and libpcap to provide selectable file descriptors
+    <braunr> jkoenig: do you happen to know how mach_msg (as called in a
+      hello.c file without special macros or options) deals with signals ?
+    <braunr> i mean, is it wrapped by the libc in a version that sets errno ?
+    <jkoenig> braunr: no idea.
+    <pinotree> braunr: what's up with it? (not that i have an idea about your
+      actual question, just curious)
+    <braunr> pinotree: i'm improving signal handling in my pcap-hurd module
+    <braunr> i guess checking for MACH_RCV_INTERRUPTED will dio
+    <braunr> -INFO is correctly handled :)
+    <braunr> ok new patch seems fine
+    <antrik> braunr: selectable file descriptors?
+    <braunr> antrik: see pcap_fileno() for example
+    <braunr> it returns a file descriptor matching the underlying object
+      (usually a socket) that can be multiplexed in a select/poll call
+    <braunr> obviously a mach port alone can't do the job
+    <braunr> i've upgraded the libpcap0.8 package with improved signal handling
+      for tests
+    <antrik> braunr: no idea what you are talking about :-(
+
+
+## IRC, freenode, #hurd, 2012-02-01
+
+    <braunr> antrik: you do know about select/poll
+    <braunr> antrik: you know they work with multiple selectable/pollable file
+      descriptors
+    <braunr> on most unix systems, packet capture sources are socket
+      descriptors
+    <braunr> they're selectable/pollable
+    <antrik> braunr: what are packet capture sources?
+    <braunr> antrik: objects that provide applications with packets :)
+    <braunr> antrik: a PF_PACKET socket on Linux for example, or a Mach device,
+      or a BPF file descriptor on BSD
+    <antrik> for a single network device? or all of them?
+    <antrik> AIUI the userspace BPF implementation in libpcap opens this
+      device, waits for packets, and if any arrive, decides depending on the
+      rules whether to pass them to the main program?
+    <braunr> antrik: that's it, but it's not the point
+    <braunr> antrik: the point is that, if programs need to include packet
+      sources in select/poll calls, they need file descriptors
+    <braunr> without a translator, i can't provide that
+    <braunr> so we either decide to stick with the libpcap patch only, and keep
+      this limitation, or we write a translator that enables this feature
+    <pinotree> braunr: are the two options exclusive?
+    <braunr> pinotree: unless we implement a complete bpf translator like i did
+      years ago, we'll need a patch in libpcap
+    <braunr> pinotree: the problem with my early translator implementation is
+      that it's buggy :(
+    <braunr> pinotree: and it's also slower, as packets are small enough to be
+      passed through raw copies
+    <antrik> braunr: I'm not sure what you mean when talking about "programs
+      including packet sources". programs only interact with packet sources
+      through libpcap, right?
+    <antrik> braunr: or are you saying that programs somehow include file
+      descriptors for packet sources (how do they obtain them?) in their main
+      loop, and explicitly pass control to libpcap once something arrives on
+      the respecitive descriptors?
+    <braunr> antrik: that's the idea, yes
+    <antrik> braunr: what is the idea?
+    <braunr> 20:38 < antrik> braunr: or are you saying that programs somehow
+      include file descriptors for packet sources (how do they obtain them?) in
+      their main loop, and explicitly pass control to libpcap once something
+      arrives on the respecitive descriptors?
+    <antrik> braunr: you didn't answer my question though :-)
+    <antrik> braunr: how do programs obtain these FDs?
+    <braunr> antrik: using pcap_fileno() for example
+
+
+## IRC, freenode, #hurd, 2012-02-02
+
+    <antrik> braunr: oh right, you already mentioned that one...
+    <antrik> braunr: so you want some entity that exposes the device as
+      something more POSIXy, so it can be used in standard FS calls, unlike the
+      Mach devices used for pfinet
+    <antrik> this is probably a good sentiment in general... but I'm not in
+      favour of a special solution only for BPF. rather I'd take this as an
+      indication that we probably should expose network interfaces as something
+      file-like in general after all, and adapt pfinet, eth-multiplexer, and
+      DDE accordingly
+    <braunr> antrik: i agree
+    <braunr> antrik: eth-multiplexer would be the right place

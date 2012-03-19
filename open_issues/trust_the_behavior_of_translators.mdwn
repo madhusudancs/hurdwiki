@@ -1,0 +1,181 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+Apart from the issue of [[translators_set_up_by_untrusted_users]], here is
+another problem described.
+
+
+# IRC, freenode, #hurd, 2012-02-17
+
+(Preceded by the [[memory_object_model_vs_block-level_cache]] discussion.)
+
+    <slpz> what should do Mach with a translator that doesn't clean pages in a
+      reasonable amount of time?
+    <slpz> (I'm talking about pages flushed to a pager by the pageout daemon)
+    <braunr> slpz: i don't know what it should do, but currently, it uses the
+      default pager
+
+[[default_pager]].
+
+    <slpz> braunr: I know, but I was thinking about an alternative, for the
+      case in which a translator in not behaving properly
+    <slpz> perhaps freeing the page, removing the map, and letting it die in a
+      segmentation fault could be an option
+    <braunr> slpz: what if the translator can't do it properly because of
+      system resource exhaustion ?
+    <braunr> (i.e. it doesn't have enough cpu time)
+    <slpz> braunr: that's the biggest question
+    <slpz> let's suppose that Mach selects a page, sends it to the pager for
+      cleaning it up, reinjects the page into the active queue, and later it
+      founds the page again and it's still dirty
+    <slpz> but it needs to free some pages because memory it's really, really
+      scarce
+    <slpz> Linux just sits there waiting for I/O completion for that page
+      (trusts its own drivers)
+    <slpz> but we could be dealing with rogue translator...
+    <braunr> yes
+    <braunr> we may need some sort of "authentication" mechanism for pagers
+    <braunr> so that "system pagers" are trusted and others not
+    <braunr> using something like the device master port but for pagers
+    <braunr> a special port passed to trusted pagers only
+    <slpz> hum... that could be used to workaround the untrusted translator
+      crossing problem while walking a directory tree
+
+[[translators_set_up_by_untrusted_users]].
+
+    <slpz> but I think differentiating between trusted and untrusted
+      translators was rejected for philosophical reasons
+    <slpz> (but I'm not sure)
+    <mcsim> slpz: probably there should be something like oom killer?
+    <mcsim> braunr: even if translator is trusted it could have a bug which
+      make it ask more and more memory, so system have something to do with
+      it. Also, this way TCB is increased, so providing port for trusted
+      translators may hurt security.
+    <mcsim> I've read that Genode has "guarded allocators" which help resource
+      accounting by limiting of memory that could be used. Probably something
+      like this could be used in Hurd to limit translators.
+    <antrik> I don't remember how Viengoos deals with this :-(
+
+[[microkernel/Viengoos]].
+
+    <braunr> mcsim: the main feature lacking in mach is resource accounting :p
+
+[[resource_management_problems]].
+
+    <slpz> mcsim: yes, I think there should be a Hurdish oom killer, paying
+      special attention to external pagers
+
+[[microkernel/mach/external_pager_mechanism]].
+
+    <braunr> the oom killer selects untrusted processes by definition (since
+      pagers are in kernel)
+    <mcsim> slpz: and what is better: oom killer or resource accounting?
+    <mcsim> Under resource accounting I mean mechanism when process can't get
+      more resources than it is allowed.
+    <braunr> resource accounting of course
+    <braunr> but it's not just about that
+    <braunr> really, how does the kernel deal when a pager refuses to honor a
+      paging request ?
+    <braunr> whether it is buggy or malicious
+    <braunr> is it really possible to keep all pagers out of the TCB ?
+    <antrik> mcsim: we definitely want proper resource accounting in the long
+      run. the question is how to deal with the situation that resources are
+      reallocated to other tasks, so some pages have to be freed
+    <antrik> I really don't remember how Neal proposed to deal with this
+    <slpz> mcsim: Better: resource accounting (in which resources are accounted
+      to the user tasks which are requesting them, as in the Viengoos
+      model). Good enough an realistic: oom killer
+    <antrik> I'm not sure an OOM killer for non-system pagers is terribly
+      helpful. in typical use, the vast majority of paging is done by trusted
+      pagers...
+    <antrik> and without proper client resource accounting, there are enough
+      other ways a rogue/broken process can eat system resources -- I'm not
+      convinced that untrusted pagers have a major impact on the overall
+      situation
+    <mcsim> If pager can't free resources because of lack, for example, of cpu
+      time it's priority could be increased to give it second chance to free
+      the page. But if it doesn't manage to free resources it could be killed.
+    <antrik> I think the current approach with default pager taking over is
+      good enough for dealing with untrusted pagers. the real problem are even
+      trusted pager frequently failing to deal with the requests
+    <braunr> i agree with antrik
+    <braunr> and i'm opposed to an oom killer
+    <braunr> it's really not a proper fix for our problems
+    <braunr> mcsim: what if needs 3 attempts before succeeding ?
+    <braunr> +it
+    <braunr> and increasing priority without a good reason (e.g. no priority
+      inversion) leads to unfairness
+    <braunr> we don't want to deal with tricky problems like malicious pagers
+      using that to starve other tasks
+    <mcsim> braunr: this is just temporary decision (for example for half of
+      second of user time), to increase probability that task was killed not
+      because of it lacked resources.
+    <braunr> mcsim: tunables should only affect the efficiency of an operation,
+      not its success
+
+
+## IRC, freenode, #hurd, 2012-02-19
+
+    <antrik> neal: the specific question is how to ensure processes free memory
+      fast enough when their allocation becomes lower due to resource pressure
+    <neal> antrik: you can't really.
+    <neal> antrik: the memory manager can act on the application's behalf if
+      the application marks pages as discardable or pagable.
+    <neal> antrik: if the memory manager makes an upcall to the application to
+      free some memory and it doesn't, you have to penalize it.
+    <neal> antrik: You shouldn't the process like exokernel
+    <neal> antrik: It's the developers fault, not the user's
+    <neal> antrik: What you need are controls that ensure that the user stays
+      in control
+    <neal> ...shouldn't *kill* the process...
+    <antrik> neal: well, how can I penalize a process that eats to much
+      physical memory?
+    <neal> in the future, you don't give it as much slack memory
+    <antrik> marking as pagable means a system pager will push them to the swap
+      partition?
+    <antrik> ah, OK
+    <neal> yes
+    <neal> and you page it more aggressively, i.e., you don't give it a chance
+      to free memory
+    <neal> The situation is:
+    <neal> you have memory pressure
+    <neal> you choose a victim process and ask it to free memory
+    <neal> now, you need to wait
+    <neal> if you wait and it doesn't free memory, you give it bad karma
+    <neal> if you wait and it frees memory, you're good
+    <neal> but during that window, a bad process can delay recovery
+    <neal> so, in the future, we give bad processes less time
+    <neal> but, we still send a message asking it to free memory
+    <neal> we just hope it was a bug
+    <antrik> so the major difference to the approach we have in Mach is that
+      instead of just redeclaring some pages as anonymous memory that will be
+      paged to swap by the default pager eventually if the pager in question
+      fails to handle them properly, we wait some time for the process to free
+      (any) memory, and only then start paging out some of it's pages to swap
+    <neal> there's also discardable memory
+    <antrik> hm... there is some notion of "precious" pages in Mach... I wonder
+      whether that is also used to decide about discarding pages instead of
+      pushing them to swap?
+    <neal> antrik: A precious page is ro data that shouldn't be dropped
+    <antrik> ah
+    <antrik> but I guess that means non-precious RO data (such as a cache) can
+      be dropped without asking the pager, right?
+    <neal> yes
+    <antrik> I wonder whether such a karma system can be introduced in Mach as
+      well to deal with problematic pagers
+
+
+## IRC, freenode, #hurd, 2012-02-21
+
+    <neal> antrik: One of the main differences between Mach and Viengoos is
+      that in Mach servers are responsible for managing memory whereas in
+      Viengoos applications are primarily responsible for managing memory.

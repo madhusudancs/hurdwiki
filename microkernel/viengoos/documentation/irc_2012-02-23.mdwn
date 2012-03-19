@@ -1,0 +1,159 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="IRC, freenode, #hurd, 2012-02-23"]]
+
+[[!tag open_issue_documentation open_issue_viengoos]]
+
+    <braunr> neal: i've read a bit about current modern microkernel based
+      systems, and i'm wondering
+    <braunr> neal: can a capability be used for both request and replies, or
+      does messaging need something similar to reply ports ?
+    <neal> braunr: you want a reply port
+    <neal> think about a file server:
+    <neal> the file server publishes a capability to access something
+    <neal> and multiple entities use it
+    <neal> if you wanted just bidirectional caps
+    <braunr> that's the idea i had in mind, i just wondered if it was actually
+      still the case in practice
+    <neal> you'd need to create a new capability every time you delegated the
+      cap
+    <braunr> yes
+    <braunr> thanks
+    <braunr> what about send once rights ?
+    <neal> also, if you send on a cap and then start waiting on it you could
+      get your own reply :)
+    <neal> you can get around send-once rights by using a counter
+    <braunr> no i mean, is their behaviour still needed/useful ?
+    <neal> the counter is kernel implemented
+    <neal> yes
+    <neal> as an optimization
+    <braunr> so they're just a special case of capability
+    <neal> yes
+    <braunr> not a special capability type of their own
+    <neal> but they eliminate the constant create/destroy sequence
+    <braunr> (even if it was already the case at the implementation level in
+      mach, they were named separately which could confuse people)
+    <braunr> hm
+    <braunr> actually, send once rights were used for important notifications
+      such as dead port notifications
+    <braunr> is this still handled at the kernel level in modern ukernels ?
+    <neal> in viengoos, this is called the version field
+    <neal> see chapter 2
+    <neal>
+      http://www.gnu.org/software/hurd/microkernel/viengoos/documentation/reference-guide.pdf
+    <braunr> neal: btw, congratulations for viengoos, it really is a very
+      interesting project: )
+    <neal> thanks
+    <braunr> i don't see the point of rewriting a mach clone after reading
+      about it eh
+    <neal> I would definately do the messenger concept again
+    <neal> but I'd not do persistence
+    <braunr> i don't fully understand how messengers deal with blocking
+    <neal> did you read chapter 4?
+    <braunr> i read all of it but didn't understand everything :)
+    <braunr> it's quite abstract and i didn't make time to read some of the
+      source code
+    <neal> If you have specific questions, I can try to help
+    <braunr> i'll read those chapter again and formulate my questions after
+    <neal> I may have to read them as well :)
+    <braunr> i don't understand how you manage to separate IPC from threading
+      actually
+    <braunr> are messengers queues ?
+    <neal> messengers are super-buffers
+    <neal> they contain a reference to a thread object
+    <neal> to send a message, I use a messenger
+    <neal> I put the data in a buffer
+    <neal> and then I attach the messenger to the target messenger
+    <antrik> braunr: my stance is that we should try to incorporate the ideas
+      from Viengoos into Mach in an evolutionary process...
+    <neal> this causes an activation to be sent to the target messenger's
+      thread object
+    <braunr> neal: which activation ?
+    <neal> an activation is like a CPU interrupt
+    <braunr> neal: is it "allocated" at that moment, or taken from the sending
+      thread ?
+    <braunr> (i'm not sure my question really makes sense to you :/)
+    <antrik> braunr: not sure what you are asking exactly; but the basic idea
+      is that the receiving process preallocates message buffers
+    <braunr> antrik: maybe, i'm not sure
+    <antrik> when someone sends a message, it's stored in one of these buffers,
+      and the process gets a scheduler activation, so it can decide what to do
+      with it
+    <neal> antrik is right
+    <neal> the traget messenger designates a memory buffer
+    <braunr> i'm wondering about the details of this activation
+    <braunr> is it similar to thread migration ?
+    <neal> just before the activation, the data is copied to the messenger's
+      buffer
+    <neal> now someone needs to be notified
+    <neal> (that a message arrived)
+    <neal> that someone is the thread designated in the target messenger's
+      thread field
+    <neal> this is done by an activation
+    <neal> an activation is just an upcall
+    <neal> a thread is forced to a particular IP
+    <neal> an activation isn't a "what" it's a "how"
+    <neal> I never understood thread migration
+    <neal> as it's not really about threads
+    <neal> nor it is about migration
+    <antrik> neal: what happens if another message comes in before the
+      activation handling tread is done with the previous one?...
+    <neal> the messenger is enqueued on the thread object
+    <neal> it is delivered when the thread is in normal mode
+    <neal> part of delivering an activation is putting the thread is activation
+      mode
+    <neal> when in activation mode, it can't receive any activations
+    <braunr> i see
+    <braunr> but then, when a thread receives an activation, does it handle
+      several queued messengers at once (not to loose events/messages) ?
+    <neal> (unless it does a blocking receive on a particular messenger, which
+      is necessary to support memory allocation in activated mode)
+    <neal> it handles one at a time
+    <braunr> ah right
+    <neal> it can't lose events
+    <braunr> activations are sent per messengers/events
+    <neal> well, it can
+    <neal> but it is possible to prevent this
+    <braunr> neal: also, is message passing completely atomic ?
+    <neal> I'm not sure what you mean
+    <neal> which part
+    <braunr> well, all parts of a message :)
+    <braunr> in mach, a message can contain several parts
+    <braunr> data, rights, passing one of them may fail
+    <braunr> only the header is atomically processed
+    <neal> it's not atomic in the sense that a thread can observe the data copy
+    <braunr> that's not what i meant
+    <braunr> is a message completely transferred or not at all in case of
+      failure ?
+    <neal> it may be partially transferred
+    <braunr> or can it be partially transferred
+    <braunr> ok
+    <neal> for instance, if the target thread doesn't provide a memory buffer
+    <neal> then the data can't be copied
+    <neal> I don't recall off hand how I dealt with bad addresses
+    <neal> may be it is not possible
+    <neal> I don't remember
+    <neal> sorry
+    <braunr> but if i read the message structure correctly, there can be one
+      data block, and several capability addresses in a single message, right ?
+    <neal> yes
+    <braunr> ok
+    <braunr> have you considered passing only one object (either data or
+      capability) per message ?
+    <braunr> or is it too inefficient ?
+    <neal> you at least need a reply port
+    <neal> s/port/messenger/
+    <braunr> yes but can't it be passed separately ?
+    <neal> then you have server state
+    <neal> ik
+    <braunr> hm yes
+    <braunr> thanks for your answers: )
+    <neal> no problem
