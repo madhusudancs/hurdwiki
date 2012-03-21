@@ -1,0 +1,82 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+There are two implementations of `mmap` for GNU Hurd:
+`sysdeps/mach/hurd/mmap.c` (main implementation) and
+`sysdeps/mach/hurd/dl-sysdep.c` (*Minimal mmap implementation sufficient for
+initial loading of shared libraries.*).
+
+  * `MAP_COPY`
+
+    What exactly is that?  `elf/dl-load.c` has some explanation.
+    <http://lkml.indiana.edu/hypermail/linux/kernel/0110.1/1506.html>
+
+    It is only handled in `dl-sysdep.c`, when `flags & (MAP_COPY|MAP_PRIVATE)`
+    is used for `vm_map`'s `copy` parameter, and `mmap.c` uses `! (flags &
+    MAP_SHARED)` instead.
+
+
+# `io_map` Failure
+
+[[libnetfs: `io_map`|open_issues/libnetfs_io_map]] issue.
+
+[[!tag open_issue_glibc]]
+
+Review of `mmap` usage in generic bits of glibc, based on
+a1bcbd4035ac2483dc10da150d4db46f3e1744f8 (2012-03-11), listing these cases
+where failure (due to `io_map` failing; that is, invocations where a `fd` is
+passed) is not properly handled.
+
+`catgets/open_catalog.c`, `iconv/gconv_cache.c`, `intl/loadmsgcat.c`,
+`locale/loadlocale.c` have fallback code for the `MAP_FAILED` case.
+
+[[tschwinge]]'s current plan is to make the following cases do the same (if
+that is possible); probably by introducing a generic `mmap_or_read` function,
+that first tries `mmap` (and that will succeed on Linux-based systems and also
+on Hurd-based, if it's backed by [[hurd/libdiskfs]]), and if that fails tries
+`mmap` on anonymous memory and then fills it by `read`ing the required data --
+but this would probably means all :-/ `PT_LOAD` segments for the ELF case?  In
+parallel, it should be researched how Linux (or any other kernel) implements
+`mmap` on NFS and similar file systems, and then implement the same in
+[[hurd/libnetfs]]/[[hurd/translator/nfs]].
+
+  * `elf/cache.c`
+
+  * `elf/dl-load.c`
+
+  * `elf/dl-misc.c`
+
+  * `elf/dl-profile.c`
+
+  * `elf/readlib.c`
+
+  * `elf/sprof.c`
+
+  * `locale/loadarchive.c`
+
+  * `locale/programs/locale.c`
+
+  * `locale/programs/locarchive.c`
+
+  * `nscd/connections.c`
+
+  * `nscd/nscd_helper.c`
+
+  * `nss/makedb.c`
+
+  * `nss/nss_db/db-open.c`
+
+  * Omitted:
+
+      * `nptl/`
+
+      * `sysdeps/unix/sparc/`
+
+      * `sysdepts/unix/sysv/linux/`
