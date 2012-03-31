@@ -49,6 +49,12 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
         `t/dup3`: hidden def.  ed690b2f24bbc4d9c541fc81a7c67e6dc5678a96 -- why
         not for dup3, too?  Because it is a syscall (that is always inlined)?
 
+  * `t/hurdsig-fixes`
+
+        hurdsig.c: In function '_hurd_internal_post_signal':
+        hurdsig.c:1188:26: warning: 'pending' may be used uninitialized in this function [-Wmaybe-uninitialized]
+        hurdsig.c:1168:12: note: 'pending' was declared here
+
   * `t/init-first.c`
 
     Follow up here: [[!message-id "20070722171859.GN25744@fencepost.gnu.org"]]
@@ -61,6 +67,15 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
     Before running `tg update`, review for additional changes:
 
         $ git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc -S__ASSUME_ top-bases/t/kernel-features.h_includes..baseline
+
+  * `t/sysvshm`
+
+        ../sysdeps/mach/hurd/shmat.c: In function '__shmat':
+        ../sysdeps/mach/hurd/shmat.c:57:7: warning: implicit declaration of function '__close' [-Wimplicit-function-declaration]
+        ../sysdeps/mach/hurd/shmget.c: In function 'get_exclusive':
+        ../sysdeps/mach/hurd/shmget.c:85:8: warning: variable 'is_private' set but not used [-Wunused-but-set-variable]
+        ../sysdeps/mach/hurd/shmget.c:102:8: warning: 'dir' may be used uninitialized in this function [-Wmaybe-uninitialized]
+        ../sysdeps/mach/hurd/shmget.c:102:8: warning: 'file' may be used uninitialized in this function [-Wmaybe-uninitialized]
 
   * [[`t/tls`|t/tls]]
 
@@ -127,6 +142,8 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
 
   * `elf/stackguard-macros.h`
 
+    See [[t/tls|t/tls]].
+
   * Verify 77c84aeb81808c3109665949448dba59965c391e against
     `~/shared/glibc/make_TAGS.patch`.
 
@@ -135,7 +152,32 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
   * Unify `CPUCLOCK_WHICH` stuff in `clock_*` files.
 
   * Not all tests are re-run in a `make -k tests; make tests-clean; make -k
-    tests` cycle.
+    tests` cycle.  For example, after `make tests-clean`:
+
+        $ find ./ -name \*.out
+        ./localedata/tst-locale.out
+        ./localedata/sort-test.out
+        ./localedata/de_DE.out
+        ./localedata/en_US.out
+        ./localedata/da_DK.out
+        ./localedata/hr_HR.out
+        ./localedata/sv_SE.out
+        ./localedata/tr_TR.out
+        ./localedata/fr_FR.out
+        ./localedata/si_LK.out
+        ./localedata/tst-mbswcs.out
+        ./iconvdata/iconv-test.out
+        ./iconvdata/tst-tables.out
+        ./stdlib/isomac.out
+        ./posix/wordexp-tst.out
+        ./posix/annexc.out
+        ./posix/tst-getconf.out
+        ./elf/check-textrel.out
+        ./elf/check-execstack.out
+        ./elf/check-localplt.out
+        ./c++-types-check.out
+        ./check-local-headers.out
+        ./begin-end-check.out
 
   * `CPUCLOCK_WHICH`, `t/cpuclock`
 
@@ -209,6 +251,8 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
         Then define `_POSIX_MAPPED_FILES`, `_POSIX_SYNCHRONIZED_IO`.
 
       * `sys/epoll.h`
+
+        Used by [[wayland]], for example.
 
       * `sys/eventfd.h`
 
@@ -392,8 +436,11 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
       * a7c8e6a1478de9f990b11e5e853318ccbe4330f2 (`Fix invalid conversion in
         __cmsg_nxthdr`).  Probably just a C++ thing and not relevant for us;
         see [[!message-id "87r52nk1kx.fsf@kepler.schwinge.homeip.net"]].
+      * [low] `mmap`, 110946e473b38fc3896212e416d9d7064fecd5b7.  Kosher with
+        respect to our [[glibc/mmap]] peculiarities?
       * [high] `__ctype_init`, fd5bdc0924e0cfd1688b632068c1b26f3b0c88da.
-        Probably need to mirror `init-first.c` change.
+        [[!message-id "878vigbgup.fsf@schwinge.name"]].
+      * *baseline*
       * [high] `__attribute__ ((__leaf__))`, `BZ #13344`,
         aa78043a4aafe5db1a1a76d544a833b63b4c5f5c +
         49a43d80ec5c97cf6136b1ee2687414773b2d5aa +
@@ -425,7 +472,7 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-d740cf9d201dc9ecb0335b0a585828dea9cce793 (2011-10-25)
+005b7594ffe209639dd1ef2b9ed9a4c22307dec1 (2012-03-31; 2011-10-08)
 sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -621,20 +668,9 @@ There is quite a baseline of failures.
 
         tst-mktime2.c:132: error: 'INT_MAX' undeclared (first use in this function)
 
-  * `io/tst-readlinkat`
-
-        /media/erich/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker/io/tst-readlinkat.c:109: warning: warning: readlinkat is not implemented and will always fail
-
   * `gmon/tst-sprofil`
 
         Floating point exception
-
-  * `posix/tst-sysconf`
-
-        tst-sysconf.c:32: error: '_POSIX_PRIORITIZED_IO' undeclared here (not in a function)
-        tst-sysconf.c:33: error: '_POSIX_PRIORITY_SCHEDULING' undeclared here (not in a function)
-        tst-sysconf.c:43: error: '_POSIX_SPIN_LOCKS' undeclared here (not in a function)
-        tst-sysconf.c:45: error: '_POSIX_SYNCHRONIZED_IO' undeclared here (not in a function)
 
   * `posix/bug-regex31-mem`, `posix/tst-fnmatch-mem`
 
@@ -659,6 +695,19 @@ There is quite a baseline of failures.
     Only with GCC 4.4; no longer with 4.5 or 4.6:
 
         /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486/elf/tst-unique3lib.os:(.data.DW.ref.__gxx_personality_v0[DW.ref.__gxx_personality_v0]+0x0): undefined reference to `__gxx_personality_v0'
+
+  * `math/test-fenv.out`
+
+    Used to fail (is listed in Debian eglibc-2.13-21's
+    `expected-results-i486-gnu-libc`), but something between
+    22bcba37dd3b782b1a1ec7bf51da468e48f4d2eb and
+    005b7594ffe209639dd1ef2b9ed9a4c22307dec1 causes it to passe -- very likely
+    Jérémie's signaling work.
+
+  * `posix/tst-waitid.out`
+
+    Fails sometimes (is listed in Debian eglibc-2.13-21's
+    `expected-results-i486-gnu-libc`).
 
 
 ## OLD
