@@ -438,8 +438,7 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
         see [[!message-id "87r52nk1kx.fsf@kepler.schwinge.homeip.net"]].
       * [low] `mmap`, 110946e473b38fc3896212e416d9d7064fecd5b7.  Kosher with
         respect to our [[glibc/mmap]] peculiarities?
-      * *baseline*
-      * [high] `__attribute__ ((__leaf__))`, `BZ #13344`,
+      * [OK] `__attribute__ ((__leaf__))`, `BZ #13344`,
         aa78043a4aafe5db1a1a76d544a833b63b4c5f5c +
         49a43d80ec5c97cf6136b1ee2687414773b2d5aa +
         3871f58f065dac3917eb18220a479e9591769c8c +
@@ -448,6 +447,7 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
         edc5984d4d18296d7aa3d8f4ed8f7336a743170e +
         57769839788e2c62b68d9dfbf4b35052321278ba.
         <http://gcc.gnu.org/onlinedocs/gcc/Function-Attributes.html>.
+      * *baseline*
       * [low] implement `timespec_get`,
         74033a2507841cf077e31221de2481ff30b43d51.
       * [low] `__volatile`, `BZ #13553`,
@@ -470,13 +470,8 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-005b7594ffe209639dd1ef2b9ed9a4c22307dec1 (2012-03-31; 2011-10-08)
-sources|source_repositories/glibc]] plus
-b468825a053aed4db613f06ea88f94008bbf3472,
-95584d3b3309ff4da4cc458254df383f5cff044b,
-1f1e194720177de3cbc2a84bc62d22e63cb23d4a, [[!message-id
-"878vigbgup.fsf@schwinge.name"]], [[!message-id
-"87r4w69ewa.fsf@schwinge.name"]] run on coulomb.SCHWINGE.
+53c567c28dd36d213af2ef604c4ed7b782e639bf (2012-04-03; 2011-12-30)
+sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
     $ export LC_ALL=C
     $ ../Roger_Whittaker/configure AUTOCONF=: --prefix=/usr --disable-profile --disable-multi-arch --build=i486-gnu --host=i486-gnu CC=gcc-4.4 CXX=g++-4.4 2>&1 | tee log_build
@@ -538,6 +533,57 @@ TODO.
         sysdeps/mach/hurd/ioctl.c:177: warning: case value '0' not in enumerated type 'error_t'
         sysdeps/mach/hurd/ioctl.c: In function '__ioctl':
         sysdeps/mach/hurd/ioctl.c:306: warning: case value '0' not in enumerated type 'error_t'
+
+  * baseline
+    fd5bdc0924e0cfd1688b632068c1b26f3b0c88da..2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b
+    introduces:
+
+        genops.c: In function '_IO_flush_all_lockp':
+        genops.c:869:3: warning: passing argument 1 of '__save_FCT' makes pointer from integer without a cast [enabled by default]
+        genops.c:869:3: note: expected 'void *' but argument is of type 'int'
+
+    A similar warning has already been (and still is) seen here:
+
+        dl-iteratephdr.c:83:3: warning: passing argument 1 of '__save_FCT' makes pointer from integer without a cast [enabled by default]
+        dl-iteratephdr.c:83:3: note: expected 'void *' but argument is of type 'int'
+
+  * baseline
+    fd5bdc0924e0cfd1688b632068c1b26f3b0c88da..2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b
+    (or probably Samuel's mmap backport) introduces:
+
+        ../sysdeps/mach/hurd/mmap.c: In function '__mmap':
+        ../sysdeps/mach/hurd/mmap.c:54:15: warning: comparison between pointer and integer [enabled by default]
+        ../sysdeps/mach/hurd/mmap.c:66:21: warning: comparison between pointer and integer [enabled by default]
+        ../sysdeps/mach/hurd/mmap.c:143:13: warning: comparison between pointer and integer [enabled by default]
+        ../sysdeps/mach/hurd/mmap.c:165:24: warning: comparison between pointer and integer [enabled by default]
+
+  * baseline
+    fd5bdc0924e0cfd1688b632068c1b26f3b0c88da..2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b
+    introduces:
+
+        ../sysdeps/i386/fpu/bits/fenv.h: Assembler messages:
+        ../sysdeps/i386/fpu/bits/fenv.h:125: Warning: translating to `fdivp %st,%st(1)'
+
+  * baseline
+    fd5bdc0924e0cfd1688b632068c1b26f3b0c88da..2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b
+    introduces:
+
+        nscd_gethst_r.c: In function '__nscd_get_nl_timestamp':
+        nscd_gethst_r.c:112:4: warning: implicit declaration of function 'time' [-Wimplicit-function-declaration]
+
+    This was already present before:
+
+        nscd_gethst_r.c: In function 'nscd_gethst_r':
+        nscd_gethst_r.c:426:5: warning: implicit declaration of function '__close' [-Wimplicit-function-declaration]
+
+  * baseline
+    fd5bdc0924e0cfd1688b632068c1b26f3b0c88da..2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b
+    introduces:
+
+        In file included from test-wcscpy.c:2:0:
+        ../string/test-strcpy.c: In function 'do_one_test':
+        ../string/test-strcpy.c:84:7: warning: format '%s' expects argument of type 'char *', but argument 5 has type 'wchar_t *' [-Wformat]
+        ../string/test-strcpy.c:84:7: warning: format '%s' expects argument of type 'char *', but argument 6 has type 'const wchar_t *' [-Wformat]
 
 
 # Install
