@@ -187,6 +187,37 @@ At the microkernel davroom at [[community/meetings/FOSDEM_2012]]:
     <antrik> right
 
 
+# IRC, freenode, #hurd, 2012-02-19
+
+    <youpi> antrik: we should probably add a gsoc idea on pci bus arbitration
+    <youpi> DDE is still experimental for now so it's ok that you  have to
+      configure it by hand, but it should be automatic at some ponit
+
+
+## IRC, freenode, #hurd, 2012-02-21
+
+    <braunr> i'm not familiar with the new gnumach interface for userspace
+      drivers, but can this pci enumerator be written with it as it is ?
+    <braunr> (i'm not asking for a precise answer, just yes - even probably -
+      or no)
+    <braunr> (idk or utsl will do as well)
+    <youpi> I'd say yes
+    <youpi> since all drivers need is interrupts, io ports and iomem
+    <youpi> the latter was already available through /dev/mem
+    <youpi> io ports through the i386 rpcs
+    <youpi> the changes provide both interrupts, and physical-contiguous
+      allocation
+    <youpi> it should be way enough
+    <braunr> youpi: ok
+    <braunr> youpi: thanks for the details :)
+    <antrik> braunr: this was mentioned in the context of the interrupt
+      forwarding interface... the original one implemented by zhengda isn't
+      suitable for a PCI server; but the ones proposed by youpi and tschwinge
+      would work
+    <antrik> same for the physical memory interface: the current implementation
+      doesn't allow delegation; but I already said that it's wrong
+
+
 # IRC, freenode, #hurd, 2012-02-20
 
     <youpi> I was a bit wary of including the ton of dde headers in hurd-dev
@@ -361,3 +392,49 @@ At the microkernel davroom at [[community/meetings/FOSDEM_2012]]:
     <youpi> because hardware is slow anyway
     <ArneBab> jupp
     <ArneBab> but it is important to see that in real life
+
+
+# IRC, freenode, #hurd, 2012-04-01
+
+    <youpi> antrik: I wonder whether you could actually not route the IRQs to a
+      non-zero ring, AIUI you can in the x86 IDT table
+    <antrik> youpi: you mean having a userspace server for each (non-timer)
+      interrupt?
+    <antrik> youpi: how would a userspace IRQ handler interact with the
+      scheduler?
+    <youpi> antrik: it doesn't necessarily have to
+    <youpi> provided that it's trusted
+    <antrik> youpi: how would you do CPU time accounting if there is no
+      interaction with the scheduler?...
+    <youpi> antrik: you don't necessarily want to care about it
+    <antrik> youpi: well, that would mean that all drivers handling interrupts
+      would have to be trusted to not use more than a very small part of CPU
+      time...
+    <youpi> yes
+    <youpi> which is usually needed for interrupt handlers anyway
+    <antrik> youpi: nah, the bottom handler only has to do very basic stuff;
+      afterwards, we can pass off to "normal" driver processes, scheduled just
+      like other processes... but that requires some interaction between the
+      IRQ handler and the scheduler I think
+    <youpi> the IRQ handler can wake up a thread, yes
+    <youpi> no need for anything special there
+    <antrik> so the userspace IRQ server would just decide what process to wake
+      up, and then call the scheduler to do a normal task switch? I guess
+      that's possible; but I'm not sure it would buy much...
+    <youpi> it would permit userland to quickly react to the IRQ
+    <youpi> such as acknowledge it to the hardware etc.
+    <antrik> yeah, but my point is that I don't see much benefit in having this
+      part of the code isolated in a userspace process... it has to be trusted
+      anyways, and it's pretty trivial too
+    <youpi> I never said it was a good idea
+
+
+# IRC, freenode, #hurd, 2012-04-06
+
+    <braunr> oh i forgot about my work on pcap
+    <braunr> is devnode (or devopen or whatever) in the upstream repository now
+      ?
+    <antrik> can't say for sure, but I'd be surprised... don't remember seeing
+      any movement in that regard :-(
+    <braunr> wasn't it needed for dde ?
+    <antrik> hm... good point
