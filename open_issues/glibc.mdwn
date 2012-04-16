@@ -49,6 +49,12 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
         `t/dup3`: hidden def.  ed690b2f24bbc4d9c541fc81a7c67e6dc5678a96 -- why
         not for dup3, too?  Because it is a syscall (that is always inlined)?
 
+  * `t/hurdsig-fixes`
+
+        hurdsig.c: In function '_hurd_internal_post_signal':
+        hurdsig.c:1188:26: warning: 'pending' may be used uninitialized in this function [-Wmaybe-uninitialized]
+        hurdsig.c:1168:12: note: 'pending' was declared here
+
   * `t/init-first.c`
 
     Follow up here: [[!message-id "20070722171859.GN25744@fencepost.gnu.org"]]
@@ -61,6 +67,15 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
     Before running `tg update`, review for additional changes:
 
         $ git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc -S__ASSUME_ top-bases/t/kernel-features.h_includes..baseline
+
+  * `t/sysvshm`
+
+        ../sysdeps/mach/hurd/shmat.c: In function '__shmat':
+        ../sysdeps/mach/hurd/shmat.c:57:7: warning: implicit declaration of function '__close' [-Wimplicit-function-declaration]
+        ../sysdeps/mach/hurd/shmget.c: In function 'get_exclusive':
+        ../sysdeps/mach/hurd/shmget.c:85:8: warning: variable 'is_private' set but not used [-Wunused-but-set-variable]
+        ../sysdeps/mach/hurd/shmget.c:102:8: warning: 'dir' may be used uninitialized in this function [-Wmaybe-uninitialized]
+        ../sysdeps/mach/hurd/shmget.c:102:8: warning: 'file' may be used uninitialized in this function [-Wmaybe-uninitialized]
 
   * [[`t/tls`|t/tls]]
 
@@ -127,6 +142,8 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
 
   * `elf/stackguard-macros.h`
 
+    See [[t/tls|t/tls]].
+
   * Verify 77c84aeb81808c3109665949448dba59965c391e against
     `~/shared/glibc/make_TAGS.patch`.
 
@@ -135,7 +152,32 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
   * Unify `CPUCLOCK_WHICH` stuff in `clock_*` files.
 
   * Not all tests are re-run in a `make -k tests; make tests-clean; make -k
-    tests` cycle.
+    tests` cycle.  For example, after `make tests-clean`:
+
+        $ find ./ -name \*.out
+        ./localedata/tst-locale.out
+        ./localedata/sort-test.out
+        ./localedata/de_DE.out
+        ./localedata/en_US.out
+        ./localedata/da_DK.out
+        ./localedata/hr_HR.out
+        ./localedata/sv_SE.out
+        ./localedata/tr_TR.out
+        ./localedata/fr_FR.out
+        ./localedata/si_LK.out
+        ./localedata/tst-mbswcs.out
+        ./iconvdata/iconv-test.out
+        ./iconvdata/tst-tables.out
+        ./stdlib/isomac.out
+        ./posix/wordexp-tst.out
+        ./posix/annexc.out
+        ./posix/tst-getconf.out
+        ./elf/check-textrel.out
+        ./elf/check-execstack.out
+        ./elf/check-localplt.out
+        ./c++-types-check.out
+        ./check-local-headers.out
+        ./begin-end-check.out
 
   * `CPUCLOCK_WHICH`, `t/cpuclock`
 
@@ -219,6 +261,8 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
       * `sys/signalfd.h`
 
       * `sys/timerfd.h`
+
+      * `timespec_get` (74033a2507841cf077e31221de2481ff30b43d51)
 
   * Create `t/cleanup_kernel-features.h`.
 
@@ -394,9 +438,9 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
       * a7c8e6a1478de9f990b11e5e853318ccbe4330f2 (`Fix invalid conversion in
         __cmsg_nxthdr`).  Probably just a C++ thing and not relevant for us;
         see [[!message-id "87r52nk1kx.fsf@kepler.schwinge.homeip.net"]].
-      * [high] `__ctype_init`, fd5bdc0924e0cfd1688b632068c1b26f3b0c88da.
-        Probably need to mirror `init-first.c` change.
-      * [high] `__attribute__ ((__leaf__))`, `BZ #13344`,
+      * [low] `mmap`, 110946e473b38fc3896212e416d9d7064fecd5b7.  Kosher with
+        respect to our [[glibc/mmap]] peculiarities?
+      * [OK] `__attribute__ ((__leaf__))`, `BZ #13344`,
         aa78043a4aafe5db1a1a76d544a833b63b4c5f5c +
         49a43d80ec5c97cf6136b1ee2687414773b2d5aa +
         3871f58f065dac3917eb18220a479e9591769c8c +
@@ -404,21 +448,8 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
         0ffc4f3ebaace42cd545db55a2ac50b6e0cc7d89 +
         edc5984d4d18296d7aa3d8f4ed8f7336a743170e +
         57769839788e2c62b68d9dfbf4b35052321278ba.
-        <http://gcc.gnu.org/onlinedocs/gcc-4.6.1/gcc/Function-Attributes.html>.
-      * [low] implement `timespec_get`,
-        74033a2507841cf077e31221de2481ff30b43d51.
-      * [low] `__volatile`, `BZ #13553`,
-        a784e502472fb3a1afa4d01a47c66b52d23e00f6:
-        `sysdeps/mach/i386/machine-lock.h:typedef __volatile int
-        __spin_lock_t;`, `sysdeps/mach/powerpc/machine-lock.h:typedef
-        __volatile long int __spin_lock_t;`
-      * [high] 6ee65ed6ddbf04402fad0bec6aa9c73b9d982ae4, hopefully OK.
-      * [high] `crti`/`crtn`, 3add8e1353d62d77fdd9b4ca363cdfe7006b0efb,
-        0e7dfaef514bbb3ec08934c6f7f42953bc149257, should just work.
-      * 7638c0fda568726f52ee5a88e1eadcddcd9fa290, `EHWPOISON`, does
-        [[!message-id
-        "Pine.LNX.4.64.1202191652540.3253@digraph.polyomino.org.uk"]] apply for
-        us?
+        <http://gcc.gnu.org/onlinedocs/gcc/Function-Attributes.html>.
+      * *baseline*
       * [low] `conformtest`, 3134156779108fe8b46e0f4cd60d837572faaa93 +
         4efeffc1d583597e4f52985b9747269e47b754e2 +
         d94a4670800de6e8f088b8630ad5142866127980 -- what does it do for us?
@@ -427,20 +458,20 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-d740cf9d201dc9ecb0335b0a585828dea9cce793 (2011-10-25)
+001500ab4e25e6b8cf83eb9539e362ed4803d2c1 (2012-04-05; 2012-02-25)
 sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
     $ export LC_ALL=C
-    $ ../Roger_Whittaker/configure AUTOCONF=: --prefix=/usr --disable-profile --disable-multi-arch --build=i486-gnu --host=i486-gnu CC=gcc-4.4 CXX=g++-4.4 2>&1 | tee log_build
+    $ ../Roger_Whittaker/configure AUTOCONF=: --prefix=/usr --disable-profile --disable-multi-arch --build=i486-gnu --host=i486-gnu CC=gcc-4.6 CXX=g++-4.6 2>&1 | tee log_build
     [...]
     $ make install_root=/INVALID 2>&1 | tee log_build_
     [...]
 
-This takes up around 500 MiB and needs roughly X min on kepler.SCHWINGE and 100
+This takes up around 500 MiB and needs roughly X min on kepler.SCHWINGE and 110
 min on coulomb.SCHWINGE (GCC 4.4/4.5/4.6).
 
 <!--
-    $ (make install_root=/INVALID && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install_root="$PWD".install install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && ln -s /usr/lib/i386-*gnu/libstdc++.so.6 /lib/i386-*gnu/libpthread-stubs.so.0 /lib/i386-*gnu/libgcc_s.so.1 mach/libmachuser.so.1 hurd/libhurduser.so.0.3 ./ && make -k install_root=/INVALID check TIMEOUTFACTOR=100 2>&1 | tee log_check
+    $ (make install_root=/INVALID && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install_root="$PWD".install install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && ln -s /usr/lib/i386-*gnu/libstdc++.so.6 /lib/i386-*gnu/libpthread-stubs.so.0 /lib/i386-*gnu/libgcc_s.so.1 mach/libmachuser.so.1 hurd/libhurduser.so.0.3 ./ && make -k install_root=/INVALID check TIMEOUTFACTOR=10 2>&1 | tee log_check
 
 Mask out gcc-4.X (with possibly a backslash before the dot), GCC 4.5's column
 output for (warning, error) messages, GCC 4.6's `[-Wsomething]` or `[enabled by
@@ -491,6 +522,63 @@ TODO.
         sysdeps/mach/hurd/ioctl.c: In function '__ioctl':
         sysdeps/mach/hurd/ioctl.c:306: warning: case value '0' not in enumerated type 'error_t'
 
+  * baseline
+    fd5bdc0924e0cfd1688b632068c1b26f3b0c88da..2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b
+    introduces:
+
+        genops.c: In function '_IO_flush_all_lockp':
+        genops.c:869:3: warning: passing argument 1 of '__save_FCT' makes pointer from integer without a cast [enabled by default]
+        genops.c:869:3: note: expected 'void *' but argument is of type 'int'
+
+    A similar warning has already been (and still is) seen here:
+
+        dl-iteratephdr.c:83:3: warning: passing argument 1 of '__save_FCT' makes pointer from integer without a cast [enabled by default]
+        dl-iteratephdr.c:83:3: note: expected 'void *' but argument is of type 'int'
+
+  * baseline
+    fd5bdc0924e0cfd1688b632068c1b26f3b0c88da..2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b
+    (or probably Samuel's mmap backport) introduces:
+
+        ../sysdeps/mach/hurd/mmap.c: In function '__mmap':
+        ../sysdeps/mach/hurd/mmap.c:54:15: warning: comparison between pointer and integer [enabled by default]
+        ../sysdeps/mach/hurd/mmap.c:66:21: warning: comparison between pointer and integer [enabled by default]
+        ../sysdeps/mach/hurd/mmap.c:143:13: warning: comparison between pointer and integer [enabled by default]
+        ../sysdeps/mach/hurd/mmap.c:165:24: warning: comparison between pointer and integer [enabled by default]
+
+  * baseline
+    fd5bdc0924e0cfd1688b632068c1b26f3b0c88da..2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b
+    introduces:
+
+        ../sysdeps/i386/fpu/bits/fenv.h: Assembler messages:
+        ../sysdeps/i386/fpu/bits/fenv.h:125: Warning: translating to `fdivp %st,%st(1)'
+
+  * baseline
+    fd5bdc0924e0cfd1688b632068c1b26f3b0c88da..2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b
+    introduces:
+
+        nscd_gethst_r.c: In function '__nscd_get_nl_timestamp':
+        nscd_gethst_r.c:112:4: warning: implicit declaration of function 'time' [-Wimplicit-function-declaration]
+
+    This was already present before:
+
+        nscd_gethst_r.c: In function 'nscd_gethst_r':
+        nscd_gethst_r.c:426:5: warning: implicit declaration of function '__close' [-Wimplicit-function-declaration]
+
+  * baseline
+    2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b..7a270350a9bc3110cd5ba12bbd8c5c8c365e0032
+    introduces:
+
+        In file included from regex.c:62:0:
+        regcomp.c: In function 'init_word_char':
+        regcomp.c:935:4: warning: large integer implicitly truncated to unsigned type [-Woverflow]
+        regcomp.c:936:4: warning: large integer implicitly truncated to unsigned type [-Woverflow]
+
+        In file included from pldd.c:230:0:
+        pldd-xx.c:26:0: warning: "static_assert" redefined [enabled by default]
+        ../assert/assert.h:119:0: note: this is the location of the previous definition
+
+        tst-relsort1.c:6:1: warning: function declaration isn't a prototype [-Wstrict-prototypes]
+
 
 # Install
 
@@ -522,7 +610,7 @@ TODO.
     $ make -k install_root=/INVALID check 2>&1 | tee log_check
     [...]
 
-This needs roughly 55 min on coulomb.SCHWINGE.
+This needs roughly 60 min on coulomb.SCHWINGE.
 
 <!--
     $ ssh kepler.SCHWINGE 'cd tmp/source/gdb/ && sed < hurd/master.build/gdb/testsuite/gdb.sum -e "s%\(/media/data\)\?${PWD}%[...]%g"' > open_issues/gdb/sum_linux
@@ -619,32 +707,17 @@ There is quite a baseline of failures.
 
         tst-ether_line.c:19: error: 'ETH_ALEN' undeclared (first use in this function)
 
-  * `time/tst-mktime2`
-
-        tst-mktime2.c:132: error: 'INT_MAX' undeclared (first use in this function)
-
-  * `io/tst-readlinkat`
-
-        /media/erich/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker/io/tst-readlinkat.c:109: warning: warning: readlinkat is not implemented and will always fail
+    Will either need a `hurd/netinet/if_ether.h` that includes
+    `<net/if_ether.h>`, or can do that in the generic `netinet/if_ether.h`?
+    See also [[!sourceware_bug 11142]].
 
   * `gmon/tst-sprofil`
 
         Floating point exception
 
-  * `posix/tst-sysconf`
-
-        tst-sysconf.c:32: error: '_POSIX_PRIORITIZED_IO' undeclared here (not in a function)
-        tst-sysconf.c:33: error: '_POSIX_PRIORITY_SCHEDULING' undeclared here (not in a function)
-        tst-sysconf.c:43: error: '_POSIX_SPIN_LOCKS' undeclared here (not in a function)
-        tst-sysconf.c:45: error: '_POSIX_SYNCHRONIZED_IO' undeclared here (not in a function)
-
   * `posix/bug-regex31-mem`, `posix/tst-fnmatch-mem`
 
     *output* files: some memory not freed.
-
-  * `string/test-strnlen`
-
-        /media/erich/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker/string/test-strnlen.c:87: undefined reference to `MIN'
 
   * `assert/test-assert.out`
 
@@ -661,6 +734,19 @@ There is quite a baseline of failures.
     Only with GCC 4.4; no longer with 4.5 or 4.6:
 
         /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486/elf/tst-unique3lib.os:(.data.DW.ref.__gxx_personality_v0[DW.ref.__gxx_personality_v0]+0x0): undefined reference to `__gxx_personality_v0'
+
+  * `math/test-fenv.out`
+
+    Used to fail (is listed in Debian eglibc-2.13-21's
+    `expected-results-i486-gnu-libc`), but something between
+    22bcba37dd3b782b1a1ec7bf51da468e48f4d2eb and
+    005b7594ffe209639dd1ef2b9ed9a4c22307dec1 causes it to passe -- very likely
+    Jérémie's signaling work.
+
+  * `posix/tst-waitid.out`
+
+    Fails sometimes (is listed in Debian eglibc-2.13-21's
+    `expected-results-i486-gnu-libc`).
 
 
 ## OLD

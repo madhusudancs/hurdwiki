@@ -20,12 +20,12 @@ initial loading of shared libraries.*).
 
     It is only handled in `dl-sysdep.c`, when `flags & (MAP_COPY|MAP_PRIVATE)`
     is used for `vm_map`'s `copy` parameter, and `mmap.c` uses `! (flags &
-    MAP_SHARED)` instead.
+    MAP_SHARED)` instead, which seems inconsistent?
 
 
 # `io_map` Failure
 
-[[libnetfs: `io_map`|open_issues/libnetfs_io_map]] issue.
+This is the [[libnetfs: `io_map`|open_issues/libnetfs_io_map]] issue.
 
 [[!tag open_issue_glibc]]
 
@@ -41,11 +41,27 @@ passed) is not properly handled.
 that is possible); probably by introducing a generic `mmap_or_read` function,
 that first tries `mmap` (and that will succeed on Linux-based systems and also
 on Hurd-based, if it's backed by [[hurd/libdiskfs]]), and if that fails tries
-`mmap` on anonymous memory and then fills it by `read`ing the required data --
-but this would probably means all :-/ `PT_LOAD` segments for the ELF case?  In
-parallel, it should be researched how Linux (or any other kernel) implements
-`mmap` on NFS and similar file systems, and then implement the same in
-[[hurd/libnetfs]]/[[hurd/translator/nfs]].
+`mmap` on anonymous memory and then fills it by `read`ing the required data.
+This is also what the [[hurd/exec]] server is doing (and is the reason that the
+`./true` invocation on [[libnetfs: `io_map`|open_issues/libnetfs_io_map]]
+works, to my understanding): see `exec.c:prepare`, if `io_map` fails,
+`e->filemap == MACH_PORT_NULL`; then `exec.c:map` (as invoked from
+`exec.c:load_section`, `exec.c:check_elf`, `exec.c:do_exec`, or
+`hashexec.c:check_hashbang`) will use `io_read` instead.
+
+Doing so potentially means reading in a lot of unused data -- but we probably
+can't do any better?
+
+In parallel (or even alternatively?), it should be researched how Linux (or any
+other kernel) implements `mmap` on NFS and similar file systems, and then
+implement the same in [[hurd/libnetfs]] and/or [[hurd/translator/nfs]], etc.
+
+Here, also probably the whole mapping region [has to be
+read](http://lists.gnu.org/archive/html/bug-hurd/2001-10/msg00306.html) at
+`mmap` time.
+
+List of files without fallback code for the *`MAP_FAILED` due to `io_map`
+failed* case:
 
   * `elf/cache.c`
 
