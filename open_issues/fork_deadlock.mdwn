@@ -1,0 +1,65 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_glibc]]
+
+This started appearing when Jérémie's [[glibc]] signal patches were integrated:
+very sporadically, but still now and then, `fork` will hand, as follows, and
+typically in `/bin/sh`.
+
+From a `libtool` invocation:
+
+    #0  0x0107b13c in swtch_pri () at /build/eglibc-Q9jlik/eglibc-2.13/build-tree/hurd-i386-libc/mach/swtch_pri.S:2
+    No locals.
+    #1  0x0107c9c4 in __spin_lock_solid (lock=0x125080c) at spin-solid.c:27
+    No locals.
+    #2  0x01091427 in __spin_lock (__lock=<optimized out>) at ../mach/lock-intern.h:55
+    No locals.
+    #3  _hurd_sigstate_lock (ss=0x1250008) at hurdsig.c:172
+    No locals.
+    #4  0x011261ec in _hurd_critical_section_unlock (our_lock=<optimized out>) at ../hurd/hurd/signal.h:235
+    No locals.
+    #5  __fork () at ../sysdeps/mach/hurd/fork.c:706
+            env = {{__jmpbuf = {18784244, 19197896, 1, 16925832, 16925460, 17980399}, __mask_was_saved = 0, __saved_mask = 33}}
+            pid = 0
+            err = <optimized out>
+            __PRETTY_FUNCTION__ = "__fork"
+            ss = 0x1250008
+            threads = 0x0
+            nthreads = 0
+            stopped = 1
+            i = 6
+    [...]
+
+
+Another one in `dash`:
+
+    #0  0x0105927c in swtch_pri () at /media/erich/home/thomas/tmp/glibc/debian/eglibc-2.13/build-tree/hurd-i386-libc/mach/swtch_pri.S:2
+    No locals.
+    #1  0x0105ac44 in __spin_lock_solid (lock=0x123580c) at spin-solid.c:27
+    No locals.
+    #2  0x010701c7 in __spin_lock (__lock=<optimized out>) at ../mach/lock-intern.h:55
+    No locals.
+    #3  _hurd_sigstate_lock (ss=0x1235008) at hurdsig.c:172
+    No locals.
+    #4  0x011048f0 in _hurd_critical_section_unlock (our_lock=0x1235008) at ../hurd/hurd/signal.h:235
+            ss = 0x1235008
+            pending = <optimized out>
+    #5  __fork () at ../sysdeps/mach/hurd/fork.c:706
+            env = {{__jmpbuf = {18780148, 19087304, 134621988, 0, 16938700, 17842902}, __mask_was_saved = 0, __saved_mask = 4294967295}}
+            pid = 0
+            err = 0
+            __PRETTY_FUNCTION__ = "__fork"
+            ss = 0x1235008
+            threads = 0x0
+            nthreads = 0
+            stopped = 1
+            i = 6
+    [...]
