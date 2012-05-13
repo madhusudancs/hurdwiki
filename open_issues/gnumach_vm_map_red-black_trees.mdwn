@@ -1,0 +1,142 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_gnumach]]
+
+
+# IRC, freenode, #hurd, 2012-04-23
+
+    <braunr> btw, i'm running a gnumach version using red-black trees for vm
+      map entries
+    <antrik> braunr: sounds fashionable ;-)
+    <youpi> braunr: with some perf improvement?
+    <braunr> looks promising for our ext2fs instances showing several thousands
+      of map entries
+    <braunr> youpi: i'm not using it for lookups yet
+    <braunr> but the tree is there, maintained, used for both regular and copy
+      maps, and it doesn't crash
+    <youpi> good :)
+    <braunr> antrik: isn't it ? :)
+    <braunr> youpi: and the diff stat is like 50/15
+    <antrik> braunr: what's the goal of using the fashionable trees?
+    <braunr> antrik: speeding up lookups in address spaces
+    <antrik> braunr: so the idea is that if we have a heavily fragmented
+      address space, the performance penalty is smaller?
+    <braunr> yes
+    <antrik> OK
+    <antrik> I take it you gave up on attempts to actually decrease
+      fragmentation?...
+    <braunr> it's not as good as reducing fragmentation, which requires
+      implementing a powerful merge, but it's still better
+    <braunr> yes
+    <braunr> it's too messy for my brain :/
+    <antrik> I see
+    <antrik> oh
+    <braunr> it will add some overhead though
+    <youpi> I guess log(n) ?
+    <braunr> but if there is a significant performance gain, it'll be worth it
+    <braunr> yes
+    <braunr> i was more thinking about the memory overhead
+    <antrik> right now it's a linear list?
+    <youpi> I don't think we care nowadays :)
+    <braunr> antrik: yes
+    <antrik> ouch
+    <braunr> antrik: yes ... :>
+    <braunr> the original authors expected vm maps to have like 30 entries
+    <braunr> so they used a list for the maps, and a hash table for the
+      object/offset to physical page lookups
+    <braunr> there is a small lookup cache though, which is a nice optimization
+    <braunr> my code now uses it first, and falls back to the RB tree if the
+      hint didn't help
+    <antrik> braunr: well, don't forget to check whether it actually *is* still
+      an optimisation, when using fashionable trees ;-)
+    <braunr> antrik: i checked that already :)
+    <braunr> i did the same in x15
+    <antrik> I see
+    <braunr> both bsd and linux uses a similar technique
+    <braunr> use*
+    <braunr> (well, bsd actually use what is done in mach :)
+    <antrik> (or perhaps the other way around... ;-) )
+    <braunr> i don't think so, as the bsd vm is really the mach vm
+    <braunr> but we don't care much
+    <antrik> oh, right... that part actually went full circle
+    <braunr> youpi: i have a patch ready for test on machines with significant
+      amounts of map entries (e.g. the buildds ..)
+    <braunr> youpi: i won't have time for tests tonight, are you interested ?
+    <braunr> (i've been running it for 15 minutes without any issue for now)
+    <youpi> I'd say post to the list
+    <braunr> ok
+    <youpi> braunr: your patch uses the rb tree for lookups, right?
+    <youpi> braunr: the buildd using rbtree seems swift
+    <youpi> but maybe it's just a psychologic effect :)
+    <youpi> the chroot ext2fs already has 1392 lines in vminfo
+    <youpi> an rbtree can't hurt  there :)
+    <youpi> braunr: it really seems faster
+    <youpi> the reboot might have helped too
+    <youpi> benchmarks shall say
+    <youpi> for now, I'll just let ironforge use it
+    <antrik> youpi: it's always fast after a reboot ;-)
+    <youpi> sure
+    <youpi> but still
+    <youpi> I mean
+    <youpi> *obviously* the reboot has helped
+    <youpi> but it might not be all
+    <youpi> at least it feels so
+    <youpi> and obviously only benchmarks can say
+    <antrik> the major benefit AIUI is rather that the slowdown happening over
+      time will be less noticable
+
+[[performance/degradation]].
+
+    <youpi> "over time" is actually quite fast
+    <youpi> ext2 fills up very quickly when you build a package
+    <youpi> it went up to 1700 lines very quickly
+    <youpi> and stabilized around there
+    <antrik> yeah, it can be very fast under heavy load
+    <youpi> that's why I say reboot seems not all
+    <youpi> it's already not so fresh
+    <youpi> with 1700 lines in vminfo
+    <antrik> well, I don't know how much of the slowdown I'm experiencing
+      (after doing stuff under memory pressure) is actually related to VM map
+      fragmentation...
+    <antrik> might be all, might be none, might be something in between
+    <youpi> then try his patch
+    <antrik> guess I should play a bit with vminfo...
+    <antrik> well, currently I actually experience pretty little slowdown, as
+      for certain reasons (only indirectly related to the Hurd) I'm not running
+      mutt on this machine, so I don't really have memory pressure...
+
+
+## IRC, freenode, #hurd, 2012-04-24
+
+    <braunr> youpi: yes, it uses bst lookups
+    <braunr> youpi: FYI, the last time i checked, one ext2fs instance had 4k+
+      map entries, and another around 7.5k
+    <braunr> (on ironforge)
+
+
+## IRC, freenode, #hurd, 2012-04-24
+
+    <youpi> braunr: $ sudo vminfo  624 | wc -l
+    <youpi> 22957
+    <youpi> there's no way it can not help :)
+    <braunr> youpi: 23k, that's really huge
+
+
+## IRC, freenode, #hurd, 2012-04-26
+
+    <braunr> youpi: any new numbers wrt the rbtree patch ?
+    <youpi> well, buildd times are not really accurate :)
+    <youpi> but what I can tell is that it managed to build qtwebkit fine
+    <braunr> ok
+    <youpi> so the patch is probably safe :)
+    <braunr> i'll commit it soon then
+    <youpi> I'd say feel free to, yes
+    <braunr> thanks
