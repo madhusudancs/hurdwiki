@@ -1,0 +1,54 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="O_EXEC"]]
+
+[[!tag open_issue_glibc open_issue_hurd]]
+
+
+# IRC, freenode, #hurd, 2012-04-24
+
+    <pinotree> interesting, glibc on every OS except hurd (so including linux
+      too) does not define O_EXEC
+    <pinotree> can somebody please help me understand a POSIX behaviour?
+    <pinotree> it's about fexecve:
+      http://pubs.opengroup.org/onlinepubs/9699919799/functions/fexecve.html
+    <pinotree> basically, it seems to me (reading the "errors" and "application
+      usage" sections) that O_EXEC for open() the fd is not mandatory, and if
+      not used fexecve will check for file permission at call time?
+    <pinotree> because currently libdiskfs and libnetfs require the fd to be
+      open with O_EXEC
+    <braunr> "Since execute permission is checked by fexecve(), the file
+      description fd need not have been opened with the O_EXEC flag"
+    <braunr> this one makes it clear checking for O_EXEC is wrong
+    <braunr> it looks like O_EXEC is only needed when you want to have files
+      for which only the execution permission is set
+    <braunr> but not the read one
+    <braunr> (i don't understand the "and write" part though)
+    <braunr> "exec will fail if the mode of the file associated with fd does
+      not grant execute permission to the calling process at the time fexecve()
+      is called."
+    <braunr> this one strengthens the impression you have, that fexecve indeed
+      checks file permissions at the time it's called
+    <braunr> pinotree: hope it helps
+    <pinotree> so it implies the following:
+    <pinotree> O_RDONLY → exec works if the file is readable
+    <braunr> exec works if the file is readable and/or executable (although
+      without read permissions you can't check it)
+    <braunr> (well, fexecve)
+    <pinotree> O_EXEC → exec requires that the permission of the file at
+      fexecve() time have +x
+    <braunr> i'd say ye so far
+    <braunr> yes
+    <pinotree> so we need to fix lib{disk,net}fs then
+    <braunr> seems so
+    <pinotree> enlighting, merci braunr 
+    <braunr> de rien
+    <pinotree> :)

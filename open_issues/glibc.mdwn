@@ -185,10 +185,58 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
     `CLOCK_REALTIME_ALARM`, `O_PATH`,
     `PTRACE_*` (for example, cbff0d9689c4d68578b6a4f0a17807232506ea27),
     `RLIMIT_RTTIME`, `SEEK_DATA` (`unistd.h`), `SEEK_HOLE` (`unistd.h`)
-    `clock_adjtime`, `fallocate`, `fallocate64`, `getcontext` (and
-    `setcontext`), `name_to_handle_at`, `open_by_handle_at`,
-    `process_vm_readv`, `process_vm_writev`, `sendmmsg`,
+    `clock_adjtime`, `fallocate`, `fallocate64`, `name_to_handle_at`,
+    `open_by_handle_at`, `process_vm_readv`, `process_vm_writev`, `sendmmsg`,
     `setns`, `sync_file_range`
+
+      * `getcontext`/`setcontext`
+
+        Needed for [[gccgo]].
+
+        IRC, freenode, #hurd, 2012-04-19:
+
+            <gnu_srs> How much work/knowledge is needed to implement
+              getcontext/setcontext?
+            <gnu_srs> Any already implemented alternatives available?
+            <youpi> x86 registers knowledge, as well as unix signal masks
+            <youpi> there's the linux implementation that can be taken as an
+              exxample, but the signal part has to be rewritten
+            <gnu_srs> Well, it's a pity they are not implemented. That's the
+              remaining hurdle to get gccgo working :-( 
+            <youpi> uh :/
+            <gnu_srs> Everything builds, but the testsuite fails due to these
+              missing functions.
+            <gnu_srs> Regarding getcontext/setcontext they seem to be written
+              in assembly for linux but the code is not very long. 
+            <gnu_srs> How much effort would it be to write something similar
+              for Hurd? Anybody fluent in asm?
+            <gnu_srs> And registers and signals.
+            <tschwinge> gnu_srs: Signals is the key thing -- everything else we
+              can probably just copy.  I have never/not yet looked at it,
+              though.
+            <gnu_srs> For kfreebsd it is written in C: kern_context.c, 3/4 in
+              one file: getcontext, setcontext,  swapcontext, not makecontext.
+            <gnu_srs> Dunno how much assembly calls used though.
+            <gnu_srs> Hi, any preferences about implementing get/setcontext in
+              C or Asm?
+            <tschwinge> gnu_srs: I think these will have to be implemented in
+              assembly.  Based on the Linux x86 variants.
+
+        IRC, freenode, #hurd, 2012-04-20:
+
+            <tschwinge> youpi: Your understanding of that is better than mine
+              -- the *context stuff can't be very useful at the moment, because
+              when the user changes uc_stack.ss_sp (which the glibc tests are
+              doing), we're losing access to the _hurd_threadvars.  Correct?
+            <tschwinge> At least the getcontext test works, the other get a
+              SIGILL.
+            <tschwinge> others
+            <tschwinge> _hurd_threadvars issue is just guessing.
+            <youpi> tschwinge: yes, threadvars are on the stack
+            <youpi> threadvars is not much code, it should just work, but care
+              has to be taken on the libpthread/libthread side, which does some
+              initialization
+            <tschwinge> OK, that at least matches my understanding.
 
       * `syncfs`
 
@@ -246,6 +294,35 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
       * `sys/timerfd.h`
 
       * `timespec_get` (74033a2507841cf077e31221de2481ff30b43d51)
+
+      * `waitflags.h` (`WEXITED`, `WNOWAIT`, `WSTOPPED`, `WCONTINUED`)
+
+        IRC, freenode, #hurd, 2012-04-20:
+
+            <pinotree> in glibc, we use the generic waitflags.h which, unlike
+              linux's version, does not define WEXITED, WNOWAIT, WSTOPPED,
+              WCONTINUED
+            <pinotree> should the generic bits/waitflags.h define them anyway,
+              since they are posix?
+            <youpi> well, we'd have to implement them anyway
+            <youpi> but otherwise, I'd say yes
+            <pinotree> sure, but since glibc headers should expose at least
+              everything declared by posix, i thought they should be defined
+              anyway
+            <youpi> that might bring bugs
+            <youpi> some applications might be #ifdefing them
+            <youpi> and break when they are defined but not working
+            <pinotree> i guess they would define them to 0, andd having them to
+              non-zero values shouldn't break them (since those values don't do
+              anything, so they would act as if they were 0.. or not?)
+            <youpi> no, I mean they would do something else, not define them to
+              0
+            <pinotree> like posix/tst-waitid.c, you mean?
+            <youpi> yes
+
+    For specific packages:
+
+      * [[octave]]
 
   * Create `t/cleanup_kernel-features.h`.
 
