@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2011, 2012 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -25,43 +26,19 @@ There is a [[!FF_project 275]][[!tag bounty]] on this task.
 [[!inline pages=community/gsoc/project_ideas/pthreads feeds=no]]
 
 
+## IRC, freenode, #hurd, 2012-04-26
 
-# pthread/stubs issue w/ dlopen'ed libraries
+    <pinotree> youpi: just to be sure: even if libpthread is compiled inside
+      glibc (with proper symbols forwarding etc), it doesn't change that you
+      cannot use both cthreads and pthreads in the same app, right?
 
-IRC, freenode, #hurd, 2010-01-24
+[[Packaging_libpthread]].
 
-    <pinotree> youpi: hm, thought about the pthread/stubs issue w/ dlopen'ed
-      libraries
-    <pinotree> currently looks like libstdc++ on hurd links to pthread-stubs,
-      we're the only one with such configuration
-    <pinotree> i was looking at the gcc 4.4 patch hurd-pthread.diff, could it
-      be it does not set THREADLIBS in the configure.ac switch case?
-    <youpi> that's expected
-    <youpi> on linux the libc provides hooks itself, on hurd-i386 it's
-      pthread-stubs
-    <pinotree> why not explicitly link to pthread though?
-    <youpi> because there is no strict need to, for applications that don't
-      need libpthread
-    <youpi> the dlopen case is a tricky case that pthread-stubs had not thought
-      about
-    <pinotree> hm
-    <pinotree> what if the pthread stubs would be moved in our glibc?
-    <youpi> that's what we should do yes
-    <youpi> (ideally)
-    <youpi> but for this we need to build libpthread along glibc, to get it
-      really working
-    <youpi> and that's the tricky part (Makefile & such) which hasn't been done
-      yet
-    <pinotree> why both (stubs + actual libpthread)?
-    <youpi> because you need the stubs to be able to call the actual libpthread
-    <youpi> as soon libpthread gets dlopened for instance
-    <youpi> +as
-    <pinotree> i see
-    <youpi> (remember that nptl does this if you want to see how)
-    <youpi> (it's the libc files in nptl/)
-    <youpi> (and forward.c)
-    <guillem> also if libpthreads gets integrated with glibc don't we need to
-      switch the hurd from cthreads then? Which has been the blocker all this
-      time AFAIR?
-    <youpi> we don't _need_ to
-    <guillem> ok
+    <youpi> it's the same libpthread
+    <youpi> symbol forwarding does not magically resolve that libpthread lacks
+      some libthread features :)
+    <pinotree> i know, i was referring about the clash between actively using
+      both
+    <youpi> there'll still be the issue that only one will be initialized
+    <youpi> and one that provides libc thread safety functions, etc.
+    <pinotree> that's what i wanted to knew, thanks :)

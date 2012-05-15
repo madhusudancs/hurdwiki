@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2012 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -10,9 +10,18 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_gnumach open_issue_hurd]]
 
-[[community/gsoc/project_ideas/disk_io_performance]]
+[[!toc]]
 
-IRC, #hurd, freenode, 2011-02-13:
+
+# [[community/gsoc/project_ideas/disk_io_performance]]
+
+
+# 2011-02
+
+[[Etenil]] has been working in this area.
+
+
+## IRC, freenode, #hurd, 2011-02-13
 
     <etenil> youpi: Would libdiskfs/diskfs.h be in the right place to make
       readahead functions?
@@ -28,9 +37,8 @@ IRC, #hurd, freenode, 2011-02-13:
       portability
     <youpi> it's not in posix indeed
 
----
 
-IRC, #hurd, freenode, 2011-02-14:
+## IRC, freenode, #hurd, 2011-02-14
 
     <etenil> youpi: I've investigated prefetching (readahead) techniques. One
       called DiskSeen seems really efficient. I can't tell yet if it's patented
@@ -51,13 +59,8 @@ IRC, #hurd, freenode, 2011-02-14:
     <braunr> oh, madvise() stuff
     <braunr> i could help him with that
 
----
 
-[[Etenil]] is now working in this area.
-
----
-
-IRC, freenode, #hurd, 2011-02-15
+## IRC, freenode, #hurd, 2011-02-15
 
     <etenil> oh, I'm looking into prefetching/readahead to improve I/O
       performance
@@ -281,9 +284,8 @@ IRC, freenode, #hurd, 2011-02-15
       pretty good description of the necessary changes... unfortunately, these
       are not publicly visible IIRC :-(
 
----
 
-IRC, freenode, #hurd, 2011-02-16
+## IRC, freenode, #hurd, 2011-02-16
 
     <etenil> braunr: I've looked in the kernel to see where prefetching would
       fit best. We talked of the VM yesterday, but I'm not sure about it. It
@@ -299,3 +301,91 @@ IRC, freenode, #hurd, 2011-02-16
       the right place is the VM subsystem
 
 [[clustered_page_faults]]
+
+
+# 2012-03
+
+
+## IRC, freenode, #hurd, 2012-03-21
+
+    <mcsim> I thought that readahead should have some heuristics, like
+      accounting size of object and last access time, but i didn't find any in
+      kam's patch. Are heuristics needed or it will be overhead for
+      microkernel? 
+    <youpi> size  of object and last access time are not necessarily useful to
+      take into account
+    <youpi> what would usually typically be kept is the amount of contiguous
+      data that has been read lately
+    <youpi> to know whether it's random or sequential, and how much is read
+    <youpi> (the whole size of the object does not necessarily give any
+      indication of how much of it will be read)
+    <mcsim> if big object is accessed often, performance could be increased if
+      frame that will be read ahead will be increased too.
+    <youpi> yes, but the size of the object really does not matter
+    <youpi> you can just observe how much data is read and realize that it's
+      read a lot
+    <youpi> all the more so with userland fs translators
+    <youpi> it's not because you mount a CD image that you need to read it all
+    <mcsim> youpi: indeed. this will be better. But on other hand there is
+      principle about policy and mechanism. And kernel should implement
+      mechanism, but heuristics seems to be policy. Or in this case moving
+      readahead policy to user level would be overhead?
+    <antrik> mcsim: paging policy is all in kernel anyways; so it makes perfect
+      sense to put the readahead policy there as well
+    <antrik> (of course it can be argued -- probably rightly -- that all of
+      this should go into userspace instead...)
+    <mcsim> antrik: probably defpager partly could do that. AFAIR, it is
+      possible for defpager to return more memory than was asked.
+    <mcsim> antrik: I want to outline what should be done during gsoc. First,
+      kernel should support simple readahead for specified number of pages
+      (regarding direction of access) + simple heuristic for changing frame
+      size. Also default pager could make some analysis, for instance if it has
+      many data located consequentially it could return more data then was
+      asked. For other pagers I won't do anything. Is it suitable?
+    <antrik> mcsim: I think we actually had the same discussion already with
+      KAM ;-)
+    <antrik> for clustered pageout, the kernel *has* to make the decision. I'm
+      really not convinced it makes sense to leave the decision for clustered
+      pagein to the individual pagers
+    <antrik> especially as this will actually complicate matters because a) it
+      will require work in *every* pager, and b) it will probably make handling
+      of MADVISE & friends more complex
+    <antrik> implementing readahead only for the default pager would actually
+      be rather unrewarding. I'm pretty sure it's the one giving the *least*
+      benefit
+    <antrik> it's much, much more important for ext2
+    <youpi> mcsim: maybe try to dig in the irc logs, we discussed about it with
+      neal. the current natural place would be the kernel, because it's the
+      piece that gets the traps and thus knows what happens with each
+      projection, while the backend just provides the pages without knowing
+      which projection wants it. Moving to userland would not only be overhead,
+      but quite difficult
+    <mcsim> antrik: OK, but I'm not sure that I could do it for ext2. 
+    <mcsim> OK, I'll dig.
+
+
+## IRC, freenode, #hurd, 2012-04-01
+
+    <mcsim> as part of implementing of readahead project I have to add
+      interface for setting appropriate behaviour for memory range.  This
+      interface than should be compatible with madvise call, that has a lot of
+      possible advises, but most part of them are specific for Linux (according
+      to man page). Should mach also support these Linux-specific values?
+    <mcsim> p.s. these Linux-specific values shouldn't affect readahead
+      algorithm.
+    <youpi> the interface shouldn't prevent from adding them some day
+    <youpi> so that we don't have to add them yet
+    <mcsim> ok. And what behaviour with value MADV_NORMAL should be look like?
+      Seems that it should be synonym to MADV_SEQUENTIAL, isn't it?
+    <youpi> no, it just means "no idea what it is"
+    <youpi> in the linux implementation, that means some given readahead value
+    <youpi> while SEQUENTIAL means twice as much
+    <youpi> and RANDOM means zero
+    <mcsim> youpi: thank you.
+    <mcsim> youpi: Than, it seems to be better that kernel interface for
+      setting behaviour will accept readahead value, without hiding it behind
+      such constants, like VM_BEHAVIOR_DEFAULT (like it was in kam's
+      patch). And than implementation of madvise will call vm_behaviour_set
+      with appropriate frame size. Is that right?
+    <youpi> question of taste, better ask on the list
+    <mcsim> ok

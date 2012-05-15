@@ -1,0 +1,64 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+
+# IRC, freenode, #hurd, 2012-04-22
+
+    <youpi> btw, I was wondering, when working on namespace mangling, did they
+      think about automatitioning ?
+    <youpi> autopartitioning, I meant
+    <youpi> i.e. with a foo.img file, open foo.img,,part1
+    <braunr> what are you referring to with namespace mangling
+    <youpi> and voila
+    <youpi> I don't remember the exact term they used
+    <braunr> you mean there is a hurd library that parses names and can direct
+      to different services depending on part of the name ?
+    <youpi> namespace-based_translator_selection
+    <youpi> yes
+    <braunr> i thought it only handled directories
+    <braunr> well, the classical path representation
+    * civodul finds it ugly
+    <youpi> civodul: because of potential conflict, and the not-too-nice ",,"
+      part?
+    <youpi> actually I wonder whether using directory access would be nicer
+    <youpi> i.e. you have a foo.gz, just open foo.gz/gunzip to get the unzipped
+      content
+    <youpi> and for foo.img.gz, open foo.img.gz/gunzip/part/1
+    <civodul> youpi: because of the interpretation of special chars in file
+      names
+    <civodul> users should be free to use any character they like in file names
+    <civodul> foo.gz/gunzip looks nicer to me
+    <youpi> ok, so we agree
+    <youpi> that said, the user could choose the separator
+    <youpi> the namespace can be not run by root for everybody, but just for
+      your shell, run by yourself
+    <antrik> civodul: the user can't use any character anyways... '/' and '\0'
+      are reserved :-P
+    <civodul> antrik: '/' isn't quite reserved on the Hurd :-)
+    <civodul> you could implement dir_lookup such that it does something
+      special about it
+    <civodul> (server-side)
+    <antrik> civodul: as for overloading '/', although I haven't thought it
+      through entirely, I guess that would work for nodes that present as files
+      normally. however, it would *not* work for directory nodes
+    <antrik> which would be quite a serious limitation IMHO
+    <antrik> I can think of various kinds of useful directory translators
+    <antrik> what's more, one of the main use cases I originally had in mind is
+      a policy filter
+    <antrik> you could pass a directory name with a appropriate filter applied
+      to tar for example, so it wouldn't try to follow any translators
+    <antrik> I don't see why taking an obscure prefix like ,, would be much of
+      a problem in practice anyways
+    <antrik> (also, it doesn't strictly prevent the user from having such file
+      names... you just need to escape it if accessing such files through the
+      namespace multiplexer. though admittedly that would need some special
+      handling in *some* programs to work properly)

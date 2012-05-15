@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2005, 2007, 2008, 2010 Free Software Foundation,
-Inc."]]
+[[!meta copyright="Copyright © 2005, 2007, 2008, 2010, 2012 Free Software
+Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -54,3 +54,46 @@ I started various other experiments with creating child processes (fork bombs), 
 * After opening/leaking lots of ports to /dev/null (32768 it seems), the NULL translator somehow becomes disfunctional, and a new instance is started
 
 While most of these Observations clearly show an exhaustion of kernel memory which is not surprising, some of the oddities seem to indicate problems that might deserve further investigation.
+
+
+# IRC, freenode, #hurd, 2012-04-01
+
+    <mel__> antrik: i just found
+      http://www.gnu.org/software/hurd/open_issues/resource_management_problems/zalloc_panics.html
+      -- that is from 2007. is this still the current status?
+    <youpi> mel__: probably
+    <mcsim> mel__: gnumach has no more zalloc allocator, so I doubt if it could
+      be a problem.
+
+[[gnumach_memory_management]].
+
+    <youpi> mcsim: but it still has an allocator
+    <youpi> which can run out of resources
+    <mcsim> AFAIR, now there is no such limit.
+    <youpi> err, there is
+    <youpi> the size of your RAM :)
+    <mcsim> In zalloc appearing of this message didn't depend of available size
+      of free ram.
+    <youpi> then update the description, but I'm still getting allocation
+      errors, when userland makes crazy things like creating millions of tasks
+    <mcsim> At least it could appear when there still was free memory
+    <youpi> and that's not surprising
+    <youpi> sure, I know that *some* limits have been removed, but there
+      weren't so many, and I have seen cases where it's simply mach running out
+      of memory
+    <youpi> also, we have a limited amount of virtual addressing space
+    <antrik> mel__: this writeup is outdated in several regards. *some* of the
+      observations might still be relevant, but nothing that seems
+      particularily important
+    <antrik> the zalloc panics have pretty much disappeared after the default
+      zalloc zone size has been considerably extended (which was not possible
+      before because of some bug)
+    <mel__> i see
+    <antrik> but as mcsim pointed out, with the new allocator not relying on a
+      fixed-sized zalloc zone at all, they are even less likely, and should
+      happen only if all memory is exhausted
+    <antrik> I guess this outdated report can just be dropped
+    <mcsim> I think, that now it is problem rather of absence of OOM-killer or
+      resource manager
+    <antrik> mcsim: right :-)
+    <antrik> (and we have separate articles about that)
