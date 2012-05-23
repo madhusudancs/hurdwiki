@@ -1,0 +1,52 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+This works:
+
+    $ touch a && settrans a /hurd/symlink b
+
+This doesn't:
+
+    $ mkdir a && settrans a /hurd/symlink b
+    settrans: a: Is a directory
+
+It's the same `file_set_translator` RPC both times, and it's [[translator
+short-circuiting|hurd/translator/short-circuiting]] which makes the latter one
+fail:
+
+`libdiskfs/file-set-trans.c`:
+
+    [...]
+      /* Set passive translator */
+      if (passive_flags & FS_TRANS_SET)
+        {
+          if (!(passive_flags & FS_TRANS_FORCE))
+            {
+              /* Handle the short-circuited translators */
+              mode_t newmode = 0;
+    
+              if (diskfs_shortcut_symlink && !strcmp (passive, _HURD_SYMLINK))
+                newmode = S_IFLNK;
+              [...]
+    
+              if (newmode)
+                {
+                  if (S_ISDIR (np->dn_stat.st_mode))
+                    {
+                      /* We can't allow this, because if the mode of the directory
+                         changes, the links will be lost.  Perhaps it might be
+                         allowed for empty directories, but that's too much of a
+                         pain.  */
+                      mutex_unlock (&np->lock);
+                      return EISDIR;
+                    }
+    [...]
