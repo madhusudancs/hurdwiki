@@ -76,12 +76,12 @@ testsuite.
 git checkout reviewed
 git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc ..upstream/master
 -i
-/^commit |^---$|hurd|linux
+/^commit |^---$|hurd|linux|nptl|glibc
 
 -->
 
-Last reviewed up to the [[Git mirror's 9aa4b6a8046270a9dbdf47827f1ea873217d7aa5
-(2011-11-28) sources|source_repositories/gcc]].
+Last reviewed up to the [[Git mirror's 4b1da543a2212d4b442c4b83b5233469032003d1
+(2012-04-11) sources|source_repositories/gcc]].
 
 <http://gcc.gnu.org/install/configure.html> has documentation for the
 `configure` switches.
@@ -100,7 +100,7 @@ Last reviewed up to the [[Git mirror's 9aa4b6a8046270a9dbdf47827f1ea873217d7aa5
       * `libstdc++-v3/config/os/gnu-linux/*`
 
         Is used for all GNU systems, as per `libstdc++-v3/configure.host`.
-        Should rename to `gnu` to reflect this?
+        Should rename to `gnu-user` to reflect this?
 
       * `gcc/acinclude.m4`:`gcc_GAS_FLAGS`: always pass `--32` to assembler for
         x86 Linux.  (Why?)
@@ -250,11 +250,21 @@ Last reviewed up to the [[Git mirror's 9aa4b6a8046270a9dbdf47827f1ea873217d7aa5
       * f29a2041f32773464e226a83f41762c2e9cf658e
         (e53a96c2136f7cdff4699475fea41afeed9dece3)
 
+  * [high] 3efc00f6f17778172d3fa7ac737fa1473b3b4d5a, `Check __GLIBC__ when
+    using __SIGRTMIN`.  GCC PR52390.  Fixed by
+    8d2259c83f94c082ad8a00b5d00bb639ce24efce.
+
+  * 15ac1e637ad0cb92bf7629205c617ea847a4b810 `Build 64-bit libffi multilib for
+    i?86-linux`.
+
+  * `libstdc++`: uses `_GLIBCXX_HAVE_TLS`, but where is this defined?  Supposed
+    to come from `config/tls.m4:GCC_CHECK_TLS`?
+
 
 # Build
 
 Here's a log of a GCC build run; this is from our [[Git repository's
-74a56c71c55f667824eb2ef1d62d408e9c000d5e (2011-10-23)
+9cfe8751c08b60037c3f36d6d86d164c45fc8ec6 (2011-10-23)
 sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -267,8 +277,14 @@ sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 Different hosts may default to different shells and compiler versions; thus
 harmonized.
 
-This takes up around 2.9 GiB, and needs roughly 2.75 h on kepler.SCHWINGE and
-13.25 h on coulomb.SCHWINGE.
+This takes up around 3.1 GiB, and needs roughly 2.5 h on kepler.SCHWINGE and 12
+h on coulomb.SCHWINGE.
+
+<!--
+
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && make -k check-gcc 2>&1 | tee log_check
+
+-->
 
 
 ## Analysis
@@ -334,7 +350,11 @@ This takes up around 2.9 GiB, and needs roughly 2.75 h on kepler.SCHWINGE and
 
       * `libgomp/config/linux/`, `libgomp/config/linux/x86`
 
+    `sed`ed away.
+
       * `-ftls-model=initial-exec -march=i486 -mtune=i686`
+
+    `sed`ed away.
 
   * Missing `EOWNERDEAD`, `ENOTRECOVERABLE`.  What're they used for?
 
@@ -421,6 +441,36 @@ This takes up around 2.9 GiB, and needs roughly 2.75 h on kepler.SCHWINGE and
 
     `-Wl,-Bsymbolic` vs. `-Wl,-Bsymbolic-functions`
 
+  * The following warnings probably appeared when adding `t/debian-multiarch`:
+
+         gawk -f ../../master/gcc/opt-functions.awk -f ../../master/gcc/opt-read.awk \
+                       -f ../../master/gcc/optc-gen.awk \
+                       -v header_name="config.h system.h coretypes.h tm.h" < optionlist > options.c
+        +warning: multiple different help strings for I:
+        +       -I <dir>.       Add <dir> to the end of the main source path
+        +       -I <dir>        Add <dir> to the end of the main include path
+        +warning: multiple different help strings for nostdinc:
+        +       Do not look for source files in standard path
+        +       Do not search standard system include directories (those specified with -isystem will still be used)
+
+  * `jar`
+
+         make[2]: Entering directory `[...]/hurd/master.build/[ARCH]/libjava'
+        -: make ; exec make "AR_FLAGS=rc" [...] "RANLIB=ranlib" "DESTDIR=" "JAR=[...]/hurd/master.build/[ARCH]/libjava/scripts/jar" DO=all multi-do
+        +: make ; exec make "AR_FLAGS=rc" [...] "RANLIB=ranlib" "DESTDIR=" "JAR=jar" DO=all multi-do
+
+    Probably because kepler.SCHWINGE has an OpenJDK `/usr/bin/jar`, and
+    coulomb.SCHWINGE a GCJ one.
+
+    There are other instances of this in the following.
+
+  * *default library search path*
+
+        -checking for the default library search path... /lib /usr/lib /lib/[MULTIARCH] /usr/lib/[MULTIARCH] /lib/i486-linux-gnu /usr/lib/i486-linux-gnu /usr/local/lib /lib64 /usr/lib64 
+        +checking for the default library search path... /lib /usr/lib
+
+    Should be aligned by Samuel's binutils patch.
+
 
 # Install
 
@@ -445,6 +495,17 @@ min on coulomb.SCHWINGE.
 
     `-Wl,-Bsymbolic` vs. `-Wl,-Bsymbolic-functions` (as above)
 
+  * `value-unwind.h`
+
+         /usr/bin/install -c -m 644 ../../master/gcc/../libcpp/include/symtab.h [...]/hurd/master.build.install/lib/gcc/[ARCH]/4.7.0/plugin/include/symtab.h
+        -/usr/bin/install -c -m 644 ../../master/gcc/../libgcc/config/i386/value-unwind.h [...]/hurd/master.build.install/lib/gcc/[ARCH]/4.7.0/plugin/include/value-unwind.h
+         /usr/bin/install -c -m 644 ../../master/gcc/ada/gcc-interface/ada-tree.def [...]/hurd/master.build.install/lib/gcc/[ARCH]/4.7.0/plugin/include/ada/gcc-interface/ada-tree.def
+
+    Comes from `gcc/config.gcc`: for `i[34567]86-*-linux*`
+    vs. `i[34567]86-*-*`, but apparently is important only for *x86_64* anyway.
+
+  * `jar`: as above.
+
 
 # Testsuite
 
@@ -456,14 +517,13 @@ Testing on GNU/Hurd is blocked on
 TODO.  Can use parallel testing, see [[!message-id
 "20110331070322.GI11563@sunsite.ms.mff.cuni.cz"]].
 
-    $ make -k check 2>&1 | tee log_check
+    $ make -k check-gcc 2>&1 | tee log_check
     [...]
 
-This needs roughly TODO min on kepler.SCHWINGE and TODO min on
-coulomb.SCHWINGE.
+This needs roughly 3.75 h on kepler.SCHWINGE and 24 h on coulomb.SCHWINGE.
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd/master.build/TODO | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/gcc/linux/sum
-    $ ssh coulomb.SCHWINGE 'cd tmp/gcc/ && cat hurd/master.build/TODO | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/gcc/hurd/sum
+    $ ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd/master.build/*/*/*/*.sum | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/gcc/linux/sum
+    $ ssh coulomb.SCHWINGE 'cd tmp/gcc/ && cat hurd/master.build/*/*/*/*.sum | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/gcc/hurd/sum
     $ diff -u -F ^Running toolchain/logs/gcc/linux/sum toolchain/logs/gcc/hurd/sum > toolchain/logs/gcc/sum.diff
 
 
