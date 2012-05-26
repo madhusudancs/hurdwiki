@@ -80,8 +80,8 @@ git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc ..upstream
 
 -->
 
-Last reviewed up to the [[Git mirror's 4b1da543a2212d4b442c4b83b5233469032003d1
-(2012-04-11) sources|source_repositories/gcc]].
+Last reviewed up to the [[Git mirror's 43e94e511c3a4b789ffc0a2e3ec0f93a0a12471c
+(2012-05-08) sources|source_repositories/gcc]].
 
 <http://gcc.gnu.org/install/configure.html> has documentation for the
 `configure` switches.
@@ -260,11 +260,20 @@ Last reviewed up to the [[Git mirror's 4b1da543a2212d4b442c4b83b5233469032003d1
   * `libstdc++`: uses `_GLIBCXX_HAVE_TLS`, but where is this defined?  Supposed
     to come from `config/tls.m4:GCC_CHECK_TLS`?
 
+  * `config/i386/gnu-user-common.h`, 83dd7eef425bbcd24ee50e11febbc8b42ac35b34,
+    ba10293157ce3b9b163e56585b26d2f27d8141a2.  Looks good.
+
+  * `libatomic`, 6db1d2ca83f9327020b75f6c1610649bb18e71db,
+    b322ad8985bc0c63c59239ce43c42877cd9a38fa,
+    a4423e56426eace7b48beafeb459443609f32008,
+    4f76c3cf3138bb5779832d5aae740fe8ecf5084d,
+    a315a02b2884261410f51f3164987d9b1a034e49.  Should be fine.
+
 
 # Build
 
 Here's a log of a GCC build run; this is from our [[Git repository's
-9cfe8751c08b60037c3f36d6d86d164c45fc8ec6 (2011-10-23)
+7cb1b00f391f1e7a0ca6803e44ffd42b154c8837 (2011-11-28)
 sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -277,8 +286,8 @@ sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 Different hosts may default to different shells and compiler versions; thus
 harmonized.
 
-This takes up around 3.1 GiB, and needs roughly 2.5 h on kepler.SCHWINGE and 12
-h on coulomb.SCHWINGE.
+This takes up around 3.2 GiB, and needs roughly 2.75 h on kepler.SCHWINGE and
+12.25 h on coulomb.SCHWINGE.
 
 <!--
 
@@ -377,11 +386,10 @@ h on coulomb.SCHWINGE.
   * `libobjc/thr.c`: `gcc/gthr-posix.h`
 
          libtool: compile:  [...]/hurd/master.build/./gcc/xgcc [...] [...]/hurd/master/libobjc/thr.c -c [...]
-        +In file included from ../.././gcc/gthr-default.h:1:0,
-        +                 from [...]/hurd/master/libobjc/../gcc/gthr.h:160,
+        +In file included from [...]/hurd/master/libobjc/../libgcc/gthr.h:142:0,
         +                 from [...]/hurd/master/libobjc/thr.c:45:
-        +[...]/hurd/master/libobjc/../gcc/gthr-posix.h: In function '__gthread_objc_thread_set_priority':
-        +[...]/hurd/master/libobjc/../gcc/gthr-posix.h:389:41: warning: unused parameter 'priority' [-Wunused-parameter]
+        +../libgcc/gthr-default.h: In function '__gthread_objc_thread_set_priority':
+        +../libgcc/gthr-default.h:388:41: warning: unused parameter 'priority' [-Wunused-parameter]
 
   * `/proc/self/*`
 
@@ -471,13 +479,22 @@ h on coulomb.SCHWINGE.
 
     Should be aligned by Samuel's binutils patch.
 
+  * `value-unwind.h`
+
+        -DEFINES='' HEADERS='../../../master/libgcc/config/i386/value-unwind.h' \
+        +DEFINES='' HEADERS='' \
+                        ../../../master/libgcc/mkheader.sh > tmp-libgcc_tm.h
+
+    Comes from `gcc/config.gcc`: for `i[34567]86-*-linux*`
+    vs. `i[34567]86-*-*`, but apparently is important only for *x86_64* anyway.
+
 
 # Install
 
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 630 MiB, and needs roughly 4 min on kepler.SCHWINGE and 35
+This takes up around 700 MiB, and needs roughly 4 min on kepler.SCHWINGE and 35
 min on coulomb.SCHWINGE.
 
 
@@ -495,15 +512,6 @@ min on coulomb.SCHWINGE.
 
     `-Wl,-Bsymbolic` vs. `-Wl,-Bsymbolic-functions` (as above)
 
-  * `value-unwind.h`
-
-         /usr/bin/install -c -m 644 ../../master/gcc/../libcpp/include/symtab.h [...]/hurd/master.build.install/lib/gcc/[ARCH]/4.7.0/plugin/include/symtab.h
-        -/usr/bin/install -c -m 644 ../../master/gcc/../libgcc/config/i386/value-unwind.h [...]/hurd/master.build.install/lib/gcc/[ARCH]/4.7.0/plugin/include/value-unwind.h
-         /usr/bin/install -c -m 644 ../../master/gcc/ada/gcc-interface/ada-tree.def [...]/hurd/master.build.install/lib/gcc/[ARCH]/4.7.0/plugin/include/ada/gcc-interface/ada-tree.def
-
-    Comes from `gcc/config.gcc`: for `i[34567]86-*-linux*`
-    vs. `i[34567]86-*-*`, but apparently is important only for *x86_64* anyway.
-
   * `jar`: as above.
 
 
@@ -520,7 +528,7 @@ TODO.  Can use parallel testing, see [[!message-id
     $ make -k check-gcc 2>&1 | tee log_check
     [...]
 
-This needs roughly 3.75 h on kepler.SCHWINGE and 24 h on coulomb.SCHWINGE.
+This needs roughly 4.25 h on kepler.SCHWINGE and 38.5 h on coulomb.SCHWINGE.
 
     $ ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd/master.build/*/*/*/*.sum | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/gcc/linux/sum
     $ ssh coulomb.SCHWINGE 'cd tmp/gcc/ && cat hurd/master.build/*/*/*/*.sum | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/gcc/hurd/sum
