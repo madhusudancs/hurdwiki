@@ -6,3 +6,5 @@ s%i386-gnu%[MULTIARCH]%g
 
 
 s%libgomp/config/posix/%libgomp/config/[SYSDEP]/%g
+
+
