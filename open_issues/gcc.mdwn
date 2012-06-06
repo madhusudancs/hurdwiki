@@ -250,6 +250,8 @@ Last reviewed up to the [[Git mirror's 12c17795aa79c9b23f9565d7ca3b42ca6530f6c4
       * f29a2041f32773464e226a83f41762c2e9cf658e
         (e53a96c2136f7cdff4699475fea41afeed9dece3)
 
+    Testresults same as for GNU/Linux.
+
   * [high] 3efc00f6f17778172d3fa7ac737fa1473b3b4d5a, `Check __GLIBC__ when
     using __SIGRTMIN`.  GCC PR52390.  Fixed by
     8d2259c83f94c082ad8a00b5d00bb639ce24efce.
@@ -260,26 +262,16 @@ Last reviewed up to the [[Git mirror's 12c17795aa79c9b23f9565d7ca3b42ca6530f6c4
   * `libstdc++`: uses `_GLIBCXX_HAVE_TLS`, but where is this defined?  Supposed
     to come from `config/tls.m4:GCC_CHECK_TLS`?
 
-  * `config/i386/gnu-user-common.h`, 83dd7eef425bbcd24ee50e11febbc8b42ac35b34,
-    ba10293157ce3b9b163e56585b26d2f27d8141a2.  Looks good.
-
-  * `libatomic`, 6db1d2ca83f9327020b75f6c1610649bb18e71db,
-    b322ad8985bc0c63c59239ce43c42877cd9a38fa,
-    a4423e56426eace7b48beafeb459443609f32008,
-    4f76c3cf3138bb5779832d5aae740fe8ecf5084d,
-    a315a02b2884261410f51f3164987d9b1a034e49,
-    f699ded52dc857cd331698e7244513dc02ab08a3.  Should be fine.
-
 
 # Build
 
 Here's a log of a GCC build run; this is from our [[Git repository's
-b76fe3e04c1aea6bd923e6de4ced789e950230fe (2012-05-29)
+48cd7aa43934e2bc5cf582e92ebd5cce93effe88 (2012-05-29)
 sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
     $ (cd ../master/ && contrib/gcc_update --touch)
-    $ ../master/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 2>&1 | tee log_build
+    $ ../master/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 --enable-build-with-cxx 2>&1 | tee log_build
     [...]
     $ make 2>&1 | tee log_build_
     [...]
@@ -287,12 +279,12 @@ sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 Different hosts may default to different shells and compiler versions; thus
 harmonized.
 
-This takes up around 3.2 GiB, and needs roughly 2.75 h on kepler.SCHWINGE and
-12.25 h on coulomb.SCHWINGE.
+This takes up around 2.6 GiB, and needs roughly 2.75 h on kepler.SCHWINGE and
+12.75 h on coulomb.SCHWINGE.
 
 <!--
 
-    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && make -k check-gcc 2>&1 | tee log_check
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && make -k RUNTESTFLAGS=-v check 2>&1 | tee log_check
 
 -->
 
@@ -472,7 +464,7 @@ This takes up around 3.2 GiB, and needs roughly 2.75 h on kepler.SCHWINGE and
         +../../../master/libgcc/soft-fp/letf2.c:50:1: warning: no previous prototype for '__lttf2' [-Wmissing-prototypes]
 
   * `libatomic` on GNU/Linux compiles several more files than on GNU/Hurd.  Is
-    that correct?
+    that correct?  Probably futex support.
 
 
 # Install
@@ -511,10 +503,10 @@ Testing on GNU/Hurd is blocked on
 TODO.  Can use parallel testing, see [[!message-id
 "20110331070322.GI11563@sunsite.ms.mff.cuni.cz"]].
 
-    $ make -k check-gcc 2>&1 | tee log_check
+    $ make -k RUNTESTFLAGS=-v check 2>&1 | tee log_check
     [...]
 
-This needs roughly 4.25 h on kepler.SCHWINGE and 38.5 h on coulomb.SCHWINGE.
+This needs roughly 6.25 h on kepler.SCHWINGE and 50.25 h on coulomb.SCHWINGE.
 
 
 ## Analysis
