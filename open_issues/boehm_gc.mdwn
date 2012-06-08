@@ -15,18 +15,26 @@ This one does need Hurd-specific configuration.
 It is, for example, used by [[/GCC]] (which has its own fork), so any changes
 committed upstream should very like also be made there.
 
+[[!toc levels=2]]
+
 
 # [[General information|/boehm_gc]]
 
 
-# [[Sources|source_repositories/boehm_gc]]
-
-
 # Configuration
 
-[[tschwinge]] reviewed its GNU/Hurd port's configuration on 2010-12-08, based
-on CVS HEAD sources from 2010-12-02, converted to [[Git, correspondingly
-1c2455988a8f59a5f83b986b9156f03be395b3b6|source_repositories/boehm_gc]].
+<!--
+
+git checkout reviewed
+git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc ..upstream/master
+-i
+/^commit |^---$
+
+-->
+
+Last reviewed up to the 2f68acaa38da8de98f66e677306b7645e83159ef (2010-11-04)
+sources, and for `libatomic_ops` to the
+cc193eeac91851d94bcd01cf3058d947c80b28b2 (2010-09-15) sources.
 
   * `configure.ac`
 
@@ -254,18 +262,80 @@ on CVS HEAD sources from 2010-12-02, converted to [[Git, correspondingly
         Nothing.
 
 
+# Build
+
+Here's a log of a binutils build run; this is from the
+2f68acaa38da8de98f66e677306b7645e83159ef (2010-11-04) sources, and for
+`libatomic_ops` for the cc193eeac91851d94bcd01cf3058d947c80b28b2 (2010-09-15)
+sources, run on kepler.SCHWINGE and coulomb.SCHWINGE.
+
+    $ (cd master/ && ln -sfn ../libatomic_ops/master libatomic_ops)
+
+    $ export LC_ALL=C
+    $ ../master/configure --prefix="$PWD".install SHELL=/bin/bash CC=gcc-4.6 CXX=g++-4.6 --enable-cplusplus --enable-gc-debug 2>&1 | tee log_build
+    [...]
+    $ make 2>&1 | tee log_build_
+    [...]
+
+Different hosts may default to different shells and compiler versions; thus
+harmonized.  Using bash instead of dash as otherwise libtool explodes.
+
+This takes up around X MiB, and needs roughly X min on kepler.SCHWINGE and
+X min on coulomb.SCHWINGE.
+
+<!--
+
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && make -k check 2>&1 | tee log_check
+
+-->
+
+## Analysis
+
+    $ ssh kepler.SCHWINGE 'cd tmp/source/boehm-gc/ && cat master.build/log_build* | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/boehm-gc/linux/log_build
+    $ ssh coulomb.SCHWINGE 'cd tmp/boehm-gc/ && cat master.build/log_build* | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/boehm-gc/hurd/log_build
+    $ diff -wu <(sed -f toolchain/logs/boehm-gc/linux/log_build.sed < toolchain/logs/boehm-gc/linux/log_build) <(sed -f toolchain/logs/boehm-gc/hurd/log_build.sed < toolchain/logs/boehm-gc/hurd/log_build) > toolchain/logs/boehm-gc/log_build.diff
+
+  * only GNU/Linux: `configure: WARNING: "Explicit GC_INIT() calls may be
+    required."`
+
+  * only GNU/Linux: `configure: WARNING: "Client must not use
+    -fomit-frame-pointer."`
+
+
+# Install
+
+    $ make install 2>&1 | tee log_install
+    [...]
+
+This takes up around X MiB, and needs roughly X min on kepler.SCHWINGE and X
+min on coulomb.SCHWINGE.
+
+
+## Analysis
+
+    $ ssh kepler.SCHWINGE 'cd tmp/source/boehm-gc/ && cat master.build/log_install | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/boehm-gc/linux/log_install
+    $ ssh coulomb.SCHWINGE 'cd tmp/boehm-gc/ && cat master.build/log_install | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/boehm-gc/hurd/log_install
+    $ diff -wu toolchain/logs/boehm-gc/linux/log_install toolchain/logs/boehm-gc/hurd/log_install > toolchain/logs/boehm-gc/log_install.diff
+
+
 # Testsuite
+
+    $ make -k check
+    [...]
+
+This needs roughly X min on kepler.SCHWINGE and X min on coulomb.SCHWINGE.
+
+    $ ssh kepler.SCHWINGE 'cd tmp/source/boehm-gc/ && cat master.build/log_check | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/boehm-gc/linux/log_check
+    $ ssh coulomb.SCHWINGE 'cd tmp/boehm-gc/ && cat master.build/log_check | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/boehm-gc/hurd/log_check
+    $ diff -wu <(sed -f toolchain/logs/boehm-gc/linux/log_check.sed < toolchain/logs/boehm-gc/linux/log_check) <(sed -f toolchain/logs/boehm-gc/hurd/log_check.sed < toolchain/logs/boehm-gc/hurd/log_check) > toolchain/logs/boehm-gc/log_check.diff
+
+
+## Analysis
 
 There are different configurations possible, but in general, the testsuite
 restults of GNU/Linux and GNU/Hurd look very similar.
 
-It has last been run and compared on 2010-11-10, based on CVS HEAD sources from
-2010-11-04, converted to [[Git, correspondingly
-9abb37b2e581b415bb1f482085891a289c2c0be1|source_repositories/boehm_gc]].
-
-## `--enable-cplusplus --enable-gc-debug`
-
-  * GNU/Hurd is missing *Call chain at allocation: [...] output*.
+  * GNU/Hurd is missing `Call chain at allocation: [...]` output.
 
     `os_dep.c`:`GC_print_callers`
 
