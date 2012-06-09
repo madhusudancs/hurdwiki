@@ -32,9 +32,9 @@ git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc ..upstream
 
 -->
 
-Last reviewed up to the 5f3d02837738332457ed15a63d868a16c6c352b0 (2011-05-03)
+Last reviewed up to the 1ba313acaaab10ebd20a0b648466786f2c1d9282 (2011-09-08)
 sources, and for `libatomic_ops` to the
-cc193eeac91851d94bcd01cf3058d947c80b28b2 (2010-09-15) sources.
+ced58b938cdd876622c2a6e74fb0c12079a93425 (2011-09-08) sources.
 
   * `configure.ac`
 
@@ -265,14 +265,14 @@ cc193eeac91851d94bcd01cf3058d947c80b28b2 (2010-09-15) sources.
 # Build
 
 Here's a log of a binutils build run; this is from the
-5f3d02837738332457ed15a63d868a16c6c352b0 (2011-05-03) sources, and for
-`libatomic_ops` for the cc193eeac91851d94bcd01cf3058d947c80b28b2 (2010-09-15)
+1ba313acaaab10ebd20a0b648466786f2c1d9282 (2011-09-08) sources, and for
+`libatomic_ops` for the ced58b938cdd876622c2a6e74fb0c12079a93425 (2011-09-08)
 sources, run on kepler.SCHWINGE and coulomb.SCHWINGE.
 
-    $ (cd master/ && ln -sfn ../libatomic_ops/master libatomic_ops)
-
     $ export LC_ALL=C
-    $ ../master/configure --prefix="$PWD".install SHELL=/bin/bash CC=gcc-4.6 CXX=g++-4.6 --enable-cplusplus --enable-gc-debug 2>&1 | tee log_build
+    $ (cd ../master/ && ln -sfn ../libatomic_ops/master libatomic_ops)
+    $ (cd ../master/ && autoreconf -vfi)
+    $ ../master/configure --prefix="$PWD".install SHELL=/bin/bash CC=gcc-4.6 CXX=g++-4.6 --enable-cplusplus --enable-gc-debug --enable-gc-assertions 2>&1 | tee log_build
     [...]
     $ make 2>&1 | tee log_build_
     [...]
@@ -285,7 +285,7 @@ X min on coulomb.SCHWINGE.
 
 <!--
 
-    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && make -k check 2>&1 | tee log_check
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && { make -k check 2>&1 | tee log_check; (cd libatomic_ops/ && make -k check) 2>&1 | tee log_check_; }
 
 -->
 
@@ -322,14 +322,16 @@ min on coulomb.SCHWINGE.
 
     $ make -k check
     [...]
+    $ (cd libatomic_ops/ && make -k check)
+    [...]
 
 This needs roughly X min on kepler.SCHWINGE and X min on coulomb.SCHWINGE.
 
 
 ## Analysis
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/boehm-gc/ && cat master.build/log_check | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/boehm-gc/linux/log_check
-    $ ssh coulomb.SCHWINGE 'cd tmp/boehm-gc/ && cat master.build/log_check | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/boehm-gc/hurd/log_check
+    $ ssh kepler.SCHWINGE 'cd tmp/source/boehm-gc/ && cat master.build/log_check* | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/boehm-gc/linux/log_check
+    $ ssh coulomb.SCHWINGE 'cd tmp/boehm-gc/ && cat master.build/log_check* | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/boehm-gc/hurd/log_check
     $ diff -wu <(sed -f toolchain/logs/boehm-gc/linux/log_check.sed < toolchain/logs/boehm-gc/linux/log_check) <(sed -f toolchain/logs/boehm-gc/hurd/log_check.sed < toolchain/logs/boehm-gc/hurd/log_check) > toolchain/logs/boehm-gc/log_check.diff
 
 There are different configurations possible, but in general, the testsuite
@@ -338,6 +340,19 @@ restults of GNU/Linux and GNU/Hurd look very similar.
   * GNU/Hurd is missing `Call chain at allocation: [...]` output.
 
     `os_dep.c`:`GC_print_callers`
+
+  * `middletest`, GNU/Hurd
+
+        Assertion failure: ../master/thread_local_alloc.c:156
+        assertion failure
+        /bin/bash: line 5: 24743 Aborted                 ${dir}$tst
+        FAIL: middletest
+
+  * `libatomic_ops`, `test_stack`, GNU/Linux
+
+        FAILED
+        /bin/bash: line 5: 27329 Aborted                 ${dir}$tst
+        FAIL: test_stack
 
 
 # TODO
