@@ -37,8 +37,8 @@ git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc ..upstream
 
 -->
 
-Last reviewed up to the [[Git mirror's 12c17795aa79c9b23f9565d7ca3b42ca6530f6c4
-(2012-05-29) sources|source_repositories/gcc]].
+Last reviewed up to the [[Git mirror's dfed30bca14de84e0446cc02f5a27407dbfdc3e1
+(2012-06-11) sources|source_repositories/gcc]].
 
 <http://gcc.gnu.org/install/configure.html> has documentation for the
 `configure` switches.
@@ -219,16 +219,23 @@ Last reviewed up to the [[Git mirror's 12c17795aa79c9b23f9565d7ca3b42ca6530f6c4
   * `libstdc++`: uses `_GLIBCXX_HAVE_TLS`, but where is this defined?  Supposed
     to come from `config/tls.m4:GCC_CHECK_TLS`?
 
+  * `libgcc/gthr-posix.h:__gthread_active_p` -- is this suitable for us?  This
+    is used in libgcc for ObjC wrapper stuff and similar in libstdc++.
+    C.f. [[!message-id "x57jobtqx89w.fsf@frobland.mtv.corp.google.com"]],
+    [[!message-id "x57jd359fkx3.fsf@frobland.mtv.corp.google.com"]] as well as
+    [[!debbug 629866]]/[[!message-id
+    "20110609002620.GA16719@const.famille.thibault.fr"]].
+
 
 # Build
 
 Here's a log of a GCC build run; this is from our [[Git repository's
-48cd7aa43934e2bc5cf582e92ebd5cce93effe88 (2012-05-29)
+ccc21737e0a8df234f5097369f17930de4cb5e6d (2012-06-06)
 sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
     $ (cd ../master/ && contrib/gcc_update --touch)
-    $ ../master/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 --enable-build-with-cxx 2>&1 | tee log_build
+    $ ../master/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 --enable-build-with-cxx --enable-languages=all,ada 2>&1 | tee log_build
     [...]
     $ make 2>&1 | tee log_build_
     [...]
@@ -236,7 +243,7 @@ sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 Different hosts may default to different shells and compiler versions; thus
 harmonized.
 
-This takes up around 2.6 GiB, and needs roughly 2.75 h on kepler.SCHWINGE and
+This takes up around 3.1 GiB, and needs roughly 3.0 h on kepler.SCHWINGE and
 12.75 h on coulomb.SCHWINGE.
 
 <!--
@@ -248,9 +255,7 @@ This takes up around 2.6 GiB, and needs roughly 2.75 h on kepler.SCHWINGE and
 
 ## Analysis
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd/master.build/log_build* | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/gcc/linux/log_build
-    $ ssh coulomb.SCHWINGE 'cd tmp/gcc/ && cat hurd/master.build/log_build* | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/gcc/hurd/log_build
-    $ diff -wu <(sed -f toolchain/logs/gcc/linux/log_build.sed < toolchain/logs/gcc/linux/log_build) <(sed -f toolchain/logs/gcc/hurd/log_build.sed < toolchain/logs/gcc/hurd/log_build) > toolchain/logs/gcc/log_build.diff
+    $ toolchain/logs/process gcc build
 
   * [[`checking if gcc static flag -static
     works... no`|glibc_madvise_vs_static_linking]]
@@ -429,15 +434,13 @@ This takes up around 2.6 GiB, and needs roughly 2.75 h on kepler.SCHWINGE and
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 700 MiB, and needs roughly 4 min on kepler.SCHWINGE and 35
+This takes up around 850 MiB, and needs roughly 4 min on kepler.SCHWINGE and 35
 min on coulomb.SCHWINGE.
 
 
 ## Analysis
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd/master.build/log_install | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/gcc/linux/log_install
-    $ ssh coulomb.SCHWINGE 'cd tmp/gcc/ && cat hurd/master.build/log_install | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/gcc/hurd/log_install
-    $ diff -wu <(sed -f toolchain/logs/gcc/linux/log_install.sed < toolchain/logs/gcc/linux/log_install) <(sed -f toolchain/logs/gcc/hurd/log_install.sed < toolchain/logs/gcc/hurd/log_install) > toolchain/logs/gcc/log_install.diff
+    $ toolchain/logs/process gcc install
 
   * `libtool: finish`: `ldconfig` is not run for the Hurd.
 
@@ -463,14 +466,12 @@ TODO.  Can use parallel testing, see [[!message-id
     $ make -k RUNTESTFLAGS=-v check 2>&1 | tee log_check
     [...]
 
-This needs roughly 6.25 h on kepler.SCHWINGE and 50.25 h on coulomb.SCHWINGE.
+This needs roughly 6.5 h on kepler.SCHWINGE and 50.25 h on coulomb.SCHWINGE.
 
 
 ## Analysis
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd/master.build/*/*/*/*.sum | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/gcc/linux/sum
-    $ ssh coulomb.SCHWINGE 'cd tmp/gcc/ && cat hurd/master.build/*/*/*/*.sum | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/gcc/hurd/sum
-    $ diff -u -F ^Running toolchain/logs/gcc/linux/sum toolchain/logs/gcc/hurd/sum > toolchain/logs/gcc/sum.diff
+    $ toolchain/logs/process gcc test
 
 TODO.
 
