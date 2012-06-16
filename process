@@ -6,6 +6,8 @@ project=$1
 case $project in
   gcc)
     branch=hurd/master
+    linux_host=kepler.SCHWINGE
+    hurd_host=coulomb.SCHWINGE
     ;;
   *)
     echo >&2 "Don't know about project »$project«."
@@ -32,44 +34,116 @@ case $step in
 esac
 shift
 
-host=$1
-case $host in
-  coulomb.SCHWINGE)
-    project_base=tmp/"$project"
-    mount=/media/erich
-    ;;
-  kepler.SCHWINGE)
-    project_base=tmp/source/"$project"
-    mount=/media/data
+action=$1
+case $action in
+  fetch | diff)
     ;;
   '')
-    # If there is no host specified, we know which two to use and what to do
-    # with the results.  May want to separate the fetch and diff steps.
-    h1=kepler.SCHWINGE
-    h2=coulomb.SCHWINGE
-    "$0" "$project" "$step" "$h1"
-    "$0" "$project" "$step" "$h2"
+    # If there is no action specified, try a default set.
+    "$0" "$project" "$step" fetch
+    "$0" "$project" "$step" diff
+    exit
+    ;;
+  *)
+    echo >&2 "Don't know about action »$action«."
+    exit 1
+    ;;
+esac
+shift
+
+case $project:$action in
+  gcc:fetch)
+    host=$1
+    case $host in
+      coulomb.SCHWINGE)
+        project_base=tmp/"$project"
+        mount=/media/erich
+        ;;
+      kepler.SCHWINGE)
+        project_base=tmp/source/"$project"
+        mount=/media/data
+        ;;
+      '')
+        # If there is no host specified, try a default set.
+        : "${linux_host:?}"
+        : "${hurd_host:?}"
+        "$0" "$project" "$step" "$action" "$linux_host"
+        "$0" "$project" "$step" "$action" "$hurd_host"
+        exit
+        ;;
+      *)
+        echo >&2 "Don't know about host »$host«."
+        exit 1
+        ;;
+    esac
+    shift
+
+    [ $# = 0 ]
+
+    : "${branch:?}"
+    : "${mount:?}"
+    : "${project_base:?}"
+    case $step:$host in
+      build:* | install:*)
+        ssh \
+          "$host" \
+          'cd '"$project_base"'/ && \
+          cat '"$branch"'.build/log_'"$step"'* \
+            | sed -e "s%\('"$mount"'\)\?${PWD}%[...]%g"' \
+          > toolchain/logs/"$project"/"$host"/"$step"
+        exit
+        ;;
+      test:*)
+        rsync \
+          -vd --delete \
+          --rsync-path='\
+            cd '"$project_base"'/ && \
+            base=$PWD && \
+            rm -rf '"$branch"'.build.sums && \
+            mkdir '"$branch"'.build.sums && \
+            cd '"$branch"'.build.sums/ && \
+            find "$base"/'"$branch"'.build/ -name \*.sum \
+              -exec cp -bt ./ \{\} \; && \
+            for f in *; do \
+              sed -e "s%\('"$mount"'\)\?${base}%[...]%g" -i "$f" \
+              || exit $?; \
+            done &&\
+            rsync' "$host": \
+          toolchain/logs/"$project"/"$host"/"$step"/
+        exit
+        ;;
+      *)
+        echo >&2 "Internal error."
+        exit 1
+        ;;
+    esac
+    ;;
+  gcc:diff)
+    [ $# = 0 ]
+
+    : "${linux_host:?}"
+    : "${hurd_host:?}"
     case $step in
       build | install)
         sed \
-          -f toolchain/logs/"$project"/"$h1"/"$step".sed \
-          < toolchain/logs/"$project"/"$h1"/"$step" \
-          > toolchain/logs/"$project"/"$h1"/"$step"_
+          -f toolchain/logs/"$project"/"$linux_host"/"$step".sed \
+          < toolchain/logs/"$project"/"$linux_host"/"$step" \
+          > toolchain/logs/"$project"/"$linux_host"/"$step"_
         sed \
-          -f toolchain/logs/"$project"/"$h2"/"$step".sed \
-          < toolchain/logs/"$project"/"$h2"/"$step" \
-          > toolchain/logs/"$project"/"$h2"/"$step"_
+          -f toolchain/logs/"$project"/"$hurd_host"/"$step".sed \
+          < toolchain/logs/"$project"/"$hurd_host"/"$step" \
+          > toolchain/logs/"$project"/"$hurd_host"/"$step"_
         r=0
         diff \
           -wu -F ^Running \
-          toolchain/logs/"$project"/"$h1"/"$step"_ \
-          toolchain/logs/"$project"/"$h2"/"$step"_ \
+          toolchain/logs/"$project"/"$linux_host"/"$step"_ \
+          toolchain/logs/"$project"/"$hurd_host"/"$step"_ \
           > toolchain/logs/"$project"/"$step".diff \
         || r=$?
         rm \
           -f \
-          toolchain/logs/"$project"/"$h1"/"$step"_ \
-          toolchain/logs/"$project"/"$h2"/"$step"_
+          toolchain/logs/"$project"/"$linux_host"/"$step"_ \
+          toolchain/logs/"$project"/"$hurd_host"/"$step"_
         [ "$r" = 0 ] || [ "$r" = 1 ]
         exit
         ;;
@@ -77,8 +151,8 @@ case $host in
         r=0
         diff \
           -Nrwu -F ^Running \
-          toolchain/logs/"$project"/"$h1"/"$step"/ \
-          toolchain/logs/"$project"/"$h2"/"$step"/ \
+          toolchain/logs/"$project"/"$linux_host"/"$step"/ \
+          toolchain/logs/"$project"/"$hurd_host"/"$step"/ \
           > toolchain/logs/"$project"/"$step".diff \
         || r=$?
         [ "$r" = 0 ] || [ "$r" = 1 ]
@@ -91,44 +165,10 @@ case $host in
     esac
     ;;
   *)
-    echo >&2 "Don't know about host »$host«."
-    exit 1
-    ;;
-esac
-shift
-
-: "${branch:?}"
-: "${mount:?}"
-: "${project_base:?}"
-case $project:$step:$host in
-  gcc:build:* | gcc:install:*)
-    ssh \
-      "$host" \
-      'cd '"$project_base"'/ && \
-      cat '"$branch"'.build/log_'"$step"'* \
-        | sed -e "s%\('"$mount"'\)\?${PWD}%[...]%g"' \
-      > toolchain/logs/"$project"/"$host"/"$step"
-    ;;
-  gcc:test:*)
-    rsync \
-      -vd --delete \
-      --rsync-path='\
-        cd '"$project_base"'/ && \
-        base=$PWD && \
-        rm -rf '"$branch"'.build.sums && \
-        mkdir '"$branch"'.build.sums && \
-        cd '"$branch"'.build.sums/ && \
-        find "$base"/'"$branch"'.build/ -name \*.sum \
-          -exec cp -bt ./ \{\} \; && \
-        for f in *; do \
-          sed -e "s%\('"$mount"'\)\?${base}%[...]%g" -i "$f" \
-          || exit $?; \
-        done &&\
-        rsync' "$host": \
-      toolchain/logs/"$project"/"$host"/"$step"/
-    ;;
-  *)
     echo >&2 "Internal error."
     exit 1
     ;;
 esac
+
+echo >&2 "Internal error."
+exit 1
