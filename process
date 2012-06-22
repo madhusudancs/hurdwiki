@@ -2,12 +2,22 @@
 
 set -e -x
 
+# TODO.  Several variables are not properly quoted/escaped where they are
+# passed to another shell.
+
 project=$1
+build_suffix=.build
 case $project in
   gcc)
     branch=hurd/master
     linux_host=kepler.SCHWINGE
     hurd_host=coulomb.SCHWINGE
+    ;;
+  glibc)
+    branch=tschwinge/Roger_Whittaker
+    #linux_host=kepler.SCHWINGE
+    hurd_host=coulomb.SCHWINGE
+    build_suffix=.build-gcc-4.6-486
     ;;
   *)
     echo >&2 "Don't know about project »$project«."
@@ -52,7 +62,7 @@ esac
 shift
 
 case $project:$action in
-  gcc:fetch)
+  gcc:fetch | glibc:fetch)
     host=$1
     case $host in
       coulomb.SCHWINGE)
@@ -81,28 +91,31 @@ case $project:$action in
     [ $# = 0 ]
 
     : "${branch:?}"
+    : "${build_suffix:?}"
+    : "${host:?}"
     : "${mount:?}"
     : "${project_base:?}"
-    case $step:$host in
-      build:* | install:*)
+    case $project:$step in
+      gcc:build | gcc:install \
+        | glibc:build | glibc:install | glibc:test)
         ssh \
           "$host" \
           'cd '"$project_base"'/ && \
-          cat '"$branch"'.build/log_'"$step"'* \
+          cat '"$branch$build_suffix"'/log_'"$step"'* \
             | sed -e "s%\('"$mount"'\)\?${PWD}%[...]%g"' \
           > toolchain/logs/"$project"/"$host"/"$step"
         exit
         ;;
-      test:*)
+      gcc:test)
         rsync \
           -vd --delete \
           --rsync-path='\
             cd '"$project_base"'/ && \
             base=$PWD && \
-            rm -rf '"$branch"'.build.sums && \
-            mkdir '"$branch"'.build.sums && \
-            cd '"$branch"'.build.sums/ && \
-            find "$base"/'"$branch"'.build/ -name \*.sum \
+            rm -rf '"$branch$build_suffix"'.sums && \
+            mkdir '"$branch$build_suffix"'.sums && \
+            cd '"$branch$build_suffix"'.sums/ && \
+            find "$base"/'"$branch$build_suffix"'/ -name \*.sum \
               -exec cp -bt ./ \{\} \; && \
             for f in *; do \
               sed -e "s%\('"$mount"'\)\?${base}%[...]%g" -i "$f" \
@@ -123,8 +136,8 @@ case $project:$action in
 
     : "${linux_host:?}"
     : "${hurd_host:?}"
-    case $step in
-      build | install)
+    case $project:$step in
+      gcc:build | gcc:install)
         sed \
           -f toolchain/logs/"$project"/"$linux_host"/"$step".sed \
           < toolchain/logs/"$project"/"$linux_host"/"$step" \
@@ -147,7 +160,7 @@ case $project:$action in
         [ "$r" = 0 ] || [ "$r" = 1 ]
         exit
         ;;
-      test)
+      gcc:test)
         r=0
         diff \
           -Nrwu -F ^Running \
