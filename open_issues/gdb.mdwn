@@ -81,9 +81,9 @@ x86 GNU/Linux' and GNU/Hurd's configurations are slightly different, thus mask
 out most of the differences that are due to GNU/Linux supporting more core file
 formats and more emulation vectors.
 
-    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gdb/ && cat hurd/master.build/log_build* | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' | sed -f open_issues/gdb/log_build-linux.sed) <(ssh coulomb.SCHWINGE 'cd tmp/gdb/ && cat hurd/master.build/log_build* | sed "s%\(/media/erich\)\?${PWD}%[...]%g"' | sed -f open_issues/gdb/log_build-hurd.sed) > open_issues/gdb/log_build.diff
-
-[[log_build.diff]].
+    $ ssh kepler.SCHWINGE 'cd tmp/source/gdb/ && cat hurd/master.build/log_build* | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/gdb/linux/log_build
+    $ ssh coulomb.SCHWINGE 'cd tmp/gdb/ && cat hurd/master.build/log_build* | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/gdb/hurd/log_build
+    $ diff -wu <(sed -f toolchain/logs/gdb/linux/log_build.sed < toolchain/logs/gdb/linux/log_build) <(sed -f toolchain/logs/gdb/hurd/log_build.sed < toolchain/logs/gdb/hurd/log_build) > toolchain/logs/gdb/log_build.diff
 
   * Why do we specify `-D_GNU_SOURCE`, and GNU/Linux doesn't?
 
@@ -101,9 +101,9 @@ min on coulomb.SCHWINGE.
 
 ## Analysis
 
-    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gdb/ && cat hurd/master.build/log_install | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' | sed -f open_issues/gdb/log_install-linux.sed) <(ssh coulomb.SCHWINGE 'cd tmp/gdb/ && cat hurd/master.build/log_install | sed "s%\(/media/erich\)\?${PWD}%[...]%g"' | sed -f open_issues/gdb/log_install-hurd.sed) > open_issues/gdb/log_install.diff
-
-[[log_install.diff]].
+    $ ssh kepler.SCHWINGE 'cd tmp/source/gdb/ && cat hurd/master.build/log_install | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/gdb/linux/log_install
+    $ ssh coulomb.SCHWINGE 'cd tmp/gdb/ && cat hurd/master.build/log_install | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/gdb/hurd/log_install
+    $ diff -wu <(sed -f toolchain/logs/gdb/linux/log_install.sed < toolchain/logs/gdb/linux/log_install) <(sed -f toolchain/logs/gdb/hurd/log_install.sed < toolchain/logs/gdb/hurd/log_install) > toolchain/logs/gdb/log_install.diff
 
   * `libtool: finish`: `ldconfig` is not run for the Hurd.
 
@@ -117,14 +117,9 @@ On GNU/Hurd, hampered by the [[term_blocking]] issue.
 
 This needs roughly 45 min on kepler.SCHWINGE and TODO min on coulomb.SCHWINGE.
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/gdb/ && sed < hurd/master.build/gdb/testsuite/gdb.sum -e "s%\(/media/data\)\?${PWD}%[...]%g"' > open_issues/gdb/sum_linux
-    $ ssh coulomb.SCHWINGE 'cd tmp/gdb/ && sed < hurd/master.build/gdb/testsuite/gdb.sum -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > open_issues/gdb/sum_hurd
-
-Comparing the results files, [[sum_linux]] to [[sum_hurd]]:
-
-    $ diff -u -F ^Running open_issues/gdb/sum_linux open_issues/gdb/sum_hurd > open_issues/gdb/sum.diff
-
-[[open_issues/gdb/sum.diff]].
+    $ ssh kepler.SCHWINGE 'cd tmp/source/gdb/ && sed -e "s%\(/media/data\)\?${PWD}%[...]%g" < hurd/master.build/gdb/testsuite/gdb.sum' > toolchain/logs/gdb/linux/sum
+    $ ssh coulomb.SCHWINGE 'cd tmp/gdb/ && sed -e "s%\(/media/erich\)\?${PWD}%[...]%g" < hurd/master.build/gdb/testsuite/gdb.sum' > toolchain/logs/gdb/hurd/sum
+    $ diff -u -F ^Running toolchain/logs/gdb/linux/sum toolchain/logs/gdb/hurd/sum > toolchain/logs/gdb/sum.diff
 
 
 ## Analysis
