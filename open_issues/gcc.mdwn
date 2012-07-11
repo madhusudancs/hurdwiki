@@ -237,6 +237,60 @@ Last reviewed up to the [[Git mirror's 9aa4b6a8046270a9dbdf47827f1ea873217d7aa5
           to find out why some stuff wasn't compiling even after kfreebsd
           porting patches adding preprocessors checks for __GLIBC__
 
+    IRC, freenode, #hurd, 2012-05-25:
+
+        <gnu_srs> Hi, looks like __GLIBC__ is not defined by default for GNU?
+        <gnu_srs> touch foo.h; cpp -dM foo.h|grep LIBC: empty
+        <braunr> gnu_srs: well, this only tells your the compiler defaults
+        <tschwinge> gnu_srs: See the email I just sent.
+
+    [[!message-id "87396od3ej.fsf@schwinge.name"]]
+
+        <braunr> __GLIBC__ would probably be introduced by a glibc header
+        <gnu_srs> tschwinge: I saw your email. I wonder if features.h is
+          included in the kFreeBSD build of webkit.
+        <gnu_srs> It is defined in their build, but not in the Hurd build.
+        <pinotree> gcc on kfreebsd unconditionally defines __GLIBC__
+        <pinotree> (a bit stupid choice imho, but hardly something that could
+          be changed now...)
+        <braunr> :/
+        <braunr> personally i don't consider this only "a bit" stupid, as
+          kfreebsd is one of the various efforts pushing towards portability
+        <braunr> and using such hacks actually hinders portability ...
+        <pinotree> yeah don't tell me, i can remember at least half dozen of
+          occasions when a code wouldn't have been compiling at all on other
+          glibc platforms otherwise
+        <pinotree> sure, i have nothing against kfreebsd's efforts, but making
+          gcc define something which is proper of the libc used is stupid
+        <braunr> it is
+        <pinotree> i spotted changes like:
+        <pinotree> -#ifdef __linux
+        <pinotree> +#if defined(__linux__) || defined(__GLIBC__)
+        <pinotree> and wondered why they wouldn't work at all for us... and
+          then realized there were no #include in that file before that
+          preprocessor check
+        <tschwinge> This is even in upstream GCC gcc/config/kfreebsd-gnu.h:
+        <tschwinge> #define GNU_USER_TARGET_OS_CPP_BUILTINS()               \
+        <tschwinge>   do                                            \
+        <tschwinge>     {                                           \
+        <tschwinge>         builtin_define ("__FreeBSD_kernel__");  \
+        <tschwinge>         builtin_define ("__GLIBC__");           \
+        <tschwinge>         builtin_define_std ("unix");            \
+        <tschwinge>         builtin_assert ("system=unix");         \
+        <tschwinge>         builtin_assert ("system=posix");        \
+        <tschwinge>     }                                           \
+        <tschwinge>   while (0)
+        <tschwinge> I might raise this upstream at some point.
+        <pinotree> tschwinge: i could guess the change was proposed by the
+          kfreebsd people, so asking them before at d-bsd@d.o would be a start
+        <tschwinge> pinotree: Ack.
+        <pinotree> especially that they would need to fix stuff afterwards
+        <pinotree> imho we could propose them the change, and if they agree put
+          that as local patch to debian's gcc4.6/.7 after wheezy, so there is
+          plenty of time for them to fix stuff
+        <pinotree> what should be done first is, however, find out why that
+          define has been added to gcc
+
   * [low] Does `-mcpu=native` etc. work?  (For example,
     2ae1f0cc764e998bfc684d662aba0497e8723e52.)
 
