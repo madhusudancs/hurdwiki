@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2011, 2012 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -10,9 +11,13 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_libpthread open_issue_glibc]]
 
-IRC, #hurd, 2010-07-31
+[[!toc]]
 
-    <tschwinge> My idea was to have a separate libpthread package.  What do you think about that?
+
+# IRC, freenode, #hurd, 2010-07-31
+
+    <tschwinge> My idea was to have a separate libpthread package.  What do you
+      think about that?
     <youpi> in the long term, that can't work with glibc
     <youpi> because of the thread stub stuff
 
@@ -21,30 +26,114 @@ IRC, #hurd, 2010-07-31
     <youpi> it's not really possible to keep synchronized
     <youpi> because you have to decide which package you unpack first
     <youpi> (when upgrading)
-    <tschwinge> Hmm, how is that different if two shared libraries are in one package vs. two packages?  It isn't atomic either way?  Aren't sonames / versioned library packages solving that?
+    <tschwinge> Hmm, how is that different if two shared libraries are in one
+      package vs. two packages?  It isn't atomic either way?  Aren't sonames /
+      versioned library packages solving that?
     <tschwinge> ... for incompatible forward changes?
     <youpi> that'd be a mess to maintain
-    <youpi> Drepper doesn't have this constraint and thus adds members of private fields at will
-    <tschwinge> OK, but how is it different then if the libpthread is in the Hurd package?
+    <youpi> Drepper doesn't have this constraint and thus adds members of
+      private fields at will
+    <tschwinge> OK, but how is it different then if the libpthread is in the
+      Hurd package?
     <youpi> I'm not saying it's better to have libpthread in the Hurd package
     <tschwinge> OK.
-    <youpi> I'm saying it's useless to package it separately when Drepper makes everything to have us put it along glibc
+    <youpi> I'm saying it's useless to package it separately when Drepper makes
+      everything to have us put it along glibc
     <tschwinge> Then, to goal is to have it in glibc?
     <tschwinge> OK.   :-)
-    <tschwinge> OK, I can accommodate to that.  Isn't not that we'd want to switch libpthread to something else so quickly.
-    <tschwinge> So our official goal is to have libpthread in glibc, at least for Debian purposese?
+    <tschwinge> OK, I can accommodate to that.  Isn't not that we'd want to
+      switch libpthread to something else so quickly.
+    <tschwinge> So our official goal is to have libpthread in glibc, at least
+      for Debian purposese?
     <youpi> for any port purpose
     <tschwinge> Ack.
-    <youpi> provided you're using glibc, you're deemed to ship libpthread with it
+    <youpi> provided you're using glibc, you're deemed to ship libpthread with
+      it
     <youpi> because of the strong relations Drepper puts between them
-    <youpi> (just to remind: we already have bugs just because our current libpthread isn't bound enough to glibc: dlopen()ing a library depending on libpthread doesn't work, for instance)
-    <pinotree> yeah, pthread-stubs is linked to almost everywhere -lpthread isn't used
+    <youpi> (just to remind: we already have bugs just because our current
+      libpthread isn't bound enough to glibc: dlopen()ing a library depending
+      on libpthread doesn't work, for instance)
+    <pinotree> yeah, pthread-stubs is linked to almost everywhere -lpthread
+      isn't used
     <pinotree> (would be nice to not have those issues anymore...)
-    <tschwinge> So -- what do we need to put it into glibc?  We can make libpthread a Git submodule (or move the code; but it's shared also for Neal's viengoos, so perhaps the submodule is better?), plus some glibc make foo, plus some other adaptions (stubs, etc.)
-    <tschwinge> Does that sound about right, or am I missing something fundamental?
+    <tschwinge> So -- what do we need to put it into glibc?  We can make
+      libpthread a Git submodule (or move the code; but it's shared also for
+      Neal's viengoos, so perhaps the submodule is better?), plus some glibc
+      make foo, plus some other adaptions (stubs, etc.)
+    <tschwinge> Does that sound about right, or am I missing something
+      fundamental?
     <youpi> I actually don't know what a git submodule permits :)
     <youpi> looks like a good thing for this, yes
-    <tschwinge> Unfortunately I can't allocate much time at the moment to work on this.  :-/
-    <youpi> well, as long as I know where we're going, I can know how to package stuff in Debian
-    <tschwinge> That sounds like a plan to me.  libpthread -> glibc as submodule.
-    <youpi> (note: actually, the interface between glibc and the libpthread is the responsibility of the libpthread: it gives a couple of .c files to be shipped in libc.so)
+    <tschwinge> Unfortunately I can't allocate much time at the moment to work
+      on this.  :-/
+    <youpi> well, as long as I know where we're going, I can know how to
+      package stuff in Debian
+    <tschwinge> That sounds like a plan to me.  libpthread -> glibc as
+      submodule.
+    <youpi> (note: actually, the interface between glibc and the libpthread is
+      the responsibility of the libpthread: it gives a couple of .c files to be
+      shipped in libc.so)
+
+
+# IRC, freenode, #hurd, 2012-04-21
+
+    <youpi> had you tried to build libpthread as a glibc addon?
+    <tschwinge> youpi: No, I only know about libpthread in Hurd build system,
+      and libpthread stand-alone (with the Auto* stuff that I added), but not
+      yet as a glibc add-on.
+    <youpi> k
+    <youpi> I'm trying it atm
+    <tschwinge> Oh, OK.
+    <youpi> that should fix the no-add-needed issue in gcc/binutils, as well as
+      the pthread_threads assertion errors in threaded plugins
+    <youpi> (once I add forward.c, but that part should not be hard)
+    <pinotree> that means also less use of pthread-stubs^
+    <pinotree> ?
+    <youpi> tschwinge: do you remember whether sysdeps/mach/bits/spin* are used
+      by anybody?
+    <youpi> they are half-finished (no __PTHREAD_SPIN_LOCK_INITIALIZER), and
+      come in the way when building in glibc
+    <youpi> also, any reason for using ia32 and not i386? glibc uses the latter
+    <youpi> pinotree: rid of pthread-stubs yes
+    <pinotree> \o/
+    <tschwinge> youpi: You mean sysdeps/mach/i386/machine-lock.h?  No idea
+      about that one, sorry.
+    <youpi> I'm talking about libpthread
+    <youpi> not glibc
+    <tschwinge> Oh.
+    <tschwinge> sysdeps/ia32/bits/spin-lock.h:# define
+      __PTHREAD_SPIN_LOCK_INITIALIZER ((__pthread_spinlock_t) 0)
+    <tschwinge> Anyway, no idea about that either.
+    <youpi> that one is meant to be used with the spin-lock.h just below
+    <youpi> +-inline
+    <youpi> also, I guess signal/ was for the l4 port?
+    <tschwinge> youpi: I guess so.
+    <youpi> tschwinge: I have an issue with sysdeps pt files:
+      sysdeps/hurd/pt-getspecific.c is not looked for by libc ; symlinking into
+      sysdeps/mach/hurd/pt-getspecific.c works
+    <youpi> we don't have a non-mach sysdeps directory?
+    <pinotree> youpi: if you add sysdeps/mach/hurd/Implies containing only
+      "hurd", does sysdeps/hurd work?
+    <youpi> ah, right
+    <pinotree> youpi: did it work? (and, it was needed in sysdeps/mach/hurd, or
+      in libpthread/sysdeps/mach/hurd?)
+    <youpi> pinotree: it worked, it was for libpthread
+    <youpi> good: I got libpthread built and forward working
+
+
+## IRC, freenode, #hurd, 2012-04-23
+
+    <youpi> phew
+    <youpi> confirmed that moving libpthread to glibc fixes the gcc/binutils
+      no-add-needed issue
+
+
+## IRC, freenode, #hurd, 2012-04-27
+
+    <pinotree> youpi: wouldn't be the case to rename ia32 subdirs to i386 in
+      libpthread?
+    <pinotree> after all, Makefile hardcodes it, Makefile.am sets the variable
+      for it, and glibc expects i386
+    <youpi> I know, I've asked tschwinge about it
+    <youpi> it's not urging anyway
+    <pinotree> right

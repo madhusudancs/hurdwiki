@@ -39,28 +39,11 @@ git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc ..sourcewa
 Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
 (2012-02-28) sources|source_repositories/glibc]].
 
-  * t/dup3
-
-    [[tschwinge]] is not convinced that
-    22542dcc89805af8d9bd9209129259d2737372b5 (and then also
-    ff3f3a789ba08b656dbaa3901091b6410bb883f8) are correct.
-
-      * 94b7cc3711b0b74c1d3ae18b9a2e019e51a8e0bf -- dup3 changes; relevant for
-        `t/dup3`: hidden def.  ed690b2f24bbc4d9c541fc81a7c67e6dc5678a96 -- why
-        not for dup3, too?  Because it is a syscall (that is always inlined)?
-
   * `t/hurdsig-fixes`
 
         hurdsig.c: In function '_hurd_internal_post_signal':
         hurdsig.c:1188:26: warning: 'pending' may be used uninitialized in this function [-Wmaybe-uninitialized]
         hurdsig.c:1168:12: note: 'pending' was declared here
-
-  * `t/init-first.c`
-
-    Follow up here: [[!message-id "20070722171859.GN25744@fencepost.gnu.org"]]
-    or [[!message-id "87mxe4kwws.fsf@gnu.org"]].  Close [[!GNU_Savannah_bug
-    17647]].  Debian: [[!message-id "E1Qup1U-0006Zc-39@vasks.debian.org"]]
-    (part of Ludo's patch; the part that is not harmful to GCC 4.4).
 
   * `t/kernel-features.h_includes`
 
@@ -202,10 +185,87 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
     `CLOCK_REALTIME_ALARM`, `O_PATH`,
     `PTRACE_*` (for example, cbff0d9689c4d68578b6a4f0a17807232506ea27),
     `RLIMIT_RTTIME`, `SEEK_DATA` (`unistd.h`), `SEEK_HOLE` (`unistd.h`)
-    `clock_adjtime`, `fallocate`, `fallocate64`, `getcontext` (and
-    `setcontext`), `name_to_handle_at`, `open_by_handle_at`,
-    `process_vm_readv`, `process_vm_writev`, `sendmmsg`,
+    `clock_adjtime`, `fallocate`, `fallocate64`, `name_to_handle_at`,
+    `open_by_handle_at`, `process_vm_readv`, `process_vm_writev`, `sendmmsg`,
     `setns`, `sync_file_range`
+
+      * `chflags`
+
+        IRC, OFTC, #debian-hurd, 2012-04-27:
+
+            <Steap> Does anyone have any idea why int main(void) { return
+              chflags(); } will compile with gcc but not with g++ ? It says
+              that "chflags" was not declared in this scope.
+            <Steap> I get the same error on FreeBSD, but including sys/stat.h
+              makes it work
+            <Steap> Can't find a solution on Hurd though :/
+            <youpi> the Hurd doesn't have chflags
+            <youpi> apparently linux neither
+            <youpi> what does it do?
+            <Steap> change flags :)
+            <Steap> Are you sure the Hurd does not have chflags ? Because gcc
+              does not complain
+            <youpi> there is no chflags function in /usr/include
+            <youpi> but what flags does it change?
+            <Steap> According to the FreeBSD manpage, it can set flags such as
+              UF_NODUMP, UF_IMMUTABLE etc.
+            <youpi> Hum, there is actually a chflags() definition
+            <youpi> but no declaration
+            <youpi> so actually chflags is supported, but the declaration was
+              forgotten
+            <youpi> probably because since linux doens't have it, it has never
+              been a problem up to now
+            <youpi> so I'd say ignore the error for now, we'll add the
+              declaration
+
+      * `getcontext`/`setcontext`
+
+        Needed for [[gccgo]].
+
+        IRC, freenode, #hurd, 2012-04-19:
+
+            <gnu_srs> How much work/knowledge is needed to implement
+              getcontext/setcontext?
+            <gnu_srs> Any already implemented alternatives available?
+            <youpi> x86 registers knowledge, as well as unix signal masks
+            <youpi> there's the linux implementation that can be taken as an
+              exxample, but the signal part has to be rewritten
+            <gnu_srs> Well, it's a pity they are not implemented. That's the
+              remaining hurdle to get gccgo working :-( 
+            <youpi> uh :/
+            <gnu_srs> Everything builds, but the testsuite fails due to these
+              missing functions.
+            <gnu_srs> Regarding getcontext/setcontext they seem to be written
+              in assembly for linux but the code is not very long. 
+            <gnu_srs> How much effort would it be to write something similar
+              for Hurd? Anybody fluent in asm?
+            <gnu_srs> And registers and signals.
+            <tschwinge> gnu_srs: Signals is the key thing -- everything else we
+              can probably just copy.  I have never/not yet looked at it,
+              though.
+            <gnu_srs> For kfreebsd it is written in C: kern_context.c, 3/4 in
+              one file: getcontext, setcontext,  swapcontext, not makecontext.
+            <gnu_srs> Dunno how much assembly calls used though.
+            <gnu_srs> Hi, any preferences about implementing get/setcontext in
+              C or Asm?
+            <tschwinge> gnu_srs: I think these will have to be implemented in
+              assembly.  Based on the Linux x86 variants.
+
+        IRC, freenode, #hurd, 2012-04-20:
+
+            <tschwinge> youpi: Your understanding of that is better than mine
+              -- the *context stuff can't be very useful at the moment, because
+              when the user changes uc_stack.ss_sp (which the glibc tests are
+              doing), we're losing access to the _hurd_threadvars.  Correct?
+            <tschwinge> At least the getcontext test works, the other get a
+              SIGILL.
+            <tschwinge> others
+            <tschwinge> _hurd_threadvars issue is just guessing.
+            <youpi> tschwinge: yes, threadvars are on the stack
+            <youpi> threadvars is not much code, it should just work, but care
+              has to be taken on the libpthread/libthread side, which does some
+              initialization
+            <tschwinge> OK, that at least matches my understanding.
 
       * `syncfs`
 
@@ -263,6 +323,35 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
       * `sys/timerfd.h`
 
       * `timespec_get` (74033a2507841cf077e31221de2481ff30b43d51)
+
+      * `waitflags.h` (`WEXITED`, `WNOWAIT`, `WSTOPPED`, `WCONTINUED`)
+
+        IRC, freenode, #hurd, 2012-04-20:
+
+            <pinotree> in glibc, we use the generic waitflags.h which, unlike
+              linux's version, does not define WEXITED, WNOWAIT, WSTOPPED,
+              WCONTINUED
+            <pinotree> should the generic bits/waitflags.h define them anyway,
+              since they are posix?
+            <youpi> well, we'd have to implement them anyway
+            <youpi> but otherwise, I'd say yes
+            <pinotree> sure, but since glibc headers should expose at least
+              everything declared by posix, i thought they should be defined
+              anyway
+            <youpi> that might bring bugs
+            <youpi> some applications might be #ifdefing them
+            <youpi> and break when they are defined but not working
+            <pinotree> i guess they would define them to 0, andd having them to
+              non-zero values shouldn't break them (since those values don't do
+              anything, so they would act as if they were 0.. or not?)
+            <youpi> no, I mean they would do something else, not define them to
+              0
+            <pinotree> like posix/tst-waitid.c, you mean?
+            <youpi> yes
+
+    For specific packages:
+
+      * [[octave]]
 
   * Create `t/cleanup_kernel-features.h`.
 

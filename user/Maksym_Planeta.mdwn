@@ -9,9 +9,25 @@ is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
  
 [[!toc]]
+#GSoC 2012 - Disk I/O Performance Tuning 
+
+15.06.12
+
+Explored gnumach code. First I was reimplementing vm_fault_page as coroutine that returns before executing of mo_data_{unlock,request} calls to vm_fault. vm_fault had to analyse state of vm_fault_page for every page in loop and make a decision regarding further behavior (call mo_data_*, go to next page, etc.). But than I've got that this way is much worse, than doing everything in vm_fault_page (like in OSF mach), so I made a back-off and started working on clustered paging from the beginning (at least now I see clearer how things should be). At the moment I review kam's patch one more time and looked through mklinux code attentively.
+
+8.06.12
+
+Applied Neal's patch that reworks libpager, changed libdiskfs, tmpfs and ext2fs according to new interface. ext2fs isn't finished yet and should be reworked, but looks like I brought some bug to existing implementation and i want first to fix it and than finish rest of ext2fs. Also I pushed some code changes to hurd git repository into my branch mplaneta/gsoc12/working. Now I start working on gnumach implementation of clustered page reading. After this I'm going to implement madvise, than finish ext2fs and start porting of other translators.
+
+14.05.12
+
+First of all I'm going to do 2 programs. First will work as server, it will create an object and share it with second. Second will try to access to this object. This will cause page fault and kernel will refer to first program (server). This way I will be able to track how page faults are resolved and this will help me in debugging of readahead. IFR: server probably can use some of hurd's libraries, but it has to handle m_o_* RPC's on it's own. TODO: Find out how supply second program (client) with new object. NB: be sure that client will cause page fault, so that server always will be called (probably any caching should be disabled).
+
 #Notes on tmpfs
 
 ## Current state
+
+Finished
 
 26.01.12
 

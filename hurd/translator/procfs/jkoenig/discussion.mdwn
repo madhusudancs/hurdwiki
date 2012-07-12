@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2011, 2012 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -218,3 +219,61 @@ Needed by glibc's `pldd` tool (commit
 # `/proc/self/exe`
 
 [[!message-id "alpine.LFD.2.02.1110111111260.2016@akari"]]
+
+
+# `/proc/[PID]/fd/`
+
+## IRC, freenode, #hurd, 2012-04-24
+
+    <antrik> braunr: /proc/*/fd can be implemented in several ways. none of
+      them would require undue centralisation
+    <antrik> braunr: the easiest would be adding one more type of magic lookup
+      to the existing magic lookup mechanism
+    <antrik> wait, I mean /proc/self... for /proc/*/fd it's even more
+      straighforward -- we might even have a magic lookup for that already
+    <pinotree> i guess the ideal thing would be implement that fd logic in
+      libps
+    <antrik> pinotree: nope. it doesn't need to ask proc (or any other server)
+      at all. it's local information. that's what we have the magic lookups for
+    <antrik> one option we were considering at some point would be using the
+      object migration mechanism, so the actual handling would still happen
+      client-side, but the server could supply the code doing it. this would
+      allow servers to add arbitrary magic lookup methods without any global
+      modifications... but has other downsides :-)
+    <gnu_srs> youpi: How much info for /proc/*/fd is possible to get from
+      libps? Re: d-h@
+    <youpi> see my mail
+    <youpi> I don't think there is an interface for that
+    <youpi> processes handle fds themselves
+    <youpi> so libps would have to peek in there
+    <youpi> and I don't remember having seen any code like that
+    <gnu_srs> 10:17:17< antrik> wait, I mean /proc/self... for /proc/*/fd it's
+      even more straighforward -- we might even have a magic lookup for that
+      already
+    <gnu_srs> pinotree: For me that does not ring a bell on RPCs. Don't know
+      what magic means,,
+    <youpi> for /proc/self/fd we have a magic lookup
+    <youpi> for /proc/pid/fd, I don't think we have
+    <gnu_srs> magic lookup*
+    <gnu_srs> magic lookup == RPC?
+    <youpi> magic lookup is a kind of answer to the lookup RPC
+    <youpi> that basically says "it's somewhere else, see there"
+    <youpi> the magic FD lookup tells the process "it's your FD number x"
+    <youpi> which works for /proc/self/fd, but not /proc/pid/fd
+    <civodul> youpi, gnu_srs: regarding FDs, there the msg_get_fd RPC that
+      could be used
+    <civodul> `msgport' should have --get-fd, actually
+    <youpi> civodul: I assumed that the reason why msgport doesn't have it is
+      that it didn't exist
+    <youpi> so we can get a port on the fd
+    <youpi> but then how to know what it is?
+    <civodul> youpi: ah, you mean for the /proc/X/fd symlinks?
+    <civodul> good question
+    <civodul> it's not designed to be mapped back to names, indeed :-)
+    <antrik> youpi: yeah, I realized myself that only /proc/self/fd is trivial
+    <antrik> BTW, in Linux it's nor real symlinks. it's magic, with some very
+      strange (but useful in certain situations) semantics
+    <antrik> not real symlinks
+    <antrik> it's very weird for example for fd connected to files that have
+      been unlinked. it looks like a broken symlink, but when dereferencing
+      (e.g. with cp), you get the actual file contents...

@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2012 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -10,8 +10,47 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_gnumach]]
 
-IRC, freenode, #hurd, 2011-05-07
+[[!toc]]
+
+
+# IRC, freenode, #hurd, 2011-05-07
 
     <braunr> very simple examples: system calls use old call gates, which are
       the slowest path to kernel space
     <braunr> modern processors have dedicated instructions now
+
+
+# IRC, freenode, #hurd, 2012-04-22
+
+    <braunr> rah: basically, system calls are slower on mach because they use
+      call gates instead of newer sysenter/sysexit
+    <youpi> braunr: sysenter/exit is a x86_64 thing
+    <braunr> rah: apart from that, the code can't get much simpler, and *I*
+      know, for i have studied it, and wrote a compatible version in a clone
+      attempt
+    <youpi> braunr: on a x86_64 port we'd probably use sysenter/exit
+    <braunr> youpi: no there are 32-bits instructions, i don't remember if
+      they're called sysenter, it's in my thesis though so i'm sure of it :)
+    <youpi> braunr: ah, the other part
+    <youpi> is linux-x86 using them?
+    <braunr> youpi: yes, glibc uses them
+    <youpi> and does it really change much nowadays?
+    <youpi> what is the actual difference between int 80 and sysenter?
+    <braunr> less checking
+    <youpi> checking what?
+    <youpi> the idt?
+    <braunr> ring levels for example
+    <youpi> well, checking a ring is fast :)
+    <braunr> depending on the original and requested levels, there are lookups
+      in tables
+    <braunr> sysenter always assume 3 to 0 and 0 to 3 for sysexit
+    <youpi> ah, also it assumes things about segments
+    <youpi> so that indeed makes context things simpler
+    <braunr> right
+    <braunr> but mach doesn't uses int 0x80
+    <braunr> it uses an lcall
+    <braunr> which is a bit slower from what I could read some time ago
+    <braunr> (not sure if it's still relevant)
+    <youpi> actually in 64bit mode I had to catch lcall from the invalid
+      instruction trap
+    <youpi> perhaps it got dropped in 64bit mode

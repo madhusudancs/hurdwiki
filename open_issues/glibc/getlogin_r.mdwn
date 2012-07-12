@@ -1,0 +1,45 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="getlogin_r"]]
+
+[[!tag open_issue_glibc]]
+
+
+# IRC, freenode, #hurd, 2012-04-23
+
+    * pinotree spots how our getlogin_r() implementation uses a static
+        buffer...
+    <braunr> oO
+    <pinotree> braunr: yeah, the _r means "reentrantbutnotreally" xD
+    <braunr> pinotree: that's amazing ..
+    <antrik> pinotree: without having checked the actual implementation, that
+      doesn't sound like a problem...
+    <antrik> caching doesn't break reentrancy. the problem with the plain
+      getlogin() is that a static buffer is *returned to the user*
+    <pinotree> antrik: http://paste.debian.net/164727/
+    <braunr> ah, caching
+    <pinotree> i don't think this is caching at all
+    <antrik> pinotree: OK, not actually caching... but same effect as far as I
+      can tell
+    <antrik> pinotree: or is it the fixed size of the temporary variable you
+      are concerned about?
+    <pinotree> antrik: my concern was about the "static" of the buffer used for
+      the get_login rpc
+    <antrik> pinotree: I'm not sure that's a problem. can the login actually
+      ever change for a running process?
+    <pinotree> dunno
+    <pinotree> but if so, it would be pointless to do the rpc every time
+      instead of just once
+    <antrik> pinotree: true
+    * pinotree would just make it non-static and be safe
+    <antrik> pinotree: well, one might argue that allocating a KiB of stack
+      space is not very friendly, especially in a low-level library...
+    <antrik> not sure what the general policy is about such things in libc

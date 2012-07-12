@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2002, 2003, 2004, 2005, 2006, 2007, 2009, 2011
-Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2002, 2003, 2004, 2005, 2006, 2007, 2009, 2011,
+2012 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -8,6 +8,11 @@ any later version published by the Free Software Foundation; with no Invariant
 Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
+
+[[!toc]]
+
+
+# Architecture: client and server
 
 The Hurd console's implementation is broken into two pieces each running on
 it's own process, the console client and server.
@@ -79,9 +84,9 @@ blocking operations and a blocked `input_dequeue` necessarily needs an
 `ports_manage_multithreaded` API.
 
 
----
+# Old stuff
 
-/!\ old content; [[!taglink open_issue_documentation]]: cleanup needed.
+[[!taglink open_issue_documentation]]: cleanup needed.
 
 The below is a reworked version of Marcus Brinkmann's [letter to the debian-hurd list](http://lists.debian.org/debian-hurd/2002/debian-hurd-200209/msg00054.html). It describes how to setup the new console server for the Hurd. I am testing this right now, so this document is a work in progress.
 
@@ -357,3 +362,101 @@ An [experimental plugin to load XKB keymaps](http://kilobug.free.fr/hurd/xkb-0.3
 Added examples that use repeaters needed by X.
 
 -- [[Main/OgnyanKulev]] - 18 Sep 2004
+
+
+# IRC, freenode #hurd, 2012-04-23
+
+    <Tekk_> is there any way to get copy/paste in hurd?
+    <Tekk_> with the console server
+    <Tekk_> like you get with gpm
+    <youpi> Tekk_: by implementing it
+    <antrik> Tekk_: that's something for the console client, not the server
+    <antrik> (or perhaps both? not entirely sure)
+    <Tekk_> antrik: I'm not entirely sure how the client works
+    <Tekk_> does it start a new client with each tty?
+    <Tekk_> or one client handles all of them?
+    <youpi> the client only should be enough
+    <youpi> it handles all input already anyway
+    <youpi> the client handles all ttys
+    <youpi> it just hops over them according to alt-Fx shortcuts
+    <antrik> Tekk_: there is only one client for all, but a separate console
+      *server* for each tty
+    <Tekk_> antrik: ah, the ever confusing X scheme
+    <antrik> no
+    <antrik> the client handles multiplexing and actual terminal I/O
+    <antrik> the servers handle the state of the virtual terminals, and provide
+      the device nodes
+    <antrik> this doesn't fit with the X scheme in any way
+    <antrik> (where everything is basically in one big monolithic server
+      process)
+    <Tekk_> antrik: I mean that you're running multiple servers and there's one
+      big client running on the other end
+    <Tekk_> which always pretty well confuses everyone to start with
+    <antrik> I totally fail to see the connection
+    <antrik> there is usually one X server, with potentially many clients
+    <Tekk_> nevermind
+    <Tekk_> doesn't really matter to anything
+    <Tekk_> so yeah, copy/paste would be in the client?
+    <antrik> unless you mean a termial server, running actual client programs,
+      connected to various terminals, running X servers... which is where it
+      gets confusing in a way ;-)
+    <antrik> but there is really no relation at all here
+    <Tekk_> antrik: exactly ;)
+    <Tekk_> I meant in the traditional sense, where you're on a thin client
+      running an X server and the remote server is running X clients
+    <Tekk_> copy/paste probably isn't really too bad
+    <antrik> applications are also clients of the terminal server processes;
+      but having a completely different role (and using completely different
+      requests) than the console client
+    <Tekk_> you have a buffer, when something is highlighted you strncpy the
+      highlighted text into the buffer. when middle click happens you send the
+      text to the right virtual terminal
+    <antrik> right. what I was considering is whether the pasting (and possibly
+      also grabbing) the text might be done through some separate protocol
+      implemented in the console server, rather than the ordinary console
+      client interfaces... but probably no need for that
+    <Tekk_> nah, as long as you have a way of getting a highlighted area and
+      then the text contained in it
+    <Tekk_> and then of course a way to insert text where the cursor is, but
+      I'm pretty sure you can safely assume that one :P
+    <antrik> well, the client has a way to send keystrokes to the server,
+      obviously. the question here is whether pretending the pasting is
+      keystrokes is good enough, or whether it might be useful to have an
+      explicit way to push the pasted stuff to the server
+    <antrik> (the cursor position is relevant only for echo)
+    <Tekk_> antrik: I'll try to grab the console source some time this week and
+      take a look
+    <Tekk_> maybe I can try to get it working
+    <antrik> good luck :-)
+    <antrik> it's probably not too hard
+    <Tekk_> I'm sure I'll need it :)
+    <antrik> the whole console machinery is quite hard to grasp (and I still
+      find myself confused sometimes, although I gained a pretty good
+      understanding I think when writing my thesis)
+    <antrik> but for this specific task, not much knowlegde should be needed
+      about the various confusing aspects
+    <Tekk_> hmm. looks like copy/paste won
+    <Tekk_> 't be a quick thing, actually
+    <Tekk_> wait, no. there must be a way to get mouse events
+    <Tekk_> how else could you move the mouse..
+    <Tekk_> (with by moving your mouse, not cons_mouse_move)
+    <Tekk_> by moving your mouse*
+    <Tekk_> started typing something different
+
+
+# Graphics/Higher Resolution
+
+## IRC, freenode #hurd, 2012-04-24
+
+    <Tekk_> does the console support higher resolutions yet?
+    <youpi> no
+    <youpi> it's just textonly
+    <antrik> Tekk_: the main reason why I originally started on the KGI work
+      was to get a graphical console... but I never finished that part
+    <antrik> (since KGI is obsolete anyways)
+    <antrik> BTW, there is a KMS-based userspace console now for Linux... I
+      guess it should be easy to adapt to other systems having KMS support
+    <antrik> I don't think it actually makes much sense for Linux, as it's one
+      of the hardest and least profitable things to move out of a monolithic
+      kernel...
+    <antrik> well, not hardest I guess; but most problematic
