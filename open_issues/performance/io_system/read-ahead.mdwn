@@ -16,6 +16,9 @@ License|/fdl]]."]]"""]]
 # [[community/gsoc/project_ideas/disk_io_performance]]
 
 
+# [[gnumach_page_cache_policy]]
+
+
 # 2011-02
 
 [[Etenil]] has been working in this area.
@@ -389,3 +392,1176 @@ License|/fdl]]."]]"""]]
       with appropriate frame size. Is that right?
     <youpi> question of taste, better ask on the list
     <mcsim> ok
+
+
+## IRC, freenode, #hurd, 2012-06-09
+
+    <mcsim> hello. What fictitious pages in gnumach are needed for?
+    <mcsim> I mean why real page couldn't be grabbed straight, but in sometimes
+      fictitious page is grabbed first and than converted to real?
+    <braunr> mcsim: iirc, fictitious pages are needed by device pagers which
+      must comply with the vm pager interface
+    <braunr> mcsim: specifically, they must return a vm_page structure, but
+      this vm_page describes device memory
+    <braunr> mcsim: and then, it must not be treated like normal vm_page, which
+      can be added to page queues (e.g. page cache)
+
+
+## IRC, freenode, #hurd, 2012-06-22
+
+    <mcsim> braunr: Ah. Patch for large storages introduced new callback
+      pager_notify_evict. User had to define this callback on his own as
+      pager_dropweak, for instance. But neal's patch change this. Now all
+      callbacks could have any name, but user defines structure with pager ops
+      and supplies it in pager_create.
+    <mcsim> So, I just changed notify_evict to confirm it to new style.
+    <mcsim> braunr: I want to changed interface of mo_change_attributes and
+      test my changes with real partitions. For both these I have to update
+      ext2fs translator, but both partitions I have are bigger than 2Gb, that's
+      why I need apply this patch.z
+    <mcsim> But what to do with mo_change_attributes? I need somehow inform
+      kernel about page fault policy.
+    <mcsim> When I change mo_ interface in kernel I have to update all programs
+      that use this interface and ext2fs is one of them.
+
+    <mcsim> braunr: Who do you think better to inform kernel about fault
+      policy? At the moment I've added fault_strategy parameter that accepts
+      following strategies: randow, sequential with single page cluster,
+      sequential with double page cluster and sequential with quad page
+      cluster. OSF/mach has completely another interface of
+      mo_change_attributes. In OSF/mach mo_change_attributes accepts structure
+      of parameter. This structure could have different formats depending o
+    <mcsim> This rpc could be useful because it is not very handy to update
+      mo_change_attributes for kernel, for hurd libs and for glibc. Instead of
+      this kernel will accept just one more structure format.
+    <braunr> well, like i wrote on the mailing list several weeks ago, i don't
+      think the policy selection is of concern currently
+    <braunr> you should focus on the implementation of page clustering and
+      readahead
+    <braunr> concerning the interface, i don't think it's very important
+    <braunr> also, i really don't like the fact that the policy is per object
+    <braunr> it should be per map entry
+    <braunr> i think it mentioned that in my mail too
+    <braunr> i really think you're wasting time on this
+    <braunr> http://lists.gnu.org/archive/html/bug-hurd/2012-04/msg00064.html
+    <braunr> http://lists.gnu.org/archive/html/bug-hurd/2012-04/msg00029.html
+    <braunr> mcsim: any reason you completely ignored those ?
+    <mcsim> braunr: Ok. I'll do clustering for map entries.
+    <braunr> no it's not about that either :/
+    <braunr> clustering is grouping several pages in the same transfer between
+      kernel and pager
+    <braunr> the *policy* is held in map entries
+    <antrik> mcsim: I'm not sure I properly understand your question about the
+      policy interface... but if I do, it's IMHO usually better to expose
+      individual parameters as RPC arguments explicitly, rather than hiding
+      them in an opaque structure...
+    <antrik> (there was quite some discussion about that with libburn guy)
+    <mcsim> antrik: Following will be ok? kern_return_t vm_advice(map, address,
+      length, advice, cluster_size)
+    <mcsim> Where advice will be either random or sequential
+    <antrik> looks fine to me... but then, I'm not an expert on this stuff :-)
+    <antrik> perhaps "policy" would be clearer than "advice"?
+    <mcsim> madvise has following prototype: int madvise(void *addr, size_t
+      len, int advice);
+    <mcsim> hmm... looks like I made a typo. Or advi_c_e is ok too?
+    <antrik> advise is a verb; advice a noun... there is a reason why both
+      forms show up in the madvise prototype :-)
+    <mcsim> so final variant should be kern_return_t vm_advise(map, address,
+      length, policy, cluster_size)?
+    <antrik> mcsim: nah, you are probably right that its better to keep
+      consistency with madvise, even if the name of the "advice" parameter
+      there might not be ideal...
+    <antrik> BTW, where does cluster_size come from? from the filesystem?
+    <antrik> I see merits both to naming the parameter "policy" (clearer) or
+      "advice" (more consistent) -- you decide :-)
+    <mcsim> antrik: also there is variant strategy, like with inheritance :)
+      I'll choose advice for now.
+    <mcsim> What do you mean under "where does cluster_size come from"?
+    <antrik> well, madvise doesn't have this parameter; so the value must come
+      from a different source?
+    <mcsim> in madvise implementation it could fixed value or somehow
+      calculated basing on size of memory range. In OSF/mach cluster size is
+      supplied too (via mo_change_attributes).
+    <antrik> ah, so you don't really know either :-)
+    <antrik> well, my guess is that it is derived from the cluster size used by
+      the filesystem in question
+    <antrik> so for us it would always be 4k for now
+    <antrik> (and thus you can probably leave it out alltogether...)
+    <antrik> well, fatfs can use larger clusters
+    <antrik> I would say, implement it only if it's very easy to do... if it's
+      extra effort, it's probably not worth it
+    <mcsim> There is sense to make cluster size bigger for ext2 too, since most
+      likely consecutive clusters will be within same group.
+    <mcsim> But anyway I'll handle this later.
+    <antrik> well, I don't know what cluster_size does exactly; but by the
+      sound of it, I'd guess it makes an assumption that it's *always* better
+      to read in this cluster size, even for random access -- which would be
+      simply wrong for 4k filesystem clusters...
+    <antrik> BTW, I agree with braunr that madvice() is optional -- it is way
+      way more important to get readahead working as a default policy first
+
+
+## IRC, freenode, #hurd, 2012-07-01
+
+    <mcsim> youpi: Do you think you could review my code?
+    <youpi> sure, just post it to the list
+    <youpi> make sure to break it down into logical pieces
+    <mcsim> youpi: I pushed it my branch at gnumach repository
+    <mcsim> youpi: or it is still better to post changes to list?
+    <youpi> posting to the list would permit feedback from other people too
+    <youpi> mcsim: posix distinguishes normal, sequential and random
+    <youpi> we should probably too
+    <youpi> the system call should probably be named "vm_advise", to be a verb
+      like allocate etc.
+    <mcsim> youpi: ok. A have a talk with antrik regarding naming, I'll change
+      this later because compiling of glibc take a lot of time.
+    <youpi> mcsim: I find it odd that vm_for_every_page allocates non-existing
+      pages
+    <youpi> there should probably be at least a flag to request it or not
+    <mcsim> youpi: normal policy is synonym to default. And this could be
+      treated as either random or sequential, isn't it?
+    <braunr> mcsim: normally, no
+    <youpi> yes, the normal policy would be the default
+    <youpi> it doesn't mean random or sequential
+    <youpi> it's just to be a compromise between both
+    <youpi> random is meant to make no read-ahead, since that'd be spurious
+      anyway
+    <youpi> while by default we should make readahead
+    <braunr> and sequential makes even more aggressive readahead, which usually
+      implies a greater number of pages to fetch
+    <braunr> that's all
+    <youpi> yes
+    <youpi> well, that part is handled by the cluster_size parameter actually
+    <braunr> what about reading pages preceding the faulted paged ?
+    <mcsim> Shouldn't sequential clean some pages (if they, for example, are
+      not precious) that are placed before fault page?
+    <braunr> ?
+    <youpi> that could make sense, yes
+    <braunr> you lost me
+    <youpi> and something that you wouldn't to with the normal policy
+    <youpi> braunr: clear what has been read previously
+    <braunr> ?
+    <youpi> since the access is supposed to be sequential
+    <braunr> oh
+    <youpi> the application will proabably not re-read what was already read
+    <braunr> you mean to avoid caching it ?
+    <youpi> yes
+    <braunr> inactive memory is there for that
+    <youpi> while with the normal policy you'd assume that the application
+      might want to go back etc.
+    <youpi> yes, but you can help it
+    <braunr> yes
+    <youpi> instead of making other pages compete with it
+    <braunr> but then, it's for precious pages
+    <youpi> I have to say I don't know what a precious page it
+    <youpi> s
+    <youpi> does it mean dirty pages?
+    <braunr> no
+    <braunr> precious means cached pages
+    <braunr> "If precious is FALSE, the kernel treats the data as a temporary
+      and may throw it away if it hasn't been changed. If the precious value is
+      TRUE, the kernel treats its copy as a data repository and promises to
+      return it to the manager; the manager may tell the kernel to throw it
+      away instead by flushing and not cleaning the data"
+    <braunr> hm no
+    <braunr> precious means the kernel must keep it
+    <mcsim> youpi: According to vm_for_every_page. What kind of flag do you
+      suppose? If object is internal, I suppose not to cross the bound of
+      object, setting in_end appropriately in vm_calculate_clusters.
+    <mcsim> If object is external we don't know its actual size, so we should
+      make mo request first. And for this we should create fictitious  pages.
+    <braunr> mcsim: but how would you implement this "cleaning" with sequential
+      ?
+    <youpi> mcsim: ah, ok, I thought you were allocating memory, but it's just
+      fictitious pages
+    <youpi> comment "Allocate a new page" should be fixed :)
+    <mcsim> braunr: I don't now how I will implement this specifically (haven't
+      tried yet), but I don't think that this is impossible
+    <youpi> braunr: anyway it's useful as an example where normal and
+      sequential would be different
+    <braunr> if it can be done simply
+    <braunr> because i can see more trouble than gains in there :)
+    <mcsim> braunr: ok :)
+    <braunr> mcsim: hm also, why fictitious pages ?
+    <braunr> fictitious pages should normally be used only when dealing with
+      memory mapped physically which is not real physical memory, e.g. device
+      memory
+    <mcsim> but vm_fault could occur when object represent some device memory.
+    <braunr> that's exactly why there are fictitious pages
+    <mcsim> at the moment of allocating of fictitious page it is not know what
+      backing store of object is.
+    <braunr> really ?
+    <braunr> damn, i've got used to UVM too much :/
+    <mcsim> braunr: I said something wrong?
+    <braunr> no no
+    <braunr> it's just that sometimes, i'm confusing details about the various
+      BSD implementations i've studied
+    <braunr> out-of-gsoc-topic question: besides network drivers, do you think
+      we'll have other drivers that will run in userspace and have to implement
+      memory mapping ? like framebuffers ?
+    <braunr> or will there be a translation layer such as storeio that will
+      handle mapping ?
+    <youpi> framebuffers typically will, yes
+    <youpi> that'd be antrik's work on drm
+    <braunr> hmm
+    <braunr> ok
+    <youpi> mcsim: so does the implementation work, and do you see performance
+      improvement?
+    <mcsim> youpi: I haven't tested it yet with large ext2 :/
+    <mcsim> youpi: I'm going to finish now moving of ext2 to new interface,
+      than other translators in hurd repository and than finish memory policies
+      in gnumach. Is it ok?
+    <youpi> which new interface?
+    <mcsim> Written by neal. I wrote some temporary code to make ext2 work with
+      it, but I'm going to change this now.
+    <youpi> you mean the old unapplied patch?
+    <mcsim> yes
+    <youpi> did you have a look at Karim's work?
+    <youpi> (I have to say I never found the time to check how it related with
+      neal's patch)
+    <mcsim> I found only his work in kernel. I didn't see his work in applying
+      of neal's patch.
+    <youpi> ok
+    <youpi> how do they relate with each other?
+    <youpi> (I have never actually looked at either of them :/)
+    <mcsim> his work in kernel and neal's patch?
+    <youpi> yes
+    <mcsim> They do not correlate with each other.
+    <youpi> ah, I must be misremembering what each of them do
+    <mcsim> in kam's patch was changes to support sequential reading in reverse
+      order (as in OSF/Mach), but posix does not support such behavior, so I
+      didn't implement this either.
+    <youpi> I can't find the pointer to neal's patch, do you have it off-hand?
+    <mcsim> http://comments.gmane.org/gmane.os.hurd.bugs/351
+    <youpi> thx
+    <youpi> I think we are not talking about the same patch from Karim
+    <youpi> I mean lists.gnu.org/archive/html/bug-hurd/2010-06/msg00023.html
+    <mcsim> I mean this patch:
+      http://lists.gnu.org/archive/html/bug-hurd/2010-06/msg00024.html 
+    <mcsim> Oh.
+    <youpi> ok
+    <mcsim> seems, this is just the same
+    <youpi> yes
+    <youpi> from a non-expert view, I would have thought these patches play
+      hand in hand, do they really?
+    <mcsim> this patch is completely for kernel and neal's one is completely
+      for libpager.
+    <youpi> i.e. neal's fixes libpager, and karim's fixes the kernel
+    <mcsim> yes
+    <youpi> ending up with fixing the whole path?
+    <youpi> AIUI, karim's patch will be needed so that your increased readahead
+      will end up with clustered page request?
+    <mcsim> I will not use kam's patch
+    <youpi> is it not needed to actually get pages in together?
+    <youpi> how do you tell libpager to fetch pages together?
+    <youpi> about the cluster size, I'd say it shouldn't be specified at
+      vm_advise() level
+    <youpi> in other OSes, it is usually automatically tuned
+    <youpi> by ramping it up to a maximum readahead size (which, however, could
+      be specified)
+    <youpi> that's important for the normal policy, where there are typically
+      successive periods of sequential reads, but you don't know in advance for
+      how long
+    <mcsim> braunr said that there are legal issues with his code, so I cannot
+      use it.
+    <braunr> did i ?
+    <braunr> mcsim: can you give me a link to the code again please ?
+    <youpi> see above :)
+    <braunr> which one ?
+    <youpi> both
+    <youpi> they only differ by a typo
+    <braunr> mcsim: i don't remember saying that, do you have any link ?
+    <braunr> or log ?
+    <mcsim> sorry, can you rephrase "ending up with fixing the whole path"?
+    <mcsim> cluster_size in vm_advise also could be considered as advise 
+    <braunr> no
+    <braunr> it must be the third time we're talking about this
+    <youpi> mcsim: I mean both parts would be needed to actually achieve
+      clustered i/o
+    <braunr> again, why make cluster_size a per object attribute ? :(
+    <youpi> wouldn't some objects benefit from bigger cluster sizes, while
+      others wouldn't?
+    <youpi> but again, I believe it should rather be autotuned
+    <youpi> (for each object)
+    <braunr> if we merely want posix compatibility (and for a first attempt,
+      it's quite enough), vm_advise is good, and the kernel selects the
+      implementation (and thus the cluster sizes)
+    <braunr> if we want finer grained control, perhaps a per pager cluster_size
+      would be good, although its efficiency depends on several parameters
+    <braunr> (e.g. where the page is in this cluster)
+    <braunr> but a per object cluster size is a large waste of memory
+      considering very few applications (if not none) would use the "feature"
+      ..
+    <braunr> (if any*)
+    <youpi> there must be a misunderstanding
+    <youpi> why would it be a waste of memory?
+    <braunr> "per object"
+    <youpi> so?
+    <braunr> there can be many memory objects in the kernel
+    <youpi> so?
+    <braunr> so such an overhead must be useful to accept it
+    <youpi> in my understanding, a cluster size per object is just a mere
+      integer for each object
+    <youpi> what overhead?
+    <braunr> yes
+    <youpi> don't we have just thousands of objects?
+    <braunr> for now
+    <braunr> remember we're trying to remove the page cache limit :)
+    <youpi> that still won't be more than tens of thousands of objects
+    <youpi> times an integer
+    <youpi> that's completely neglectible
+    <mcsim> braunr: Strange, Can't find in logs. Weird things are happening in
+      my memory :/ Sorry.
+    <braunr> mcsim: i'm almost sure i never said that :/
+    <braunr> but i don't trust my memory too much either
+    <braunr> youpi: depends
+    <youpi> mcsim: I mean both parts would be needed to actually achieve
+      clustered i/o
+    <mcsim> braunr: I made I call vm_advise that applies policy to memory range
+      (vm_map_entry to be specific)
+    <braunr> mcsim: good
+    <youpi> actually the cluster size should even be per memory range
+    <mcsim> youpi: In this sense, yes
+    <youpi> k
+    <mcsim> sorry, Internet connection lags
+    <braunr> when changing a structure used to create many objects, keep in
+      mind one thing
+    <braunr> if its size gets larger than a threshold (currently, powers of
+      two), the cache used by the slab allocator will allocate twice the
+      necessary amount
+    <youpi> sure
+    <braunr> this is the case with most object caching allocators, although
+      some can have specific caches for common sizes such as 96k which aren't
+      powers of two
+    <braunr> anyway, an integer is negligible, but the final structure size
+      must be checked
+    <braunr> (for both 32 and 64 bits)
+    <mcsim> braunr: ok.
+    <mcsim> But I didn't understand what should be done with cluster size in
+      vm_advise? Should I delete it?
+    <braunr> to me, the cluster size is a pager property
+    <youpi> to me, the cluster size is a map property
+    <braunr> whereas vm_advise indicates what applications want
+    <youpi> you could have several process accessing the same file in different
+      ways
+    <braunr> youpi: that's why there is a policy
+    <youpi> isn't cluster_size part of the policy?
+    <braunr> but if the pager abilities are limited, it won't change much
+    <braunr> i'm not sure
+    <youpi> cluster_size is the amount of readahead, isn't it?
+    <braunr> no, it's the amount of data in a single transfer
+    <mcsim> Yes, it is.
+    <braunr> ok, i'll have to check your code
+    <youpi> shouldn't transfers permit unbound amounts of data?
+    <mcsim> braunr: than I misunderstand what readahead is
+    <braunr> well then cluster size is per policy :)
+    <braunr> e.g. random => 0, normal => 3, sequential => 15
+    <braunr> why make it per map entry ?
+    <youpi> because it depends on what the application doezs
+    <braunr> let me check the code
+    <youpi> if it's accessing randomly, no need for big transfers
+    <youpi> just page transfers will be fine
+    <youpi> if accessing sequentially, rather use whole MiB of transfers
+    <youpi> and these behavior can be for the same file
+    <braunr> mcsim: the call is vm_advi*s*e
+    <braunr> mcsim: the call is vm_advi_s_e
+    <braunr> not advice
+    <youpi> yes, he agreed earlier
+    <braunr> ok
+    <mcsim> cluster_size is the amount of data that I try to read at one time.
+    <mcsim> at singe mo_data_request
+    <mcsim> *single
+    <youpi> which, to me, will depend on the actual map
+    <braunr> ok so it is the transfer size
+    <youpi> and should be autotuned, especially for normal behavior
+    <braunr> youpi: it makes no sense to have both the advice and the actual
+      size per map entry
+    <youpi> to get big readahead with all apps
+    <youpi> braunr: the size is not only dependent on the advice, but also on
+      the application behavior
+    <braunr> youpi: how does this application tell this ?
+    <youpi> even for sequential, you shouldn't necessarily use very big amounts
+      of transfers
+    <braunr> there is no need for the advice if there is a cluster size
+    <youpi> there can be, in the case of sequential, as we said, to clear
+      previous pages
+    <youpi> but otherwise, indeed
+    <youpi> but for me it's the converse
+    <youpi> the cluster size should be tuned anyway
+    <braunr> and i'm against giving the cluster size in the advise call, as we
+      may want to prefetch previous data as well
+    <youpi> I don't see how that collides
+    <braunr> well, if you consider it's the transfer size, it doesn't
+    <youpi> to me cluster size is just the size of a window
+    <braunr> if you consider it's the amount of pages following a faulted page,
+      it will
+    <braunr> also, if your policy says e.g. "3 pages before, 10 after", and
+      your cluster size is 2, what happens ?
+    <braunr> i would find it much simpler to do what other VM variants do:
+      compute the I/O sizes directly from the policy
+    <youpi> don't they autotune, and use the policy as a maximum ?
+    <braunr> depends on the implementations
+    <youpi> ok, but yes I agree
+    <youpi> although casting the size into stone in the policy looks bogus to
+      me
+    <braunr> but making cluster_size part of the kernel interface looks way too
+      messy
+    <braunr> it is
+    <braunr> that's why i would have thought it as part of the pager properties
+    <braunr> the pager is the true component besides the kernel that is
+      actually involved in paging ...
+    <youpi> well, for me the flexibility should still  be per application
+    <youpi> by pager you mean the whole pager, not each file, right?
+    <braunr> if a pager can page more because e.g. it's a file system with big
+      block sizes, why not fetch more ?
+    <braunr> yes
+    <braunr> it could be each file
+    <braunr> but only if we have use for it
+    <braunr> and i don't see that currently
+    <youpi> well, posix currently doesn't provide a way to set it
+    <youpi> so it would be useless atm
+    <braunr> i was thinking about our hurd pagers
+    <youpi> could we perhaps say that the policy maximum could be a fraction of
+      available memory?
+    <braunr> why would we want that ?
+    <youpi> (total memory, I mean)
+    <youpi> to make it not completely cast into stone
+    <youpi> as have been in the past in gnumach
+    <braunr> i fail to understand :/
+    <youpi> there must be a misunderstanding then
+    <youpi> (pun not intended)
+    <braunr> why do you want to limit the policy maximum ?
+    <youpi> how to decide it?
+    <braunr> the pager sets it
+    <youpi> actually I don't see how a pager could decide it
+    <youpi> on what ground does it make the decision?
+    <youpi> readahead should ideally be as much as 1MiB
+    <braunr> 02:02 < braunr> if a pager can page more because e.g. it's a file
+      system with big block sizes, why not fetch more ?
+    <braunr> is the example i have in mind
+    <braunr> otherwise some default values
+    <youpi> that's way smaller than 1MiB, isn't it?
+    <braunr> yes
+    <braunr> and 1 MiB seems a lot to me :)
+    <youpi> for readahead, not really
+    <braunr> maybe for sequential
+    <youpi> that's what we care about!
+    <braunr> ah, i thought we cared about normal
+    <youpi> "as much as 1MiB", I said
+    <youpi> I don't mean normal :)
+    <braunr> right
+    <braunr> but again, why limit ?
+    <braunr> we could have 2 or more ?
+    <youpi> at some point you don't get more efficiency
+    <youpi> but eat more memory
+    <braunr> having the pager set the amount allows us to easily adjust it over
+      time
+    <mcsim> braunr: Do you think that readahead should be implemented in
+      libpager?
+    <youpi> than needed
+    <braunr> mcsim: no
+    <braunr> mcsim: err
+    <braunr> mcsim: can't answer
+    <youpi> mcsim: do you read the log of what you have missed during
+      disconnection?
+    <braunr> i'm not sure about what libpager does actually
+    <mcsim> yes
+    <braunr> for me it's just mutualisation of code used by pagers
+    <braunr> i don't know the details
+    <braunr> youpi: yes
+    <braunr> youpi: that's why we want these values not hardcoded in the kernel
+    <braunr> youpi: so that they can be adjusted by our shiny user space OS
+    <youpi> (btw apparently linux uses minimum 16k, maximum 128 or 256k)
+    <braunr> that's more reasonable
+    <youpi> that's just 4 times less :)
+    <mcsim> braunr: You say that pager should decide how much data should be
+      read ahead, but each pager can't implement it on it's own as there will
+      be too much overhead. So the only way is to implement this in libpager.
+    <braunr> mcsim: gni ?
+    <braunr> why couldn't they ?
+    <youpi> mcsim: he means the size, not the actual implementation
+    <youpi> the maximum size, actually
+    <braunr> actually, i would imagine it as the pager giving per policy
+      parameters
+    <youpi> right
+    <braunr> like how many before and after
+    <youpi> I agree, then
+    <braunr> the kernel could limit, sure, to avoid letting pagers use
+      completely insane values
+    <youpi> (and that's just a max, the kernel autotunes below that)
+    <braunr> why not
+    <youpi> that kernel limit could be a fraction of memory, then?
+    <braunr> it could, yes
+    <braunr> i see what you mean now
+    <youpi> mcsim: did you understand our discussion?
+    <youpi> don't hesitate to ask for clarification
+    <mcsim> I supposed cluster_size to be such parameter. And advice will help
+      to interpret this parameter (whether data should be read after fault page
+      or some data should be cleaned before)
+    <youpi> mcsim: we however believe that it's rather the pager than the
+      application that would tell that
+    <youpi> at least for the default values
+    <youpi> posix doesn't have a way to specify it, and I don't think it will
+      in the future
+    <braunr> and i don't think our own hurd-specific programs will need more
+      than that
+    <braunr> if they do, we can slightly change the interface to make it a per
+      object property
+    <braunr> i've checked the slab properties, and it seems we can safely add
+      it per object
+    <braunr> cf http://www.sceen.net/~rbraun/slabinfo.out
+    <braunr> so it would still be set by the pager, but if depending on the
+      object, the pager could set different values
+    <braunr> youpi: do you think the pager should just provide one maximum size
+      ? or per policy sizes ?
+    <youpi> I'd say per policy size
+    <youpi> so people can increase sequential size like crazy when they know
+      their sequential applications need it, without disturbing the normal
+      behavior
+    <braunr> right
+    <braunr> so the last decision is per pager or per object
+    <braunr> mcsim: i'd say whatever makes your implementation simpler :)
+    <mcsim> braunr: how kernel knows that object are created by specific pager?
+    <braunr> that's the kind of things i'm referring to with "whatever makes
+      your implementation simpler"
+    <braunr> but usually, vm_objects have an ipc port and some properties
+      relatedto their pagers
+    <braunr> -usually
+    <braunr> the problem i had in mind was the locking protocol but our spin
+      locks are noops, so it will be difficult to detect deadlocks
+    <mcsim> braunr: and for every policy there should be variable in vm_object
+      structure with appropriate cluster_size?
+    <braunr> if you want it per object, yes
+    <braunr> although i really don't think we want it
+    <youpi> better keep it per pager for now
+    <braunr> let's imagine youpi finishes his 64-bits support, and i can
+      successfully remove the page cache limit
+    <braunr> we'd jump from 1.8 GiB at most to potentially dozens of GiB of RAM
+    <braunr> and 1.8, mostly unused
+    <braunr> to dozens almost completely used, almost all the times for the
+      most interesting use cases
+    <braunr> we may have lots and lots of objects to keep around
+    <braunr> so if noone really uses the feature ... there is no point
+    <youpi> but also lots and lots of memory to spend on it :)
+    <youpi> a lot of objects are just one page, but a lof of them are not
+    <braunr> sure
+    <braunr> we wouldn't be doing that otherwise :)
+    <braunr> i'm just saying there is no reason to add the overhead of several
+      integers for each object if they're simply not used at all
+    <braunr> hmm, 64-bits, better page cache, clustered paging I/O :>
+    <braunr> (and readahead included in the last ofc)
+    <braunr> good night !
+    <mcsim> than, probably, make system-global max-cluster_size? This will save
+      some memory. Also there is usually no sense in reading really huge chunks
+      at once.
+    <youpi> but that'd be tedious to set
+    <youpi> there are only a few pagers, that's no wasted memory
+    <youpi> the user being able to set it for his own pager is however a very
+      nice feature, which can be very useful for databases, image processing,
+      etc.
+    <mcsim> In conclusion I have to implement following: 3 memory policies per
+      object and per vm_map_entry. Max cluster size for every policy should be
+      set per pager.
+    <mcsim> So, there should be 2 system calls for setting memory policy and
+      one for setting cluster sizes.
+    <mcsim> Also amount of data to transfer should be tuned automatically by
+      every page fault. 
+    <mcsim> youpi: Correct me, please, if I'm wrong.
+    <youpi> I believe that's what we ended up to decide, yes
+
+
+## IRC, freenode, #hurd, 2012-07-02
+
+    <braunr> is it safe to say that all memory objects implemented by external
+      pagers have "file" semantics ?
+    <braunr> i wonder if the current memory manager interface is suitable for
+      device pagers
+    <mcsim> braunr: What does "file" semantics mean?
+    <braunr> mcsim: anonymous memory doesn't have the same semantics as a file
+      for example
+    <braunr> anonymous memory that is discontiguous in physical memory can be
+      contiguous in swap
+    <braunr> and its location can change with time
+    <braunr> whereas with a memory object, the data exchanged with pagers is
+      identified with its offset
+    <braunr> in (probably) all other systems, this way of specifying data is
+      common to all files, whatever the file system
+    <braunr> linux uses the struct vm_file name, while in BSD/Solaris they are
+      called vnodes (the link between a file system inode and virtual memory)
+    <braunr> my question is : can we implement external device pagers with the
+      current interface, or is this interface really meant for files ?
+    <braunr> also
+    <braunr> mcsim: something about what you said yesterday
+    <braunr> 02:39 < mcsim> In conclusion I have to implement following: 3
+      memory policies per object and per vm_map_entry. Max cluster size for
+      every policy should be set per pager.
+    <braunr> not per object
+    <braunr> one policy per map entry
+    <braunr> transfer parameters (pages before and after the faulted page) per
+      policy, defined by pagers
+    <braunr> 02:39 < mcsim> So, there should be 2 system calls for setting
+      memory policy and one for setting cluster sizes.
+    <braunr> adding one call for vm_advise is good because it mirrors the posix
+      call
+    <braunr> but for the parameters, i'd suggest changing an already existing
+      call
+    <braunr> not sure which one though
+    <mcsim> braunr: do you know how mo_change_attributes implemented in
+      OSF/Mach?
+    <braunr> after a quick reading of the reference manual, i think i
+      understand why they made it per object
+    <braunr> mcsim: no
+    <braunr> did they change the call to include those paging parameters ?
+    <mcsim> it accept two parameters: flavor and pointer to structure with
+      parameters.
+    <mcsim> flavor determines semantics of structure with parameters.
+    <mcsim>
+      http://www.darwin-development.org/cgi-bin/cvsweb/osfmk/src/mach_kernel/vm/memory_object.c?rev=1.1
+    <mcsim> structure can have 3 different views and what exect view will be is
+      determined by value of flavor
+    <mcsim> So, I thought about implementing similar call that could be used
+      for various purposes.
+    <mcsim> like ioctl
+    <braunr> "pointer to structure with parameters" <= which one ?
+    <braunr> mcsim: don't model anything anywhere like ioctl please
+    <mcsim> memory_object_info_t	attributes
+    <braunr> ioctl is the very thing we want NOT to have on the hurd
+    <braunr> ok attributes
+    <braunr> and what are the possible values of flavour, and what kinds of
+      attributes ?
+    <mcsim> and then appears something like this on each case: behave =
+      (old_memory_object_behave_info_t) attributes;
+    <braunr> ok i see
+    <mcsim> flavor could be  OLD_MEMORY_OBJECT_BEHAVIOR_INFO,
+      MEMORY_OBJECT_BEHAVIOR_INFO, MEMORY_OBJECT_PERFORMANCE_INFO etc
+    <braunr> i don't really see the point of flavour here, other than
+      compatibility
+    <braunr> having attributes is nice, but you should probably add it as a
+      call parameter, not inside a structure
+    <braunr> as a general rule, we don't like passing structures too much
+      to/from the kernel, because handling them with mig isn't very clean
+    <mcsim> ok
+    <mcsim> What policy parameters should be defined by pager?
+    <braunr> i'd say number of pages to page-in before and after the faulted
+      page
+    <mcsim> Only pages before and after the faulted page?
+    <braunr> for me yes
+    <braunr> youpi might have different things in mind
+    <braunr> the page cleaning in sequential mode is something i wouldn't do
+    <braunr> 1/ applications might want data read sequentially to remain in the
+      cache, for other sequential accesses
+    <braunr> 2/ applications that really don't want to cache anything should
+      use O_DIRECT
+    <braunr> 3/ it's complicated, and we're in july
+    <braunr> i'd rather have a correct and stable result than too many unused
+      features
+    <mcsim> braunr: MADV_SEQUENTIAL Expect page references in sequential order.
+      (Hence, pages in the given range can be aggressively read ahead, and may
+      be freed soon after they are accessed.)
+    <mcsim> this is from linux man
+    <mcsim> braunr: Can I at least make keeping in mind that it could be
+      implemented?
+    <mcsim> I mean future rpc interface
+    <mcsim> braunr: From behalf of kernel pager is just a port.
+    <mcsim> That's why it is not clear for me how I can make in kernel
+      per-pager policy
+    <braunr> mcsim: you can't
+    <braunr> 15:19 < braunr> after a quick reading of the reference manual, i
+      think i understand why they made it per object
+    <braunr>
+      http://pubs.opengroup.org/onlinepubs/009695399/functions/posix_madvise.html
+    <braunr> POSIX_MADV_SEQUENTIAL
+    <braunr> Specifies that the application expects to access the specified
+      range sequentially from lower addresses to higher addresses.
+    <braunr> linux might free pages after their access, why not, but this is
+      entirely up to the implementation
+    <mcsim> I know, when but applications might want data read sequentially to
+      remain in the cache, for other sequential accesses this kind of access
+      could be treated rather normal or random
+    <braunr> we can do differently
+    <braunr> mcsim: no
+    <braunr> sequential means the access will be sequential
+    <braunr> so aggressive readahead (e.g. 0 pages before, many after), should
+      be used
+    <braunr> for better performance
+    <braunr> from my pov, it has nothing to do with caching
+    <braunr> i actually sometimes expect data to remain in cache
+    <braunr> e.g. before playing a movie from sshfs, i sometimes prefetch it
+      using dd
+    <braunr> then i use mplayer
+    <braunr> i'd be very disappointed if my data didn't remain in the cache :)
+    <mcsim> At least these pages could be placed into inactive list to be first
+      candidates for pageout.
+    <braunr> that's what will happen by default
+    <braunr> mcsim: if we need more properties for memory objects, we'll adjust
+      the call later, when we actually implement them
+    <mcsim> so, first call is vm_advise and second is changed
+      mo_change_attributes?
+    <braunr> yes
+    <mcsim> there will appear 3 new parameters in mo_c_a: policy, pages before
+      and pages after?
+    <mcsim> braunr: With vm_advise I didn't understand one thing. This call is
+      defined in defs file, so that should mean that vm_advise is ordinal rpc
+      call. But on the same time it is defined as syscall in mach internals (in
+      mach_trap_table).
+    <braunr> mcsim: what ?
+    <braunr> were is it "defined" ? (it doesn't exit in gnumach currently)
+    <mcsim> Ok, let consider vm_map
+    <mcsim> I define it both in mach_trap_table and in defs file.
+    <mcsim> But why?
+    <braunr> uh ?
+    <braunr> let me see
+    <mcsim> Why defining in defs file is not enough?
+    <mcsim> and previous question: there will appear 3 new parameters in
+      mo_c_a: policy, pages before and pages after?
+    <braunr> mcsim: give me the exact file paths please
+    <braunr> mcsim: we'll discuss the new parameters after
+    <mcsim> kern/syscall_sw.c
+    <braunr> right i see
+    <mcsim> here mach_trap_table in defined
+    <braunr> i think they're not used
+    <braunr> they were probably introduced for performance
+    <mcsim> and ./include/mach/mach.defs
+    <braunr> don't bother adding vm_advise as a syscall
+    <braunr> about the parameters, it's a bit more complicated
+    <braunr> you should add 6 parameters
+    <braunr> before and after, for the 3 policies
+    <braunr> but
+    <braunr> as seen in the posix page, there could be more policies ..
+    <braunr> ok forget what i said, it's stupid
+    <braunr> yes, the 3 parameters you had in mind are correct
+    <braunr> don't forget a "don't change" value for the policy though, so the
+      kernel ignores the before/after values if we don't want to change that
+    <mcsim> ok
+    <braunr> mcsim: another reason i asked about "file semantics" is the way we
+      handle the cache
+    <braunr> mcsim: file semantics imply data is cached, whereas anonymous and
+      device memory usually isn't
+    <braunr> (although having the cache at the vm layer instead of the pager
+      layer allows nice things like the swap cache)
+    <mcsim> But this shouldn't affect possibility of implementing of device
+      pager.
+    <braunr> yes it may
+    <braunr> consider how a fault is actually handled by a device
+    <braunr> mach must use weird fictitious pages for that
+    <braunr> whereas it would be better to simply let the pager handle the
+      fault as it sees fit
+    <mcsim> setting may_cache to false should resolve the issue
+    <braunr> for the caching problem, yes
+    <braunr> which is why i still think it's better to handle the cache at the
+      vm layer, unlike UVM which lets the vnode pager handle its own cache, and
+      removes the vm cache completely
+    <mcsim> The only issue with pager interface I see is implementing of
+      scatter-gather DMA (as current interface does not support non-consecutive
+      access)
+    <braunr> right
+    <braunr> but that's a performance issue
+    <braunr> my problem with device pagers is correctness
+    <braunr> currently, i think the kernel just asks pagers for "data"
+    <braunr> whereas a device pager should really map its device memory where
+      the fault happen
+    <mcsim> braunr: You mean that every access to memory should cause page
+      fault?
+    <mcsim> I mean mapping of device memory
+    <braunr> no
+    <braunr> i mean a fault on device mapped memory should directly access a
+      shared region
+    <braunr> whereas file pagers only implement backing store
+    <braunr> let me explain a bit more
+    <braunr> here is what happens with file mapped memory
+    <braunr> you map it, access it (some I/O is done to get the page content in
+      physical memory), then later it's flushed back
+    <braunr> whereas with device memory, there shouldn't be any I/O, the device
+      memory should directly be mapped (well, some devices need the same
+      caching behaviour, while others provide direct access)
+    <braunr> one of the obvious consequences is that, when you map device
+      memory (e.g. a framebuffer), you expect changes in your mapped memory to
+      be effective right away
+    <braunr> while with file mapped memory, you need to msync() it
+    <braunr> (some framebuffers also need to be synced, which suggests greater
+      control is needed for external pagers)
+    <mcsim> Seems that I understand you. But how it is implemented in other
+      OS'es? Do they set something in mmu?
+    <braunr> mcsim: in netbsd, pagers have a fault operatin in addition to get
+      and put
+    <braunr> the device pager sets get and put to null and implements fault
+      only
+    <braunr> the fault callback then calls the d_mmap callback of the specific
+      driver
+    <braunr> which usually results in the mmu being programmed directly
+    <braunr> (e.g. pmap_enter or similar)
+    <braunr> in linux, i think raw device drivers, being implemented as
+      character device files, must provide raw read/write/mmap/etc.. functions
+    <braunr> so it looks pretty much similar
+    <braunr> i'd say our current external pager interface is insufficient for
+      device pagers
+    <braunr> but antrik may know more since he worked on ggi
+    <braunr> antrik: ^
+    <mcsim> braunr: Seems he used io_map
+    <braunr> mcsim: where ar eyou looking at ? the incubator ?
+    <mcsim> his master's thesis
+    <braunr> ah the thesis
+    <braunr> but where ? :)
+    <mcsim> I'll give you a link
+    <mcsim> http://dl.dropbox.com/u/36519904/kgi_on_hurd.pdf
+    <braunr> thanks
+    <mcsim> see p 158
+    <braunr> arg, more than 200 pages, and he says he's lazy :/
+    <braunr> mcsim: btw, have a look at m_o_ready
+    <mcsim> braunr: This is old form of mo_change attributes
+    <mcsim> I'm not going to change it
+    <braunr> mcsim: these are actually the default object parameters right ?
+    <braunr> mcsim: if you don't change it, it means the kernel must set
+      default values until the pager changes them, if it does
+    <mcsim> yes.
+    <antrik> mcsim: madvise() on Linux has a separate flag to indicate that
+      pages won't be reused. thus I think it would *not* be a good idea to
+      imply it in SEQUENTIAL
+    <antrik> braunr: yes, my KMS code relies on mapping memory objects for the
+      framebuffer
+    <antrik> (it should be noted though that on "modern" hardware, mapping
+      graphics memory directly usually gives very poor performance, and drivers
+      tend to avoid it...)
+    <antrik> mcsim: BTW, it was most likely me who warned about legal issues
+      with KAM's work. AFAIK he never managed to get the copyright assignment
+      done :-(
+    <antrik> (that's not really mandatory for the gnumach work though... only
+      for the Hurd userspace parts)
+    <antrik> also I'd like to point out again that the cluster_size argument
+      from OSF Mach was probably *not* meant for advice from application
+      programs, but rather was supposed to reflect the cluster size of the
+      filesystem in question. at least that sounds much more plausible to me...
+    <antrik> braunr: I have no idea whay you mean by "device pager". device
+      memory is mapped once when the VM mapping is established; there is no
+      need for any fault handling...
+    <antrik> mcsim: to be clear, I think the cluster_size parameter is mostly
+      orthogonal to policy... and probably not very useful at all, as ext2
+      almost always uses page-sized clusters. I'm strongly advise against
+      bothering with it in the initial implementation
+    <antrik> mcsim: to avoid confusion, better use a completely different name
+      for the policy-decided readahead size
+    <mcsim> antrik: ok
+    <antrik> braunr: well, yes, the thesis report turned out HUGE; but the
+      actual work I did on the KGI port is fairly tiny (not more than a few
+      weeks of actual hacking... everything else was just brooding)
+    <antrik> braunr: more importantly, it's pretty much the last (and only
+      non-trivial) work I did on the Hurd :-(
+    <antrik> (also, I don't think I used the word "lazy"... my problem is not
+      laziness per se; but rather inability to motivate myself to do anything
+      not providing near-instant gratification...)
+    <braunr> antrik: right
+    <braunr> antrik: i shouldn't consider myself lazy either
+    <braunr> mcsim: i agree with antrik, as i told you weeks ago
+    <braunr> about
+    <braunr> 21:45 < antrik> mcsim: to be clear, I think the cluster_size
+      parameter is mostly orthogonal to policy... and probably not very useful
+      at all, as ext2 almost always uses page-sized clusters. I'm strongly
+      advise against bothering with it
+    <braunr>                 in the initial implementation
+    <braunr> antrik: but how do you actually map device memory ?
+    <braunr> also, strangely enough, here is the comment in dragonflys
+      madvise(2)
+    <braunr> 21:45 < antrik> mcsim: to be clear, I think the cluster_size
+      parameter is mostly orthogonal to policy... and probably not very useful
+      at all, as ext2 almost always uses page-sized clusters. I'm strongly
+      advise against bothering with it
+    <braunr>                 in the initial implementation
+    <braunr> arg
+    <braunr> MADV_SEQUENTIAL  Causes the VM system to depress the priority of
+      pages immediately preceding a given page when it is faulted in.
+    <antrik> braunr: interesting...
+    <antrik> (about SEQUENTIAL on dragonfly)
+    <antrik> as for mapping device memory, I just use to device_map() on the
+      mem device to map the physical address space into a memory object, and
+      then through vm_map into the driver (and sometimes application) address
+      space
+    <antrik> formally, there *is* a pager involved of course (implemented
+      in-kernel by the mem device), but it doesn't really do anything
+      interesting
+    <antrik> thinking about it, there *might* actually be page faults involved
+      when the address ranges are first accessed... but even then, the handling
+      is really trivial and not terribly interesting
+    <braunr> antrik: it does the most interesting part, create the physical
+      mapping
+    <braunr> and as trivial as it is, it requires a special interface
+    <braunr> i'll read about device_map again
+    <braunr> but yes, the fact that it's in-kernel is what solves the problem
+      here
+    <braunr> what i'm interested in is to do it outside the kernel :)
+    <antrik> why would you want to do that?
+    <antrik> there is no policy involved in doing an MMIO mapping
+    <antrik> you ask for the pysical memory region you are interested in, and
+      that's it
+    <antrik> whether the kernel adds the page table entries immediately or on
+      faults is really an implementation detail
+    <antrik> braunr: ^
+    <braunr> yes it's a detail
+    <braunr> but do we currently have the interface to make such mappings from
+      userspace ?
+    <braunr> and i want to do that because i'd like as many drivers as possible
+      outside the kernel of course
+    <antrik> again, the userspace driver asks the kernel to establish the
+      mapping (through device_map() and then vm_map() on the resulting memory
+      object)
+    <braunr> hm i'm missing something
+    <braunr>
+      http://www.gnu.org/software/hurd/gnumach-doc/Device-Map.html#Device-Map
+      <= this one ?
+    <antrik> yes, this one
+    <braunr> but this implies the device is implemented by the kernel
+    <antrik> the mem device is, yes
+    <antrik> but that's not a driver
+    <braunr> ah
+    <antrik> it's just the interface for doing MMIO
+    <antrik> (well, any physical mapping... but MMIO is probably the only real
+      use case for that)
+    <braunr> ok
+    <braunr> i was thinking about completely removing the device interface from
+      the kernel actually
+    <braunr> but it makes sense to have such devices there
+    <antrik> well, in theory, specific kernel drivers can expose their own
+      device_map() -- but IIRC the only one that does (besides mem of course)
+      is maptime -- which is not a real driver either...
+    <braunr> oh btw, i didn't know you had a blog :)
+    <antrik> well, it would be possible to replace the device interface by
+      specific interfaces for the generic pseudo devices... I'm not sure how
+      useful that would be
+    <braunr> there are lots of interesting stuff there
+    <antrik> hehe... another failure ;-)
+    <braunr> failure ?
+    <antrik> well, when I realized that I'm speding a lot of time pondering
+      things, and never can get myself to actually impelemnt any of them, I had
+      the idea that if I write them down, there might at least be *some* good
+      from it...
+    <antrik> unfortunately it turned out that I need so much effort to write
+      things down, that most of the time I can't get myself to do that either
+      :-(
+    <braunr> i see
+    <braunr> well it's still nice to have it
+    <antrik> (notice that the latest entry is two years old... and I haven't
+      even started describing most of my central ideas :-( )
+    <braunr> antrik: i tried to create a blog once, and found what i wrote so
+      stupid i immediately removed it
+    <antrik> hehe
+    <antrik> actually some of my entries seem silly in retrospect as well...
+    <antrik> but I guess that's just the way it is ;-)
+    <braunr> :)
+    <braunr> i'm almost sure other people would be interested in what i had to
+      say
+    <antrik> BTW, I'm actually not sure whether the Mach interfaces are
+      sufficient to implement GEM/TTM... we would certainly need kernel support
+      for GART (as for any other kind IOMMU in fact); but beyond that it's not
+      clear to me
+    <braunr> GEM ? TTM ? GART ?
+    <antrik> GEM = Graphics Execution Manager. part of the "new" DRM interface,
+      closely tied with KMS
+    <antrik> TTM = Translation Table Manager. does part of the background work
+      for most of the GEM drivers
+    <braunr> "The Graphics Execution Manager (GEM) is a computer software
+      system developed by Intel to do memory management for device drivers for
+      graphics chipsets." hmm
+    <antrik> (in fact it was originally meant to provide the actual interface;
+      but the Inter folks decided that it's not useful for their UMA graphics)
+    <antrik> GART = Graphics Aperture
+    <antrik> kind of an IOMMU for graphics cards
+    <antrik> allowing the graphics card to work with virtual mappings of main
+      memory
+    <antrik> (i.e. allowing safe DMA)
+    <braunr> ok
+    <braunr> all this graphics stuff looks so complex :/
+    <antrik> it is
+    <antrik> I have a whole big chapter on that in my thesis... and I'm not
+      even sure I got everything right
+    <braunr> what is nvidia using/doing (except for getting the finger) ?
+    <antrik> flushing out all the details for KMS, GEM etc. took the developers
+      like two years (even longer if counting the history of TTM)
+    <antrik> Nvidia's proprietary stuff uses a completely own kernel interface,
+      which is of course not exposed or docuemented in any way... but I guess
+      it's actually similar in what it does)
+    <braunr> ok
+    <antrik> (you could ask the nouveau guys if you are truly
+      interested... they are doing most of their reverse engineering at the
+      kernel interface level)
+    <braunr> it seems graphics have very special needs, and a lot of them
+    <braunr> and the interfaces are changing often
+    <braunr> so it's not that much interesting currently
+    <braunr> it just means we'll probably have to change the mach interface too
+    <braunr> like you said
+    <braunr> so the answer to my question, which was something like "do mach
+      external pagers only implement files ?", is likely yes
+    <antrik> well, KMS/GEM had reached some stability; but now there are
+      further changes ahead with the embedded folks coming in with all their
+      dedicated hardware, calling for unified buffer management across the
+      whole pipeline (from capture to output)
+    <antrik> and yes: graphics hardware tends to be much more complex regarding
+      the interface than any other hardware. that's because it's a combination
+      of actual I/O (like most other devices) with a very powerful coprocessor
+    <antrik> and the coprocessor part is pretty much unique amongst peripherial
+      devices
+    <antrik> (actually, the I/O part is also much more complex than most other
+      hardware... but that alone would only require a more complex driver, not
+      special interfaces)
+    <antrik> embedded hardware makes it more interesting in that the I/O
+      part(s) are separate from the coprocessor ones; and that there are often
+      several separate specialised ones of each... the DRM/KMS stuff is not
+      prepared to deal with this
+    <antrik> v4l over time has evolved to cover such things; but it's not
+      really the right place to implement graphics drivers... which is why
+      there are not efforts to unify these frameworks. funny times...
+
+
+## IRC, freenode, #hurd, 2012-07-03
+
+    <braunr> mcsim: vm_for_every_page should be static
+    <mcsim> braunr: ok
+    <braunr> mcsim: see http://gcc.gnu.org/onlinedocs/gcc/Inline.html
+    <braunr> and it looks big enough that you shouldn't make it inline
+    <braunr> let the compiler decide for you (which is possible only if the
+      function is static)
+    <braunr> (otherwise a global symbol needs to exist)
+    <braunr> mcsim: i don't know where you copied that comment from, but you
+      should review the description of the vm_advice call in mach.Defs
+    <mcsim> braunr: I see
+    <mcsim> braunr: It was vm_inherit :)
+    <braunr> mcsim: why isn't NORMAL defined in vm_advise.h ?
+    <braunr> mcsim: i figured actually ;)
+    <mcsim> braunr: I was going to do it later when.
+    <braunr> mcsim: for more info on inline, see
+      http://www.kernel.org/doc/Documentation/CodingStyle
+    <braunr> arg that's an old one
+    <mcsim> braunr: I know that I do not follow coding style
+    <braunr> mcsim: this one is about linux :p
+    <braunr> mcsim: http://lxr.linux.no/linux/Documentation/CodingStyle should
+      have it
+    <braunr> mcsim: "Chapter 15: The inline disease"
+    <mcsim> I was going to fix it later during refactoring when I'll merge
+      mplaneta/gsoc12/working to mplaneta/gsoc12/master
+    <braunr> be sure not to forget :p
+    <braunr> and the best not to forget is to do it asap
+    <braunr> +way
+    <mcsim> As to inline. I thought that even if I specify function as inline
+      gcc makes final decision about it.
+    <mcsim> There was a specifier that made function always inline, AFAIR.
+    <braunr> gcc can force a function not to be inline, yes
+    <braunr> but inline is still considered as a strong hint
+
+
+## IRC, freenode, #hurd, 2012-07-05
+
+    <mcsim1> braunr: hello. You've said that pager has to supply 2 values to
+      kernel to give it an advice how execute page fault. These two values
+      should be number of pages before and after the page where fault
+      occurred. But for sequential policy number of pager before makes no
+      sense. For random policy too. For normal policy it would be sane to make
+      readahead symmetric. Probably it would be sane to make pager supply
+      cluster_size (if it is necessary to supply any) that w
+    <mcsim1> *that will be advice for kernel of least sane value? And maximal
+      value will be f(free_memory, map_entry_size)?
+    <antrik> mcsim1: I doubt symmetric readahead would be a good default
+      policy... while it's hard to estimate an optimum over all typical use
+      cases, I'm pretty sure most situtations will benefit almost exclusively
+      from reading following pages, not preceeding ones
+    <antrik> I'm not even sure it's useful to read preceding pages at all in
+      the default policy -- the use cases are probably so rare that the penalty
+      in all other use cases is not justified. I might be wrong on that
+      though...
+    <antrik> I wonder how other systems handle that
+    <LarstiQ> antrik: if there is a mismatch between pages and the underlying
+      store, like why changing small bits of data on an ssd is slow?
+    <braunr> mcsim1: i don't see why not
+    <braunr> antrik: netbsd reads a few pages before too
+    <braunr> actually, what netbsd does vary on the version, some only mapped
+      in resident pages, later versions started asynchronous transfers in the
+      hope those pages would be there
+    <antrik> LarstiQ: not sure what you are trying to say
+    <braunr> in linux :
+    <braunr> 321  *  MADV_NORMAL - the default behavior is to read clusters.
+      This
+    <braunr> 322  *              results in some read-ahead and read-behind.
+    <braunr> not sure if it's actually what the implementation does
+    <antrik> well, right -- it's probably always useful to read whole clusters
+      at a time, especially if they are the same size as pages... that doesn't
+      mean it always reads preceding pages; only if the read is in the middle
+      of the cluster AIUI
+    <LarstiQ> antrik: basically what braunr just pasted
+    <antrik> and in most cases, we will want to read some *following* clusters
+      as well, but probably not preceding ones
+    * LarstiQ nods
+    <braunr> antrik: the default policy is usually rather sequential
+    <braunr> here are the numbers for netbsd
+    <braunr>  166 static struct uvm_advice uvmadvice[] = {
+    <braunr>  167         { MADV_NORMAL, 3, 4 },
+    <braunr>  168         { MADV_RANDOM, 0, 0 },
+    <braunr>  169         { MADV_SEQUENTIAL, 8, 7},
+    <braunr>  170 };
+    <braunr> struct uvm_advice {
+    <braunr>          int advice;
+    <braunr>          int nback;
+    <braunr>          int nforw;
+    <braunr> };
+    <braunr> surprising isn't it ?
+    <braunr> they may suggest sequential may be backwards too
+    <braunr> makes sense
+    <antrik> braunr: what are these numbers? pages?
+    <braunr> yes
+    <antrik> braunr: I suspect the idea behind SEQUENTIAL is that with typical
+      sequential access patterns, you will start at one end of the file, and
+      then go towards the other end -- so the extra clusters in the "wrong"
+      direction do not actually come into play
+    <antrik> only situation where some extra clusters are actually read is when
+      you start in the middle of a file, and thus do not know yet in which
+      direction the sequential read will go...
+    <braunr> yes, there are similar comments in the linux code
+    <braunr> mcsim1: so having before and after numbers seems both
+      straightforward and in par with other implementations
+    <antrik> I'm still surprised about the almost symmetrical policy for NORMAL
+      though
+    <antrik> BTW, is it common to use heuristics for automatically recognizing
+      random and sequential patterns in the absence of explicit madise?
+    <braunr> i don't know
+    <braunr> netbsd doesn't use any, linux seems to have different behaviours
+      for anonymous and file memory
+    <antrik> when KAM was working on this stuff, someone suggested that...
+    <braunr> there is a file_ra_state struct in linux, for per file read-ahead
+      policy
+    <braunr> now the structure is of course per file system, since they all use
+      the same address
+    <braunr> (which is why i wanted it to be per pager in the first place)
+    <antrik> mcsim1: as I said before, it might be useful for the pager to
+      supply cluster size, if it's different than page size. but right now I
+      don't think this is something worth bothering with...
+    <antrik> I seriously doubt it would be useful for the pager to supply any
+      other kind of policy
+    <antrik> braunr: I don't understand your remark about using the same
+      address...
+    <antrik> braunr: pre-mapping seems the obvious way to implement readahead
+      policy
+    <antrik> err... per-mapping
+    <braunr> the ra_state (read ahead state) isn't the policy
+    <braunr> the policy is per mapping, parts of the implementation of the
+      policy is per file system
+    <mcsim1> braunr: How do you look at following implementation of NORMAL
+      policy: We have fault page that is current. Than we have maximal size of
+      readahead block. First we find first absent pages before and after
+      current. Than we try to fit block that will be readahead into this
+      range. Here could be following situations: in range RBS/2 (RBS -- size of
+      readahead block) there is no any page, so readahead will be symmetric; if
+      current page is first absent page than all 
+    <mcsim1> RBS block will consist of pages that are after current; on the
+      contrary if current page is last absent than readahead will go backwards.
+    <mcsim1> Additionally if current page is approximately in the middle of the
+      range we can decrease RBS, supposing that access is random.
+    <braunr> mcsim1: i think your gsoc project is about readahead, we're in
+      july, and you need to get the job done
+    <braunr> mcsim1: grab one policy that works, pages before and after are
+      good enough
+    <braunr> use sane default values, let the pagers decide if they want
+      something else
+    <braunr> and concentrate on the real work now
+    <antrik> braunr: I still don't see why pagers should mess with that... only
+      complicates matters IMHO
+    <braunr> antrik: probably, since they almost all use the default
+      implementation
+    <braunr> mcsim1: just use sane values inside the kernel :p
+    <braunr> this simplifies things by only adding the new vm_advise call and
+      not change the existing external pager interface

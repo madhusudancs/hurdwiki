@@ -10,6 +10,11 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_gnumach]]
 
+[[!toc]]
+
+
+# [[page_cache]]
+
 
 # IRC, freenode, #hurd, 2012-04-26
 
@@ -33,3 +38,587 @@ License|/fdl]]."]]"""]]
       have either lots of free pages because tha max limit is reached, or lots
       of pressure and system freezes :/
     <youpi> yes
+
+
+## IRC, freenode, #hurd, 2012-06-17
+
+    <braunr> youpi: i don't understand your patch :/
+    <youpi> arf
+    <youpi>  which part don't you understand?
+    <braunr> the global idea :/
+    <youpi> first, drop the limit on number of objects
+    <braunr> you added a new collect call at pageout time
+    <youpi> (i.e. here, hack overflow into 0)
+    <braunr> yes
+    <braunr> obviously
+    <youpi> but then the cache keeps filling up with objects
+    <youpi> which sooner or later become empty
+    <youpi> thus the collect, which is supposed to look for empty objects, and
+      just drop them
+    <braunr> but not at the right time
+    <braunr> objects should be collected as soon as their ref count drops to 0
+    <braunr> err
+    <youpi> now, the code of the collect is just a crude attempt without
+      knowing much about the vm
+    <braunr> when their resident page count drops to 0
+    <youpi> so don't necessarily read it :)
+    <braunr> ok
+    <braunr> i've begin playing with the vm recently
+    <braunr> the limits (arbitrary, and very old obviously) seem far too low
+      for current resources
+    <braunr> (e.g. the threshold on free pages is 50 iirc ...)
+    <youpi> yes
+    <braunr> i'll probably use a different approach
+    <braunr> the one i mentioned (collecting one object at a time - or pushing
+      them on a list for bursts - when they become empty)
+    <braunr> this should relax the kernel allocator more
+    <braunr> (since there will be less empty vm_objects remaining until the
+      next global collecttion)
+
+
+## IRC, freenode, #hurd, 2012-06-30
+
+    <braunr> the threshold values of the page cache seem quite enough actually
+    <youpi> braunr: ah
+    <braunr> youpi: yes, it seems the problems are in ext2, not in the VM
+    <youpi> k
+    <youpi> the page cache limitation still doesn't help :)
+    <braunr> the problem in the VM is the recycling of vm_objects, which aren't
+      freed once empty
+    <braunr> but it only wastes some of the slab memory, it doesn't prevent
+      correct processing
+    <youpi> braunr: thus the limitation, right?
+    <braunr> no
+    <braunr> well
+    <braunr> that's the policy they chose at the time
+    <braunr> for what reason .. i can't tell
+    <youpi> ok, but I mean
+    <youpi> we can't remove the policy because of the non-free of empty objects
+    <braunr> we must remove vm_objects at some point
+    <braunr> but even without it, it makes no sense to disable the limit while
+      ext2 is still unstable
+    <braunr> also, i noticed that the page count in vm_objects never actually
+      drop to 0 ...
+    <youpi> you mean the limit permits to avoid going into the buggy scenarii
+      too often?
+    <braunr> yes
+    <youpi> k
+    <braunr> at least, that's my impression
+    <braunr> my test case is tar xf files.tar.gz, which contains 50000 files of
+      12k random data
+    <braunr> i'll try with other values
+    <braunr> i get crashes, deadlocks, livelocks, and it's not pretty :)
+    <braunr> and always in ext2, mach doesn't seem affected by the issue, other
+      than the obvious
+    <braunr> (well i get the usual "deallocating an invalid port", but as
+      mentioned, it's "most probably a bug", which is the case here :)
+    <youpi> braunr: looks coherent with the hangs I get on the buildds
+    <braunr> youpi: so that's the nasty bug i have to track now
+    <youpi> though I'm also still getting some out of memory from gnumach
+      sometimes
+    <braunr> the good thing is i can reproduce it very quickly
+    <youpi> a dump from the allocator to know which zone took all the room
+      might help
+    <braunr> youpi: yes i promised that too
+    <youpi> although that's probably related with ext2 issues :)
+    <braunr> youpi: can you send me the panic message so i can point the code
+      which must output the allocator state please ?
+    <youpi> next time I get it, sure :)
+    <pinotree> braunr: you could implement a /proc/slabinfo :)
+    <braunr> pinotree: yes but when a panic happens, it's too late
+    <braunr> http://git.sceen.net/rbraun/slabinfo.git/ btw
+    <braunr> although it's not part of procfs
+    <braunr> and the mach_debug interface isn't provided :(
+
+
+## IRC, freenode, #hurd, 2012-07-03
+
+    <braunr> it looks like pagers create a thread per memory object ...
+    <antrik> braunr: oh. so if I open a lot of files, ext2fs will *inevitably*
+      have lots of threads?...
+    <braunr> antrik: i'm not sure
+    <braunr> it may only be required to flush them
+    <braunr> but when there are lots of them, the threads could run slowly,
+      giving the impression there is one per object
+    <braunr> in sync mode i don't see many threads
+    <braunr> and i don't get the bug either for now
+    <braunr> while i can see physical memory actually being used
+    <braunr> (and the bug happens before there is any memory pressure in the
+      kernel)
+    <braunr> so it definitely looks like a corruption in ext2fs
+    <braunr> and i have an idea .... :>
+    <braunr> hm no, i thought an alloca with a big size parameter could erase
+      memory outside the stack, but it's something else
+    <braunr> (although alloca should really be avoided)
+    <braunr> arg, the problem seems to be in diskfs_sync_everything ->
+      ports_bucket_iterate (pager_bucket, sync_one); :/
+    <braunr> :(
+    <braunr> looks like the ext2 problem is triggered by calling pager_sync
+      from diskfs_sync_everything
+    <braunr> and is possibly related to
+      http://lists.gnu.org/archive/html/bug-hurd/2010-03/msg00127.html
+    <braunr> (and for reference, the rest of the discussion
+      http://lists.gnu.org/archive/html/bug-hurd/2010-04/msg00012.html)
+    <braunr> multithreading in libpager is scary :/
+    <antrik> braunr: s/in libpager/ ;-)
+    <braunr> antrik: right
+    <braunr> omg the ugliness :/
+    <braunr> ok i found a bug
+    <braunr> a real one :)
+    <braunr> (but not sure it's the only one since i tried that before)
+    <braunr> 01:38 < braunr> hm no, i thought an alloca with a big size
+      parameter could erase memory outside the stack, but it's something else
+    <braunr> turns out alloca is sometimes used for 64k+ allocations
+    <braunr> which explains the stack corruptions
+    <pinotree> ouch
+    <braunr> as it's used to duplicate the node table before traversing it, it
+      also explains why the cache limit affects the frequency of the bug
+    <braunr> now the fun part, write the patch following GNU protocol .. :)
+
+[[!message-id "1341350006-2499-1-git-send-email-rbraun@sceen.net"]]
+
+    <braunr> if someone feels like it, there are a bunch of alloca calls in the
+      hurd (like around 30 if i'm right)
+    <braunr> most of them look safe, but some could trigger that same problem
+      in other servers
+    <braunr> ok so far, no problem with the upstream ext2fs code :)
+    <braunr> 20 loops of tar xf / rm -rf consuming all free memory as cache :)
+    <braunr> the hurd uses far too much cpu time for no valid reason in many
+      places :/
+    * braunr happy
+    <braunr> my hurd is completely using its ram :)
+    <gnu_srs> Meaning, the bug is solved? Congrats if so :)
+    <braunr> well, ext2fs looks way more stable now
+    <braunr> i haven't had a single issue since the change, so i guess i messed
+      something with my previous test
+    <braunr> and the Mach VM cache implementation looks good enough
+    <braunr> now the only thing left is to detect unused objects and release
+      them
+    <braunr> which is actually the core of my work :)
+    <braunr> but i'm glad i could polish ext2fs
+    <braunr> with luck, this is the issue that was striking during "thread
+      storms" in the past
+    * pinotree hugs braunr
+    <braunr> i'm also very happy to see the slab allocator reacting well upon
+      memory pressure :>
+    <mcsim> braunr: Why alloca corrupted memory diskfs_node_iterate? Was
+      temporary node to big to keep it in stack?
+    <braunr> mcsim: yes
+    <braunr> 17:54 < braunr> turns out alloca is sometimes used for 64k+
+      allocations
+    <braunr> and i wouldn't be surprised if our thread stacks are
+      simplecontiguous 64k mappings of zero-filled memory
+    <braunr> (as Mach only provides bottom-up allocation)
+    <braunr> our thread implementation should leave unmapped areas between
+      thread stacks, to easily catch such overflows
+    <pinotree> braunr: wouldn't also fatfs/inode.c and tmpfs/node.c need the
+      same fix?
+    <braunr> pinotree: possibly
+    <braunr> i haven't looked
+    <braunr> more than 300 loops of tar xf / rm -rf on an archive of 20000
+      files of 12 KiB each, without any issue, still going on :)
+    <youpi> braunr: yay
+
+
+## [[!message-id "20120703121820.GA30902@mail.sceen.net"]], 2012-07-03
+
+
+## IRC, freenode, #hurd, 2012-07-04
+
+    <braunr> mach is so good it caches objects which *no* page in physical
+      memory
+    <braunr> hm i think i have a working and not too dirty vm cache :>
+    <kilobug> braunr: congrats :)
+    <braunr> kilobug: hey :)
+    <braunr> the dangerous side effect is the increased swappiness
+    <braunr> we'll have to monitor that on the buildds
+    <braunr> otherwise the cache is effectively used, and the slab allocator
+      reports reasonable amounts of objects, not increasing once the ram is
+      full
+    <braunr> let's see what happens with 1.8 GiB of RAM now
+    <braunr> damn glibc is really long to build :)
+    <braunr> and i fear my vm cache patch makes non scalable algorithms negate
+      some of its benefits :/
+    <braunr> 72 tasks, 2090 threads
+    <braunr> we need the ability to monitor threads somewhere
+
+
+## IRC, freenode, #hurd, 2012-07-05
+
+    <braunr> hm i get kernel panics when not using the host cache :/
+    <braunr> no virtual memory for stack allocations
+    <braunr> that's scary
+    <antrik> ?
+    <braunr> i guess the lack of host cache makes I/O slow enough to create a
+      big thread storm
+    <braunr> that completely exhausts the kernel space
+    <braunr> my patch challenges scalability :)
+    <antrik> and not having a zalloc zone anymore, instead of getting a nice
+      panic when trying to allocate yet another thread, you get an address
+      space exhaustion on an unrelated event instead. I see ;-)
+    <braunr> thread stacks are not allocated from a zone/cache
+    <braunr> also, the panic concerned aligned memory, but i don't think that
+      matters
+    <braunr> the kernel panic clearly mentions it's about thread stack
+      allocation
+    <antrik> oh, by "stack allocations" you actually mean allocating a stack
+      for a new thread...
+    <braunr> yes
+    <antrik> that's not what I normally understand when reading "stack
+      allocations" :-)
+    <braunr> user stacks are simple zero filled memory objects
+    <braunr> so we usually get a deadlock on them :>
+    <braunr> i wonder if making ports_manage_port_operations_multithread limit
+      the number of threads would be a good thing to do
+    <antrik> braunr: last time slpz did that, it turned out that it causes
+      deadlocks in at least one (very specific) situation
+    <braunr> ok
+    <antrik> I think you were actually active at the time slpz proposed the
+      patch (and it was added to Debian) -- though probably not at the time
+      where youpi tracked it down as the cause of certain lockups, so it was
+      dropped again...
+    <braunr> what seems very weird though is that we're normally using
+      continuations
+    <antrik> braunr: you mean in the kernel? how is that relevant to the topic
+      at hand?...
+    <braunr> antrik: continuations have been designed to reduce the number of
+      stacks to one per cpu :/
+    <braunr> but they're not used everywhere
+    <antrik> they are not used *anywhere* in the Hurd...
+    <braunr> antrik: continuations are supposed to be used by kernel code
+    <antrik> braunr: not sure what you are getting at. of course we should use
+      some kind of continuations in the Hurd instead of having an active thread
+      for every single request in flight -- but that's not something that could
+      be done easily...
+    <braunr> antrik: oh no, i don't want to use continuations at all
+    <braunr> i just want to use less threads :)
+    <braunr> my panic definitely looks like a thread storm
+    <braunr> i guess increasing the kmem_map will help for the time bein
+    <braunr> g
+    <braunr> (it's not the whole kernel space that gets filled up actually)
+    <braunr> also, stacks are kept on a local cache until there is memory
+      pressure oO
+    <braunr> their slab cache can fill the backing map before there is any
+      pressure
+    <braunr> and it makes a two level cache, i'll have to remove that
+    <antrik> well, how do you reduce the number of threads? apart from
+      optimising scheduling (so requests are more likely to be completed before
+      new ones are handled), the only way to reduce the number of threads is to
+      avoid having a thread per request
+    <braunr> exactly
+    <antrik> so instead the state of each request being handled has to be
+      explicitly stored...
+    <antrik> i.e. continuations
+    <braunr> hm actually, no
+    <braunr> you use thread migration :)
+    <braunr> i don't want to artificially use the number of kernel threads
+    <braunr> the hurd should be revamped not to use that many threads
+    <braunr> but it looks like a hard task
+    <antrik> well, thread migration would reduce the global number of threads
+      in the system... it wouldn't prevent a server from having thousands of
+      threads
+    <braunr> threads would allready be allocated before getting in the server
+    <antrik> again, the only way not to use a thread for each outstanding
+      request is having some explicit request state management,
+      i.e. continuations
+    <braunr> hm right
+    <braunr> but we can nonetheless reduce the number of threads
+    <braunr> i wonder if the sync threads are created on behalf of the pagers
+      or the kernel
+    <braunr> one good thing is that i can already feel better performance
+      without using the host cache until the panic happens
+    <antrik> the tricky bit about that is that I/O can basically happen at any
+      point during handling a request, by hitting a page fault. so we need to
+      be able to continue with some other request at any point...
+    <braunr> yes
+    <antrik> actually, readahead should help a lot in reducing the number of
+      request and thus threads... still will be quite a lot though
+    <braunr> we should have a bunch of pageout threads handling requests
+      asynchronously
+    <braunr> it depends on the implementation
+    <braunr> consider readahead detects that, in the next 10 pages, 3 are not
+      resident, then 1 is, then 3 aren't, then 1 is again, and the last two
+      aren't
+    <braunr> how is this solved ? :)
+    <braunr> about the stack allocation issue, i actually think it's very
+      simple to solv
+    <braunr> the code is a remnant of the old BSD days, when processes were
+      heavily swapped
+    <braunr> so when a thread is created, its stack isn't allocated
+    <braunr> the allocation happens when the thread is dispatched, and the
+      scheduler finds it's swapped (which is the initial state)
+    <braunr> the stack is allocated, and the operation is assumed to succeed,
+      which is why failure produces a panic
+    <antrik> well, actually, not just readahead... clustered paging in
+      general. the thread storms happen mostly on write not read AIUI
+    <braunr> changing that to allocate at thread creation time will allow a
+      cleaner error handling
+    <braunr> antrik: yes, at writeback
+    <braunr> antrik: so i guess even when some physical pages are already
+      present, we should aim at larger sizes for fewer I/O requests
+    <antrik> not sure that would be worthwhile... probably doesn't happen all
+      that often. and if some of the pages are dirty, we would have to make
+      sure that they are ignored although they were part of the request...
+    <braunr> yes
+    <braunr> so one request per missing area ?
+    <antrik> the opposite might be a good idea though -- if every other page is
+      dirty, it *might* indeed be preferable to do a single request rewriting
+      even the clean ones in between...
+    <braunr> yes
+    <braunr> i personally think one request, then replace only what was
+      missing, is simpler and preferable
+    <antrik> OTOH, rewriting clean pages might considerably increase write time
+      (and wear) on SSDs
+    <braunr> why ?
+    <antrik> I doubt the controller is smart enough to recognies if a page
+      doesn't really need rewriting
+    <antrik> so it will actually allocate and write a new cluster
+    <braunr> no but it won't spread writes on different internal sectors, will
+      it ?
+    <braunr> sectors are usually really big
+    <antrik> "sectors" is not a term used in SSDs :-)
+    <braunr> they'll be erased completely whatever the amount of data at some
+      point if i'm right
+    <braunr> ah
+    <braunr> need to learn more about that
+    <braunr> i thought their internal hardware was much like nand flash
+    <antrik> admittedly I don't remember the correct terminology either...
+    <antrik> they *are* NAND flash
+    <antrik> writing is actually not the problem -- it can happen in small
+      chunks. the problem is erasing, which is only possible in large blocks
+    <braunr> yes
+    <braunr> so having larger requests doesn't seem like a problem to me
+    <braunr> because of that
+    <antrik> thus smart controllers (which pretty much all SSD nowadays have,
+      and apparently even SD cards) do not actually overwrite. instead, writes
+      always happen to clean portions, and erasing only happens when a block is
+      mostly clean
+    <antrik> (after relocating the remaining used parts to other clean areas)
+    <antrik> braunr: the problem is not having larger requests. the problem is
+      rewriting clusters that don't really need rewriting. it means the dist
+      performs unnecessary writing actions.
+    <antrik> it doesn't hurt for magnetic disks, as the head has to pass over
+      the unchanged sectors anyways; and rewriting the unnecessarily doesn't
+      increase wear
+    <antrik> but it's different for SSDs
+    <antrik> each write has a penalty there
+    <braunr> i thought only erases were the real penalty
+    <antrik> well, erase happens in the background with modern controllers; so
+      it has no direct penalty. the write has a direct performance penalty when
+      saturating the bandwith, and always has a direct wear penalty
+    <braunr> can't controllers handle 32k requests ? like everything does ? :/
+    <antrik> sure they can. but that's beside the point...
+    <braunr> if they do, they won't mind the clean data inside such large
+      blocks
+    <antrik> apparently we are talking past each other
+    <braunr> i must be missing something important about SSD
+    <antrik> braunr: the point is, the controller doesn't *know* it's clean
+      data; so it will actually write it just like the really unclean data
+    <braunr> yes
+    <braunr> and it will choose an already clean sector for that (previously
+      erased), so writing larger blocks shouldn't hurt
+    <braunr> there will be a slight increase in bandwidth usage, but that's
+      pretty much all of it
+    <braunr> isn't it ?
+    <antrik> well, writing always happens to clean blocks. but writing more
+      blocks obviously needs more time, and causes more wear...
+    <braunr> aiui, blocks are always far larger than the amount of pages we
+      want to writeback in one request
+    <braunr> the only way to use more than one is crossing a boundary
+    <antrik> no. again, the blocks that can be *written* are actually quite
+      small. IIRC most SSDs use 4k nowadays
+    <braunr> ok
+    <antrik> only erasing operates on much larger blocks
+    <braunr> so writing is a problem too
+    <braunr> i didn't think it would cause wear leveling to happen
+    <antrik> well, I'm not sure whether the wear actually happens on write or
+      on erase... but that doesn't matter, as the number of blocks that need to
+      be erased is equivalent to the number of blocks written...
+    <braunr> sorry, i'm really not sure
+    <braunr> if you erase one sector, then write the first and third block,
+      it's clearly not equivalent
+    <braunr> i mean
+    <braunr> let's consider two kinds of pageout requests
+    <braunr> 1/ a big one including clean pages
+    <braunr> 2/ several ones for dirty pages only
+    <braunr> let's assume they both need an erase when they happen
+    <braunr> what's the actual difference between them ?
+    <braunr> wear will increase only if the controller handle it on writes, if
+      i'm right
+    <braunr> but other than that, it's just bandwidth
+    <antrik> strictly speaking erase is only *necessary* when there are no
+      clean blocks anymore. but modern controllers will try to perform erase of
+      unused blocks in the background, so it doesn't delay actual writes
+    <braunr> i agree on that
+    <antrik> but the point is that for each 16 pages (or so) written, we need
+      to erase one block so we get 16 clean pages to write...
+    <braunr> yes
+    <braunr> which is about the size of a request for the sequential policy
+    <braunr> so it fits
+    <antrik> just to be clear: it doesn't matter at all how the pages
+      "fit". the controller will reallocate them anyways
+    <antrik> what matters is how many pages you write
+    <braunr> ah
+    <braunr> i thought it would just put the whole request in a single sector
+      (or two)
+    <antrik> I'm not sure what you mean by "sector". as I said, it's not a term
+      used in SSD technology
+    <braunr> so do you imply that writes can actually get spread over different
+      sectors ?
+    <braunr> the sector is the unit at the nand flash level, its size is the
+      erase size
+    <antrik> actually, I used the right terminology... the erase unit is the
+      block; the write unit is the page
+    <braunr> sector is a synonym of block
+    <antrik> never seen it. and it's very confusing, as it isn't in any way
+      similar to sectors in magnetic disks...
+    <braunr> http://en.wikipedia.org/wiki/Flash_memory#NAND_flash
+    <braunr> it's actually in the NOR part right before, paragraph "Erasing"
+    <braunr> "Modern NOR flash memory chips are divided into erase segments
+      (often called blocks or sectors)."
+    <antrik> ah. I skipped the NOR part :-)
+    <braunr> i've only heard sector where i worked, but i don't consider french
+      computer engineers to be authorities on the matter :)
+    <antrik> hehe
+    <braunr> let's call them block
+    <braunr> so, thread stacks are allocated out of the kernel map
+    <braunr> this is already a bad thing (which is probably why there is a
+      local cache btw)
+    <antrik> anyways, yes. modern controllers might split a contiguous write
+      request onto several blocks, as well as put writes to completely
+      different logical pages into one block. the association between addresses
+      and actual blocks is completely free
+    <braunr> now i wonder why the kernel map is so slow, as the panic happens
+      at about 3k threads, so about 11M of thread stacks
+    <braunr> antrik: ok
+    <braunr> antrik: well then it makes sense to send only dirty pages
+    <braunr> s/slow/low/
+    <antrik> it's different for raw flash (using MTD subsystem in Linux) -- but
+      I don't think this is something we should consider any time soon :-)
+    <antrik> (also, raw flash is only really usable with specialised
+      filesystems anyways)
+    <braunr> yes
+    <antrik> are the thread stacks really only 4k? I would expect them to be
+      larger in many cases...
+    <braunr> youpi reduced them some time ago, yes
+    <braunr> they're 4k on xen
+    <braunr> uh, 16k
+    <braunr> damn, i'm wondering why i created separate submaps for the slab
+      allocator :/
+    <braunr> probably because that's how it was done by the zone allocator
+      before
+    <braunr> but that's stupid :/
+    <braunr> hm the stack issue is actually more complicated than i thought
+      because of interrupt priority levels
+    <braunr> i increased the kernel map size to avoid the panic instead
+    <braunr> now libc0.3 seems to build fine
+    <braunr> and there seems to be a clear decrease of I/O :)
+
+
+### IRC, freenode, #hurd, 2012-07-06
+
+    <antrik> braunr: there is a submap for the slab allocator? that's strange
+      indeed. I know we talked about this; and I am pretty sure we agreed
+      removing the submap would actually be among the major benefits of a new
+      allocator...
+    <braunr> antrik: a submap is a good idea anyway
+    <braunr> antrik: it avoids fragmenting the kernel space too much
+    <braunr> it also breaks down locking
+    <braunr> but we could consider it
+    <braunr> as a first step, i'll merge the kmem and kalloc submaps (the ones
+      used for the slab caches and the malloc-like allocations respectively)
+    <braunr> then i'll change the allocation of thread stacks to use a slab
+      cache
+    <braunr> and i'll also remove the thread swapping stuff
+    <braunr> it will take some time, but by the end we should be able to
+      allocate tens of thousands of threads, and suffer no panic when the limit
+      is reached
+    <antrik> braunr: I'm not sure "no panic" is really a worthwhile goal in
+      such a situation...
+    <braunr> antrik: uh ?N
+    <braunr> antrik: it only means the system won't allow the creation of
+      threads until there is memory available
+    <braunr> from my pov, the microkernel should never fail up to a point it
+      can't continue its job
+    <antrik> braunr: the system won't be able to recover from such a situation
+      anyways. without actual resource management/priorisation, not having a
+      panic is not really helpful. it only makes it harder to guess what
+      happened I fear...
+    <braunr> i don't see why it couldn't recover :/
+
+
+## IRC, freenode, #hurd, 2012-07-07
+
+    <braunr> grmbl, there are a lot of issues with making the page cache larger
+      :(
+    <braunr> it actually makes the system slower in half of my tests
+    <braunr> we have to test that on real hardware
+    <braunr> unfortunately my current results seem to indicate there is no
+      clear benefit from my patch
+    <braunr> the current limit of 4000 objects creates a good balance between
+      I/O and cpu time
+    <braunr> with the previous limit of 200, I/O is often extreme
+    <braunr> with my patch, either the working set is less than 4k objects, so
+      nothing is gained, or the lack of scalability of various parts of the
+      system add overhead that affect processing speed
+    <braunr> also, our file systems are cached, but our block layer isn't
+    <braunr> which means even when accessing data from the cache, accesses
+      still cause some I/O for metadata
+
+
+## IRC, freenode, #hurd, 2012-07-08
+
+    <braunr> youpi: basically, it works fine, but exposes scalability issues,
+      and increases swapiness
+    <youpi> so it doens't help with stability?
+    <braunr> hum, that was never the goal :)
+    <braunr> the goal was to reduce I/O, and increase performance
+    <youpi> sure
+    <youpi> but does it at least not lower stability too much?
+    <braunr> not too much, no
+    <youpi> k
+    <braunr> most of the issues i found could be reproduced without the patch
+    <youpi> ah
+    <youpi> then fine :)
+    <braunr> random deadlocks on heavy loads
+    <braunr> youpi: but i'm not sure it helps with performance
+    <braunr> youpi: at least not when emulated, and the host cache is used
+    <youpi> that's not very surprising
+    <braunr> it does help a lot when there is no host cache and the working set
+      is greater (or far less) than 4k objects
+    <youpi> ok
+    <braunr> the amount of vm_object and ipc_port is gracefully adjusted
+    <youpi> that'd help us with not having to tell people to use the complex
+      -drive option :)
+    <braunr> so you can easily run a hurd with 128 MiB with decent performance
+      and no leak in ext2fs
+    <braunr> yes
+    <braunr> for example
+    <youpi> braunr: I'd say we should just try it on buildds
+    <braunr> (it's not finished yet, i'd like to work more on reducing
+      swapping)
+    <youpi> (though they're really not busy atm, so the stability change can't
+      really be measured)
+    <braunr> when building the hurd, which takes about 10 minutes in my kvm
+      instances, there is only a 30 seconds difference between using the host
+      cache and not using it
+    <braunr> this is already the case with the current kernel, since the
+      working set is less than 4k objects
+    <braunr> while with the previous limit of 200 objects, it took 50 minutes
+      without host cache, and 15 with it
+    <braunr> so it's a clear benefit for most uses, except my virtual machines
+      :)
+    <youpi> heh
+    <braunr> because there, the amount of ram means a lot of objects can be
+      cached, and i can measure an increase in cpu usage
+    <braunr> slight, but present
+    <braunr> youpi: isn't it a good thing that buildds are resting a bit ? :)
+    <youpi> on one hand, yes
+    <youpi> but on the other hand, that doesn't permit to continue
+      stress-testing the Hurd :)
+    <braunr> we're not in a hurry for this patch
+    <braunr> because using it really means you're tickling the pageout daemon a
+      lot :)
+
+
+## [[metadata_caching]]

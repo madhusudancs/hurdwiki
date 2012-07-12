@@ -1,0 +1,260 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_documentation open_issue_gnumach]]
+
+
+# IRC, freenode, #hurd, 2012-06-29
+
+    <henrikcozza> I do not understand what are the deficiencies of Mach, the
+      content I find on this is vague...
+    <antrik> the major problems are that the IPC architecture offers poor
+      performance; and that resource usage can not be properly accounted to the
+      right parties
+    <braunr> antrik: the more i study it, the more i think ipc isn't the
+      problem when it comes to performance, not directly
+    <braunr> i mean, the implementation is a bit heavy, yes, but it's fine
+    <braunr> the problems are resource accounting/scheduling and still too much
+      stuff inside kernel space
+    <braunr> and with a very good implementation, the performance problem would
+      come from crossing address spaces
+    <braunr> (and even more on SMP, i've been thinking about it lately, since
+      it would require syncing mmu state on each processor currently using an
+      address space being modified)
+    <antrik> braunr: the problem with Mach IPC is that it requires too many
+      indirections to ever be performant AIUI
+    <braunr> antrik: can you mention them ?
+    <antrik> the semantics are generally quite complex, compared to Coyotos for
+      example, or even Viengoos
+    <braunr> antrik: the semantics are related to the message format, which can
+      be simplified
+    <braunr> i think everybody agrees on that
+    <braunr> i'm more interested in the indirections
+    <antrik> but then it's not Mach IPC anymore :-)
+    <braunr> right
+    <braunr> 22:03 < braunr> i mean, the implementation is a bit heavy, yes,
+      but it's fine
+    <antrik> that's not an implementation issue
+    <braunr> that's what i meant by heavy :)
+    <braunr> well, yes and no
+    <braunr> Mach IPC have changed over time
+    <braunr> it would be newer Mach IPC ... :)
+    <antrik> the fact that data types are (supposed to be) transparent to the
+      kernel is a major part of the concept, not just an implementation detail
+    <antrik> but it's not just the message format
+    <braunr> transparent ?
+    <braunr> but they're not :/
+    <antrik> the option to buffer in the kernel also adds a lot of complexity
+    <braunr> buffer in the kernel ?
+    <braunr> ah you mean message queues
+    <braunr> yes
+    <antrik> braunr: eh? the kernel parses all the type headers during transfer
+    <braunr> yes, so it's not transparent at all
+    <antrik> maybe you have a different understanding of "transparent" ;-)
+    <braunr> i guess
+    <antrik> I think most of the other complex semantics are kinda related to
+      the in-kernel buffering...
+    <braunr> i fail to see why :/
+    <antrik> well, it allows ports rights to be destroyed while a message is in
+      transfer. a lot of semantics revolve around what happens in that case
+    <braunr> yes but it doesn't affect performance a lot
+    <antrik> sure it does. it requires a lot of extra code and indirections
+    <braunr> not a lot of it
+    <antrik> "a lot" is quite a relative term :-)
+    <antrik> compared to L4 for example, it *is* a lot
+    <braunr> and those indirections (i think you refer to more branching here)
+      are taken only when appropriate, and can be isolated, improved through
+      locality, etc..
+    <braunr> the features they add are also huge
+    <braunr> L4 is clearly insufficient
+    <braunr> all current L4 forks have added capabilities ..
+    <braunr> (that, with the formal verification, make se4L one of the
+      "hottest" recent system projects)
+    <braunr> seL4*
+    <antrik> yes, but with very few extra indirection I think... similar to
+      EROS (which claims to have IPC almost as efficient as the original L4)
+    <braunr> possibly
+    <antrik> I still fail to see much real benefit in formal verification :-)
+    <braunr> but compared to other problems, this added code is negligible
+    <braunr> antrik: for a microkernel, me too :/
+    <braunr> the kernel is already so small you can simply audit it :)
+    <antrik> no, it's not neglible, if you go from say two cache lines touched
+      per IPC (original L4) to dozens (Mach)
+    <antrik> every additional variable that needs to be touched to resolve some
+      indirection, check some condition adds significant overhead
+    <braunr> if you compare the dozens to the huge amount of inter processor
+      interrupt you get each time you change the kernel map, it's next to
+      nothing ..
+    <antrik> change the kernel map? not sure what you mean
+    <braunr> syncing address spaces on hundreds of processors each time you
+      send a message is a real scalability issue here (as an example), where
+      Mach to L4 IPC seem like microoptimization
+    <youpi> braunr: modify, you mean?
+    <braunr> yes
+    <youpi> (not switchp
+    <youpi> )
+    <braunr> but that's only one example
+    <braunr> yes, modify, not switch
+    <braunr> also, we could easily get rid of the ihash library
+    <braunr> making the message provide the address of the object associated to
+      a receive right
+    <braunr> so the only real indirection is the capability, like in other
+      systems, and yes, buffering adds a bit of complexity
+    <braunr> there are other optimizations that could be made in mach, like
+      merging structures to improve locality
+    <pinotree> "locality"?
+    <braunr> having rights close to their target port when there are only a few
+    <braunr> pinotree: locality of reference
+    <youpi> for cache efficiency
+    <antrik> hundreds of processors? let's stay realistic here :-)
+    <braunr> i am ..
+    <braunr> a microkernel based system is also a very good environment for RCU
+    <braunr> (i yet have to understand how liburcu actually works on linux)
+    <antrik> I'm not interested in systems for supercomputers. and I doubt
+      desktop machines will get that many independant cores any time soon. we
+      still lack software that could even romotely exploit that
+    <braunr> hum, the glibc build system ? :>
+    <braunr> lol
+    <youpi> we have done a survey over the nix linux distribution
+    <youpi> quite few packages actually benefit from a lot of cores
+    <youpi> and we already know them :)
+    <braunr> what i'm trying to say is that, whenever i think or even measure
+      system performance, both of the hurd and others, i never actually see the
+      IPC as being the real performance problem
+    <braunr> there are many other sources of overhead to overcome before
+      getting to IPC
+    <youpi> I completely agree
+    <braunr> and with the advent of SMP, it's even more important to focus on
+      contention
+    <antrik> (also, 8 cores aren't exactly a lot...)
+    <youpi> antrik: s/8/7/ , or even 6 ;)
+    <antrik> braunr: it depends a lot on the use case. most of the problems we
+      see in the Hurd are probably not directly related to IPC performance; but
+      I pretty sure some are
+    <antrik> (such as X being hardly usable with UNIX domain sockets)
+    <braunr> antrik: these have more to do with the way mach blocks than IPC
+      itself
+    <braunr> similar to the ext2 "sleep storm"
+    <antrik> a lot of overhead comes from managing ports (for for example),
+      which also mostly comes down to IPC performance
+    <braunr> antrik: yes, that's the main indirection
+    <braunr> antrik: but you need such management, and the related semantics in
+      the kernel interface
+    <braunr> (although i wonder if those should be moved away from the message
+      passing call)
+    <antrik> you mean a different interface for kernel calls than for IPC to
+      other processes? that would break transparency in a major way. not sure
+      we really want that...
+    <braunr> antrik: no
+    <braunr> antrik: i mean calls specific to right management
+    <antrik> admittedly, transparency for port management is only useful in
+      special cases such as rpctrace, and that probably could be served better
+      with dedicated debugging interfaces...
+    <braunr> antrik: i.e. not passing rights inside messages
+    <antrik> passing rights inside messages is quite essential for a capability
+      system. the problem with Mach IPC in regard to that is that the message
+      format allows way more flexibility than necessary in that regard...
+    <braunr> antrik: right
+    <braunr> antrik: i don't understand why passing rights inside messages is
+      important though
+    <braunr> antrik: essential even
+    <youpi> braunr: I guess he means you need at least one way to pass rights
+    <antrik> braunr: well, for one, you need to pass a reply port with each RPC
+      request...
+    <braunr> youpi: well, as he put, the message passing call is overpowered,
+      and this leads to many branches in the code
+    <braunr> antrik: the reply port is obvious, and can be optimized
+    <braunr> antrik: but the case i worry about is passing references to
+      objects between tasks
+    <braunr> antrik: rights and identities with the auth server for example
+    <braunr> antrik: well ok forget it, i just recall how it actually works :)
+    <braunr> antrik: don't forget we lack thread migration
+    <braunr> antrik: you may not think it's important, but to me, it's a major
+      improvement for RPC performance
+    <antrik> braunr: how can seL4 be the most interesting microkernel
+      then?... ;-)
+    <braunr> antrik: hm i don't know the details, but if it lacks thread
+      migration, something is wrong :p
+    <braunr> antrik: they should work on viengoos :)
+    <antrik> (BTW, AIUI thread migration is quite related to passive objects --
+      something Hurd folks never dared seriously consider...)
+    <braunr> i still don't know what passive objects are, or i have forgotten
+      it :/
+    <antrik> no own control threads
+    <braunr> hm, i'm still missing something
+    <braunr> what do you refer to by control thread ?
+    <braunr> with*
+    <antrik> i.e. no main loop etc.; only activated by incoming calls
+    <braunr> ok
+    <braunr> well, if i'm right, thomas bushnel himself wrote (recently) that
+      the ext2 "sleep" performance issue was expected to be solved with thread
+      migration
+    <braunr> so i guess they definitely considered having it
+    <antrik> braunr: don't know what the "sleep peformance issue" is...
+    <braunr> http://lists.gnu.org/archive/html/bug-hurd/2011-12/msg00032.html
+    <braunr> antrik: also, the last message in the thread,
+      http://lists.gnu.org/archive/html/bug-hurd/2011-12/msg00050.html
+    <braunr> antrik: do you consider having a reply port being an avoidable
+      overhead ?
+    <antrik> braunr: not sure. I don't remember hearing of any capability
+      system doing this kind of optimisation though; so I guess there are
+      reasons for that...
+    <braunr> antrik: yes me too, even more since neal talked about it on
+      viengoos
+    <antrik> I wonder whether thread management is also such a large overhead
+      with fully sync IPC, on L4 or EROS for example...
+    <braunr> antrik: it's still a very handy optimization for thread scheduling
+    <braunr> antrik: it makes solving priority inversions a lot easier
+    <antrik> actually, is thread scheduling a problem at all with a thread
+      activation approach like in Viengoos?
+    <braunr> antrik: thread activation is part of thread migration
+    <braunr> antrik: actually, i'd say they both refer to the same thing
+    <antrik> err... scheduler activation was the term I wanted to use
+    <braunr> same
+    <braunr> well
+    <braunr> scheduler activation is too vague to assert that
+    <braunr> antrik: do you refer to scheduler activations as described in
+      http://en.wikipedia.org/wiki/Scheduler_activations ?
+    <antrik> my understanding was that Viengoos still has traditional threads;
+      they just can get scheduled directly on incoming IPC
+    <antrik> braunr: that Wikipedia article is strange. it seems to use
+      "scheduler activations" as a synonym for N:M multithreading, which is not
+      at all how I understood it
+    <youpi> antrik: I used to try to keep a look at those pages, to fix such
+      wrong things, but left it
+    <braunr> antrik: that's why i ask
+    <antrik> IIRC Viengoos has a thread associated with each receive
+      buffer. after copying the message, the kernel would activate the
+      processes activation handler, which in turn could decide to directly
+      schedule the thead associated with the buffer
+    <antrik> or something along these lines
+    <braunr> antrik: that's similar to mach handoff
+    <youpi> antrik: generally enough, all the thread-related pages on wikipedia
+      are quite bogus
+    <antrik> nah, handoff just schedules the process; which is not useful, if
+      the right thread isn't activated in turn...
+    <braunr> antrik: but i think it's more than that, even in viengoos
+    <youpi> for instance, the french "thread" page was basically saying that
+      they were invented for GUIs to overlap computation with user interaction
+    <braunr> .. :)
+    <antrik> youpi: good to know...
+    <braunr> antrik: the "misunderstanding" comes from the fact that scheduler
+      activations is the way N:M threading was implemented on netbsd
+    <antrik> youpi: that's a refreshing take on the matter... ;-)
+    <braunr> antrik: i'll read the critique and viengoos doc/source again to be
+      sure about what we're talking :)
+    <braunr> antrik: as threading is a major issue in mach, and one of the
+      things i completely changed (and intend to change) in x15, whenever i get
+      to work on that again ..... :)
+    <braunr> antrik: interestingly, the paper about scheduler activations was
+      written (among others) by brian bershad, in 92, when he was actively
+      working on research around mach
+    <antrik> braunr: BTW, I have little doubt that making RPC first-class would
+      solve a number of problems... I just wonder how many others it would open
