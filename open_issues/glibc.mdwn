@@ -30,14 +30,14 @@ Here's what's to be done for maintaining glibc.
 <!--
 
 git checkout reviewed
-git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc ..sourceware/master
+git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..sourceware/master
 -i
-/^commit |^---$|hurd|linux|gs:|__ASSUME
+/^commit |^Merge:|^---$|hurd|linux|gs:|__ASSUME
 
 -->
 
-Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
-(2012-02-28) sources|source_repositories/glibc]].
+Last reviewed up to the [[Git mirror's e80d6f94e19d17b91e3cd3ada7193cc88f621feb
+(2012-04-05) sources|source_repositories/glibc]].
 
   * `t/hurdsig-fixes`
 
@@ -45,11 +45,10 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
         hurdsig.c:1188:26: warning: 'pending' may be used uninitialized in this function [-Wmaybe-uninitialized]
         hurdsig.c:1168:12: note: 'pending' was declared here
 
-  * `t/kernel-features.h_includes`
+  * `t/host-independency`
 
-    Before running `tg update`, review for additional changes:
-
-        $ git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc -S__ASSUME_ top-bases/t/kernel-features.h_includes..baseline
+    `libc-alpha` discussion/commit.  GCC
+    c05436a7e361b8040ee899266e15bea817212c37.
 
   * `t/sysvshm`
 
@@ -538,16 +537,32 @@ Last reviewed up to the [[Git mirror's d40c5d54cb551acba4ef1617464760c5b3d41a14
         edc5984d4d18296d7aa3d8f4ed8f7336a743170e +
         57769839788e2c62b68d9dfbf4b35052321278ba.
         <http://gcc.gnu.org/onlinedocs/gcc/Function-Attributes.html>.
-      * *baseline*
       * [low] `conformtest`, 3134156779108fe8b46e0f4cd60d837572faaa93 +
         4efeffc1d583597e4f52985b9747269e47b754e2 +
-        d94a4670800de6e8f088b8630ad5142866127980 -- what does it do for us?
+        d94a4670800de6e8f088b8630ad5142866127980 -- takes 1.75 h (out of 2.75 h
+        total) on coulomb.SCHWINGE -- disable?  Should probably mirror
+        `bits/siginfo.h` changes.
+      * [low] stack guard, 6c6a98c983c44b440ae66d2aa8f32529a9dd7bfe,
+        [[!message-id "4F3BE241.9090409@mentor.com"]] -- anything needed for
+        us?
+      * [low] `libc-lockP.h` 9463518d0d314d7bd0160315e0ef30e15be08985 --
+        probably should do similar changes, also to the generic file.
+      * [low] `bits/socket.h`/`bits/socket_type.h` [[!message-id
+        "Pine.LNX.4.64.1203090206420.18868@digraph.polyomino.org.uk"]]
+        02a6f887cb3e2c048937111eb4cf150d397609de -- probably should do the same
+        for the generic version as used by GNU Hurd.
+      * [log] CFI for `_start`, 6a1bd2a100c958d30bbfe8c9b8f9071d24b7c3f4,
+        [[!message-id "20120316180551.GA6291@host2.jankratochvil.net"]] -- what
+        about other architectures?
+      * *baseline*
+      * [high] `sendmmsg` usage, c030f70c8796c7743c3aa97d6beff3bd5b8dcd5d --
+        need a `ENOSYS` stub.
 
 
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-001500ab4e25e6b8cf83eb9539e362ed4803d2c1 (2012-04-05; 2012-02-25)
+d7294bbed51242338c4e9c15e1ee74a763259faf (2012-06-21; 2012-03-28) ([[!message-id "878vfhdapq.fsf@schwinge.name"]] applied)
 sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -556,11 +571,11 @@ sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
     $ make install_root=/INVALID 2>&1 | tee log_build_
     [...]
 
-This takes up around 500 MiB and needs roughly X min on kepler.SCHWINGE and 110
-min on coulomb.SCHWINGE (GCC 4.4/4.5/4.6).
+This takes up around 500 MiB and needs roughly X min on kepler.SCHWINGE and 100
+min on coulomb.SCHWINGE.
 
 <!--
-    $ (make install_root=/INVALID && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install_root="$PWD".install install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && ln -s /usr/lib/i386-*gnu/libstdc++.so.6 /lib/i386-*gnu/libpthread-stubs.so.0 /lib/i386-*gnu/libgcc_s.so.1 mach/libmachuser.so.1 hurd/libhurduser.so.0.3 ./ && make -k install_root=/INVALID check TIMEOUTFACTOR=10 2>&1 | tee log_check
+    $ (make install_root=/INVALID && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install_root="$PWD".install install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && ln -s /usr/lib/i386-*gnu/libstdc++.so.6 /lib/i386-*gnu/libpthread-stubs.so.0 /lib/i386-*gnu/libgcc_s.so.1 mach/libmachuser.so.1 hurd/libhurduser.so.0.3 ./ && make -k install_root=/INVALID check TIMEOUTFACTOR=10 2>&1 | tee log_test
 
 Mask out gcc-4.X (with possibly a backslash before the dot), GCC 4.5's column
 output for (warning, error) messages, GCC 4.6's `[-Wsomething]` or `[enabled by
@@ -576,6 +591,8 @@ default]` identifiers which warning flag triggered.
 
 
 ## Analysis
+
+    $ toolchain/logs/process gcc build fetch coulomb.SCHWINGE
 
 TODO.
 
@@ -641,6 +658,8 @@ TODO.
         ../sysdeps/i386/fpu/bits/fenv.h: Assembler messages:
         ../sysdeps/i386/fpu/bits/fenv.h:125: Warning: translating to `fdivp %st,%st(1)'
 
+    Should be fixed as of 2012-04-16.
+
   * baseline
     fd5bdc0924e0cfd1688b632068c1b26f3b0c88da..2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b
     introduces:
@@ -666,6 +685,8 @@ TODO.
         pldd-xx.c:26:0: warning: "static_assert" redefined [enabled by default]
         ../assert/assert.h:119:0: note: this is the location of the previous definition
 
+    Should be fixed as of 2012-04-16.
+
         tst-relsort1.c:6:1: warning: function declaration isn't a prototype [-Wstrict-prototypes]
 
 
@@ -682,6 +703,8 @@ min on coulomb.SCHWINGE.
 
 ## Analysis
 
+    $ toolchain/logs/process gcc install fetch coulomb.SCHWINGE
+
 TODO.
 
 <!--
@@ -696,10 +719,10 @@ TODO.
 
 # Testsuite
 
-    $ make -k install_root=/INVALID check 2>&1 | tee log_check
+    $ make -k install_root=/INVALID check 2>&1 | tee log_test
     [...]
 
-This needs roughly 60 min on coulomb.SCHWINGE.
+This needs roughly X h on kepler.SCHWINGE and 2.75 h on coulomb.SCHWINGE.
 
 <!--
     $ ssh kepler.SCHWINGE 'cd tmp/source/gdb/ && sed < hurd/master.build/gdb/testsuite/gdb.sum -e "s%\(/media/data\)\?${PWD}%[...]%g"' > open_issues/gdb/sum_linux
@@ -715,13 +738,15 @@ Comparing the results files, [[sum_linux]] to [[sum_hurd]]:
 
 ## Analysis
 
+    $ toolchain/logs/process gcc test fetch coulomb.SCHWINGE
+
 There is quite a baseline of failures.
 
 
 ### Additional Failures Compared to Debian
 
-    $ bash ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/convertlog.sh log_check  > log_check.filtered
-    $ bash ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/compare.sh ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/expected-results-i486-gnu-libc log_check.filtered
+    $ bash ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/convertlog.sh log_test  > log_test.filtered
+    $ bash ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/compare.sh ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/expected-results-i486-gnu-libc log_test.filtered
 
   * `bug-atexit3.out`, `debug/tst-chk4`, `debug/tst-chk5`, `debug/tst-chk6`,
     `debug/tst-lfschk4`, `debug/tst-lfschk5`, `debug/tst-lfschk6`
@@ -836,6 +861,12 @@ There is quite a baseline of failures.
 
     Fails sometimes (is listed in Debian eglibc-2.13-21's
     `expected-results-i486-gnu-libc`).
+
+  * `elf/tst-unused-dep.out` (1f393a11f65dcaa1952bdcaf0317a65a5f8aff9d,
+    [[!sourceware_bug 13706]], [[!message-id "4F4210C1.1090704@redhat.com"]])
+
+        Unused direct dependencies:
+                /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.6-486/dlfcn/libdl.so.2
 
 
 ## OLD

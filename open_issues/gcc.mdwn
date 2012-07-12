@@ -26,62 +26,19 @@ example.  Especially all the compiler magic is all the same.
 # [[Sources|source_repositories/gcc]]
 
 
-## Boehm GC
-
-GCC includes an own variant of [[/Boehm_GC]] that is based on an upstream
-version, but with own patches, etc.  This is used for Java.  (There are patches
-(apparently not committed) that GCC itself can use it, too:
-<http://gcc.gnu.org/wiki/Garbage_collection_tuning>.)
-
-Patches to GCC's fork should be contributed back to upstream [[/Boehm_GC]].
-
-[[tschwinge]] reviewed (but only briefly for large parts) the differences on
-2010-12-08, based on the [[GCC Git mirror's
-8e79e9d43f32c8852f068da91d655297d92ac0f4 (2010-11-29)
-sources|source_repositories/GCC]] and Boehm GC's CVS HEAD sources from
-2010-12-02, converted to [[Git, correspondingly
-1c2455988a8f59a5f83b986b9156f03be395b3b6|source_repositories/boehm_gc]].
-
-On 2010-11-17,
-[[tschwinge]] reviewed the Debian GCC Boehm GC changes, compared them to the
-upstream code, and put it into the local *hurd/boehm-gc/config_backport*
-branch, planning to submit it to gcc-patches after testing with the GCC
-testsuite.
-
-  * Check
-
-      * 02e191ba495b4ec87aeb961ff9afdb666287104a
-
-      * ce062771587f6637ce09f79c36e24de691032919
-
-      * a9cc177ef514d6eb39db72c82911fcea2cd70dba
-
-      * 7b8d306d18986cd98808c9ed5d3a696a186dc213
-
-        Looks generally OK.
-
-      * a3a3fd06ae58af9591a95c94245809b0359289ff
-
-        Looks OK.
-
-      * fe5ef4a01870545d0344e670cd528ad096ebab1d
-
-        OK.
-
-
 # Configuration
 
 <!--
 
 git checkout reviewed
-git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc ..upstream/master
+git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc ..upstream/trunk
 -i
-/^commit |^---$|hurd|linux
+/^commit |^---$|hurd|linux|nptl|glibc
 
 -->
 
-Last reviewed up to the [[Git mirror's 9aa4b6a8046270a9dbdf47827f1ea873217d7aa5
-(2011-11-28) sources|source_repositories/gcc]].
+Last reviewed up to the [[Git mirror's dfed30bca14de84e0446cc02f5a27407dbfdc3e1
+(2012-06-11) sources|source_repositories/gcc]].
 
 <http://gcc.gnu.org/install/configure.html> has documentation for the
 `configure` switches.
@@ -100,7 +57,7 @@ Last reviewed up to the [[Git mirror's 9aa4b6a8046270a9dbdf47827f1ea873217d7aa5
       * `libstdc++-v3/config/os/gnu-linux/*`
 
         Is used for all GNU systems, as per `libstdc++-v3/configure.host`.
-        Should rename to `gnu` to reflect this?
+        Should rename to `gnu-user` to reflect this?
 
       * `gcc/acinclude.m4`:`gcc_GAS_FLAGS`: always pass `--32` to assembler for
         x86 Linux.  (Why?)
@@ -250,16 +207,35 @@ Last reviewed up to the [[Git mirror's 9aa4b6a8046270a9dbdf47827f1ea873217d7aa5
       * f29a2041f32773464e226a83f41762c2e9cf658e
         (e53a96c2136f7cdff4699475fea41afeed9dece3)
 
+    Testresults same as for GNU/Linux.
+
+  * [high] 3efc00f6f17778172d3fa7ac737fa1473b3b4d5a, `Check __GLIBC__ when
+    using __SIGRTMIN`.  GCC PR52390.  Fixed by
+    8d2259c83f94c082ad8a00b5d00bb639ce24efce.
+
+  * 15ac1e637ad0cb92bf7629205c617ea847a4b810 `Build 64-bit libffi multilib for
+    i?86-linux`.
+
+  * `libstdc++`: uses `_GLIBCXX_HAVE_TLS`, but where is this defined?  Supposed
+    to come from `config/tls.m4:GCC_CHECK_TLS`?
+
+  * `libgcc/gthr-posix.h:__gthread_active_p` -- is this suitable for us?  This
+    is used in libgcc for ObjC wrapper stuff and similar in libstdc++.
+    C.f. [[!message-id "x57jobtqx89w.fsf@frobland.mtv.corp.google.com"]],
+    [[!message-id "x57jd359fkx3.fsf@frobland.mtv.corp.google.com"]] as well as
+    [[!debbug 629866]]/[[!message-id
+    "20110609002620.GA16719@const.famille.thibault.fr"]].
+
 
 # Build
 
 Here's a log of a GCC build run; this is from our [[Git repository's
-74a56c71c55f667824eb2ef1d62d408e9c000d5e (2011-10-23)
+2e2db3f92b534460c68c2f9ae64455884424beb6 (2012-06-15; 2012-06-06)
 sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
     $ (cd ../master/ && contrib/gcc_update --touch)
-    $ ../master/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 2>&1 | tee log_build
+    $ ../master/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 --enable-build-with-cxx --enable-languages=all,ada 2>&1 | tee log_build
     [...]
     $ make 2>&1 | tee log_build_
     [...]
@@ -267,15 +243,19 @@ sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 Different hosts may default to different shells and compiler versions; thus
 harmonized.
 
-This takes up around 2.9 GiB, and needs roughly 2.75 h on kepler.SCHWINGE and
-13.25 h on coulomb.SCHWINGE.
+This takes up around 3.1 GiB, and needs roughly 3.0 h on kepler.SCHWINGE and
+12.75 h on coulomb.SCHWINGE.
+
+<!--
+
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && make -k RUNTESTFLAGS=-v check 2>&1 | tee log_check
+
+-->
 
 
 ## Analysis
 
-    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd/master.build/log_build* | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' | sed -f open_issues/gcc/log_build-linux.sed) <(ssh coulomb.SCHWINGE 'cd tmp/gcc/ && cat hurd/master.build/log_build* | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' | sed -f open_issues/gcc/log_build-hurd.sed) > open_issues/gcc/log_build.diff
-
-[[log_build.diff]].
+    $ toolchain/logs/process gcc build
 
   * [[`checking if gcc static flag -static
     works... no`|glibc_madvise_vs_static_linking]]
@@ -334,16 +314,15 @@ This takes up around 2.9 GiB, and needs roughly 2.75 h on kepler.SCHWINGE and
 
       * `libgomp/config/linux/`, `libgomp/config/linux/x86`
 
+    `sed`ed away.
+
       * `-ftls-model=initial-exec -march=i486 -mtune=i686`
+
+    `sed`ed away.
 
   * Missing `EOWNERDEAD`, `ENOTRECOVERABLE`.  What're they used for?
 
   * `RLIMIT_VMEM`.  Usage kosher?
-
-  * `basic_file.cc`
-
-        +basic_file.cc: In member function 'std::streamsize std::__basic_file<char>::showmanyc()':
-        +basic_file.cc:347:33: warning: enumeral and non-enumeral type in conditional expression [enabled by default]
 
   * `libtool: link: ar rc .libs/libstdc++.a [...]`
 
@@ -357,11 +336,10 @@ This takes up around 2.9 GiB, and needs roughly 2.75 h on kepler.SCHWINGE and
   * `libobjc/thr.c`: `gcc/gthr-posix.h`
 
          libtool: compile:  [...]/hurd/master.build/./gcc/xgcc [...] [...]/hurd/master/libobjc/thr.c -c [...]
-        +In file included from ../.././gcc/gthr-default.h:1:0,
-        +                 from [...]/hurd/master/libobjc/../gcc/gthr.h:160,
+        +In file included from [...]/hurd/master/libobjc/../libgcc/gthr.h:142:0,
         +                 from [...]/hurd/master/libobjc/thr.c:45:
-        +[...]/hurd/master/libobjc/../gcc/gthr-posix.h: In function '__gthread_objc_thread_set_priority':
-        +[...]/hurd/master/libobjc/../gcc/gthr-posix.h:389:41: warning: unused parameter 'priority' [-Wunused-parameter]
+        +../libgcc/gthr-default.h: In function '__gthread_objc_thread_set_priority':
+        +../libgcc/gthr-default.h:388:41: warning: unused parameter 'priority' [-Wunused-parameter]
 
   * `/proc/self/*`
 
@@ -398,18 +376,6 @@ This takes up around 2.9 GiB, and needs roughly 2.75 h on kepler.SCHWINGE and
         +../../../master/libjava/gnu/gcj/util/natGCInfo.cc:446:1: warning: unused parameter 'name' [-Wunused-parameter]
         +../../../master/libjava/gnu/gcj/util/natGCInfo.cc:452:1: warning: unused parameter 'name' [-Wunused-parameter]
 
-  * `gnu/java/net/natPlainSocketImpl.cc`
-
-         libtool: compile:  [...]/hurd/master.build/./gcc/xgcc [...] -c gnu/java/net/natPlainSocketImpl.cc [...]
-        +gnu/java/net/natPlainSocketImpl.cc: In member function 'virtual jint gnu::java::net::PlainSocketImpl::available()':
-        +gnu/java/net/natPlainSocketImpl.cc:515:27: warning: enumeral and non-enumeral type in conditional expression [enabled by default]
-
-  * `gnu/java/nio/channels/natFileChannelImpl.cc`
-
-         libtool: compile:  [...]/hurd/master.build/./gcc/xgcc [...] -c gnu/java/nio/channels/natFileChannelImpl.cc [...]
-        +gnu/java/nio/channels/natFileChannelImpl.cc: In member function 'jint gnu::java::nio::channels::FileChannelImpl::available()':
-        +gnu/java/nio/channels/natFileChannelImpl.cc:388:20: warning: enumeral and non-enumeral type in conditional expression [enabled by default]
-
   * `libgcj.la`
 
     Just different order of object files, or another problem?
@@ -421,21 +387,60 @@ This takes up around 2.9 GiB, and needs roughly 2.75 h on kepler.SCHWINGE and
 
     `-Wl,-Bsymbolic` vs. `-Wl,-Bsymbolic-functions`
 
+  * `jar`
+
+         make[2]: Entering directory `[...]/hurd/master.build/[ARCH]/libjava'
+        -: make ; exec make "AR_FLAGS=rc" [...] "RANLIB=ranlib" "DESTDIR=" "JAR=[...]/hurd/master.build/[ARCH]/libjava/scripts/jar" DO=all multi-do
+        +: make ; exec make "AR_FLAGS=rc" [...] "RANLIB=ranlib" "DESTDIR=" "JAR=jar" DO=all multi-do
+
+    Probably because kepler.SCHWINGE has an OpenJDK `/usr/bin/jar`, and
+    coulomb.SCHWINGE a GCJ one.
+
+    There are other instances of this in the following.
+
+  * *default library search path*
+
+        -checking for the default library search path... /lib /usr/lib /lib/[MULTIARCH] /usr/lib/[MULTIARCH] /lib/i486-linux-gnu /usr/lib/i486-linux-gnu /usr/local/lib /lib64 /usr/lib64 
+        +checking for the default library search path... /lib /usr/lib
+
+    Should be aligned by Samuel's binutils patch.
+
+  * `value-unwind.h`
+
+        -DEFINES='' HEADERS='../../../master/libgcc/config/i386/value-unwind.h' \
+        +DEFINES='' HEADERS='' \
+                        ../../../master/libgcc/mkheader.sh > tmp-libgcc_tm.h
+
+    Comes from `gcc/config.gcc`: for `i[34567]86-*-linux*`
+    vs. `i[34567]86-*-*`, but apparently is important only for *x86_64* anyway.
+
+  * `soft-fp` prototypes
+
+         ../../../master/libgcc/soft-fp/eqtf2.c:34:9: warning: no previous prototype for '__eqtf2' [-Wmissing-prototypes]
+        +../../../master/libgcc/soft-fp/eqtf2.c:50:1: warning: no previous prototype for '__netf2' [-Wmissing-prototypes]
+
+         ../../../master/libgcc/soft-fp/getf2.c:34:9: warning: no previous prototype for '__getf2' [-Wmissing-prototypes]
+        +../../../master/libgcc/soft-fp/getf2.c:50:1: warning: no previous prototype for '__gttf2' [-Wmissing-prototypes]
+
+         ../../../master/libgcc/soft-fp/letf2.c:34:9: warning: no previous prototype for '__letf2' [-Wmissing-prototypes]
+        +../../../master/libgcc/soft-fp/letf2.c:50:1: warning: no previous prototype for '__lttf2' [-Wmissing-prototypes]
+
+  * `libatomic` on GNU/Linux compiles several more files than on GNU/Hurd.  Is
+    that correct?  Probably futex support.
+
 
 # Install
 
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 630 MiB, and needs roughly 4 min on kepler.SCHWINGE and 35
+This takes up around 850 MiB, and needs roughly 4 min on kepler.SCHWINGE and 45
 min on coulomb.SCHWINGE.
 
 
 ## Analysis
 
-    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && cat hurd/master.build/log_install | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' | sed -f open_issues/gcc/log_install-linux.sed) <(ssh coulomb.SCHWINGE 'cd tmp/gcc/ && cat hurd/master.build/log_install | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' | sed -f open_issues/gcc/log_install-hurd.sed) > open_issues/gcc/log_install.diff
-
-[[log_install.diff]].
+    $ toolchain/logs/process gcc install
 
   * `libtool: finish`: `ldconfig` is not run for the Hurd.
 
@@ -444,6 +449,8 @@ min on coulomb.SCHWINGE.
   * `libjvm.la`, `.libs/libjvm.so`, `libgij.la`, `.libs/libgij.so.12.0.0`
 
     `-Wl,-Bsymbolic` vs. `-Wl,-Bsymbolic-functions` (as above)
+
+  * `jar`: as above.
 
 
 # Testsuite
@@ -456,23 +463,15 @@ Testing on GNU/Hurd is blocked on
 TODO.  Can use parallel testing, see [[!message-id
 "20110331070322.GI11563@sunsite.ms.mff.cuni.cz"]].
 
-    $ make -k check 2>&1 | tee log_check
+    $ make -k RUNTESTFLAGS=-v check 2>&1 | tee log_check
     [...]
 
-This needs roughly TODO min on kepler.SCHWINGE and TODO min on
-coulomb.SCHWINGE.
-
-    $ ssh kepler.SCHWINGE 'cd tmp/source/gcc/ && sed < hurd/master.build/gcc/TODO -e "s%\(/media/data\)\?${PWD}%[...]%g"' > open_issues/gcc/sum_linux
-    $ ssh coulomb.SCHWINGE 'cd tmp/gcc/ && sed < hurd/master.build/gcc/TODO -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > open_issues/gcc/sum_hurd
-
-Comparing the results files, [[sum_linux]] to [[sum_hurd]]:
-
-    $ diff -u -F ^Running open_issues/gcc/sum_linux open_issues/gcc/sum_hurd > open_issues/gcc/sum.diff
-
-[[open_issues/gcc/sum.diff]].
+This needs roughly 6.5 h on kepler.SCHWINGE and 50.25 h on coulomb.SCHWINGE.
 
 
 ## Analysis
+
+    $ toolchain/logs/process gcc test
 
 TODO.
 
