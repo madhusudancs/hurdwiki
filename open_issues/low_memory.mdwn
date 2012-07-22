@@ -1,0 +1,113 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_gnumach open_issue_glibc open_issue_hurd]]
+
+Issues relating to system behavior under memory pressure.
+
+[[!toc]]
+
+
+# [[gnumach_page_cache_policy]]
+
+
+# IRC, freenode, #hurd, 2012-07-08
+
+    <braunr> am i mistaken or is the default pager simply not vm privileged ?
+    <braunr> (which would explain the hangs when memory is very low)
+    <youpi> no idea
+    <youpi> but that's very possible
+    <youpi> we start it by hand from the init scripts
+    <braunr> actually, i see no way provided by mach to set that
+    <braunr> i'd assume it would set the property when a thread would register
+      itself as the default pager, but it doesn't
+    <braunr> i'll check at runtime and see if fixing helps
+    <youpi> thread_wire(host, thread, 1) ?
+    <youpi> ./hurd/mach-defpager/wiring.c:	kr =
+      thread_wire(priv_host_port,
+    <braunr> no
+    <braunr> look in cprocs.c
+    <braunr> iir
+    <braunr> iirc
+    <braunr> iiuc, it sets a 1:1 kernel/user mapping
+    <youpi> ??
+    <youpi> thread_wire, not cthread_wire
+    <braunr> ah
+    <braunr> right, i'm getting tired
+    <braunr> youpi: do you understand the comment in default_pager_thread() ?
+    <youpi> well, I'm not sure to know what external vs internal is
+    <braunr> i'm almost sure the default pager is blocked because of a relation
+      with an unprivlege thread
+    <braunr> +d
+    <braunr> when hangs happen, the pageout daemon is still running, waiting
+      for an event so he can continue
+    <braunr> it*
+
+    <braunr> all right, our pageout stuff completely sucks
+    <braunr> when you think the system is hanged, it's actually not
+    <pinotree> and what's happening instead?
+    <braunr> instead, it seems it's in a very complex resursive state which
+      ends in the slab allocator not being able to allocate kernel map entries
+    <braunr> recursive*
+    <braunr> the pageout daemon, unable to continue, progressively slows
+    <braunr> in hope the default pager is able to service the pageout requests,
+      but it's not
+    <braunr> probably the most complicated deadlock i've seen :)
+    <braunr> luckily !
+    <braunr> i've been playing with some tunables involved in waking up the
+      pageout daemon
+    <braunr> and got good results so far
+    <braunr> (although it's clearly not a proper solution)
+    <braunr> one thing the kernel lacks is a way to separate clean from dirty
+      pages
+    <braunr> this stupid kernel doesn't try to free clean pages first .. :)
+    <braunr> hm
+    <braunr> now i can see the system recover, but some applications are still
+      stuck :(
+    <braunr> (but don't worry, my tests are rather aggressive)
+    <braunr> what i mean by aggressive is several builds and various dd of a
+      few hundred MiB in parallel, on various file systems
+    <braunr> so far the file systems have been very resilient
+    <braunr> ok, let's try running the hurd with 64 MiB of RAM
+    <braunr> after some initial swapping, it runs smoothly :)
+    <braunr> uh ?
+    <braunr> ah no, i'm still doing my parallel builds
+    <braunr> although less
+    <braunr> gcc: internal compiler error: Resource lost (program as)
+    <braunr> arg
+    <braunr> lol
+    <braunr> the file system crashed under the compiler
+    <pinotree> too much memory required during linking? or ram+swap should have
+      been enough?
+    <braunr> there is a lot of swap, i doubt it
+    <braunr> the hurd is such a dumb and impressive system at the same time
+    <braunr> pinotree: what does this tell you ?
+    <braunr> git: hurdsig.c:948: post_signal: Unexpected error: (os/kern)
+      failure.
+    <pinotree> something samuel spots often during the builds of haskell
+      packages
+
+Probably also the *sigpost* case mentioned in [[!message-id
+"87bol6aixd.fsf@schwinge.name"]].
+
+    <braunr> actually i should be asking jkoenig
+    <braunr> it seems the lack of memory has a strong impact on signal delivery
+    <braunr> which is bad
+    <antrik> braunr: I have a vague recollection of slpz also saying something
+      about missing dirty page tracking a while back... I might be confusing
+      stuff though
+    <braunr> pinotree: yes it happens often during links
+    <braunr> which makes sense
+    <pinotree> braunr: "happens often" == "hurdsig.c:948: post_signal: ..."?
+    <braunr> yes
+    <pinotree> if you can reproduce it often, what about debugging it? :P
+    <braunr> i mean, the few times i got it, it was often during a link :p
+    <braunr> i'd rather debug the pageout deadlock :(
+    <braunr> but it's hard
