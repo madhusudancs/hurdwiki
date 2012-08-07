@@ -1,0 +1,849 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_libpthread]]
+
+Things found in a `git diff
+1fcd93fd3c733eb19bcad8d03e65f13ec4b0e998..master-viengoos-on-bare-metal` that
+are not specific to L4 or Viengoos, and may be worth having on master, too.
+
+
+# `__pthread_alloc` init with `malloc` or `calloc`
+
+    diff --git a/pthread/pt-alloc.c b/pthread/pt-alloc.c
+    index 6af2da9..c63801f 100644
+    --- a/pthread/pt-alloc.c
+    +++ b/pthread/pt-alloc.c
+    @@ -123,7 +123,7 @@ __pthread_alloc (struct __pthread **pthread)
+         }
+     
+       /* Allocate a new thread structure.  */
+    -  new = malloc (sizeof (struct __pthread));
+    +  new = calloc (sizeof (struct __pthread), 1);
+       if (new == NULL)
+         return ENOMEM;
+     
+
+
+# `atomic.h`
+
+Later on master, commit 608a12659f15d57abf42a972c1e56c6a24cfe244: `Rename
+bits/atomic.h to bits/pt-atomic.h`.
+
+    diff --git a/pthread/pt-create.c b/pthread/pt-create.c
+    index 8f62b78..504cacc 100644
+    --- a/pthread/pt-create.c
+    +++ b/pthread/pt-create.c
+    @@ -22,7 +22,7 @@
+     #include <pthread.h>
+     #include <signal.h>
+     
+    -#include <bits/atomic.h>
+    +#include <atomic.h>
+     
+     #include <pt-internal.h>
+     
+    @@ -33,7 +33,7 @@
+     /* The total number of pthreads currently active.  This is defined
+        here since it would be really stupid to have a threads-using
+        program that doesn't call `pthread_create'.  */
+    -__atomic_t __pthread_total;
+    +atomic_fast32_t __pthread_total;
+     
+     
+     /* The entry-point for new threads.  */
+    @@ -163,7 +163,7 @@ __pthread_create_internal (struct __pthread **thread,
+          the number of threads from within the new thread isn't an option
+          since this thread might return and call `pthread_exit' before the
+          new thread runs.  */
+    -  __atomic_inc (&__pthread_total);
+    +  atomic_increment (&__pthread_total);
+     
+       /* Store a pointer to this thread in the thread ID lookup table.  We
+          could use __thread_setid, however, we only lock for reading as no
+    @@ -190,7 +190,7 @@ __pthread_create_internal (struct __pthread **thread,
+     
+      failed_starting:
+       __pthread_setid (pthread->thread, NULL);
+    -  __atomic_dec (&__pthread_total);
+    +  atomic_decrement (&__pthread_total);
+      failed_sigstate:
+       __pthread_sigstate_destroy (pthread);
+      failed_setup:
+    diff --git a/pthread/pt-exit.c b/pthread/pt-exit.c
+    index 5fe0ba8..68c56d7 100644
+    --- a/pthread/pt-exit.c
+    +++ b/pthread/pt-exit.c
+    @@ -24,7 +24,7 @@
+     
+     #include <pt-internal.h>
+     
+    -#include <bits/atomic.h>
+    +#include <atomic.h>
+     
+     
+     /* Terminate the current thread and make STATUS available to any
+    @@ -57,7 +57,7 @@ pthread_exit (void *status)
+     
+       /* Decrease the number of threads.  We use an atomic operation to
+          make sure that only the last thread calls `exit'.  */
+    -  if (__atomic_dec_and_test (&__pthread_total))
+    +  if (atomic_decrement_and_test (&__pthread_total))
+         /* We are the last thread.  */
+         exit (0);
+     
+    diff --git a/pthread/pt-internal.h b/pthread/pt-internal.h
+    index cb441d0..986ec6b 100644
+    --- a/pthread/pt-internal.h
+    +++ b/pthread/pt-internal.h
+    @@ -26,13 +26,15 @@
+     #include <signal.h>
+     #include <assert.h>
+     
+    -#include <bits/atomic.h>
+    +#include <atomic.h>
+    [...]
+    @@ -136,7 +144,7 @@ __pthread_dequeue (struct __pthread *thread)
+            )
+     
+     /* The total number of threads currently active.  */
+    -extern __atomic_t __pthread_total;
+    +extern atomic_fast32_t __pthread_total;
+     
+     /* The total number of thread IDs currently in use, or on the list of
+        available thread IDs.  */
+    diff --git a/sysdeps/ia32/bits/atomic.h b/sysdeps/ia32/bits/atomic.h
+    deleted file mode 100644
+    index 0dfc1f6..0000000
+    --- a/sysdeps/ia32/bits/atomic.h
+    +++ /dev/null
+    @@ -1,66 +0,0 @@
+    -/* Atomic operations.  i386 version.
+    -   Copyright (C) 2000 Free Software Foundation, Inc.
+    -   This file is part of the GNU C Library.
+    -
+    -   The GNU C Library is free software; you can redistribute it and/or
+    -   modify it under the terms of the GNU Library General Public License as
+    -   published by the Free Software Foundation; either version 2 of the
+    -   License, or (at your option) any later version.
+    -
+    -   The GNU C Library is distributed in the hope that it will be useful,
+    -   but WITHOUT ANY WARRANTY; without even the implied warranty of
+    -   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    -   Library General Public License for more details.
+    -
+    -   You should have received a copy of the GNU Library General Public
+    -   License along with the GNU C Library; see the file COPYING.LIB.  If not,
+    -   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+    -   Boston, MA 02111-1307, USA.  */
+    -
+    -#ifndef _BITS_ATOMIC_H
+    -#define _BITS_ATOMIC_H	1
+    -
+    -typedef __volatile int __atomic_t;
+    -
+    -static inline void
+    -__atomic_inc (__atomic_t *__var)
+    -{
+    -  __asm__ __volatile ("lock; incl %0" : "=m" (*__var) : "m" (*__var));
+    -}
+    -
+    -static inline void
+    -__atomic_dec (__atomic_t *__var)
+    -{
+    -  __asm__ __volatile ("lock; decl %0" : "=m" (*__var) : "m" (*__var));
+    -}
+    -
+    -static inline int
+    -__atomic_dec_and_test (__atomic_t *__var)
+    -{
+    -  unsigned char __ret;
+    -
+    -  __asm__ __volatile ("lock; decl %0; sete %1"
+    -		      : "=m" (*__var), "=qm" (__ret) : "m" (*__var));
+    -  return __ret != 0;
+    -}
+    -
+    -/* We assume that an __atomicptr_t is only used for pointers to
+    -   word-aligned objects, and use the lowest bit for a simple lock.  */
+    -typedef __volatile int * __atomicptr_t;
+    -
+    -/* Actually we don't implement that yet, and assume that we run on
+    -   something that has the i486 instruction set.  */
+    -static inline int
+    -__atomicptr_compare_and_swap (__atomicptr_t *__ptr, void *__oldval,
+    -			      void * __newval)
+    -{
+    -  char __ret;
+    -  int __dummy;
+    -
+    -  __asm__ __volatile ("lock; cmpxchgl %3, %1; sete %0"
+    -		      : "=q" (__ret), "=m" (*__ptr), "=a" (__dummy)
+    -		      : "r" (__newval), "m" (*__ptr), "a" (__oldval));
+    -  return __ret;
+    -}
+    -
+    -#endif
+
+
+# Memory Barries
+
+    diff --git a/sysdeps/generic/bits/memory.h b/sysdeps/generic/bits/memory.h
+    new file mode 100644
+    index 0000000..7b88a7e
+    --- /dev/null
+    +++ b/sysdeps/generic/bits/memory.h
+    @@ -0,0 +1,36 @@
+    +/* Memory barrier operations.  Generic version.
+    +   Copyright (C) 2008 Free Software Foundation, Inc.
+    +   This file is part of the GNU Hurd.
+    +
+    +   The GNU Hurd is free software; you can redistribute it and/or
+    +   modify it under the terms of the GNU General Public License as
+    +   published by the Free Software Foundation; either version 3 of the
+    +   License, or (at your option) any later version.
+    +
+    +   The GNU Hurd is distributed in the hope that it will be useful, but
+    +   WITHOUT ANY WARRANTY; without even the implied warranty of
+    +   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    +   General Public License for more details.
+    +
+    +   You should have received a copy of the GNU General Public License
+    +   along with this program.  If not, see
+    +   <http://www.gnu.org/licenses/>.  */
+    +
+    +#ifndef _BITS_MEMORY_H
+    +#define _BITS_MEMORY_H	1
+    +
+    +/* Prevent read and write reordering across this function.  */
+    +static inline void
+    +__memory_barrier (void)
+    +{
+    +  /* Any lock'ed instruction will do.  */
+    +  __sync_synchronize ();
+    +}
+    +
+    +/* Prevent read reordering across this function.  */
+    +#define __memory_read_barrier __memory_barrier
+    +
+    +/* Prevent write reordering across this function.  */
+    +#define __memory_write_barrier __memory_barrier
+    +
+    +#endif
+
+
+# Spin Locks
+
+    diff --git a/sysdeps/generic/bits/spin-lock-inline.h b/sysdeps/generic/bits/spin-lock-inline.h
+    new file mode 100644
+    index 0000000..6c3e06e
+    --- /dev/null
+    +++ b/sysdeps/generic/bits/spin-lock-inline.h
+    @@ -0,0 +1,99 @@
+    +/* Machine-specific definitions for spin locks.  Generic version.
+    +   Copyright (C) 2000, 2005, 2008 Free Software Foundation, Inc.
+    +   This file is part of the GNU C Library.
+    +
+    +   The GNU C Library is free software; you can redistribute it and/or
+    +   modify it under the terms of the GNU Library General Public License as
+    +   published by the Free Software Foundation; either version 2 of the
+    +   License, or (at your option) any later version.
+    +
+    +   The GNU C Library is distributed in the hope that it will be useful,
+    +   but WITHOUT ANY WARRANTY; without even the implied warranty of
+    +   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    +   Library General Public License for more details.
+    +
+    +   You should have received a copy of the GNU Library General Public
+    +   License along with the GNU C Library; see the file COPYING.LIB.  If not,
+    +   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+    +   Boston, MA 02111-1307, USA.  */
+    +
+    +/*
+    + * Never include this file directly; use <pthread.h> or <cthreads.h> instead.
+    + */
+    +
+    +#ifndef _BITS_SPIN_LOCK_INLINE_H
+    +#define _BITS_SPIN_LOCK_INLINE_H	1
+    +
+    +#include <features.h>
+    +#include <bits/spin-lock.h>
+    +
+    +__BEGIN_DECLS
+    +
+    +#if defined __USE_EXTERN_INLINES || defined _FORCE_INLINES
+    +
+    +# if !defined (__EBUSY) || !defined (__EINVAL)
+    +#  include <errno.h>
+    +#  ifndef __EBUSY
+    +#   define __EBUSY EBUSY
+    +#  endif
+    +#  ifndef __EINVAL
+    +#   define __EINVAL EINVAL
+    +#  endif
+    +# endif
+    +
+    +# ifndef __PT_SPIN_INLINE
+    +#  define __PT_SPIN_INLINE __extern_inline
+    +# endif
+    +
+    +__PT_SPIN_INLINE int __pthread_spin_destroy (__pthread_spinlock_t *__lock);
+    +
+    +__PT_SPIN_INLINE int
+    +__pthread_spin_destroy (__pthread_spinlock_t *__lock)
+    +{
+    +  return 0;
+    +}
+    +
+    +__PT_SPIN_INLINE int __pthread_spin_init (__pthread_spinlock_t *__lock,
+    +					  int __pshared);
+    +
+    +__PT_SPIN_INLINE int
+    +__pthread_spin_init (__pthread_spinlock_t *__lock, int __pshared)
+    +{
+    +  *__lock = __SPIN_LOCK_INITIALIZER;
+    +  return 0;
+    +}
+    +
+    +__PT_SPIN_INLINE int __pthread_spin_trylock (__pthread_spinlock_t *__lock);
+    +
+    +__PT_SPIN_INLINE int
+    +__pthread_spin_trylock (__pthread_spinlock_t *__lock)
+    +{
+    +  int __locked = __sync_val_compare_and_swap (__lock, 0, 1);
+    +  return __locked ? __EBUSY : 0;
+    +}
+    +
+    +__extern_inline int __pthread_spin_lock (__pthread_spinlock_t *__lock);
+    +extern int _pthread_spin_lock (__pthread_spinlock_t *__lock);
+    +
+    +__extern_inline int
+    +__pthread_spin_lock (__pthread_spinlock_t *__lock)
+    +{
+    +  if (__pthread_spin_trylock (__lock))
+    +    return _pthread_spin_lock (__lock);
+    +  return 0;
+    +}
+    +
+    +__PT_SPIN_INLINE int __pthread_spin_unlock (__pthread_spinlock_t *__lock);
+    +
+    +__PT_SPIN_INLINE int
+    +__pthread_spin_unlock (__pthread_spinlock_t *__lock)
+    +{
+    +  int __locked = __sync_val_compare_and_swap (__lock, 1, 0);
+    +  return __locked ? 0 : __EINVAL;
+    +}
+    +
+    +#endif /* Use extern inlines or force inlines.  */
+    +
+    +__END_DECLS
+    +
+    +#endif /* bits/spin-lock.h */
+    diff --git a/sysdeps/l4/bits/pthread-np.h b/sysdeps/generic/bits/spin-lock.h
+    similarity index 67%
+    rename from sysdeps/l4/bits/pthread-np.h
+    rename to sysdeps/generic/bits/spin-lock.h
+    index 6a02bdc..c2ba332 100644
+    --- a/sysdeps/l4/bits/pthread-np.h
+    +++ b/sysdeps/generic/bits/spin-lock.h
+    @@ -1,5 +1,5 @@
+    -/* Non-portable functions. L4 version.
+    -   Copyright (C) 2003, 2007 Free Software Foundation, Inc.
+    +/* Machine-specific definitions for spin locks.  Generic version.
+    +   Copyright (C) 2000, 2005, 2008 Free Software Foundation, Inc.
+        This file is part of the GNU C Library.
+     
+        The GNU C Library is free software; you can redistribute it and/or
+    @@ -21,15 +21,19 @@
+      * Never include this file directly; use <pthread.h> or <cthreads.h> instead.
+      */
+     
+    -#ifndef _BITS_PTHREAD_NP_H
+    -#define _BITS_PTHREAD_NP_H	1
+    +#ifndef _BITS_SPIN_LOCK_H
+    +#define _BITS_SPIN_LOCK_H	1
+     
+    -#include <l4.h>
+    +#include <features.h>
+     
+    -/* Add the thread TID to the internal kernel thread pool.  */
+    -extern int pthread_pool_add_np (l4_thread_id_t tid);
+    +__BEGIN_DECLS
+     
+    -/* Get the first thread from the pool.  */
+    -extern l4_thread_id_t pthread_pool_get_np (void);
+    +/* The type of a spin lock object.  */
+    +typedef __volatile int __pthread_spinlock_t;
+     
+    -#endif /* bits/pthread-np.h */
+    +/* Initializer for a spin lock object.  */
+    +# define __SPIN_LOCK_INITIALIZER ((__pthread_spinlock_t) 0)
+    +
+    +__END_DECLS
+    +
+    +#endif /* bits/spin-lock.h */
+
+
+# Signal Stuff
+
+    diff --git a/pthread/pt-internal.h b/pthread/pt-internal.h
+    index cb441d0..986ec6b 100644
+    --- a/pthread/pt-internal.h
+    +++ b/pthread/pt-internal.h
+    @@ -26,13 +26,15 @@
+    [...]
+     #include <pt-sysdep.h>
+     #include <pt-machdep.h>
+     
+    +#include <sig-internal.h>
+    +
+     /* Thread state.  */
+     enum pthread_state
+     {
+    @@ -54,6 +56,10 @@ enum pthread_state
+     # define PTHREAD_SYSDEP_MEMBERS
+     #endif
+     
+    +#ifndef PTHREAD_SIGNAL_MEMBERS
+    +# define PTHREAD_SIGNAL_MEMBERS
+    +#endif
+    +
+     /* This structure describes a POSIX thread.  */
+     struct __pthread
+     {
+    @@ -89,6 +95,8 @@ struct __pthread
+     
+       PTHREAD_SYSDEP_MEMBERS
+     
+    +  PTHREAD_SIGNAL_MEMBERS
+    +
+       struct __pthread *next, **prevp;
+     };
+     
+    diff --git a/signal/kill.c b/signal/kill.c
+    index 27c9c32..c281640 100644
+    --- a/signal/kill.c
+    +++ b/signal/kill.c
+    @@ -20,6 +20,8 @@
+     
+     #include "sig-internal.h"
+     
+    +#include <string.h>
+    +
+     int
+     kill (pid_t pid, int signo)
+     {
+    @@ -65,6 +67,12 @@ kill (pid_t pid, int signo)
+          current thread has blocked the signal, the correct thing to do is
+          to iterate over all the other threads and find on that hasn't
+          blocked it.  */
+    +
+    +  extern int __pthread_num_threads;
+    +  if (__pthread_num_threads == 0)
+    +    panic ("signal %d received before pthread library is able to handle it",
+    +	   signo);
+    +
+       return pthread_kill (pthread_self (), signo);
+     }
+     
+    diff --git a/signal/pt-kill-siginfo-np.c b/signal/pt-kill-siginfo-np.c
+    index 9bdf6cc..35642c3 100644
+    --- a/signal/pt-kill-siginfo-np.c
+    +++ b/signal/pt-kill-siginfo-np.c
+    @@ -75,7 +75,8 @@ pthread_kill_siginfo_np (pthread_t tid, siginfo_t si)
+     	  || (ss->stack.ss_flags & SS_DISABLE)
+     	  || (ss->stack.ss_flags & SS_ONSTACK)))
+         /* We are sending a signal to ourself and we don't use an
+    -       alternate stack.  */
+    +       alternate stack.  (Recall: SA_ONSTACK means use the alt
+    +       stack.)  */
+         signal_dispatch (ss, &si);
+       else
+         signal_dispatch_lowlevel (ss, tid, si);
+    diff --git a/signal/signal-dispatch.c b/signal/signal-dispatch.c
+    index 40440b7..6fafcc1 100644
+    --- a/signal/signal-dispatch.c
+    +++ b/signal/signal-dispatch.c
+    @@ -20,6 +20,8 @@
+     
+     #include "sig-internal.h"
+     
+    +#include <viengoos/math.h>
+    +
+     /* This is the signal handler entry point.  A thread is forced into
+        this state when it receives a signal.  We need to save the thread's
+        state and then invoke the high-level signal dispatcher.  SS->LOCK
+    @@ -107,7 +109,7 @@ signal_dispatch (struct signal_state *ss, siginfo_t *si)
+           sigset_t pending = ~ss->blocked & ss->pending;
+           if (! pending)
+     	pending = ~ss->blocked & process_pending;
+    -      signo = l4_lsb64 (pending);
+    +      signo = vg_lsb64 (pending);
+         }
+       while (signo);
+     
+    diff --git a/signal/sigwaiter.c b/signal/sigwaiter.c
+    index 8d041ac..adc05ca 100644
+    --- a/signal/sigwaiter.c
+    +++ b/signal/sigwaiter.c
+    @@ -20,7 +20,7 @@
+     
+     #include "sig-internal.h"
+     
+    -#include <hurd/futex.h>
+    +#include <viengoos/futex.h>
+     
+     struct sigwaiter *sigwaiters;
+     
+    diff --git a/signal/sigwaitinfo.c b/signal/sigwaitinfo.c
+    index 1b47079..dea3ef4 100644
+    --- a/signal/sigwaitinfo.c
+    +++ b/signal/sigwaitinfo.c
+    @@ -43,7 +43,7 @@ sigwaitinfo (const sigset_t *restrict set, siginfo_t *restrict info)
+     
+           assert (extant);
+     
+    -      int signo = l4_msb64 (extant);
+    +      int signo = vg_msb64 (extant);
+     
+           if (info)
+     	{
+
+
+# `ALWAYS_TRACK_MUTEX_OWNER`
+
+    diff --git a/sysdeps/generic/pt-mutex-timedlock.c b/sysdeps/generic/pt-mutex-timedlock.c
+    index ee43219..265a453 100644
+    --- a/sysdeps/generic/pt-mutex-timedlock.c
+    +++ b/sysdeps/generic/pt-mutex-timedlock.c
+    @@ -36,7 +36,6 @@ __pthread_mutex_timedlock_internal (struct __pthread_mutex *mutex,
+       if (__pthread_spin_trylock (&mutex->__held) == 0)
+         /* Successfully acquired the lock.  */
+         {
+    -#ifdef ALWAYS_TRACK_MUTEX_OWNER
+     #ifndef NDEBUG
+           self = _pthread_self ();
+           if (self)
+    @@ -48,7 +47,6 @@ __pthread_mutex_timedlock_internal (struct __pthread_mutex *mutex,
+     	  mutex->owner = _pthread_self ();
+     	}
+     #endif
+    -#endif
+     
+           if (mutex->attr)
+     	switch (mutex->attr->mutex_type)
+    @@ -75,16 +73,14 @@ __pthread_mutex_timedlock_internal (struct __pthread_mutex *mutex,
+       self = _pthread_self ();
+       assert (self);
+     
+    -  if (! mutex->attr || mutex->attr->mutex_type == PTHREAD_MUTEX_NORMAL)
+    -    {
+    -#if defined(ALWAYS_TRACK_MUTEX_OWNER)
+    -      assert (mutex->owner != self);
+    -#endif
+    -    }
+    -  else
+    +  if (mutex->attr)
+         {
+           switch (mutex->attr->mutex_type)
+     	{
+    +	case PTHREAD_MUTEX_NORMAL:
+    +	  assert (mutex->owner != self);
+    +	  break;
+    +
+     	case PTHREAD_MUTEX_ERRORCHECK:
+     	  if (mutex->owner == self)
+     	    {
+    @@ -106,10 +102,9 @@ __pthread_mutex_timedlock_internal (struct __pthread_mutex *mutex,
+     	  LOSE;
+     	}
+         }
+    +  else
+    +    assert (mutex->owner != self);
+     
+    -#if !defined(ALWAYS_TRACK_MUTEX_OWNER)
+    -  if (mutex->attr && mutex->attr->mutex_type != PTHREAD_MUTEX_NORMAL)
+    -#endif
+         assert (mutex->owner);
+     
+       if (abstime && (abstime->tv_nsec < 0 || abstime->tv_nsec >= 1000000000))
+    @@ -146,12 +141,9 @@ __pthread_mutex_timedlock_internal (struct __pthread_mutex *mutex,
+       else
+         __pthread_block (self);
+     
+    -#if !defined(ALWAYS_TRACK_MUTEX_OWNER)
+    -  if (mutex->attr && mutex->attr->mutex_type != PTHREAD_MUTEX_NORMAL)
+    -#endif
+    -    {
+    +#ifndef NDEBUG
+           assert (mutex->owner == self);
+    -    }
+    +#endif
+     
+       if (mutex->attr)
+         switch (mutex->attr->mutex_type)
+    diff --git a/sysdeps/generic/pt-mutex-transfer-np.c b/sysdeps/generic/pt-mutex-transfer-np.c
+    index 7796ac4..bcb809d 100644
+    --- a/sysdeps/generic/pt-mutex-transfer-np.c
+    +++ b/sysdeps/generic/pt-mutex-transfer-np.c
+    @@ -45,12 +45,7 @@ __pthread_mutex_transfer_np (struct __pthread_mutex *mutex, pthread_t tid)
+         }
+     
+     #ifndef NDEBUG
+    -# if !defined(ALWAYS_TRACK_MUTEX_OWNER)
+    -  if (mutex->attr && mutex->attr->mutex_type != PTHREAD_MUTEX_NORMAL)
+    -# endif
+    -    {
+           mutex->owner = thread;
+    -    }
+     #endif
+     
+       return 0;
+    diff --git a/sysdeps/generic/pt-mutex-unlock.c b/sysdeps/generic/pt-mutex-unlock.c
+    index 7645fd4..f299750 100644
+    --- a/sysdeps/generic/pt-mutex-unlock.c
+    +++ b/sysdeps/generic/pt-mutex-unlock.c
+    @@ -33,16 +33,19 @@ __pthread_mutex_unlock (pthread_mutex_t *mutex)
+     
+       if (! mutex->attr || mutex->attr->mutex_type == PTHREAD_MUTEX_NORMAL)
+         {
+    -#if defined(ALWAYS_TRACK_MUTEX_OWNER)
+     # ifndef NDEBUG
+           if (_pthread_self ())
+     	{
+     	  assert (mutex->owner);
+    -	  assert (mutex->owner == _pthread_self ());
+    +	  assertx (mutex->owner == _pthread_self (),
+    +		   "%p("VG_THREAD_ID_FMT") != %p("VG_THREAD_ID_FMT")",
+    +		   mutex->owner,
+    +		   ((struct __pthread *) mutex->owner)->threadid,
+    +		   _pthread_self (),
+    +		   _pthread_self ()->threadid);
+     	  mutex->owner = NULL;
+     	}
+     # endif
+    -#endif
+         }
+       else
+         switch (mutex->attr->mutex_type)
+    @@ -81,12 +84,7 @@ __pthread_mutex_unlock (pthread_mutex_t *mutex)
+       __pthread_dequeue (wakeup);
+     
+     #ifndef NDEBUG
+    -# if !defined (ALWAYS_TRACK_MUTEX_OWNER)
+    -  if (mutex->attr && mutex->attr->mutex_type != PTHREAD_MUTEX_NORMAL)
+    -# endif
+    -    {
+           mutex->owner = wakeup;
+    -    }
+     #endif
+     
+       /* We do not unlock MUTEX->held: we are transferring the ownership
+
+
+# `t/fix_have_kernel_resources`
+
+See topic branch of that name.
+
+    diff --git a/sysdeps/mach/hurd/pt-sysdep.h b/sysdeps/mach/hurd/pt-sysdep.h
+    index f14a136..83bad96 100644
+    --- a/sysdeps/mach/hurd/pt-sysdep.h
+    +++ b/sysdeps/mach/hurd/pt-sysdep.h
+    @@ -1,5 +1,5 @@
+     /* Internal defenitions for pthreads library.
+    -   Copyright (C) 2000, 2002, 2008 Free Software Foundation, Inc.
+    +   Copyright (C) 2000, 2002 Free Software Foundation, Inc.
+        This file is part of the GNU C Library.
+     
+        The GNU C Library is free software; you can redistribute it and/or
+    @@ -32,8 +32,7 @@
+     
+     #define PTHREAD_SYSDEP_MEMBERS \
+       thread_t kernel_thread;      \
+    -  mach_msg_header_t wakeupmsg; \
+    -  int have_kernel_resources;
+    +  mach_msg_header_t wakeupmsg;
+     
+     #define _HURD_THREADVAR_THREAD _HURD_THREADVAR_DYNAMIC_USER
+     
+    diff --git a/sysdeps/mach/pt-thread-alloc.c b/sysdeps/mach/pt-thread-alloc.c
+    index 3d7c046..1acba98 100644
+    --- a/sysdeps/mach/pt-thread-alloc.c
+    +++ b/sysdeps/mach/pt-thread-alloc.c
+    @@ -1,5 +1,5 @@
+     /* Start thread.  Mach version.
+    -   Copyright (C) 2000, 2002, 2005, 2008 Free Software Foundation, Inc.
+    +   Copyright (C) 2000, 2002, 2005 Free Software Foundation, Inc.
+        This file is part of the GNU C Library.
+     
+        The GNU C Library is free software; you can redistribute it and/or
+    @@ -63,9 +63,6 @@ create_wakeupmsg (struct __pthread *thread)
+     int
+     __pthread_thread_alloc (struct __pthread *thread)
+     {
+    -  if (thread->have_kernel_resources)
+    -    return 0;
+    -
+       error_t err;
+     
+       err = create_wakeupmsg (thread);
+    @@ -100,7 +97,5 @@ __pthread_thread_alloc (struct __pthread *thread)
+     	return EAGAIN;
+         }
+     
+    -  thread->have_kernel_resources = 1;
+    -
+       return 0;
+     }
+
+
+# Miscellaneous
+
+    diff --git a/Makefile b/Makefile
+    index 04dfb26..a4c0c52 100644
+    --- a/Makefile
+    +++ b/Makefile
+    @@ -71,7 +71,6 @@ SRCS := pt-attr.c pt-attr-destroy.c pt-attr-getdetachstate.c		    \
+     	pt-mutex-init.c pt-mutex-destroy.c				    \
+     	pt-mutex-lock.c pt-mutex-trylock.c pt-mutex-timedlock.c		    \
+     	pt-mutex-unlock.c						    \
+    -	pt-mutex-transfer-np.c						    \
+     	pt-mutex-getprioceiling.c pt-mutex-setprioceiling.c		    \
+     									    \
+     	pt-rwlock-attr.c						    \
+    @@ -100,7 +99,6 @@ SRCS := pt-attr.c pt-attr-destroy.c pt-attr-getdetachstate.c		    \
+     	pt-thread-dealloc.c						    \
+     	pt-thread-start.c						    \
+     	pt-thread-halt.c						    \
+    -	pt-startup.c							    \
+     									    \
+     	pt-getconcurrency.c pt-setconcurrency.c				    \
+     									    \
+    @@ -143,7 +141,6 @@ sysdeps_headers =				\
+     	      semaphore.h			\
+     						\
+                   bits/pthread.h			\
+    -              bits/pthread-np.h			\
+                   bits/mutex.h			\
+                   bits/condition.h			\
+                   bits/condition-attr.h		\
+    diff --git a/Makefile.am b/Makefile.am
+    index e59c946..e73d8d6 100644
+    --- a/Makefile.am
+    +++ b/Makefile.am
+    @@ -20,17 +20,18 @@
+     if ARCH_IA32
+       arch=ia32
+     endif
+    +if ARCH_X86_64
+    +  arch=x86_64
+    +endif
+     if ARCH_POWERPC
+       arch=powerpc
+     endif
+     
+     # The source files are scattered over several directories.  Add 
+     # all these directories to the vpath.
+    -SYSDEP_PATH = $(srcdir)/sysdeps/l4/hurd/${arch}	\
+    -	 $(srcdir)/sysdeps/l4/${arch}		\
+    +SYSDEP_PATH = $(srcdir)/sysdeps/viengoos/${arch} \
+     	 $(srcdir)/sysdeps/${arch}		\
+    -	 $(srcdir)/sysdeps/l4/hurd		\
+    -	 $(srcdir)/sysdeps/l4			\
+    +	 $(srcdir)/sysdeps/viengoos		\
+     	 $(srcdir)/sysdeps/hurd			\
+     	 $(srcdir)/sysdeps/generic		\
+     	 $(srcdir)/sysdeps/posix		\
+    @@ -68,7 +69,6 @@ libpthread_a_SOURCES = pt-attr.c pt-attr-destroy.c pt-attr-getdetachstate.c \
+     	pt-alloc.c							    \
+     	pt-create.c							    \
+     	pt-getattr.c							    \
+    -	pt-pool-np.c							    \
+     	pt-equal.c							    \
+     	pt-dealloc.c							    \
+     	pt-detach.c							    \
+    diff --git a/headers.m4 b/headers.m4
+    index 5a58b9b..7c73cf2 100644
+    --- a/headers.m4
+    +++ b/headers.m4
+    @@ -14,10 +14,9 @@ AC_CONFIG_LINKS([
+       sysroot/include/pthread.h:libpthread/include/pthread.h
+       sysroot/include/pthread/pthread.h:libpthread/include/pthread/pthread.h
+       sysroot/include/pthread/pthreadtypes.h:libpthread/include/pthread/pthreadtypes.h
+    -  sysroot/include/bits/memory.h:libpthread/sysdeps/${arch}/bits/memory.h
+    -  sysroot/include/bits/spin-lock.h:libpthread/sysdeps/${arch}/bits/spin-lock.h
+    -  sysroot/include/bits/spin-lock-inline.h:libpthread/sysdeps/${arch}/bits/spin-lock-inline.h
+    -  sysroot/include/bits/pthreadtypes.h:libpthread/sysdeps/generic/bits/pthreadtypes.h
+    +  sysroot/include/bits/memory.h:libpthread/sysdeps/generic/bits/memory.h
+    +  sysroot/include/bits/spin-lock.h:libpthread/sysdeps/generic/bits/spin-lock.h
+    +  sysroot/include/bits/spin-lock-inline.h:libpthread/sysdeps/generic/bits/spin-lock-inline.h
+       sysroot/include/bits/barrier-attr.h:libpthread/sysdeps/generic/bits/barrier-attr.h
+       sysroot/include/bits/barrier.h:libpthread/sysdeps/generic/bits/barrier.h
+       sysroot/include/bits/cancelation.h:libpthread/sysdeps/generic/bits/cancelation.h
+    @@ -30,9 +29,8 @@ AC_CONFIG_LINKS([
+       sysroot/include/bits/rwlock-attr.h:libpthread/sysdeps/generic/bits/rwlock-attr.h
+       sysroot/include/bits/rwlock.h:libpthread/sysdeps/generic/bits/rwlock.h
+       sysroot/include/bits/thread-attr.h:libpthread/sysdeps/generic/bits/thread-attr.h
+    -  sysroot/include/bits/thread-barrier.h:libpthread/sysdeps/generic/bits/thread-barrier.h
+       sysroot/include/bits/thread-specific.h:libpthread/sysdeps/generic/bits/thread-specific.h
+    -  sysroot/include/bits/pthread-np.h:libpthread/sysdeps/l4/hurd/bits/pthread-np.h
+    +  sysroot/include/bits/pthread-np.h:libpthread/sysdeps/viengoos/bits/pthread-np.h
+       sysroot/include/semaphore.h:libpthread/include/semaphore.h
+       sysroot/include/bits/semaphore.h:libpthread/sysdeps/generic/bits/semaphore.h
+       sysroot/include/signal.h:libpthread/signal/signal.h
+    @@ -41,5 +39,5 @@ AC_CONFIG_LINKS([
+     AC_CONFIG_COMMANDS_POST([
+       mkdir -p sysroot/lib libpthread &&
+       ln -sf ../../libpthread/libpthread.a sysroot/lib/ &&
+    -  touch libpthread/libpthread.a
+    +  echo '/* This file intentionally left blank.  */' >libpthread/libpthread.a
+     ])
+    diff --git a/sysdeps/hurd/pt-setspecific.c b/sysdeps/hurd/pt-setspecific.c
+    index 89ca4d7..d2d1157 100644
+    --- a/sysdeps/hurd/pt-setspecific.c
+    +++ b/sysdeps/hurd/pt-setspecific.c
+    @@ -1,5 +1,5 @@
+     /* pthread_setspecific.  Generic version.
+    -   Copyright (C) 2002 Free Software Foundation, Inc.
+    +   Copyright (C) 2002, 2008 Free Software Foundation, Inc.
+        This file is part of the GNU C Library.
+     
+        The GNU C Library is free software; you can redistribute it and/or
+    @@ -30,7 +30,8 @@ pthread_setspecific (pthread_key_t key, const void *value)
+     
+       if (! self->thread_specifics)
+         {
+    -      err = hurd_ihash_create (&self->thread_specifics, HURD_IHASH_NO_LOCP);
+    +      err = hurd_ihash_create (&self->thread_specifics, false,
+    +			       HURD_IHASH_NO_LOCP);
+           if (err)
+     	return ENOMEM;
+         }
+    diff --git a/sysdeps/mach/pt-thread-halt.c b/sysdeps/mach/pt-thread-halt.c
+    index 973cde1..9f86024 100644
+    --- a/sysdeps/mach/pt-thread-halt.c
+    +++ b/sysdeps/mach/pt-thread-halt.c
+    @@ -30,8 +30,14 @@
+        being halted, thus the last action should be halting the thread
+        itself.  */
+     void
+    -__pthread_thread_halt (struct __pthread *thread)
+    +__pthread_thread_halt (struct __pthread *thread, int need_dealloc)
+     {
+    -  error_t err = __thread_terminate (thread->kernel_thread);
+    +  error_t err;
+    +  thread_t tid = thread->kernel_thread;
+    +
+    +  if (need_dealloc)
+    +    __pthread_dealloc (thread);
+    +
+    +  err = __thread_terminate (tid);
+       assert_perror (err);
+     }
