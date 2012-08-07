@@ -1,0 +1,165 @@
+[[!meta copyright="Copyright © 2010, 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+Deadlocks in libpager/periodic sync have been found.
+
+
+# [[gnumach_page_cache_policy]]
+
+
+## IRC, freenode, #hurd, 2012-07-12
+
+    <braunr> ah great, a paper about the mach pageout daemon !
+    <mcsim> braunr: Where is paper about the mach pageout daemon?
+    <braunr> ftp://ftp.cs.cmu.edu/project/mach/doc/published/defaultmm.ps
+    <braunr> might give us a clue about the swap deadlock (although i still
+      have a few ideas to check)
+    <braunr>
+      http://www.sceen.net/~rbraun/moving_the_default_memory_manager_out_of_the_mach_kernel.pdf
+    <braunr> we should more seriously consider sergio's advisory pageout branch
+      some day
+    <braunr> i'll try to get in touch with him about that before he completely
+      looses interest
+    <braunr> i'll include it in my "make that page cache as decent as possible"
+      task
+    <braunr> many of his comments match what i've seen
+    <braunr> and we both did a few optimizations the same way
+    <braunr> (like not deactivating pages when they enter the cache)
+
+
+## IRC, freenode, #hurd, 2012-07-13
+
+    <braunr> antrik: i'm able to consistently reproduce the swap deadlocks you
+      regularly had when using apt with my page cache patch
+    <braunr> it happens when lots of dirty pages are write back to their pagers
+    <braunr> so apt, or a big file copy or anything that writes several MiB
+      very quickly is a good candidate
+    <braunr> written*
+    <antrik> braunr: nice...
+    <braunr> antrik: well in a way, yes, as it will allow us to track it more
+      easily
+
+
+## IRC, freenode, #hurd, 2012-07-15
+
+    <braunr> oh btw, i think i can say with confidence that the hurd *doesn't*
+      deadlock
+    <braunr> (at least, concerning swapping)
+    <braunr> lol, one of my hurd systems has been hitting the "swap deadlock"
+      for more than an hour, and suddenly got out of it
+    <braunr> something is really wrong in the pageout daemon, but it's not a
+      deadlock
+    <youpi> a livelock then
+    <braunr> do you get out of livelocks ?
+    <braunr> i mean, it's not even a "lock"
+    <braunr> just a big damn tricky slowdown 
+    <youpi> yes, you can, by giving a few more resources for instance
+    <youpi> depends on the kind of livelock of course
+    <braunr> i think it's that
+    <braunr> the pageout daemon clearly throttles itself, waiting for pagers to
+      complete
+    <braunr> and another dangerous thing is the line in vm_resident, which only
+      wakes on thread to avoid starvation
+    <braunr> hum, during the livelock, the kernel spends much time waiting in
+      db_read_address
+    <braunr> could be a bad stack
+    <braunr> so, the pageout daemon seems to slow itself as much as waiting
+      several seconds between each iteration when under load
+    <braunr> but each iteration possibly removes clean pages
+    <braunr> so at some point, there is enough memory to unblock waiting pagers
+    <braunr> for now i'll try a simple solution, like limiting the pausing
+      delay
+    <braunr> but we'll need more page lists in the future (inactive-clean,
+      inactive-dirty, etc..)
+    <braunr> limiting the amount of dirty pages is the only way to really make
+      it safe actually
+    <braunr> wow, the pageout loop is still running even after many pages were
+      freed, and it unable to free more pages
+    <braunr> i think i have an idea about the livelock
+    <braunr> i think it comes from the periodic syncing
+    <bddebian> Too often?
+    <braunr> that's not the problem
+    <braunr> the problem is that it can happen at the same time with paging
+    <bddebian> Oh
+    <braunr> if paging gets slow, it won't stop the periodic syncing
+    <braunr> which will grab any page it can as soon as some are free
+    <braunr> but then, before it even finishes, another sync may occur
+    <braunr> i have yet to check that it is possible
+    <braunr> and i don't understand why syncing isn't done by the kernel
+    <braunr> the kernel is supposed to handle the paging policy
+    <braunr> and it would make paging really scale
+    <bddebian> It's done on the Hurd side?
+    <braunr> (instead of having external pagers make one request for each
+      object, even if they're clean)
+    <braunr> yes
+    <bddebian> Hmm, interesting
+    <braunr> ofc, with ext2fs --debug, i can't reproduce anything
+    <bddebian> Ugh
+    <braunr> sync are serialized
+    <braunr> grmbl
+    <braunr> there is a big lock taken at sync time though
+    <braunr> uhg
+
+
+## IRC, freenode, #hurd, 2012-07-16
+
+    <braunr> all right so, there *is* a deadlock, and it may be due to the
+      default pager actually
+    <braunr> the vm_page_laundry_count doesn't decrease at some point, even
+      when there are more than enough free pages
+    <braunr> antrik: the thing is, i think the deadlock concerns the default
+      pager
+    <antrik> the deadlock?
+    <braunr> yes
+    <braunr> when swapping
+
+
+## IRC, freenode, #hurd, 2012-07-17
+
+    <braunr> i can't even reproduce the swap deadlock when using upstrea ext2fs
+      :(
+    <braunr> upstream*
+
+
+## IRC, freenode, #hurd, 2012-07-19
+
+    <braunr> the libpager deadlock patch looks wrong to me
+    <braunr> hm no, the libpager patch is ok acually
+
+
+## [[synchronous_ipc]]
+
+### IRC, freenode, #hurd, 2012-07-20
+
+    <braunr> but actually after reviewing more, the debian patch for this
+      particular issue seems correct
+    <antrik> well, it's most probably done by youpi, so I would be shocked if
+      it wasn't correct... ;-)
+    <braunr> he wasn't sure at all about it
+    <antrik> still ;-)
+    <braunr> :)
+    <antrik> well, if you also think it's correct, I guess it's time to push it
+      upstream...
+
+
+## IRC, freenode, #hurd, 2012-07-23
+
+    <braunr> i still can't conclude if we have any pageout deadlock, or if it's
+      simply a side effect of the active and inactive lists getting very very
+      large
+    <braunr> but almost every time this issue happens, it somehow recovers,
+      sometimes hours later
+
+
+# See Also
+
+  * [[ext2fs_deadlock]]

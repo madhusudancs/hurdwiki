@@ -108,6 +108,9 @@ License|/fdl]]."]]"""]]
       12k random data
     <braunr> i'll try with other values
     <braunr> i get crashes, deadlocks, livelocks, and it's not pretty :)
+
+[[libpager_deadlock]].
+
     <braunr> and always in ext2, mach doesn't seem affected by the issue, other
       than the obvious
     <braunr> (well i get the usual "deallocating an invalid port", but as
@@ -625,3 +628,146 @@ License|/fdl]]."]]"""]]
 
 
 ## [[metadata_caching]]
+
+
+## IRC, freenode, #hurd, 2012-07-12
+
+    <braunr> i'm only adding a cached pages count you know :)
+    <braunr> (well actually, this is now a vm_stats call that can replace
+      vm_statistics, and uses flavors similar to task_info)
+    <braunr> my goal being to see that yellow bar in htop
+    <braunr> ... :)
+    <pinotree> yellow?
+    <braunr> yes, yellow
+    <braunr> as in http://www.sceen.net/~rbraun/htop.png
+    <pinotree> ah
+
+
+## IRC, freenode, #hurd, 2012-07-13
+
+    <braunr> i always get a "no more room for vm_map_enter" error when building
+      glibc :/
+    <braunr> but the build continues, probably a failed test
+    <braunr> ah yes, i can see the yellow bar :>
+    <antrik> braunr: congrats :-)
+    <braunr> antrik: thanks
+    <braunr> but i think my patch can't make it into the git repo until the
+      swap deadlock is solved (or at least very infrequent ..)
+
+[[libpager_deadlock]].
+
+    <braunr> well, the page cache accounting tells me something is wrong there
+      too lol
+    <braunr> during a build 112M of data was created, of which only 28M made it
+      into the cache
+    <braunr> which may imply something is still holding references on the
+      others objects (shadow objects hold references to their underlying
+      object, which could explain this)
+    <braunr> ok i'm stupid, i just forgot to subtract the cached pages from the
+      used pages .. :>
+    <braunr> (hm, actually i'm tired, i don't think this should be done)
+    <braunr> ahh yes much better
+    <braunr> i simply forgot to convert pages in kilobytes .... :>
+    <braunr> with the fix, the accounting of cached files is perfect :)
+
+
+## IRC, freenode, #hurd, 2012-07-14
+
+    <youpi> braunr: btw, if you want to stress big builds, you might want to
+      try webkit, ppl, rquantlib, rheolef, yade
+    <youpi> they don't pass on bach (1.3GiB), but do on ironforge (1.8GiB)
+    <braunr> youpi: i don't need to, i already know my patch triggers swap
+      deadlocks more often, which was expected
+    <youpi> k
+    <braunr> there are 3 tasks concerning my work : 1/ page cache accounting
+      (i'm sending the patch right now) 2/ removing the fixed limit and 3/
+      hunting the swap deadlock and fixing as much as possible
+    <braunr> 2/ can't get in the repository without 3/ imo
+    <youpi> btw, the increase of PAGE_FREE_* in your 2/ could go already,
+      couldn't it?
+    <braunr> yes
+    <braunr> but we should test with higher thresholds
+    <braunr> well
+    <braunr> it really depends on the usage pattern :/
+
+
+## [[ext2fs_libports_reference_counting_assertion]]
+
+
+## IRC, freenode, #hurd, 2012-07-15
+
+    <braunr> concerning the page cache patch, i've been using for quite some
+      time now, did lots of builds with it, and i actually wonder if it hurts
+      stability as much as i think
+    <braunr> considering i didn't stress the system as much before
+    <braunr> and it really improves performance
+
+    <braunr> cached memobjs:   138606
+    <braunr> cache:             1138M
+    <braunr> i bet ext2fs can have a hard time scanning 138k entries in a
+      linked list, using callback functions on each of them :x
+
+
+
+## IRC, freenode, #hurd, 2012-07-16
+
+    <tschwinge> braunr: Sorry that I didn't have better results to present.
+      :-/
+    <braunr> eh, that was expected :)
+    <braunr> my biggest problem is the hurd itself :/
+    <braunr> for my patch to be useful (and the rest of the intended work), the
+      hurd needs some serious fixing
+    <braunr> not syncing from the pagers
+    <braunr> and scalable algorithms everywhere of course
+
+
+## IRC, freenode, #hurd, 2012-07-23
+
+    <braunr> youpi: FYI, the branches rbraun/page_cache in the gnupach and hurd
+      repos are ready to be merged after review
+    <braunr> gnumach*
+    <youpi> so you fixed the hangs & such?
+    <braunr> they only the cache stats, not the "improved" cache
+    <braunr> no
+    <braunr> it requires much more work for that :)
+    <youpi> braunr: my concern is that the tests on buildds show stability
+      regression
+    <braunr> youpi: tschwinge also reported performance degradation
+    <braunr> and not the minor kind
+    <youpi> uh
+    <tschwinge> :-/
+    <braunr> far less pageins, but twice as many pageouts, and probably high
+      cpu overhead
+    <braunr> building (which is what buildds do) means lots of small files
+    <braunr> so lots of objects
+    <braunr> huge lists, long scans, etc..
+    <braunr> so it definitely requires more work
+    <braunr> the stability issue comes first in mind, and i don't see a way to
+      obtain a usable trace
+    <braunr> do you ?
+    <youpi> nope
+    <braunr> (except making it loop forever instead of calling assert() and
+      attach gdb to a qemu instance)
+    <braunr> youpi: if you think the infinite loop trick is ok, we could
+      proceed with that
+    <youpi> which assert?
+    <braunr> the port refs one
+    <youpi> which one?
+    <braunr> whicih prevented you from using the page cache patch on buildds
+    <youpi> ah, the libports one
+    <youpi> for that one, I'd tend to take the time to perhaps use coccicheck
+      actually
+
+[[code_analysis]].
+
+    <braunr> oh
+    <youpi> it's one of those which is supposed to be statically ananyzable
+    <youpi> s/n/l
+    <braunr> that would be great
+    <tschwinge> :-)
+    <tschwinge> And set precedence.
+
+
+## IRC, freenode, #hurd, 2012-07-26
+
+    <braunr> hm i killed darnassus, probably the page cache patch again

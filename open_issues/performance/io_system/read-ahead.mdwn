@@ -1565,3 +1565,283 @@ License|/fdl]]."]]"""]]
     <braunr> mcsim1: just use sane values inside the kernel :p
     <braunr> this simplifies things by only adding the new vm_advise call and
       not change the existing external pager interface
+
+
+## IRC, freenode, #hurd, 2012-07-12
+
+    <braunr> mcsim: so, to begin with, tell us what state you've reached please
+    <mcsim> braunr: I'm writing code for hurd and gnumach. For gnumach I'm
+      implementing memory policies now. RANDOM and NORMAL seems work, but in
+      hurd I found error that I made during editing ext2fs. So for now ext2fs
+      does not work
+    <braunr> policies ?
+    <braunr> what about mechanism ?
+    <mcsim> also I moved some translators to new interface.
+    <mcsim> It works too
+    <braunr> well that's impressive
+    <mcsim> braunr: I'm not sure yet that everything works
+    <braunr> right, but that's already a very good step
+    <braunr> i thought you were still working on the interfaces to be honest
+    <mcsim> And with mechanism I didn't implement moving pages to inactive
+      queue
+    <braunr> what do you mean ?
+    <braunr> ah you mean with the sequential policy ?
+    <mcsim> yes
+    <braunr> you can consider this a secondary goal
+    <mcsim> sequential I was going to implement like you've said, but I still
+      want to support moving pages to inactive queue
+    <braunr> i think you shouldn't
+    <braunr> first get to a state where clustered transfers do work fine
+    <mcsim> policies are implemented in function calculate_clusters
+    <braunr> then, you can try, and measure the difference
+    <mcsim> ok. I'm now working on fixing ext2fs
+    <braunr> so, except from bug squashing, what's left to do ?
+    <mcsim> finish policies and ext2fs; move fatfs, ufs, isofs to new
+      interface; test this all; edit patches from debian repository, that
+      conflict with my changes; rearrange commits and fix code indentation;
+      update documentation;
+    <braunr> think about measurements too
+    <tschwinge> mcsim: Please don't spend a lot of time on ufs.  No testing
+      required for that one.
+    <braunr> and keep us informed about your progress on bug fixing, so we can
+      test soon
+    <mcsim> Forgot about moving system to new interfaces (I mean determine form
+      of vm_advise and memory_object_change_attributes)
+    <braunr> s/determine/final/
+    <mcsim> braunr: ok.
+    <braunr> what do you mean "moving system to new interfaces" ?
+    <mcsim> braunr: I also pushed code changes to gnumach and hurd git
+      repositories
+    <mcsim> I met an issue with memory_object_change_attributes when I tried to
+      use it as I have to update all applications that use it. This includes
+      libc and translators that are not in hurd repository or use debian
+      patches. So I will not be able to run system with new
+      memory_object_change_attributes interface, until I update all software
+      that use this rpc
+    <braunr> this is a bit like the problem i had with my change
+    <braunr> the solution is : don't do it
+    <braunr> i mean, don't change the interface in an incompatible way
+    <braunr> if you can't change an existing call, add a new one
+    <mcsim> temporary I changed memory_object_set_attributes as it isn't used
+      any more.
+    <mcsim> braunr: ok. Adding new call is a good idea :)
+
+
+## IRC, freenode, #hurd, 2012-07-16
+
+    <braunr> mcsim: how did you deal with multiple page transfers towards the
+      default pager ?
+    <mcsim> braunr: hello. Didn't handle this yet, but AFAIR default pager
+      supports multiple page transfers.
+    <braunr> mcsim: i'm almost sure it doesn't
+    <mcsim> braunr: indeed
+    <mcsim> braunr: So, I'll update it just other translators.
+    <braunr> like other translators you mean ?
+    <mcsim> *just as
+    <mcsim> braunr: yes
+    <braunr> ok
+    <braunr> be aware also that it may need some support in vm_pageout.c in
+      gnumach
+    <mcsim> braunr: thank you
+    <braunr> if you see anything strange in the default pager, don't hesitate
+      to talk about it
+    <mcsim> braunr: ok. I didn't finish with ext2fs yet.
+    <braunr> so it's a good thing you're aware of it now, before you begin
+      working on it :)
+    <mcsim> braunr: I'm working on ext2 now.
+    <braunr> yes i understand
+    <braunr> i meant "before beginning work on the default pager"
+    <mcsim> ok
+
+    <antrik> mcsim: BTW, we were mostly talking about readahead (pagein) over
+      the past weeks, so I wonder what the status on clustered page*out* is?...
+    <mcsim> antrik: I don't work on this, but following, I think, is an example
+      of *clustered* pageout: _pager_seqnos_memory_object_data_return: object =
+      113, seqno = 4, control = 120, start_address = 0, length = 8192, dirty =
+      1. This is an example of debugging printout that shows that pageout
+      manipulates with chunks bigger than page sized.
+    <mcsim> antrik: Another one with bigger length
+      _pager_seqnos_memory_object_data_return: object = 125, seqno = 124,
+      control = 132, start_address = 131072, length = 126976, dirty = 1, kcopy
+    <antrik> mcsim: that's odd -- I didn't know the functionality for that even
+      exists in our codebase...
+    <antrik> my understanding was that Mach always sends individual pageout
+      requests for ever single page it wants cleaned...
+    <antrik> (and this being the reason for the dreadful thread storms we are
+      facing...)
+    <braunr> antrik: ok
+    <braunr> antrik: yes that's what is happening
+    <braunr> the thread storms aren't that much of a problem now
+    <braunr> (by carefully throttling pageouts, which is a task i intend to
+      work on during the following months, this won't be an issue any more)
+
+
+## IRC, freenode, #hurd, 2012-07-19
+
+    <mcsim> I moved fatfs, ufs, isofs to new interface, corrected some errors
+      in other that I already moved, moved kernel to new interface (renamed
+      vm_advice to vm_advise and added rpcs memory_object_set_advice and
+      memory_object_get_advice). Made some changes in mechanism and tried to
+      finish ext2 translator.
+    <mcsim> braunr: I've got an issue with fictitious pages...
+    <mcsim> When I determine bounds of cluster in external object I never know
+      its actual size. So, mo_data_request call could ask data that are behind
+      object bounds. The problem is that pager returns data that it has and
+      because of this fictitious pages that were allocated are not freed.
+    <braunr> why don't you know the size ?
+    <mcsim> I see 2 solutions. First one is do not allocate fictitious pages at
+      all (but I think that there could be issues). Another lies in allocating
+      fictitious pages, but then freeing them with mo_data_lock.
+    <mcsim> braunr: Because pages does not inform kernel about object size.
+    <braunr> i don't understand what you mean
+    <mcsim> I think that second way is better.
+    <braunr> so how does it happen ?
+    <braunr> you get a page fault
+    <mcsim> Don't you understand problem or solutions?
+    <braunr> then a lookup in the map finds the map entry
+    <braunr> and the map entry gives you the link to the underlying object
+    <mcsim> from vm_object.h: 	vm_size_t		size;		/*
+      Object size (only valid if internal)				 */
+    <braunr> mcsim: ugh
+    <mcsim> For external they are either 0x8000 or 0x20000...
+    <braunr> and for internal ?
+    <braunr> i'm very surprised to learn that
+    <mcsim> braunr: for internal size is actual
+    <braunr> right sorry, wrong question
+    <braunr> did you find what 0x8000 and 0x20000 are ?
+    <mcsim> for external I met only these 2 magic numbers when printed out
+      arguments of functions _pager_seqno_memory_object_... when they were
+      called.
+    <braunr> yes but did you try to find out where they come from ?
+    <mcsim> braunr: no. I think that 0x2000(many zeros) is maximal possible
+      object size.
+    <braunr> what's the exact value ?
+    <mcsim> can't tell exactly :/ My hurd box has broken again.
+    <braunr> mcsim: how does the vm find the backing content then ?
+    <mcsim> braunr: Do you know if it is guaranteed that map_entry size will be
+      not bigger than external object size?
+    <braunr> mcsim: i know it's not
+    <braunr> but you can use the map entry boundaries though
+    <mcsim> braunr: vm asks pager
+    <braunr> but if the page is already present
+    <braunr> how does it know ?
+    <braunr> it must be inside a vm_object ..
+    <mcsim> If I can use these boundaries than the problem, I described is not
+      actual.
+    <braunr> good
+    <braunr> it makes sense to use these boundaries, as the application can't
+      use data outside the mapping
+    <mcsim> I ask page with vm_page_lookup
+    <braunr> it would matter for shared objects, but then they have their own
+      faults :p
+    <braunr> ok
+    <braunr> so the size is actually completely ignord
+    <mcsim> if it is present than I stop expansion of cluster.
+    <braunr> which makes sense
+    <mcsim> braunr: yes, for external.
+    <braunr> all right
+    <braunr> use the mapping boundaries, it will do
+    <braunr> mcsim: i have only one comment about what i could see
+    <braunr> mcsim: there are 'advice' fields in both vm_map_entry and
+      vm_object
+    <braunr> there should be something else in vm_object
+    <braunr> i told you about pages before and after
+    <braunr> mcsim: how are you using this per object "advice" currently ?
+    <braunr> (in addition, using the same name twice for both mechanism and
+      policy is very sonfusing)
+    <braunr> confusing*
+    <mcsim> braunr: I try to expand cluster as much as it possible, but not
+      much than limit
+    <mcsim> they both determine policy, but advice for entry has bigger
+      priority
+    <braunr> that's wrong
+    <braunr> mapping and content shouldn't compete for policy
+    <braunr> the mapping tells the policy (=the advice) while the content tells
+      how to implement (e.g. how much content)
+    <braunr> IMO, you could simply get rid of the per object "advice" field and
+      use default values for now
+    <mcsim> braunr: What sense these values for number of pages before and
+      after should have?
+    <braunr> or use something well known, easy, and effective like preceding
+      and following pages
+    <braunr> they give the vm the amount of content to ask the backing pager
+    <mcsim> braunr: maximal amount, minimal amount or exact amount?
+    <braunr> neither
+    <braunr> that's why i recommend you forget it for now
+    <braunr> but
+    <braunr> imagine you implement the three standard policies (normal, random,
+      sequential)
+    <braunr> then the pager assigns preceding and following numbers for each of
+      them, say [5;5], [0;0], [15;15] respectively
+    <braunr> these numbers would tell the vm how many pages to ask the pagers
+      in a single request and from where
+    <mcsim> braunr: but in fact there could be much more policies.
+    <braunr> yes
+    <mcsim> also in kernel context there is no such unit as pager.
+    <braunr> so there should be a call like memory_object_set_advice(int
+      advice, int preceding, int following);
+    <braunr> for example
+    <braunr> what ?
+    <braunr> the pager is the memory manager
+    <braunr> it does exist in kernel context
+    <braunr> (or i don't understand what you mean)
+    <mcsim> there is only port, but port could be either pager or something
+      else
+    <braunr> no, it's a pager
+    <braunr> it's a port whose receive right is hold by a task implementing the
+      pager interface
+    <braunr> either the default pager or an untrusted task
+    <braunr> (or null if the object is anonymous memory not yet sent to the
+      default pager)
+    <mcsim> port is always pager?
+    <braunr> the object port is, yes
+    <braunr>         struct ipc_port         *pager;         /* Where to get
+      data */
+    <mcsim> So, you suggest to keep set of advices for each object?
+    <braunr> i suggest you don't change anything in objects for now
+    <braunr> keep the advice in the mappings only, and implement default
+      behaviour for the known policies
+    <braunr> mcsim: if you understand this point, then i have nothing more to
+      say, and we should let nowhere_man present his work
+    <mcsim> braunr: ok. I'll implement only default behaviors for know policies
+      for now.
+    <braunr> (actually, using the mapping boundaries is slightly unoptimal, as
+      we could have several mappings for the same content, e.g. a program with
+      read only executable mapping, then ro only)
+    <braunr> mcsim: another way to know the "size" is to actually lookup for
+      pages in objects
+    <braunr> hm no, that's not true
+    <mcsim> braunr: But if there is no page we have to ask it
+    <mcsim> and I don't understand why using mappings boundaries is unoptimal
+    <braunr> here is bash
+    <braunr> 0000000000400000    868K r-x--  /bin/bash
+    <braunr> 00000000006d9000     36K rw---  /bin/bash
+    <braunr> two entries, same file
+    <braunr> (there is the anonymous memory layer for the second, but it would
+      matter for the first cow faults)
+
+
+## IRC, freenode, #hurd, 2012-08-02
+
+    <mcsim> braunr: You said that I probably need some support in vm_pageout.c
+      to make defpager work with clustered page transfers, but TBH I thought
+      that I have to implement only pagein. Do you expect from me implementing
+      pageout either? Or I misunderstand role of vm_pageout.c?
+    <braunr> no
+    <braunr> you're expected to implement only pagins for now
+    <braunr> pageins
+    <mcsim> well, I'm finishing merging of ext2fs patch for large stores and
+      work on defpager in parallel.
+    <mcsim> braunr: Also I didn't get your idea about configuring of paging
+      mechanism on behalf of pagers.
+    <braunr> which one ?
+    <mcsim> braunr: You said that pager has somehow pass size of desired
+      clusters for different paging policies.
+    <braunr> mcsim: i said not to care about that
+    <braunr> and the wording isn't correct, it's not "on behalf of pagers"
+    <mcsim> servers?
+    <braunr> pagers could tell the kernel what size (before and after a faulted
+      page) they prefer for each existing policy
+    <braunr> but that's one way to do it
+    <braunr> defaults work well too
+    <braunr> as shown in other implementations

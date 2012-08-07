@@ -1,0 +1,64 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+
+# IRC, freenode, #hurd, 2012-07-20
+
+From [[Genode RPC|microkernel/genode/rpc]].
+
+    <braunr> assuming synchronous ipc is the way to go (it seems so), there is
+      still the need for some async ipc (e.g signalling untrusted recipients
+      without risking blocking on them)
+    <braunr> 1/ do you agree on that and 2/ how would this low-overhead async
+      ipc be done ? (and 3/ are there relevant examples ?
+    <antrik> if you think about this stuff too much you will end up like marcus
+      and neal ;-)
+    <braunr> antrik: likely :)
+    <antrik> the truth is that there are various possible designs all with
+      their own tradeoffs, and nobody can really tell which one is better
+    <braunr> the only sensible one i found is qnx :/
+    <braunr> but it's still messy
+    <braunr> they have what they call pulses, with a strictly defined format
+    <braunr> so it's actually fine because it guarantees low overhead, and can
+      easily be queued
+    <braunr> but i'm not sure about the format
+    <antrik> I must say that Neal's half-sync approach in Viengoos still sounds
+      most promising to me. it's actually modelled after the needs of a
+      Hurd-like system; and he thought about it a lot...
+    <braunr> damn i forgot to reread that
+    <braunr> stupid me
+    <antrik> note that you can't come up with a design that allows both a)
+      delivering reliably and b) never blocking the sender -- unless you cache
+      in the kernel, which we don't want
+    <antrik> but I don't think it's really necessary to fulfill both of these
+      requirements
+    <antrik> it's up to the receiver to make sure it gets important signals
+    <braunr> right
+    <braunr> caching in the kernel is ok as long as the limit allows the
+      receiver to handle its signals
+    <antrik> in the Viengoos approach, the receiver can allocate a number of
+      receive buffers; so it's even possible to do some queuing if desired
+    <braunr> ah great, limits in the form of resources lent by the receiver
+    <braunr> one thing i really don't like in mach is the behaviour on full
+      message queues
+    <braunr> blocking :/
+    <braunr> i bet the libpager deadlock is due to that
+
+[[libpager_deadlock]].
+
+    <braunr> it simply means async ipc doesn't prevent at all from deadlocks
+    <antrik> the sender can set a timeout. blocking only happens when setting
+      it to infinite...
+    <braunr> which is commonly the case
+    <antrik> well, if you see places where blocking is done but failing would
+      be more appropriate, try changing them I'd say...
+    <braunr> it's not that easy :/

@@ -1,0 +1,216 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+
+# IRC, freenode, #hurd, 2012-07-19
+
+    <nowhere_man> well, I really actively started last week, so I'm ironing my
+      various use cases and above all I'm taking my barings in Hurd's code
+    <nowhere_man> I'm currently reading boot/ and pfinet/
+    <braunr> sorry for asking but
+    <braunr> can you describe brielfy what you mean to achieve
+    <braunr> i know it sounds weird but the project description is a bit vague
+      for me
+    <nowhere_man> OK
+    <nowhere_man> the main goal is to be able to easily spawn a subhurd that's
+      connected in some way to its host
+    <braunr> ok
+    <nowhere_man> mainly connected by network, possibly sharing resources like
+      FS
+    <braunr> is it similar in spirit with something like linux containers ?
+    <nowhere_man> IIRC about them, yes
+    <braunr> ok
+    <braunr> that will do for me then
+    <tschwinge> Yes, so not complete virtualization, but instaed limitied to
+      several components.
+    <braunr> lxc with more runtime features to increase/decrease the level of
+      isolation
+    <nowhere_man> at first it would be static, at creation time only
+    <braunr> ok, i clearly understand the proposal now :)
+    <braunr> what kind of help could you need in the near future ?
+    <braunr> (except permanent access to youpi's brain?)
+    <tschwinge> Yes, that's my question, too -- what can we do to "get this
+      thing going".
+    <nowhere_man> by monday or tuesday I should be clear on what I understand
+      or not in the code
+    <nowhere_man> I'm still a bit up to my elbows in it
+    <nowhere_man> at that point I'll be happy to be able to pop a lot of
+      questions about it
+    <braunr> so you'll be ready for the next meeting
+    <nowhere_man> yeah
+    <tschwinge> Please do as soon as there are questions that you cannot
+      resolve in a reasonably short amount of time.
+    <tschwinge> So often a quick hint from someone else already helps to ge
+      un-stuck.
+    <nowhere_man> OK
+    <tschwinge> There is no problem with asking for help given this huge and
+      convoluted code-base, where often design decisions are not obvious, too.
+    <nowhere_man> I will
+    <tschwinge> Good.  :-)
+    <antrik> nowhere_man: hm... what you said so far doesn't sound any
+      different than the work zhengda already did on boot years ago...
+    <antrik> (although none of it ever got upstream IIRC :-( )
+    <nowhere_man> antrik: wasn't aware of it, is there some code published?
+    <tschwinge> There are bits and pieces, but certainly there is enough work
+      left to be done, to put it all together.
+    <antrik> yes, his git repository should be up somewhere. it's quite
+      convoluted though, as he worked on several things, and also wasn't very
+      experienced with revision control in the beginning
+    <tschwinge> nowhere_man:
+      http://www.gnu.org/software/hurd/community/gsoc/2008.html
+    <tschwinge> nowhere_man: http://www.gnu.org/software/hurd/user/zhengda.html
+    <tschwinge> Second section of the latter one.
+    <antrik> well, my understanding of the proposal (and more or less what I
+      was driving at in the project idea, which is rather vague admittedly) is
+      something lighter than a real subhurd... rather some kind of thin
+      subenvironment that doesn't actually boot a complete system instance with
+      various daemons etc.
+    <tschwinge> nowhere_man: It is certainly valid for you to use pre-existing
+      code/patches, by the way.
+    <antrik> BTW, regarding the "full subhurd" thing, the missing pieces are
+      mostly virtual device implementations
+    <antrik> (that and some tough bug(s) remaining in zhengda's modified
+      boot...)
+    <nowhere_man> cool, I'll take a look
+    <antrik> in any case, getting a picture of the work zhengda did is, is
+      definitely the first thing to do :-)
+    <tschwinge> nowhere_man: I'll also try to locate some bits and stuff from
+      his verious repositories (I just fond a Subverision one; will convert to
+      Git).
+    <antrik> tschwinge: I'm pretty sure zhengda's git repository was converted
+      from the SVN one...
+    <tschwinge> antrik: Thanks for reminding us about this -- I failed to
+      remember all that.
+    <antrik> (which was in turn converted from CVS...)
+    <tschwinge> antrik: OK, will have a lot.
+    <tschwinge> Yeah, found a CVS tree, too.  ;-)
+    <antrik> BTW, zhengda's work more exactly was about subhurd without root
+      privileges. but that lays a lot of the groundwork for all kinds of more
+      flexible subhurd usage
+    <antrik> (but it's still quite a different thing that thing
+      subenvironments, so don't get confused...)
+    <antrik> err... thin subenvironments
+
+
+# IRC, freenode, #hurd, 2012-07-27
+
+    <nowhere_man> bddebian: I'm actually not progressing much while reading the
+      source, I'm jumping all over the place to grasp the various types and
+      functions used where I start
+    <nowhere_man> would there be a few starting points that could help me?
+    <tschwinge> nowhere_man: So what exactly is your status; what are you
+      doing, what do you need help with?  We surely can provide help, but need
+      to know where.
+    <nowhere_man> I'm starting from the source of boot/ and pfinet/ and as soon
+      as I encounter something that I don't understand, I find its definition
+    <nowhere_man> I'm kind of doing a depth-first search of what I need to
+      understand in the source code
+    <nowhere_man> I'm wondering if there are a few places in the source code
+      that I should start reading before anything else
+    <nowhere_man> well, I'll have to go in a few minutes
+    <nowhere_man> I'll continue my DFS ;-)
+
+
+# IRC, freenode, #hurd, 2012-08-02
+
+    <nowhereman> well, I made a leap forward in understanding the code, when I
+      stopped my DFS
+    <nowhereman> in hindsight, I'd say my way of approaching the code was
+      probably one of the worst possible
+    <braunr> oh
+    <tschwinge> OK, so at least you learned something, which is good.
+    <tschwinge> So, what's the new approach?  And what are you working on at
+      the moment
+    <tschwinge> ?
+    <nowhereman> I just remembered SICP, the idea of wishful thinking when you
+      code, and didn't bother with the fine details behind what I'm reading
+    <nowhereman> like, I don't really get what happens when a Mach port is
+      allocated, but I know approximately what a Mach port is
+    <tschwinge> So originally you worked on investigating all that, every line
+      of code?
+    <nowhereman> almost, yeah
+    <braunr> nowhereman: again, feel free to ask
+    <tschwinge> Yes indeed -- that's too complex for a single person to tackle
+      at one time.
+    <braunr> and quickly
+    <braunr> don't loose time
+    <tschwinge> Not even braunr and I have looked up all these things.
+      (Speaking for Richard here, but I'm quite sure he'll agree.  Perhaps he
+      has in fact looked up all the Mach things, though.)
+    <tschwinge> nowhereman: ufc?
+    <nowhereman> BTW, last week I wanted to push my description of how the tool
+      could be used, the use cases
+    <nowhereman> ufs
+    <nowhereman> but flubber is not online
+    <tschwinge> nowhereman: Oh, why ufs specifically?
+    <braunr> don't waste time on ufs
+    <braunr> really
+    <tschwinge> nowhereman: Yes, flubber is down.  But you can push directly to
+      the Savannah repository.
+    <tschwinge> nowhereman: Please immediatelly tell us if you're stuck on
+      something, like flubber not being available.
+    <tschwinge> We may not be able to help immediatelly, but we're the at least
+      aware of issues.
+    <braunr> and we may be able to help immediately :)
+    <tschwinge> As we're not sitting in a lab next to each other, we can't tell
+      otherwise what's going on.
+    <tschwinge> We may in fact even be able to tell you immediatelly to use
+      Savannah instead of flubber, indeed.
+    <tschwinge> nowhereman: So, back to ufs -- which you don't specifically
+      need to look at, I think -- ext2fs is what everyone uses.  But even there
+      you shouldn't really need to know many details/internals.
+    <nowhereman> OK, I was looking into it has it appears in hurd.boot
+    <tschwinge> Ah, OK.  Yeah, that's just an example/template, and should use
+      ext2fs nowadays.
+    <nowhereman> in fact, as far as FS are concerned, I suppose I will merely
+      need to know how to pass a port to the host's FS to some proxy FS in the
+      subhurd
+    <nowhereman> mmmh, Savannah only mentions a hurd.git
+    <tschwinge> Exactly that is the abstraction level you need, yes.
+    <nowhereman> I'm looking at http://savannah.gnu.org/git/?group=hurd
+    <tschwinge> Yeah, that's a known shortcoming -- look here instead:
+      http://git.savannah.gnu.org/cgit/hurd
+    <tschwinge> Here is some more up-to-date stuff on subhurds:
+      http://www.gnu.org/software/hurd/hurd/subhurd.html
+    <tschwinge> nowhereman: You know how to tell git to add a new remote to
+      your web pages checkout and such stuff?
+    <nowhereman> yeah, no problem with that
+    <braunr> have you prepared any question to ask us ?
+    <nowhereman> the only I have now is if you can tell me where to look in the
+      code about passing Mach ports
+    <braunr> you don't pass ports, you pass rights
+    <braunr> http://www.gnu.org/software/hurd/gnumach-doc/index.html is the
+      best location to have a look at
+    <braunr>
+      http://www.gnu.org/software/hurd/gnumach-doc/Exchanging-Port-Rights.html#Exchanging-Port-Rights
+    <braunr> i suppose the mig doc will help too, as you may be using a higher
+      level interface to exchange rights
+    <braunr> be careful about user references on port rights
+    <braunr> deallocate releases a reference, it doesn't immediately destroy a
+      resource
+    <braunr> portinfo -v can help monitoring a task's rights
+    <braunr> nowhereman: so what are you planning to do now ?
+    <braunr> during the next week
+    <nowhereman> documenting what I understand from the boot process and where
+      things can be changed to fit my various use cases
+    <braunr> do you expect that to take the whole week ?
+    <nowhereman> and doing some first modifications to servers for the simplest
+      cases
+    <braunr> ok
+    <braunr> well i hope you're able to really start working on it soon, and
+      won't face weird issues in the meantime
+    <braunr> i'm a bit disappointed that you don't have more questions
+    <braunr> my feeling is you either did understand everything (except passing
+      port rights), or you didn't attempt to seriously understand the code
+    <braunr> or you don't dare ask questions
+    <braunr> this is something that must change
+    <braunr> or these meetings won't be as useful as they could be
+    <tschwinge> Yes.  But also please don't wait for the meetings, but ask
+      questions throughout the week, too.

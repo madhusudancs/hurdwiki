@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2012 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -10,9 +10,65 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_glibc]]
 
-IRC, unknown channel, unknown date.
+
+# IRC, unknown channel, unknown date
 
     <azeem> tschwinge: ext2fs.static: thread-cancel.c:55: hurd_thread_cancel: Assertion `! __spin_lock_locked (&ss->critical_section_lock)' failed.
     <youpi> it'd be great if we could have backtraces in such case
     <youpi> at least just the function names
     <youpi> and in this case (static), just addresses would be enough
+
+
+# IRC, freenode, #hurd, 2012-07-19
+
+In context of the [[ext2fs_libports_reference_counting_assertion]].
+
+    <braunr> pinotree: tschwinge: do you know if our packages are built with
+      -rdynamic ?
+    <pinotree> braunr: debian's cflags don't include it, so unless the upstream
+      build systems do, -rdynamic is not added
+    <braunr> i doubt glibc' backtrace() is able to find debugging symbol files
+      on its own
+    <pinotree> what do you mean?
+    <braunr> the port reference bug youpi noticed is rare
+    <pinotree> even on linux, a program compiled with normal optimizations (eg
+      -O2 -g) can give just pointer values in backtrace()'s output
+    <braunr> core dumps are unreliable at best
+
+[[crash_server]].
+
+    <braunr> uh, no, backtrace does give names
+    <braunr> but not with -fomit-frame-pointer
+    <braunr> unless the binary is built with -rdynamic
+    <braunr> at least it used to
+    <pinotree> not really, when being optimized some steps can be optimized
+      away (eg inlines)
+    <braunr> that's ok
+    <braunr> anyway, the point is i'd like a way that can give us as much
+      information as possible when the problem happens
+    <braunr> the stack trace being the most useful imo
+    <pinotree> do you face issues currently with backtrace()?
+    <braunr> not tried yet
+    <braunr> i guess i could make the application trap in the kernel, and fault
+      there, so we can attach gdb while still in the pager address space :>
+    <pinotree> that would imply the need for interactivity when the fault
+      happens, wouldn't it?
+    <braunr> no
+    <braunr> it would remain this way until someone comes, hours, days later
+    <braunr> pinotree: well ok, it would require interactivity, but not *when*
+      it happens ;p
+    <braunr> pinotree: right, it needs -rdynamic
+
+
+## IRC, freenode, #hurd, 2012-07-21
+
+    <braunr> tschwinge: my current "approach" is to introduce an infinite loop
+    <braunr> it makes the faulting task mapped in often enough to use gdb
+      through qemu
+    <braunr> ... :)
+    <tschwinge> My understanding is that glibc already does have some mechanism
+      for that: I have seen it print backtraces whendetecting malloc
+      inconsistencies (double free and the lite).
+    <braunr> yes, i thought it used the backtrace functions internally though
+    <braunr> that is, execinfo
+    <braunr> but this does require -rdynamic

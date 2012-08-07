@@ -1,0 +1,254 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_mig]]
+
+Every [[message]] has an ID field, which is defined in the [[RPC]] `*.defs`
+files.
+
+
+# IRC, freenode, #hurd, 2012-07-12
+
+[Extending an existing RPC.]
+
+    <antrik> create a new call, either with a new variant of vm_statistics_t,
+      or a new structure with only the extra fields
+    <braunr> that seems cleaner indeed
+    <braunr> but using different names for the same thing seems so tedious and
+      unnecessary :/
+    <antrik> it's extra effort, but it pays off
+    <braunr> i agree, it's the right way to do it
+    <braunr> but this implies some kind of versioning
+    <braunr> which is currently more or less done using mig subsystem numbers,
+      and skipping obsolete calls in rpc definition files
+    <braunr> and a subsystem is like 100 calls (200 with the replies)
+    <braunr> at some point we should recycle them
+    <braunr> or use truely huge ranges
+    <antrik> braunr: that's not something we need to worry about until we get
+      there -- which is not likely to happen any time soon :-)
+    <braunr> "There is no more room in this interface for additional calls."
+    <braunr> in mach.defs
+    <braunr> i'll use the mach4.defs file
+    <braunr> but it really makes no sense at all to do such things just because
+      we want to be compatible with 20 year old software nobody uses any more
+    <braunr> who cares about the skips used to keep us from using the old mach
+      2.5 interface ..
+    <braunr> (and this 100 arbitrary limit is really ugly too)
+    <antrik> braunr: I agree that we don't want to be compatible with 20 years
+      old software. just Hurd stuff from the last few years is perfectly fine.
+    <tschwinge> braunr, antrik: I agree with the approach of using a new
+      RPC/data structure for incompatible changes, and I also agree that
+      recycling RPC slots that have been unused (skipped) for some years is
+      fine.
+    <antrik> tschwinge: well, we probably shouldn't just reuse them
+      arbitrarily; but rather do a mass purge if the need really arises...
+    <antrik> it would be confusing otherwise IMHO
+    <tschwinge> antrik: What do you understand by doing a mass purge?
+    <tschwinge> My idea indeed was to replace arbitrary "skip"s by new RPC
+      definitions.
+    <braunr> a purge would be good along with a mig change to make subsystem
+      and routines identifier larger
+    <braunr> i guess 16-bits width should do
+    <tschwinge> But what do you unterstand by a "purge" in this context.
+    <braunr> removing all the skips
+    <tschwinge> But that moves the RPC ids following after?
+    <braunr> yes
+    <braunr> that's why i think it's not a good thing, unless we also change
+      the numbering
+    <tschwinge> ... which is a incompatible change for all clients.
+    <braunr> yes
+    <tschwinge> OK, so you'd propose a new system and deprecate the current
+      one.
+    <braunr> not really new
+    <braunr> just larger numbers
+    <braunr> we must acknowledge interfaces change with time
+    <tschwinge> Yes, that's "new" enough.  ;-)
+    <tschwinge> New in the sense that all clients use new iterfaces.
+    <braunr> that's enough to completely break compability, yes
+    <braunr> at least binary
+    <tschwinge> Yes.
+    <tschwinge> However, I don't see an urgent need for that, do you?
+    <tschwinge> Why not just recycled a skip that has been unused for a decade?
+    <braunr> i don't think we should care much about that, as the only real
+      issue i can see is when upgrading a system
+    <braunr> i don't say we shouldn't do that
+    <braunr> actually, my current patch does exactly this
+    <tschwinge> OK.  :-)
+    <braunr> purging is another topic
+    <braunr> but purging without making numbers larger seems a bit pointless
+    <braunr> as the point is allowing developers to change interfaces without
+      breaking short time compability 
+    <braunr> compatibility*
+    <braunr> also, interfaces, even stable, can have more than 100 calls
+    <braunr> (at the same time, i don't think there would ever be many
+      interfaces, so using 16-bits integers for the subsystems and the calls
+      should really be fine, and cleanly aligned in memory)
+    <antrik> tschwinge: you are right, it was a brain fart :-)
+    <antrik> no purge obviously
+    <antrik> but I think we only should start with filling skips once all IDs
+      in the subsystem are exhausted
+    <antrik> braunr: the 100 is not fixed in MIG IIRC; it's a definition we
+      make somewhere
+    <antrik> BTW, using multiple subsystems for "overflowing" interfaces is a
+      bit ugly, but not to bad I'd say... so I wouldn't really consider this a
+      major problem
+    <antrik> err... not too bad
+    <antrik> especially since Hurd subsystem usually are spaced 1000 aways, so
+      there are some "spare" blocks between them anyways
+    <braunr> hm i'm almost sure it's related to mig
+    <braunr> that's how the reply id is computed
+    <antrik> of course it is related to MIG... but I have a vague recollection
+      that this constant is not fixed in the MIG code, but rather supplied
+      somewhere. might be wrong though :-)
+    <pinotree> you mean like the 101-200 skip block in hurd/tioctl.defs?
+    <antrik> pinotree: exactly
+    <antrik> these are reserved for reply message IDs
+    <antrik> at 200 a new request message block begins...
+    <braunr> server.c:    fprintf(file, "\tOutP->Head.msgh_id = InP->msgh_id +
+      100;\n");
+    <braunr> it's not even a define in the mig code :/
+    <pinotree> meaning that in the space of an hurd subsystem there are max 500
+      effective rpc's?
+    <antrik> actually, ioctls are rather special, as the numbers are computed
+      from the ioctl properties...
+    <antrik> braunr: :-(
+    <braunr> pinotree: how do you get this value ?
+    <pinotree> braunr: 1000/2? :)
+    <braunr> ?
+    <braunr> why not 20000/3 ?
+    <antrik> pinotree: yes
+    <braunr> where do they come from ?
+    <braunr> ah ok sorry
+    <pinotree> braunr: 1000 is the space of each subsystem, and each rpc takes
+      an id + its replu
+    <pinotree> *reply
+    <braunr> right
+    <braunr> 500 is fine
+    <braunr> better than 100
+    <braunr> but still, 64k is way better
+    <braunr> and not harder to do
+    <pinotree> (hey, i'm the noob in this :) )
+    <antrik> braunr: it's just how "we" lay out subsystems... nothing fixed
+      about it really; we could just as well define new subsystems with 10000
+      or whatever if we wanted
+    <braunr> yes
+    <braunr> but we still have to consider this mig limit
+    <antrik> there are one or two odd exceptions though, with "related"
+      subsystems starting at ??500...
+    <antrik> braunr: right. it's not pretty -- but I wouldn't consider it
+      enough of a problem to invest major effort in changing this...
+    <braunr> agreed
+    <braunr> at least not while our interfaces don't change often
+    <braunr> which shouldn't happen any time soon
+
+    <tschwinge> Hmm, I also remember seeing some emails about indeed versioning
+      RPCs (by Roland, I think).  I can try to look that up if there's
+      interest.
+
+    <braunr> i'm only adding a cached pages count you know :)
+    <braunr> (well actually, this is now a vm_stats call that can replace
+      vm_statistics, and uses flavors similar to task_info)
+    <antrik> braunr: I don't think introducing "flavors" is a good idea
+    <braunr> i just did it the way others calls were done
+    <braunr> other*
+    <braunr> woud you prefer a larger structure with append-only upgrades ?
+    <antrik> I prefer introducing new calls. it avoids an unncessary layer of
+      indirection
+    <antrik> flavors are not exactly RPC-over-RPC, but definitely going down
+      that road...
+    <braunr> right
+    <antrik> as fetching VM statistics is not performance-critical, I would
+      suggest adding a new call with only the extra stats you are
+      introducing. then if someone runs an old kernel not implementing that
+      call, the values are simply left blank in the caller. makes
+      backward-compatibility a no-brainer
+    <antrik> (the alternative is a new call fetching both the traditional and
+      the new stats -- but this is not necessary here, as an extra call
+      shouldn't hurt)
+    <braunr> antrik: all right
+
+
+## IRC, freenode, #hurd, 2012-07-13
+
+    <braunr> so, should i replace old, unused mach.defs RPCs with mine, or add
+      them to e.g. mach4.defs ?
+    <antrik> braunr: hm... actually I wonder whether we shouldn't add a
+      gnumach.defs -- after all, it's neither old mach nor mach4 interfaces...
+    <braunr> true
+    <braunr> good idea
+    <braunr> i'll do just that
+    <braunr> hm, doesn't adding a new interface file requires some handling in
+      glibc ?
+    <youpi> simply rebuild it
+    <braunr> youpi: no i mean
+    <braunr> youpi: glibc knows about mach.defs and mach4.defs, but i guess we
+      should add something so that it knows about gnumach.defs
+    <youpi> ah
+    <youpi> probably, yes
+    <braunr> ok
+    <braunr> i don't understand why these files are part of the glibc headers
+    <pinotree> are they?
+    <braunr> (i mean mach_interface.h and mach4.h)
+    <braunr> for example
+    <braunr> youpi: the interface i'll add is vm_cache_statistics(task,
+      &cached_objects, &cached_pages)
+    <braunr> if it's ok i'll commit directly into the gnumach repository
+    <youpi> shouldn't it rather be a int array, to make it extensible?
+    <youpi> like other stat functions of gnumach
+    <braunr> antrik was against doing that
+    <braunr> well, he was against using flavors
+    <braunr> maybe we could have an extensible array yes, and require additions
+      at the end of the structure
+
+
+## IRC, freenode, #hurd, 2012-07-14
+
+    <antrik> braunr: there are two reasons why the files are part of glibc. one
+      is that glibc itself uses them, so it would be painful to handle
+      otherwise. the other is that libc is traditionally responsible for
+      providing the system interface...
+    <antrik> having said that, I'm not sure we should stick with that :-)
+    <braunr> antrik: what do you think about having a larger structure with
+      reserved fields ? sounds a lot better than flavors, doesn't it ?
+    <youpi> antrik: it's in debian, yes
+    <braunr> grmbl, adding a new interface just for a single call is really
+      tedious
+    <braunr> i'll just add it to mach4
+    <antrik> braunr: well, it's not unlikely there will be other new calls in
+      the future... but I guess using mach4.defs isn't too bad
+    <antrik> braunr: as for reserved fields, I guess that is somewhat better
+      than flavors; but I can't say I exactly like the idea either...
+    <braunr> antrik: there is room in mach4 ;p
+
+
+## IRC, freenode, #hurd, 2012-07-23
+
+    <tschwinge> I'm not sure yet whether I'm happy with adding the RPC to
+      mach4.defs.
+    <braunr> that's the only question yes
+    <braunr> (well, no, not only)
+    <braunr> as i know have a better view of what's involved, it may make sense
+      to create a gnumach.defs file
+    <braunr> tschwinge: all right i'll create a gnumach.defs file
+    <tschwinge> braunr: Well, if there is general agreement that this is the
+      way to go.
+    <tschwinge> braunr: In that case, I guess there's no point in being more
+      fine-grained -- gnumach-vm.defs or similar -- that'd probably be
+      over-engineering.  If the glibc bits for libmachuser are not
+      straight-forward, I can help with that of course.
+    <braunr> ok
+
+
+## IRC, freenode, #hurd, 2012-07-27
+
+    <braunr> tschwinge: i've pushed a patch on the gnumach page_cache branch
+      that adds a gnumach.defs interface
+    <braunr> tschwinge: if you think it's ok, i'll rewrite a formal changelog
+      so it can be applied
