@@ -52,3 +52,32 @@ call|/glibc/fork]]'s case.
     <braunr> the more i study the code, the more i think a lot of time is
       wasted on cpu, unlike the common belief of the lack of performance being
       only due to I/O
+
+
+## IRC, freenode, #hurd, 2012-07-23
+
+    <braunr> there are several kinds of scalability issues
+    <braunr> iirc, i found some big locks in core libraries like libpager and
+      libdiskfs
+    <braunr> but anyway we can live with those
+    <braunr> in the case i observed, ext2fs, relying on libdiskfs and libpager,
+      scans the entire file list to ask for writebacks, as it can't know if the
+      pages are dirty or not
+    <braunr> the mistake here is moving part of the pageout policy out of the
+      kernel
+    <braunr> so it would require the kernel to handle periodic synces of the
+      page cache
+    <antrik> braunr: as for big locks: considering that we don't have any SMP
+      so far, does it really matter?...
+    <braunr> antrik: yes
+    <braunr> we have multithreading
+    <braunr> there is no reason to block many threads while if most of them
+      could continue
+    <braunr> -while
+    <antrik> so that's more about latency than throughput?
+    <braunr> considering sleeping/waking is expensive, it's also about
+      throughput
+    <braunr> currently, everything that deals with sleepable locks (both
+      gnumach and the hurd) just wake every thread waiting for an event when
+      the event occurs (there are a few exceptions, but not many)
+    <antrik> ouch

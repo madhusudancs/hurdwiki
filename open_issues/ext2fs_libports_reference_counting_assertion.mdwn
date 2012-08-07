@@ -1,0 +1,93 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+    libports/port-ref.c:31: ports_port_ref: Assertion `pi->refcnt || pi->weakrefcnt' failed
+
+This is seen every now and then.
+
+
+# [[gnumach_page_cache_policy]]
+
+With that patch in place, the assertion failure is seen more often.
+
+
+## IRC, freenode, #hurd, 2012-07-14
+
+    <youpi> braunr: I'm getting ext2fs.static:
+      /usr/src/hurd-debian/./libports/port-ref.c:31: ports_port_ref: Assertion
+      `pi->refcnt || pi->weakrefcnt' failed.
+    <youpi> oddly enough, that happens on one of the buildds only
+    <braunr> :/
+    <braunr> i fear the patch can wake many of these issues
+
+
+## IRC, freenode, #hurd, 2012-07-15
+
+    <youpi> braunr: same assertion failed on a second buildd
+    <braunr> can you paste it again please ?
+    <youpi> ext2fs.static: /usr/src/hurd-debian/./libports/port-ref.c:31:
+      ports_port_ref: Assertion `pi->refcnt || pi->weakrefcnt' failed.
+    <braunr> or better, answer the ml thread for future reference
+    <braunr> thanks
+    <youpi> braunr: I can't keep your patch on the buildds, it makes them too
+      unreliable
+    <braunr> youpi: ok
+    <braunr> i never got this error though, that's weird
+    <braunr> youpi: was the failure during the same build ?
+    <youpi> no, it was during package installation, and not the same
+    <youpi> braunr: note that I've already seen such errors, it's not new, but
+      it was way rarer
+    <youpi> like every month only
+    <braunr> ah ok
+    <braunr> yes it's less surprising then
+    <braunr> a tricky reference counting / locking mistake somewhere in the
+      hurd :) ...
+    <braunr> ah ! just got it !
+    <bddebian> braunr: Got the error or found the problem? :)
+    <braunr> the former unfortunately :/
+
+
+## IRC, freenode, #hurd, 2012-07-19
+
+    <braunr> hm, i think those ext2fs port refs errors may also be due to stack
+      overflows
+    <pinotree> --verbose
+    <braunr> hm ?
+    <braunr> http://lists.gnu.org/archive/html/bug-hurd/2012-07/msg00051.html
+    <pinotree> i mean, why do you think they could be due to that?
+    <braunr> the error is that both strong and weak refs in a port are 0 when
+      adding a reference
+    <braunr> weak refs are almost never used so let's forget about them
+    <braunr> when a ref count drops to 0, the port is automatically deallocated
+    <braunr> so what other than memory corruption setting this counter to 0
+      could possibly do that ? :)
+    <pinotree> one could also guess an unbalanced ref/unref logic, somehow
+    <braunr> what do you mean ?
+    <pinotree> that for a bug, an early return, etc a port gets unref'ed often
+      than it is ref'ed
+    <braunr> highly unlikely, as they're protected by a lock
+    <braunr> pinotree: ah you mean, the object gets deallocated early because
+      of an deref overflow ?
+    <braunr> pinotree: could be, yes
+    <braunr> pinotree: i wonder if it could happen because of the periodic sync
+      duplicating the node table without holding references
+    <braunr> rah, libports uses a big lock in many places :(
+    <pinotree> braunr: yes, i meant that
+    <braunr> we could try using libduma some day
+    <braunr> i wonder if it could work out of the box
+    <pinotree> but that wouldn't help to find out whether a port gets deref'ed
+      too often, for instance
+    <pinotree> although it could be adapted to do so, i guess
+    <braunr> reproducing + a call trace or core would be best, but i'm not even
+      sure we can get that easily lol
+
+[[automatic_backtraces_when_assertions_hit]].

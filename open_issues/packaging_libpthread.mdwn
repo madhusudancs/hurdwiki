@@ -137,3 +137,53 @@ License|/fdl]]."]]"""]]
     <youpi> I know, I've asked tschwinge about it
     <youpi> it's not urging anyway
     <pinotree> right
+
+
+## IRC, freenode, #hurd, 2012-07-21
+
+    <pinotree> tschwinge: btw, samuel suggested to rename in libpthread ia32 →
+      i386, to better fit with glibc
+    <tschwinge> pinotree: Hmm, that'd somewhat break interopability with
+      Viengoos' use of libpthread.
+    <pinotree> how would it break with viengoos?
+    <tschwinge> I assume it is using the i386 names.  Hmm, no isn't it x86_64
+      only?
+    <tschwinge> I'll check.
+    <pinotree> does it use automake (with the Makefile.am in repo)?
+    <tschwinge> I have no idea what the current branch arrangement is.
+    <pinotree> tschwinge: it looks like ia32 is hardcoded in Makefile and
+      Makefile.am
+
+
+## IRC, freenode, #hurd, 2012-08-07
+
+    <tschwinge> Also, the Savannah hurd/glibc.git one does not/not yet include
+      libpthread.
+    <tschwinge> But that could easily be added as a Git submodule.
+    <tschwinge> youpi: To put libpthread into glibc it is literally enough to
+      make Savannah hurd/libpthread.git appear at [glibc]/libpthread?
+    <youpi> tschwinge: there are some patches needed in the rest of the tree
+    <youpi> see in debian, libpthread_clean.diff, tg-libpthread_depends.diff,
+      unsubmitted-pthread.diff, unsubmitted-pthread_posix_options.diff
+    <tschwinge> The libpthread in Debian glibc is
+      hurd/libpthread.git:b428baaa85c0adca9ef4884c637f289a0ab5e2d6 but with
+      25260994c812050a5d7addf125cdc90c911ca5c1 »Store self in __thread variable
+      instead of threadvar« reverted (why?), and the following additional
+      change applied to Makefile:
+    <tschwinge>  ifeq ($(IN_GLIBC),yes)
+    <tschwinge>  $(inst_libdir)/libpthread.so:
+      $(objpfx)libpthread.so$(libpthread.so-version) \
+    <tschwinge>                               $(+force)
+    <tschwinge> -       ln -sf $(slibdir)/libpthread.so$(libpthread.so-version)
+      $@
+    <tschwinge> +       ln -sf libpthread.so$(libpthread.so-version) $@
+    <braunr> tschwinge: is there any plan to merge libpthread.git in glibc.git
+      upstream ?
+    <tschwinge> braunr, youpi: Has not yet been discussed with Roland, as far
+      as I know.
+    <youpi> has not
+    <youpi> libpthread.diff is supposed to be a verbatim copy of the repository
+    <youpi> and then there are a couple patches which don't (yet) make sense
+      upstream
+    <youpi> the slibdir change, however, is odd
+    <youpi> it must be a leftover

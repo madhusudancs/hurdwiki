@@ -49,6 +49,91 @@ Tom Van Cutsem, 2009.
     <youpi> right
 
 
+## IRC, freenode, #hurd, 2012-07-16
+
+    <braunr> hm interesting
+    <braunr> when many threads are creating to handle requests, they
+      automatically create a pool of worker threads by staying around for some
+      time
+    <braunr> this time is given in the libport call
+    <braunr> but the thread always remain
+    <braunr> they must be used in turn each time a new requet comes in
+    <braunr> ah no :(, they're maintained by the periodic sync :(
+    <braunr> hm, still not that, so weird
+    <antrik> braunr: yes, that's a known problem: unused threads should go away
+      after some time, but that doesn't actually happen
+    <antrik> don't remember though whether it's broken for some reason, or
+      simply not implemented at all...
+    <antrik> (this was already a known issue when thread throttling was
+      discussed around 2005...)
+    <braunr> antrik: ok
+    <braunr> hm threads actually do finish ..
+    <braunr> libthreads retain them in a pool for faster allocations
+    <braunr> hm, it's worse than i thought
+    <braunr> i think the hurd does its job well
+    <braunr> the cthreads code never reaps threads
+    <braunr> when threads are finished, they just wait until assigned a new
+      invocation
+
+    <braunr> i don't understand ports_manage_port_operations_multithread :/
+    <braunr> i think i get it
+    <braunr> why do people write things in such a complicated way ..
+    <braunr> such code is error prone and confuses anyone
+
+    <braunr> i wonder how well nested functions interact with threads when
+      sharing variables :/
+    <braunr> the simple idea of nested functions hurts my head
+    <braunr> do you see my point ? :) variables on the stack automatically
+      shared between threads, without the need to explicitely pass them by
+      address
+    <antrik> braunr: I don't understand. why would variables on the stack be
+      shared between threads?...
+    <braunr> antrik: one function declares two variables, two nested functions,
+      and use these in separate threads
+    <braunr> are the local variables still "local"
+    <braunr> ?
+    <antrik> braunr: I would think so? why wouldn't they? threads have separate
+      stacks, right?...
+    <antrik> I must admit though that I have no idea how accessing local
+      variables from the parent function works at all...
+    <braunr> me neither
+
+    <braunr> why don't demuxers get a generic void * like every callback does
+      :((
+    <antrik> ?
+    <braunr> antrik: they get pointers to the input and output messages only
+    <antrik> why is this a problem?
+    <braunr> ports_manage_port_operations_multithread can be called multiple
+      times in the same process
+    <braunr> each call must have its own context
+    <braunr> currently this is done by using nested functions
+    <braunr> also, why demuxers return booleans while mach_msg_server_timeout
+      happily ignores them :(
+    <braunr> callbacks shouldn't return anything anyway
+    <braunr> but then you have a totally meaningless "return 1" in the middle
+      of the code
+    <braunr> i'd advise not using a single nested function
+    <antrik> I don't understand the remark about nested function
+    <braunr> they're just horrible extensions
+    <braunr> the compiler completely hides what happens behind the scenes, and
+      nasty bugs could come out of that
+    <braunr> i'll try to rewrite ports_manage_port_operations_multithread
+      without them and see if it changes anything
+    <braunr> but it's not easy
+    <braunr> also, it makes debugging harder :p
+    <braunr> i suspect gdb hangs are due to that, since threads directly start
+      on a nested function
+    <braunr> and if i'm right, they are created on the stack
+    <braunr> (which is also horrible for security concerns, but that's another
+      story)
+    <braunr> (at least the trampolines)
+    <antrik> I seriously doubt it will change anything... but feel free to
+      prove me wrong :-)
+    <braunr> well, i can see really weird things, but it may have nothing to do
+      with the fact functions are nested
+    <braunr> (i still strongly believe those shouldn't be used at all)
+
+
 # Alternative approaches:
 
   * <http://www.concurrencykit.org/>

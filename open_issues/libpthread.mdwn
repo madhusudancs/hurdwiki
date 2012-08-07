@@ -42,3 +42,527 @@ There is a [[!FF_project 275]][[!tag bounty]] on this task.
     <youpi> there'll still be the issue that only one will be initialized
     <youpi> and one that provides libc thread safety functions, etc.
     <pinotree> that's what i wanted to knew, thanks :)
+
+
+## IRC, freenode, #hurd, 2012-07-23
+
+    <bddebian> So I am not sure what to do with the hurd_condition_wait stuff
+    <braunr> i would also like to know what's the real issue with cancellation
+      here
+    <braunr> because my understanding is that libpthread already implements it
+    <braunr> does it look ok to you to make hurd_condition_timedwait return an
+      errno code (like ETIMEDOUT and ECANCELED) ?
+    <youpi> braunr: that's what pthread_* function usually do, yes
+    <braunr> i thought they used their own code
+    <youpi> no
+    <braunr> thanks
+    <braunr> well, first, do you understand what hurd_condition_wait is ?
+    <braunr> it's similar to condition_wait or pthread_cond_wait with a subtle
+      difference
+    <braunr> it differs from the original cthreads version by handling
+      cancellation
+    <braunr> but it also differs from the second by how it handles cancellation
+    <braunr> instead of calling registered cleanup routines and leaving, it
+      returns an error code
+    <braunr> (well simply !0 in this case)
+    <braunr> so there are two ways
+    <braunr> first, change the call to pthread_cond_wait
+    <bddebian> Are you saying we could fix stuff to use pthread_cond_wait()
+      properly?
+    <braunr> it's possible but not easy
+    <braunr> because you'd have to rewrite the cancellation code
+    <braunr> probably writing cleanup routines
+    <braunr> this can be hard and error prone
+    <braunr> and is useless if the code already exists
+    <braunr> so it seems reasonable to keep this hurd extension
+    <braunr> but now, as it *is* a hurd extension noone else uses
+    <antrik> braunr: BTW, when trying to figure out a tricky problem with the
+      auth server, cfhammer digged into the RPC cancellation code quite a bit,
+      and it's really a horrible complex monstrosity... plus the whole concept
+      is actually broken in some regards I think -- though I don't remember the
+      details
+    <braunr> antrik: i had the same kind of thoughts
+    <braunr> antrik: the hurd or pthreads ones ?
+    <antrik> not sure what you mean. I mean the RPC cancellation code -- which
+      is involves thread management too
+    <braunr> ok
+    <antrik> I don't know how it is related to hurd_condition_wait though
+    <braunr> well i found two main entry points there
+    <braunr> hurd_thread_cancel and hurd_condition_wait
+    <braunr> and it didn't look that bad
+    <braunr> whereas in the pthreads code, there are many corner cases
+    <braunr> and even the standard itself looks insane
+    <antrik> well, perhaps the threading part is not that bad...
+    <antrik> it's not where we saw the problems at any rate :-)
+    <braunr> rpc interruption maybe ?
+    <antrik> oh, right... interruption is probably the right term
+    <braunr> yes that thing looks scary
+    <braunr> :))
+    <braunr> the migration thread paper mentions some things about the problems
+      concerning threads controllability
+    <antrik> I believe it's a very strong example for why building around
+      standard Mach features is a bad idea, instead of adapting the primitives
+      to our actual needs...
+    <braunr> i wouldn't be surprised if the "monstrosities" are work arounds
+    <braunr> right
+
+
+## IRC, freenode, #hurd, 2012-07-26
+
+    <bddebian> Uhm, where does /usr/include/hurd/signal.h come from?
+    <pinotree> head -n4 /usr/include/hurd/signal.
+    <pinotree> h
+    <bddebian> Ohh glibc?
+    <bddebian> That makes things a little more difficult :(
+    <braunr> why ?
+    <bddebian> Hurd includes it which brings in cthreads
+    <braunr> ?
+    <braunr> the hurd already brings in cthreads
+    <braunr> i don't see what you mean
+    <bddebian> Not anymore :)
+    <braunr> the system cthreads header ?
+    <braunr> well it's not that difficult to trick the compiler not to include
+      them
+    <bddebian> signal.h includes cthreads.h  I need to stop that
+    <braunr> just define the _CTHREADS_ macro before including anything
+    <braunr> remember that header files are normally enclosed in such macros to
+      avoid multiple inclusions
+    <braunr> this isn't specific to cthreads
+    <pinotree> converting hurd from cthreads to pthreads will make hurd and
+      glibc break source and binary compatibility
+    <bddebian> Of course
+    <braunr> reminds me of the similar issues of the late 90s
+    <bddebian> Ugh, why is he using _pthread_self()?
+    <pinotree> maybe because it accesses to the internals
+    <braunr> "he" ?
+    <bddebian> Thomas in his modified cancel-cond.c
+    <braunr> well, you need the internals to implement it
+    <braunr> hurd_condition_wait is similar to pthread_condition_wait, except
+      that instead of stopping the thread and calling cleanup routines, it
+      returns 1 if cancelled
+    <pinotree> not that i looked at it, but there's really no way to implement
+      it using public api?
+    <bddebian> Even if I am using glibc pthreads?
+    <braunr> unlikely
+    <bddebian> God I had all of this worked out before I dropped off for a
+      couple years.. :(
+    <braunr> this will come back :p
+    <pinotree> that makes you the perfect guy to work on it ;)
+    <bddebian> I can't find a pt-internal.h anywhere.. :(
+    <pinotree> clone the hurd/libpthread.git repo from savannah
+    <bddebian> Of course when I was doing this libpthread was still in hurd
+      sources...
+    <bddebian> So if I am using glibc pthread, why can't I use pthread_self()
+      instead?
+    <pinotree> that won't give you access to the internals
+    <bddebian> OK, dumb question time.  What internals?
+    <pinotree> the libpthread ones
+    <braunr> that's where you will find if your thread has been cancelled or
+      not
+    <bddebian> pinotree: But isn't that assuming that I am using hurd's
+      libpthread?
+    <pinotree> if you aren't inside libpthread, no
+    <braunr> pthread_self is normally not portable
+    <braunr> you can only use it with pthread_equal
+    <braunr> so unless you *know* the internals, you can't use it
+    <braunr> and you won't be able to do much
+    <braunr> so, as it was done with cthreads, hurd_condition_wait should be
+      close to the libpthread implementation
+    <braunr> inside, normally
+    <braunr> now, if it's too long for you (i assume you don't want to build
+      glibc)
+    <braunr> you can just implement it outside, grabbing the internal headers
+      for now
+    <pinotree> another "not that i looked at it" question: isn't there no way
+      to rewrite the code using that custom condwait stuff to use the standard
+      libpthread one?
+    <braunr> and once it works, it'll get integrated
+    <braunr> pinotree: it looks very hard
+    <bddebian> braunr: But the internal headers are assuming hurd libpthread
+      which isn't in the source anymore
+    <braunr> from what i could see while working on select, servers very often
+      call hurd_condition_wait
+    <braunr> and they return EINTR if canceleld
+    <braunr> so if you use the standard pthread_cond_wait function, your thread
+      won't be able to return anything, unless you push the reply in a
+      completely separate callback
+    <braunr> i'm not sure how well mig can cope with that
+    <braunr> i'd say it can't :)
+    <braunr> no really it looks ugly
+    <braunr> it's far better to have this hurd specific function and keep the
+      existing user code as it is
+    <braunr> bddebian: you don't need the implementation, only the headers
+    <braunr> the thread, cond, mutex structures mostly
+    <bddebian> I should turn <pt-internal.h> to "pt-internal.h" and just put it
+      in libshouldbelibc, no?
+    <pinotree> no, that header is not installed
+    <bddebian> Obviously not the "best" way
+    <bddebian> pinotree: ??
+    <braunr> pinotree: what does it change ?
+    <pinotree> braunr: it == ?
+    <braunr> bddebian: you could even copy it entirely in your new
+      cancel-cond.C and mention where it was copied from
+    <braunr> pinotree: it == pt-internal.H not being installed
+    <pinotree> that he cannot include it in libshouldbelibc sources?
+    <pinotree> ah, he wants to copy it?
+    <braunr> yes
+    <braunr> i want him to copy it actually :p
+    <braunr> it may be hard if there are a lot of macro options
+    <pinotree> the __pthread struct changes size and content depending on other
+      internal sysdeps headers
+    <braunr> well he needs to copy those too :p
+    <bddebian> Well even if this works we are going to have to do something
+      more "correct" about hurd_condition_wait.  Maybe even putting it in
+      glibc?
+    <braunr> sure
+    <braunr> but again, don't waste time on this for now
+    <braunr> make it *work*, then it'll get integrated
+    <bddebian> Like it has already?  This "patch" is only about 5 years old
+      now... ;-P
+    <braunr> but is it complete ?
+    <bddebian> Probably not :)
+    <bddebian> Hmm, I wonder how many undefined references I am going to get
+      though.. :(
+    <bddebian> Shit, 5
+    <bddebian> One of which is ___pthread_self.. :(
+    <bddebian> Does that mean I am actually going to have to build hurds
+      libpthreads in libshouldbeinlibc?
+    <bddebian> Seriously, do I really need ___pthread_self, __pthread_self,
+      _pthread_self and pthread_self???
+    <bddebian> I'm still unclear what to do with cancel-cond.c.  It seems to me
+      that if I leave it the way it is currently I am going to have to either
+      re-add libpthreads or still all of the libpthreads code under
+      libshouldbeinlibc.
+    <braunr> then add it in libc
+    <braunr> glib
+    <braunr> glibc
+    <braunr> maybe under the name __hurd_condition_wait
+    <bddebian> Shouldn't I be able to interrupt cancel-cond stuff to use glibc
+      pthreads?
+    <braunr> interrupt ?
+    <bddebian> Meaning interject like they are doing.  I may be missing the
+      point but they are just obfuscating libpthreads thread with some other
+      "namespace"?  (I know my terminology is wrong, sorry).
+    <braunr> they ?
+    <bddebian> Well Thomas in this case but even in the old cthreads code,
+      whoever wrote cancel-cond.c
+    <braunr> but they use internal thread structures ..
+    <bddebian> Understood but at some level they are still just getting to a
+      libpthread thread, no?
+    <braunr> absolutely not ..
+    <braunr> there is *no* pthread stuff in the hurd
+    <braunr> that's the problem :p
+    <bddebian> Bah damnit...
+    <braunr> cthreads are directly implement on top of mach threads
+    <braunr> implemeneted*
+    <braunr> implemented*
+    <bddebian> Sure but hurd_condition_wait wasn't
+    <braunr> of course it is
+    <braunr> it's almost the same as condition_wait
+    <braunr> but returns 1 if a cancelation request was made
+    <bddebian> Grr, maybe I am just confusing myself because I am looking at
+      the modified (pthreads) version instead of the original cthreads version
+      of cancel-cond.c
+    <braunr> well if the modified version is fine, why not directly use that ?
+    <braunr> normally, hurd_condition_wait should sit next to other pthread
+      internal stuff
+    <braunr> it could be renamed __hurd_condition_wait, i'm not sure
+    <braunr> that's irrelevant for your work anyway
+    <bddebian> I am using it but it relies on libpthread and I am trying to use
+      glibc pthreads
+    <braunr> hum
+    <braunr> what's the difference between libpthread and "glibc pthreads" ?
+    <braunr> aren't glibc pthreads the merged libpthread ?
+    <bddebian> quite possibly but then I am missing something obvious.  I'm
+      getting ___pthread_self in libshouldbeinlibc but it is *UND*
+    <braunr> bddebian: with unmodified binaries ?
+    <bddebian> braunr: No I added cancel-cond.c to libshouldbeinlibc
+    <bddebian> And some of the pt-xxx.h headers
+    <braunr> well it's normal then
+    <braunr> i suppose
+    <bddebian> braunr: So how do I get those defined without including
+      pthreads.c from libpthreads? :)
+    <antrik> pinotree: hm... I think we should try to make sure glibc works
+      both whith cthreads hurd and pthreads hurd. I hope that shoudn't be so
+      hard.
+    <antrik> breaking binary compatibility for the Hurd libs is not too
+      terrible I'd say -- as much as I'd like that, we do not exactly have a
+      lot of external stuff depending on them :-)
+    <braunr> bddebian: *sigh*
+    <braunr> bddebian: just add cancel-cond to glibc, near the pthread code :p
+    <bddebian> braunr: Wouldn't I still have the same issue?
+    <braunr> bddebian: what issue ?
+    <antrik> is hurd_condition_wait() the name of the original cthreads-based
+      function?
+    <braunr> antrik: the original is condition_wait
+    <antrik> I'm confused
+    <antrik> is condition_wait() a standard cthreads function, or a
+      Hurd-specific extension?
+    <braunr> antrik: as standard as you can get for something like cthreads
+    <bddebian> braunr: Where hurd_condition_wait is looking for "internals" as
+      you call them.  I.E. there is no __pthread_self() in glibc pthreads :)
+    <braunr> hurd_condition_wait is the hurd-specific addition for cancelation
+    <braunr> bddebian: who cares ?
+    <braunr> bddebian: there is a pthread structure, and conditions, and
+      mutexes
+    <braunr> you need those definitions
+    <braunr> so you either import them in the hurd
+    <antrik> braunr: so hurd_condition_wait() *is* also used in the original
+      cthread-based implementation?
+    <braunr> or you write your code directly where they're available
+    <braunr> antrik: what do you call "original" ?
+    <antrik> not transitioned to pthreads
+    <braunr> ok, let's simply call that cthreads
+    <braunr> yes, it's used by every hurd servers
+    <braunr> virtually
+    <braunr> if not really everyone of them
+    <bddebian> braunr: That is where you are losing me.  If I can just use
+      glibc pthreads structures, why can't I just use them in the new pthreads
+      version of cancel-cond.c which is what I was originally asking.. :)
+    <braunr> you *have* to do that
+    <braunr> but then, you have to build the whole glibc
+    * bddebian shoots himself
+    <braunr> and i was under the impression you wanted to avoid that
+    <antrik> do any standard pthread functions use identical names to any
+      standard cthread functions?
+    <braunr> what you *can't* do is use the standard pthreads interface
+    <braunr> no, not identical
+    <braunr> but very close
+    <braunr> bddebian: there is a difference between using pthreads, which
+      means using the standard posix interface, and using the glibc pthreads
+      structure, which means toying with the internale implementation
+    <braunr> you *cannot* implement hurd_condition_wait with the standard posix
+      interface, you need to use the internal structures
+    <braunr> hurd_condition_wait is actually a shurd specific addition to the
+      threading library
+    <braunr> hurd*
+    <antrik> well, in that case, the new pthread-based variant of
+      hurd_condition_wait() should also use a different name from the
+      cthread-based one
+    <braunr> so it's normal to put it in that threading library, like it was
+      done for cthreads
+    <braunr> 21:35 < braunr> it could be renamed __hurd_condition_wait, i'm not
+      sure
+    <bddebian> Except that I am trying to avoid using that threading library
+    <braunr> what ?
+    <bddebian> If I am understanding you correctly it is an extention to the
+      hurd specific libpthreads?
+    <braunr> to the threading library, whichever it is
+    <braunr> antrik: although, why not keeping the same name ?
+    <antrik> braunr: I don't think having hurd_condition_wait() for the cthread
+      variant and __hurd_condition_wait() would exactly help clarity...
+    <antrik> I was talking about a really new name. something like
+      pthread_hurd_condition_wait() or so
+    <antrik> braunr: to avoid confusion. to avoid accidentally pulling in the
+      wrong one at build and/or runtime.
+    <antrik> to avoid possible namespace conflicts
+    <braunr> ok
+    <braunr> well yes, makes sense
+    <bddebian> braunr: Let me state this as plainly as I hope I can.  If I want
+      to use glibc's pthreads, I have no choice but to add it to glibc?
+    <braunr> and pthread_hurd_condition_wait is a fine name
+    <braunr> bddebian: no
+    <braunr> bddebian: you either add it there
+    <braunr> bddebian: or you copy the headers defining the internal structures
+      somewhere else and implement it there
+    <braunr> but adding it to glibc is better
+    <braunr> it's just longer in the beginning, and now i'm working on it, i'm
+      really not sure
+    <braunr> add it to glibc directly :p
+    <bddebian> That's what I am trying to do but the headers use pthread
+      specific stuff would should be coming from glibc's pthreads
+    <braunr> yes
+    <braunr> well it's not the headers you need
+    <braunr> you need the internal structure definitions
+    <braunr> sometimes they're in c files for opacity
+    <bddebian> So ___pthread_self() should eventually be an obfuscation of
+      glibcs pthread_self(), no?
+    <braunr> i don't know what it is
+    <braunr> read the cthreads variant of hurd_condition_wait, understand it,
+      do the same for pthreads
+    <braunr> it's easy :p
+    <bddebian> For you bastards that have a clue!! ;-P
+    <antrik> I definitely vote for adding it to the hurd pthreads
+      implementation in glibc right away. trying to do it externally only adds
+      unnecessary complications
+    <antrik> and we seem to agree that this new pthread function should be
+      named pthread_hurd_condition_wait(), not just hurd_condition_wait() :-)
+
+
+## IRC, freenode, #hurd, 2012-07-27
+
+    <bddebian> OK this hurd_condition_wait stuff is getting ridiculous the way
+      I am trying to tackle it. :(  I think I need a new tactic.
+    <braunr> bddebian: what do you mean ?
+    <bddebian> braunr: I know I am thick headed but I still don't get why I
+      cannot implement it in libshouldbeinlibc for now but still use glibc
+      pthreads internals
+    <bddebian> I thought I was getting close last night by bringing in all of
+      the hurd pthread headers and .c files but it just keeps getting uglier
+      and uglier
+    <bddebian> youpi: Just to verify.  The /usr/lib/i386-gnu/libpthread.so that
+      ships with Debian now is from glibc, NOT libpthreads from Hurd right?
+      Everything I need should be available in glibc's libpthreads? (Except for
+      hurd_condition_wait obviously).
+    <braunr> 22:35 < antrik> I definitely vote for adding it to the hurd
+      pthreads implementation in glibc right away. trying to do it externally
+      only adds unnecessary complications
+    <youpi> bddebian: yes
+    <youpi> same as antrik
+    <bddebian> fuck
+    <youpi> libpthread *already* provides some odd symbols (cthread
+      compatibility), it can provide others
+    <braunr> bddebian: don't curse :p it will be easier in the long run
+    * bddebian breaks out glibc :(
+    <braunr> but you should tell thomas that too
+    <bddebian> braunr: I know it just adds a level of complexity that I may not
+      be able to deal with
+    <braunr> we wouldn't want him to waste too much time on the external
+      libpthread
+    <braunr> which one ?
+    <bddebian> glibc for one.  hurd_condition_wait() for another which I don't
+      have a great grasp on.  Remember my knowledge/skillsets are limited
+      currently.
+    <braunr> bddebian: tschwinge has good instructions to build glibc
+    <braunr> keep your tree around and it shouldn't be long to hack on it
+    <braunr> for hurd_condition_wait, i can help
+    <bddebian> Oh I was thinking about using Debian glibc for now.  You think I
+      should do it from git?
+    <braunr> no
+    <braunr> debian rules are even more reliable
+    <braunr> (just don't build all the variants)
+    <pinotree> `debian/rules build_libc` builds the plain i386 variant only
+    <bddebian> So put pthread_hurd_cond_wait in it's own .c file or just put it
+      in pt-cond-wait.c ?
+    <braunr> i'd put it in pt-cond-wait.C
+    <bddebian> youpi or braunr: OK, another dumb question.  What (if anything)
+      should I do about hurd/hurd/signal.h.  Should I stop it from including
+      cthreads?
+    <youpi> it's not a dumb question. it should probably stop, yes, but there
+      might be uncovered issues, which we'll have to take care of
+    <bddebian> Well I know antrik suggested trying to keep compatibility but I
+      don't see how you would do that
+    <braunr> compability between what ?
+    <braunr> and source and/or binary ?
+    <youpi> hurd/signal.h implicitly including cthreads.h
+    <braunr> ah
+    <braunr> well yes, it has to change obviously
+    <bddebian> Which will break all the cthreads stuff of course
+    <bddebian> So are we agreeing on pthread_hurd_cond_wait()?
+    <braunr> that's fine
+    <bddebian> Ugh, shit there is stuff in glibc using cthreads??
+    <braunr> like what ?
+    <bddebian> hurdsig, hurdsock, setauth, dtable, ...
+    <youpi> it's just using the compatibility stuff, that pthread does provide
+    <bddebian> but it includes cthreads.h implicitly
+    <bddebian> s/it/they in many cases
+    <youpi> not a problem, we provide the functions
+    <bddebian> Hmm, then what do I do about signal.h?  It includes chtreads.h
+      because it uses extern struct mutex ...
+    <youpi> ah, then keep the include
+    <youpi> the pthread mutexes are compatible with that
+    <youpi> we'll clean that afterwards
+    <bddebian> arf, OK
+    <youpi> that's what I meant by "uncover issues"
+
+
+## IRC, freenode, #hurd, 2012-07-28
+
+    <bddebian> Well crap, glibc built but I have no symbol for
+      pthread_hurd_cond_wait in libpthread.so :(
+    <bddebian> Hmm, I wonder if I have to add pthread_hurd_cond_wait to
+      forward.c and Versions? (Versions obviously eventually)
+    <pinotree> bddebian: most probably not about forward.c, but definitely you
+      have to export public stuff using Versions
+
+
+## IRC, freenode, #hurd, 2012-07-29
+
+    <bddebian> braunr: http://paste.debian.net/181078/
+    <braunr> ugh, inline functions :/
+    <braunr> "Tell hurd_thread_cancel how to unblock us"
+    <braunr> i think you need that one too :p
+    <bddebian> ??
+    <braunr> well, they work in pair
+    <braunr> one cancels, the other notices it
+    <braunr> hurd_thread_cancel is in the hurd though, iirc
+    <braunr> or uh wait
+    <braunr> no it's in glibc, hurd/thread-cancel.c
+    <braunr> otherwise it looks like a correct reuse of the original code, but
+      i need to understand the pthreads internals better to really say anything
+
+
+## IRC, freenode, #hurd, 2012-08-03
+
+    <braunr> pinotree: what do you think of
+      condition_implies/condition_unimplies ?
+    <braunr> the work on pthread will have to replace those
+
+
+## IRC, freenode, #hurd, 2012-08-06
+
+    <braunr> bddebian: so, where is the work being done ?
+    <bddebian> braunr: Right now I would just like to testing getting my glibc
+      with pthread_hurd_cond_wait installed on the clubber subhurd.  It is in
+      /home/bdefreese/glibc-debian2
+    <braunr> we need a git branch
+    <bddebian> braunr: Then I want to rebuild hurd with Thomas's pthread
+      patches against that new libc
+    <bddebian> Aye
+    <braunr> i don't remember, did thomas set a git repository somewhere for
+      that ?
+    <bddebian> He has one but I didn't have much luck with it since he is using
+      an external libpthreads
+    <braunr> i can manage the branches
+    <bddebian> I was actually patching debian/hurd then adding his patches on
+      top of that.  It is in /home/bdefreese/debian-hurd but he has updateds
+      some stuff since then
+    <bddebian> Well we need to agree on a strategy.  libpthreads only exists in
+      debian/glibc
+    <braunr> it would be better to have something upstream than to work on a
+      debian specific branch :/
+    <braunr> tschwinge: do you think it can be done 
+    <braunr> ?
+
+
+## IRC, freenode, #hurd, 2012-08-07
+
+    <tschwinge> braunr: You mean to create on Savannah branches for the
+      libpthread conversion?  Sure -- that's what I have been suggesting to
+      Barry and Thomas D. all the time.
+
+    <bddebian> braunr: OK, so I installed my glibc with
+      pthread_hurd_condition_wait in the subhurd and now I have built Debian
+      Hurd with Thomas D's pthread patches.
+    <braunr> bddebian: i'm not sure we're ready for tests yet :p
+    <bddebian> braunr: Why not? :)
+    <braunr> bddebian: a few important bits are missing
+    <bddebian> braunr: Like?
+    <braunr> like condition_implies
+    <braunr> i'm not sure they have been handled everywhere
+    <braunr> it's still interesting to try, but i bet your system won't finish
+      booting
+    <bddebian> Well I haven't "installed" the built hurd yet
+    <bddebian> I was trying to think of a way to test a little bit first, like
+      maybe ext2fs.static or something
+    <bddebian> Ohh, it actually mounted the partition
+    <bddebian> How would I actually "test" it?
+    <braunr> git clone :p
+    <braunr> building a debian package inside
+    <braunr> removing the whole content after
+    <braunr> that sort of things
+    <bddebian> Hmm, I think I killed clubber :(
+    <bddebian> Yep.. Crap! :(
+    <braunr> ?
+    <braunr> how did you do that ?
+    <bddebian> Mounted a new partition with the pthreads ext2fs.static then did
+      an apt-get source hurd to it..
+    <braunr> what partition, and what mount point ?
+    <bddebian> I added a new 2Gb partition on /dev/hd0s6 and set the translator
+      on /home/bdefreese/part6
+    <braunr> shouldn't kill your hurd
+    <bddebian> Well it might still be up but killed my ssh session at the very
+      least :)
+    <braunr> ouch
+    <bddebian> braunr: Do you have debugging enabled in that custom kernel you
+      installed?  Apparently it is sitting at the debug prompt.
