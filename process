@@ -8,7 +8,7 @@ set -e -x
 project=$1
 build_suffix=.build
 case $project in
-  gcc)
+  binutils | gcc)
     branch=hurd/master
     linux_host=kepler.SCHWINGE
     hurd_host=coulomb.SCHWINGE
@@ -62,7 +62,7 @@ esac
 shift
 
 case $project:$action in
-  gcc:fetch | glibc:fetch)
+  binutils:fetch | gcc:fetch | glibc:fetch)
     host=$1
     case $host in
       coulomb.SCHWINGE)
@@ -96,8 +96,9 @@ case $project:$action in
     : "${mount:?}"
     : "${project_base:?}"
     case $project:$step in
-      gcc:build | gcc:install \
-        | glibc:build | glibc:install | glibc:test)
+      binutils:build | binutils:install \
+      | gcc:build | gcc:install \
+      | glibc:build | glibc:install | glibc:test)
         ssh \
           "$host" \
           'cd '"$project_base"'/ && \
@@ -106,7 +107,7 @@ case $project:$action in
           > toolchain/logs/"$project"/"$host"/"$step"
         exit
         ;;
-      gcc:test)
+      binutils:test | gcc:test)
         rsync \
           -vd --delete \
           --rsync-path='\
@@ -131,13 +132,14 @@ case $project:$action in
         ;;
     esac
     ;;
-  gcc:diff)
+  binutils:diff | gcc:diff)
     [ $# = 0 ]
 
     : "${linux_host:?}"
     : "${hurd_host:?}"
     case $project:$step in
-      gcc:build | gcc:install)
+      binutils:build | binutils:install \
+      | gcc:build | gcc:install)
         sed \
           -f toolchain/logs/"$project"/"$linux_host"/"$step".sed \
           < toolchain/logs/"$project"/"$linux_host"/"$step" \
@@ -160,7 +162,7 @@ case $project:$action in
         [ "$r" = 0 ] || [ "$r" = 1 ]
         exit
         ;;
-      gcc:test)
+      binutils:test | gcc:test)
         r=0
         diff \
           -Nrwu -F ^Running \
