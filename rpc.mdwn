@@ -11,6 +11,92 @@ License|/fdl]]."]]"""]]
 
 RPC stands for remote procedure call.
 
+This is the basis for about everything in the Hurd. It is based on the Mach
+RPC mechanism (the mach_msg system call). An RPC is made against a Mach port,
+which is the gateway to the translator which will serve the RPC. Let's take for
+instance the case of opening a file, and advancing (lseek) 10 bytes into it. The
+user program will be something like:
+
+    #include <fcntl.h>
+
+    int main(void) {
+      int fd = open("test.txt", O_RDONLY);
+      lseek(fd, 10, SEEK_CUR);
+    }
+
+Both open and lseek are functions provided the libc, which make RPC calls.
+
+Open is a bit complex because it finds its way to the eventual translator, but
+for a mere file on the root filesystem, what happens boils down to calling
+the dir_lookup function against the root filesystem. This is an RPC from the fs
+interface (see fs.defs). The implementation of the function is thus actually
+generated using mig during the glibc build in RPC_dir_lookup.c. This generated
+function essentially encodes the parameters into a data buffer, and makes a
+mach_msg system call to send the buffer to the root filesystem port, with the
+dir_lookup RPC id.
+
+The root filesystem, for instance ext2fs, was sitting in its main
+loop (libdiskfs/init-first.c, master_thread_function()), which calls
+ports_manage_port_operations_multithread(), which essentially simply keeps
+making a mach_msg system call to receive a message, and calls the demuxer
+on it, here the demuxer parameter, diskfs_demuxer. This demuxer calls the
+demuxers for the various interfaces supported by ext2fs. These demuxers are
+generated using mig during the hurd build. For instance, the fs interface
+demuxer for diskfs, diskfs_fs_server, is in libdiskfs/fsServer.c. It simply
+checks whether the RPC id is an fs interface ID, and if so uses the
+diskfs_fs_server_routines array to know which function should be
+called according to the RPC id. Here it's _Xdir_lookup which thus gets
+called. This decodes the parameters from the message data buffer, and calls
+diskfs_S_dir_lookup.
+
+diskfs_S_dir_lookup() in the ext2fs translator does stuff to check that the file
+exists, etc. and eventually creates a new port, which will symbolize the file
+being opened, and a structure to store information about it. It returns the
+port to its caller, _Xdir_lookup, which puts it into the reply message data
+buffer and returns. ports_manage_port_operations_multithread() then calls
+mach_msg to send that port to the user program.
+
+The mach_msg call in the user program thus returns, returning the port, decoded
+by dir_lookup. glibc creates a new fd entry in its fd table, and records the
+port into it. It returns 0 (success).
+
+Lseek is simpler. The glibc implementation simply calls the __io_seek function
+against the port of the fd. This is an RPC from the io interface (see io.defs).
+As explained above, the implementation is thus in RPC_io_seek.c, it encodes
+parameters and makes a mach_msg system call to the port of the fd with the
+io_seek RPC id.
+
+In the root filesystem, it's now the demuxer for the io interface,
+diskfs_io_server, which will recognize the RPC id, and call _Xio_seek, which
+finds the data structure for the port, and calls diskfs_S_io_seek. The latter
+simply modifies the data structure to account for the file position change, and
+returns the new position. _Xio_seek encodes the position into the reply message,
+which is sent back by ports_manage_port_operations_multithread()
+through mach_msg.
+
+The mach_msg call in the user program thus returns the new offset, decoded by
+__io_seek. lseek can then return it to the user application.
+
+
+When hacking, one does *not* need to keep all that in mind. All one needs
+to remember is that when the application program calls open(), the glibc
+implementation actually calls dir_lookup(), which triggers a call to
+diskfs_S_dir_lookup in the ext2fs translator. When the application program calls
+lseek(), the glibc implementation calls __io_seek(), which triggers a call to
+diskfs_S_io_seek in the ext2fs translator. And so on...
+
+Q&A
+
+Q: How do I know whether a function is an RPC or not?
+
+A: Simply grep the function name (without leading underscores) in the
+/usr/include/hurd/*.defs files.
+
+Q: Why is it libdiskfs functions which get called?
+
+A: Because ext2fs is libdiskfs-based (see HURDLIBS = diskfs in ext2fs/Makefile).
+Other translators are libnetfs-based or libtrivfs-based. grep for RPC names into
+those according to what your translator is based on.
 
 # See Also
 
