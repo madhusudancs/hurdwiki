@@ -190,7 +190,12 @@ Last reviewed up to the [[Git mirror's 56e49b714ecd32c72c334802b00e3d62008d98e3
     `open_by_handle_at`, `process_vm_readv`, `process_vm_writev`, `sendmmsg`,
     `setns`, `sync_file_range`
 
+    Check also the content of `gnu/stubs-32.h`, which lists all the functions
+    marked as stub which only return `ENOSYS`.
+
       * `chflags`
+
+        Patch sent, [[!message-id "20120427012130.GZ19431@type.famille.thibault.fr"]].
 
         IRC, OFTC, #debian-hurd, 2012-04-27:
 
@@ -274,7 +279,7 @@ Last reviewed up to the [[Git mirror's 56e49b714ecd32c72c334802b00e3d62008d98e3
 
         We should be easily able to implement that one.
 
-      * `futimesat`, `readlinkat`, `renameat`
+      * `futimesat`
 
         If we have all of 'em (check Linux kernel), `#define __ASSUME_ATFCTS`.
 
@@ -362,6 +367,9 @@ Last reviewed up to the [[Git mirror's 56e49b714ecd32c72c334802b00e3d62008d98e3
 
   * In `sysdeps/unix/sysv/linux/Makefile`, there are a bunch of
     `-DHAVE_SENDFILE` -- but we do have `sendfile`, too.
+
+    Define `__ASSUME_SENDFILE` to 1 in `kernel-features.h`, if `sendfile`
+    works.
 
   * `/usr/include/pthread.h` overwrite issue
 
@@ -780,6 +788,14 @@ There is quite a baseline of failures.
 
   * `posix/tst-getconf`
 
+    It fails because of unimplemented pathconf cases: `_PC_ALLOC_SIZE_MIN`,
+    `_PC_REC_INCR_XFER_SIZE`, `_PC_REC_MAX_XFER_SIZE`, `_PC_REC_MIN_XFER_SIZE`,
+    `_PC_REC_XFER_ALIGN`, `_PC_SYMLINK_MAX`, `_PC_2_SYMLINKS`.
+
+    `_CS_GNU_LIBPTHREAD_VERSION` will be cleanly solved with
+    [[!message-id "201209302353.51055.toscano.pino@tiscali.it"]] and libpthread
+    compiled as add-on.
+
     Ends with:
 
         getconf POSIX_ALLOC_SIZE_MIN /: /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486/posix/getconf: pathconf: /: Invalid argument
@@ -806,7 +822,7 @@ There is quite a baseline of failures.
         collect2: ld returned 1 exit status
         make[2]: *** [/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/rt/tst-aio10] Error 1
 
-  * `rt-tst-aio2`, `rt-tst-aio3`, `rt/tst-mqueue3`, `rt/tst-mqueue6`,
+  * `rt/tst-mqueue3`, `rt/tst-mqueue6`,
     `rt/tst-mqueue8`, `elf/tst-thrlock`, `rt/tst-timer3`,
     `nss//libnss_test1.so`
 
