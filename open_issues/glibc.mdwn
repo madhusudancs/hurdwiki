@@ -36,8 +36,8 @@ git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..sourc
 
 -->
 
-Last reviewed up to the [[Git mirror's fc56c5bbc1a0d56b9b49171dd377c73c268ebcfd
-(2012-07-28) sources|source_repositories/glibc]].
+Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
+(2012-11-03) sources|source_repositories/glibc]].
 
   * `t/hurdsig-fixes`
 
@@ -275,7 +275,7 @@ Last reviewed up to the [[Git mirror's fc56c5bbc1a0d56b9b49171dd377c73c268ebcfd
 
         We should be easily able to implement that one.
 
-      * `futimesat`, `readlinkat`, `renameat`
+      * `futimesat`, `readlinkat`
 
         If we have all of 'em (check Linux kernel), `#define __ASSUME_ATFCTS`.
 
@@ -555,9 +555,6 @@ Last reviewed up to the [[Git mirror's fc56c5bbc1a0d56b9b49171dd377c73c268ebcfd
       * [low] CFI for `_start`, 6a1bd2a100c958d30bbfe8c9b8f9071d24b7c3f4,
         [[!message-id "20120316180551.GA6291@host2.jankratochvil.net"]] -- what
         about other architectures?
-      * `sendmmsg` usage, c030f70c8796c7743c3aa97d6beff3bd5b8dcd5d -- need a
-        `ENOSYS` stub, [[!message-id "87a9zubdm9.fsf@schwinge.name"]],
-        `t/sendmmsg`.
       * `linkobj/libc.so`, 510bbf14b4f25fec8ee3a2d24de3f24bdbf84333 -- need to
         adapt for (conditional?) Sun RPC reversion (if that was the original
         cause for the patch)?
@@ -565,13 +562,30 @@ Last reviewed up to the [[Git mirror's fc56c5bbc1a0d56b9b49171dd377c73c268ebcfd
         3e5aef87d76cfa7354f2b0d82b96e59280720796, [[!message-id
         "20120517134700.GA19046@intel.com"]] -- only updates one copy of
         `bits/statfs.h`; update the others, too, for consistency.
+      * [low] 789bd351b45f024b7f51e4886bf46b8e887ab6da: remove
+        `libc_hidden_def` in `sysdeps/mach/hurd/accept4.c`?
+      * 0948c3af9dfb3bc1312d6bed2f3a6bfd4e96eef4,
+        b80af2f40631871cf53a5e39d08d5d5516473b96,
+        04570aaa8ad88caad303f8afe469beb4cf851e17 `_dl_initial_dtv`: OK?
+      * [very low] ea4d37b3169908615b7c17c9c506c6a6c16b3a26 `Implement
+        POSIX-generic sleep via nanosleep rather than SIGARLM.`: any benefit
+        using that one (with `sysdeps/mach/nanosleep.c`) instead of
+        `sysdeps/mach/sleep.c`?
       * *baseline*
+
+
+## Update
+
+`baseline`, `t/regenerate_configure` (could now be removed),
+`t/master_backports`, `t/eglibc_backports`, `t/host-independency`,
+`tschwinge/Roger_Whittaker`
 
 
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-cba1c83ad62a11347684a9daf349e659237a1741 (2012-07-29)
+28b74f8dbc3eb639d35fc0f93021ac5eb1fde9a4 (2012-11-03;
+fbeafedeea37e0af1984a6511018d159f5ceed6a (2012-11-03))
 sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -642,19 +656,6 @@ TODO.
 
   * baseline
     fd5bdc0924e0cfd1688b632068c1b26f3b0c88da..2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b
-    introduces:
-
-        genops.c: In function '_IO_flush_all_lockp':
-        genops.c:869:3: warning: passing argument 1 of '__save_FCT' makes pointer from integer without a cast [enabled by default]
-        genops.c:869:3: note: expected 'void *' but argument is of type 'int'
-
-    A similar warning has already been (and still is) seen here:
-
-        dl-iteratephdr.c:83:3: warning: passing argument 1 of '__save_FCT' makes pointer from integer without a cast [enabled by default]
-        dl-iteratephdr.c:83:3: note: expected 'void *' but argument is of type 'int'
-
-  * baseline
-    fd5bdc0924e0cfd1688b632068c1b26f3b0c88da..2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b
     (or probably Samuel's mmap backport) introduces:
 
         ../sysdeps/mach/hurd/mmap.c: In function '__mmap':
@@ -679,12 +680,33 @@ TODO.
     2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b..7a270350a9bc3110cd5ba12bbd8c5c8c365e0032
     introduces:
 
-        In file included from regex.c:62:0:
-        regcomp.c: In function 'init_word_char':
-        regcomp.c:935:4: warning: large integer implicitly truncated to unsigned type [-Woverflow]
-        regcomp.c:936:4: warning: large integer implicitly truncated to unsigned type [-Woverflow]
-
         tst-relsort1.c:6:1: warning: function declaration isn't a prototype [-Wstrict-prototypes]
+
+  * baseline
+    fc56c5bbc1a0d56b9b49171dd377c73c268ebcfd..cbc818d0ee66065f3942beffdca82986615aa19a
+    introduces
+
+        +gcc-4.6 tst-printf-round.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.
+        +tst-printf-round.c: In function 'do_test':
+        +tst-printf-round.c:203:11: warning: passing argument 3 of 'test_hex_in_one_mode' discards 'const' qualifier from pointer target type [enabled by default]
+        +tst-printf-round.c:139:1: note: expected 'const char **' but argument is of type 'const char * const*'
+        +tst-printf-round.c:208:8: warning: passing argument 3 of 'test_hex_in_one_mode' discards 'const' qualifier from pointer target type [enabled by default]
+        +tst-printf-round.c:139:1: note: expected 'const char **' but argument is of type 'const char * const*'
+        +tst-printf-round.c:216:8: warning: passing argument 3 of 'test_hex_in_one_mode' discards 'const' qualifier from pointer target type [enabled by default]
+        +tst-printf-round.c:139:1: note: expected 'const char **' but argument is of type 'const char * const*'
+        +tst-printf-round.c:224:8: warning: passing argument 3 of 'test_hex_in_one_mode' discards 'const' qualifier from pointer target type [enabled by default]
+        +tst-printf-round.c:139:1: note: expected 'const char **' but argument is of type 'const char * const*'
+
+         gcc-4.6 test-wcschr.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
+        +In file included from test-wcschr.c:2:0:
+        +../string/test-strchr.c: In function 'check1':
+        +../string/test-strchr.c:249:3: warning: passing argument 1 of 'stupid_STRCHR' from incompatible pointer type [enabled by default]
+        +../string/test-strchr.c:77:1: note: expected 'const wchar_t *' but argument is of type 'char *'
+        +../string/test-strchr.c:249:22: warning: initialization from incompatible pointer type [enabled by default]
+        +../string/test-strchr.c:252:5: warning: passing argument 2 of 'check_result' from incompatible pointer type [enabled by default]
+        +../string/test-strchr.c:92:1: note: expected 'const wchar_t *' but argument is of type 'char *'
+        +../string/test-strchr.c:252:5: warning: passing argument 4 of 'check_result' from incompatible pointer type [enabled by default]
+        +../string/test-strchr.c:92:1: note: expected 'const wchar_t *' but argument is of type 'char *'
 
 
 # Install
@@ -796,7 +818,7 @@ There is quite a baseline of failures.
 
     SIGSEGV.
 
-  * `rt/tst-aio10`, `rt/tst-aio9`
+  * `rt-tst-aio2`, `rt-tst-aio3`, `rt/tst-aio10`, `rt/tst-aio9`
 
         /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/rt/tst-aio10.o: In function `do_test':
         tst-aio10.c:(.text+0x1b): undefined reference to `pthread_self'
@@ -809,7 +831,7 @@ There is quite a baseline of failures.
         collect2: ld returned 1 exit status
         make[2]: *** [/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/rt/tst-aio10] Error 1
 
-  * `rt-tst-aio2`, `rt-tst-aio3`, `rt/tst-mqueue3`, `rt/tst-mqueue6`,
+  * `rt/tst-mqueue3`, `rt/tst-mqueue6`,
     `rt/tst-mqueue8`, `elf/tst-thrlock`, `rt/tst-timer3`,
     `nss//libnss_test1.so`
 
@@ -880,6 +902,44 @@ There is quite a baseline of failures.
   * `stdlib/tst-secure-getenv.out`
 
     Needs [[`/proc/self/exe`|hurd/translator/procfs/jkoenig/discussion]].
+
+  * `elf/tst-array*`
+
+    Failures also seen on GNU/Linux; [[!message-id
+    "50950082.1070906@df1tl.local.here"]].
+
+        gcc-4.6 tst-array1.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/
+        gcc-4.6 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1  -Wl,-dynamic-linker=/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
+        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/ld.so.1 --library-path [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/math:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf:[
+        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1.out tst-array1.exp > /dev/null
+        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1.out] Error 1
+        gcc-4.6 tst-array2.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/
+        gcc-4.6 tst-array2dep.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes   -fPIC       -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc
+        gcc-4.6   -shared -static-libgcc  -Wl,-dynamic-linker=/lib/ld.so.1 -Wl,-z,defs -B[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/csu/  -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both  -L[...]/tschwinge/Roger_Whittaker.build-gcc-4.6
+        gcc-4.6 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array2  -Wl,-dynamic-linker=/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
+        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/ld.so.1 --library-path [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/math:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf:[
+        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array2.out tst-array2.exp > /dev/null
+        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array2.out] Error 1
+        gcc-4.6 tst-array3.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/
+        gcc-4.6 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array3  -Wl,-dynamic-linker=/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
+        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/ld.so.1 --library-path [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/math:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf:[
+        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array3.out tst-array1.exp > /dev/null
+        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array3.out] Error 1
+        gcc-4.6 tst-array4.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/
+        gcc-4.6 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array4  -Wl,-dynamic-linker=/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
+        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/ld.so.1 --library-path [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/math:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf:[
+        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array4.out tst-array4.exp > /dev/null
+        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array4.out] Error 1
+
+    `tst-array5` passes.
+
+        gcc-4.6 tst-array1-static.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4
+        gcc-4.6 -nostdlib -nostartfiles -static -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static    [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/csu/crt0.o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/csu/crti
+        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static > [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static.out
+        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static.out tst-array1.exp > /dev/null
+        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static.out] Error 1
+
+    `tst-array5-static` passes.
 
 
 ## OLD
