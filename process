@@ -8,7 +8,7 @@ set -e -x
 project=$1
 build_suffix=.build
 case $project in
-  binutils | gcc)
+  binutils | gcc | gdb)
     branch=hurd/master
     linux_host=kepler.SCHWINGE
     hurd_host=coulomb.SCHWINGE
@@ -62,7 +62,7 @@ esac
 shift
 
 case $project:$action in
-  binutils:fetch | gcc:fetch | glibc:fetch)
+  binutils:fetch | gcc:fetch | gdb:fetch | glibc:fetch)
     host=$1
     case $host in
       coulomb.SCHWINGE)
@@ -98,6 +98,7 @@ case $project:$action in
     case $project:$step in
       binutils:build | binutils:install \
       | gcc:build | gcc:install \
+      | gdb:build | gdb:install \
       | glibc:build | glibc:install | glibc:test)
         ssh \
           "$host" \
@@ -107,22 +108,32 @@ case $project:$action in
           > toolchain/logs/"$project"/"$host"/"$step"
         exit
         ;;
-      binutils:test | gcc:test)
+      binutils:test | gcc:test | gdb:test)
+        # First, create a temporary directory, where the *.sum files are copied
+        # into, and then individually filtered through sed.
+        ssh \
+          "$host" \
+            'cd '"$project_base"'/ && \
+            mkdir -p '"$branch$build_suffix"'.sums && \
+            rsync \
+              -vr --prune-empty-dirs --delete \
+              --include=\*.sum --filter=hide,!\ \*/ \
+              '"$branch$build_suffix"'/ \
+              '"$branch$build_suffix"'.sums/ && \
+            find '"$branch$build_suffix"'.sums/ -type f \
+              -exec sed -e "s%\('"$mount"'\)\?${PWD}%[...]%g" -i \{\} \;'
+        case $project in
+          gdb)
+            # Remove the summary file; we got the individual ones.
+            ssh \
+              "$host" \
+                'cd '"$project_base"'/'"$branch$build_suffix"'.sums/ && \
+                rm -f gdb/testsuite/gdb.sum'
+            ;;
+        esac
         rsync \
-          -vd --delete \
-          --rsync-path='\
-            cd '"$project_base"'/ && \
-            base=$PWD && \
-            rm -rf '"$branch$build_suffix"'.sums && \
-            mkdir '"$branch$build_suffix"'.sums && \
-            cd '"$branch$build_suffix"'.sums/ && \
-            find "$base"/'"$branch$build_suffix"'/ -name \*.sum \
-              -exec cp -bt ./ \{\} \; && \
-            for f in *; do \
-              sed -e "s%\('"$mount"'\)\?${base}%[...]%g" -i "$f" \
-              || exit $?; \
-            done &&\
-            rsync' "$host": \
+          -vr --delete \
+          "$host":"$project_base"/"$branch$build_suffix".sums/ \
           toolchain/logs/"$project"/"$host"/"$step"/
         exit
         ;;
@@ -132,14 +143,15 @@ case $project:$action in
         ;;
     esac
     ;;
-  binutils:diff | gcc:diff)
+  binutils:diff | gcc:diff | gdb:diff)
     [ $# = 0 ]
 
     : "${linux_host:?}"
     : "${hurd_host:?}"
     case $project:$step in
       binutils:build | binutils:install \
-      | gcc:build | gcc:install)
+      | gcc:build | gcc:install \
+      | gdb:build | gdb:install)
         sed \
           -f toolchain/logs/"$project"/"$linux_host"/"$step".sed \
           < toolchain/logs/"$project"/"$linux_host"/"$step" \
@@ -162,7 +174,7 @@ case $project:$action in
         [ "$r" = 0 ] || [ "$r" = 1 ]
         exit
         ;;
-      binutils:test | gcc:test)
+      binutils:test | gcc:test | gdb:test)
         r=0
         diff \
           -Nrwu -F ^Running \
