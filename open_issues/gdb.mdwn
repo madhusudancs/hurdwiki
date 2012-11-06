@@ -24,8 +24,17 @@ Here's what's to be done for maintaining GNU GDB.
 
 # Configuration
 
-Last reviewed up to the [[Git mirror's ea9812279fe436be9a010d07ef1dbe465199a3d7
-(2011-09-07) sources|source_repositories/gdb]].
+<!--
+
+git checkout reviewed
+git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..sourceware/master
+-i
+/^commit |^Merge:|^---$|hurd|linux|nacl|nptl|glibc|gs:|gnu-nat|i386gnu
+
+-->
+
+Last reviewed up to the [[Git mirror's 70044c11b4bf873773972c0f8784188356389bfc
+(2011-10-16) sources|source_repositories/gdb]].
 
   * Globally
 
@@ -71,8 +80,14 @@ There are several occurences of *error: dereferencing type-punned pointer will
 break strict-aliasing rules* in the MIG-generated stub files; thus no `-Werror`
 until that is resolved ([[strict_aliasing]]).
 
-This takes up around 140 MiB and needs roughly 6 min on kepler.SCHWINGE and 30
+This takes up around 210 MiB and needs roughly 6 min on kepler.SCHWINGE and 25
 min on coulomb.SCHWINGE.
+
+<!--
+
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && make -k check 2>&1 | tee log_test
+
+-->
 
 
 ## Analysis
@@ -81,11 +96,52 @@ x86 GNU/Linux' and GNU/Hurd's configurations are slightly different, thus mask
 out most of the differences that are due to GNU/Linux supporting more core file
 formats and more emulation vectors.
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/gdb/ && cat hurd/master.build/log_build* | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/gdb/linux/log_build
-    $ ssh coulomb.SCHWINGE 'cd tmp/gdb/ && cat hurd/master.build/log_build* | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/gdb/hurd/log_build
-    $ diff -wu <(sed -f toolchain/logs/gdb/linux/log_build.sed < toolchain/logs/gdb/linux/log_build) <(sed -f toolchain/logs/gdb/hurd/log_build.sed < toolchain/logs/gdb/hurd/log_build) > toolchain/logs/gdb/log_build.diff
+    $ toolchain/logs/process gdb build
+
+  * DFP
+
+        -checking for decimal floating point... bid
+        +checking for decimal floating point... configure: WARNING: decimal float is not supported for this target, ignored
+        +dpd
+
+    Have to sync libdecnumber?
 
   * Why do we specify `-D_GNU_SOURCE`, and GNU/Linux doesn't?
+
+  * GNU/Linux: `gdb/symfile-mem.c` for vDSO.
+
+  * GNU/Linux: `gdb/i386-nat.c` for hardware breakpoints, etc. -- we should
+    probably use that, too.  Related to Samuel's Hurd GDB patch?
+
+  * `gdb/gnu-nat.c`
+
+        gnu-nat.c: In function 'proc_set_exception_port':
+        gnu-nat.c:409:3: warning: format '%d' expects argument of type 'int', but argument 8 has type 'mach_port_t' [-Wformat]
+        gnu-nat.c: In function 'proc_steal_exc_port':
+        gnu-nat.c:449:7: warning: format '%d' expects argument of type 'int', but argument 8 has type 'mach_port_t' [-Wformat]
+        gnu-nat.c:470:7: warning: format '%d' expects argument of type 'int', but argument 8 has type 'mach_port_t' [-Wformat]
+        gnu-nat.c: In function 'make_proc':
+        gnu-nat.c:583:7: warning: format '%d' expects argument of type 'int', but argument 2 has type 'mach_port_t' [-Wformat]
+        gnu-nat.c:586:7: warning: format '%d' expects argument of type 'int', but argument 8 has type 'mach_port_t' [-Wformat]
+        gnu-nat.c: In function 'inf_set_pid':
+        gnu-nat.c:761:3: warning: format '%d' expects argument of type 'int', but argument 7 has type 'task_t' [-Wformat]
+        gnu-nat.c: In function 'inf_validate_procs':
+        gnu-nat.c:1085:6: warning: format '%d' expects argument of type 'int', but argument 8 has type 'thread_t' [-Wformat]
+        gnu-nat.c: In function 'inf_signal':
+        gnu-nat.c:1349:4: warning: format '%d' expects argument of type 'int', but argument 7 has type 'thread_t' [-Wformat]
+        gnu-nat.c:1349:4: warning: format '%d' expects argument of type 'int', but argument 8 has type 'thread_t' [-Wformat]
+        gnu-nat.c: In function 'S_exception_raise_request':
+        gnu-nat.c:1668:3: warning: format '%d' expects argument of type 'int', but argument 7 has type 'thread_t' [-Wformat]
+        gnu-nat.c:1668:3: warning: format '%d' expects argument of type 'int', but argument 8 has type 'task_t' [-Wformat]
+        gnu-nat.c:1705:8: warning: format '%d' expects argument of type 'int', but argument 7 has type 'mach_port_t' [-Wformat]
+        gnu-nat.c:1711:8: warning: format '%d' expects argument of type 'int', but argument 7 has type 'mach_port_t' [-Wformat]
+        gnu-nat.c: In function 'do_mach_notify_dead_name':
+        gnu-nat.c:1762:3: warning: format '%d' expects argument of type 'int', but argument 7 has type 'mach_port_t' [-Wformat]
+        gnu-nat.c: In function 'gnu_write_inferior':
+        gnu-nat.c:2383:8: warning: format '%x' expects argument of type 'unsigned int', but argument 2 has type 'vm_address_t' [-Wformat]
+        gnu-nat.c:2393:8: warning: format '%x' expects argument of type 'unsigned int', but argument 2 has type 'vm_address_t' [-Wformat]
+        gnu-nat.c: In function 'steal_exc_port':
+        gnu-nat.c:2864:5: warning: format '%d' expects argument of type 'int', but argument 2 has type 'mach_port_t' [-Wformat]
 
   * Why does GNU/Linux have an additional `-ldl -rdynamic` when linking `gdb`?
 
@@ -101,27 +157,60 @@ min on coulomb.SCHWINGE.
 
 ## Analysis
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/gdb/ && cat hurd/master.build/log_install | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/gdb/linux/log_install
-    $ ssh coulomb.SCHWINGE 'cd tmp/gdb/ && cat hurd/master.build/log_install | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/gdb/hurd/log_install
-    $ diff -wu <(sed -f toolchain/logs/gdb/linux/log_install.sed < toolchain/logs/gdb/linux/log_install) <(sed -f toolchain/logs/gdb/hurd/log_install.sed < toolchain/logs/gdb/hurd/log_install) > toolchain/logs/gdb/log_install.diff
+    $ toolchain/logs/process gdb install
 
   * `libtool: finish`: `ldconfig` is not run for the Hurd.
 
 
 # Testsuite
 
-On GNU/Hurd, hampered by the [[term_blocking]] issue.
-
     $ make -k check
     [...]
 
-This needs roughly 45 min on kepler.SCHWINGE and TODO min on coulomb.SCHWINGE.
+This needs roughly 11 min on kepler.SCHWINGE and 128 min on coulomb.SCHWINGE.
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/gdb/ && sed -e "s%\(/media/data\)\?${PWD}%[...]%g" < hurd/master.build/gdb/testsuite/gdb.sum' > toolchain/logs/gdb/linux/sum
-    $ ssh coulomb.SCHWINGE 'cd tmp/gdb/ && sed -e "s%\(/media/erich\)\?${PWD}%[...]%g" < hurd/master.build/gdb/testsuite/gdb.sum' > toolchain/logs/gdb/hurd/sum
-    $ diff -u -F ^Running toolchain/logs/gdb/linux/sum toolchain/logs/gdb/hurd/sum > toolchain/logs/gdb/sum.diff
+When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
+the `tee` process does not terminate if there are still stray leftover
+processes that [have their stdout/stderr
+open](http://sourceware.org/ml/gdb-patches/2012-10/msg00489.html).  `kill`ing
+these (`SIGKILL` may be needed), makes the `tee` process terminate, too.  On
+GNU/Hurd, this has be seen for `gdb.base/structs-tf-td`, and an unknown (`?`)
+one.
 
 
 ## Analysis
+
+    $ toolchain/logs/process gdb test
+
+  * Disabled
+
+      * `gdb.base/morestack.exp`
+
+        TODO `-fsplit-stack` issue.
+
+      * `gdb.base/readline.exp`
+
+        [[term_blocking]] issue.
+
+      * `gdb.base/sigall.exp`
+
+        From `send signal TSTP` on, all FAIL running into timeouts.
+
+  * `UNSUPPORTED: gdb.threads/ia64-sigill.exp: Couldn't compile ../../../master/gdb/testsuite/gdb.threads/ia64-sigill.c: unrecognized error`
+
+        ../../../master/gdb/testsuite/gdb.threads/ia64-sigill.c:29:24: fatal error: asm/unistd.h: No such file or directory
+
+  * `UNSUPPORTED: gdb.threads/multi-create.exp: Couldn't compile ../../../master/gdb/testsuite/gdb.threads/multi-create.c: unrecognized error`
+        ../../../master/gdb/testsuite/gdb.threads/multi-create.c: In function 'create_function':
+        ../../../master/gdb/testsuite/gdb.threads/multi-create.c:46:39: error: 'PTHREAD_STACK_MIN' undeclared (first use in this function)
+        ../../../master/gdb/testsuite/gdb.threads/multi-create.c:46:39: note: each undeclared identifier is reported only once for each function it appears in
+        ../../../master/gdb/testsuite/gdb.threads/multi-create.c: In function 'main':
+        ../../../master/gdb/testsuite/gdb.threads/multi-create.c:73:39: error: 'PTHREAD_STACK_MIN' undeclared (first use in this function)
+
+  * `UNSUPPORTED: gdb.threads/staticthreads.exp: Couldn't compile ../../../master/gdb/testsuite/gdb.threads/staticthreads.c: unrecognized error`
+
+        ../../../master/gdb/testsuite/gdb.threads/staticthreads.c: In function 'main':
+        ../../../master/gdb/testsuite/gdb.threads/staticthreads.c:52:37: error: 'PTHREAD_STACK_MIN' undeclared (first use in this function)
+        ../../../master/gdb/testsuite/gdb.threads/staticthreads.c:52:37: note: each undeclared identifier is reported only once for each function it appears in
 
 TODO.
