@@ -33,8 +33,8 @@ git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C
 
 -->
 
-Last reviewed up to the [[Git mirror's 20f498edfd7e57d3297febcf9c7c7d667cc74239
-(2012-06-15) sources|source_repositories/gdb]].
+Last reviewed up to the [[Git mirror's 69a5e2b022c7d15ec4c7c49e6f53a8d924d3b72b
+(2012-08-15) sources|source_repositories/gdb]].
 
   * Globally
 
@@ -60,12 +60,15 @@ Last reviewed up to the [[Git mirror's 20f498edfd7e57d3297febcf9c7c7d667cc74239
 
   * [[gdbserver]]
 
+  * 82763a3d329b0d342d0273941b1521be9ef0c604 »MODIFIED is unknown, pass it as
+    true.«
+
 
 # Build
 
 Here's a log of a GDB build run; this is from our [[Git
 repository|source_repositories/gdb]]'s `tschwinge/Ferry_Tagscherer` branch,
-commit 20f498edfd7e57d3297febcf9c7c7d667cc74239 (2012-06-15), run on
+commit 69a5e2b022c7d15ec4c7c49e6f53a8d924d3b72b (2012-08-15), run on
 kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -81,7 +84,7 @@ There are several occurences of *error: dereferencing type-punned pointer will
 break strict-aliasing rules* in the MIG-generated stub files; thus no `-Werror`
 until that is resolved ([[strict_aliasing]]).
 
-This takes up around 210 MiB and needs roughly 6 min on kepler.SCHWINGE and 25
+This takes up around 200 MiB and needs roughly 7 min on kepler.SCHWINGE and 23
 min on coulomb.SCHWINGE.
 
 <!--
@@ -175,6 +178,16 @@ formats and more emulation vectors.
         -checking for library containing dlopen... none required
         +checking for library containing dlopen... -ldl
 
+  * `O_NOFOLLOW`
+
+    First seen in
+    20f498edfd7e57d3297febcf9c7c7d667cc74239..69a5e2b022c7d15ec4c7c49e6f53a8d924d3b72b:
+
+        -checking for working fcntl.h... yes
+        +checking for working fcntl.h... no (bad O_NOFOLLOW)
+
+    [[!taglink open_issue_glibc]]?
+
   * Why does GNU/Linux have an additional `-ldl -rdynamic` when linking `gdb`?
 
 
@@ -183,7 +196,7 @@ formats and more emulation vectors.
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 50 MiB, and needs roughly 1 min on kepler.SCHWINGE and 3
+This takes up around 50 MiB, and needs roughly 1 min on kepler.SCHWINGE and 2
 min on coulomb.SCHWINGE.
 
 
@@ -199,7 +212,7 @@ min on coulomb.SCHWINGE.
     $ make -k check
     [...]
 
-This needs roughly 11 min on kepler.SCHWINGE and 128 min on coulomb.SCHWINGE.
+This needs roughly 14 min on kepler.SCHWINGE and 135 min on coulomb.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
 the `tee` process does not terminate if there are still stray leftover
@@ -229,6 +242,98 @@ GNU/Hurd, this has be seen for `gdb.base/structs-tf-td`,
 
         From `send signal TSTP` on, all FAIL running into timeouts.
 
+      * `gdb.python/py-inferior.exp`
+
+        This testsuite was introduced before
+        70044c11b4bf873773972c0f8784188356389bfc and apart from one threading
+        test has basically been working fine until now:
+
+            Running ../../../master/gdb/testsuite/gdb.python/py-inferior.exp ...
+            PASS: gdb.python/py-inferior.exp: get inferiors list
+            PASS: gdb.python/py-inferior.exp: verify inferiors list
+            PASS: gdb.python/py-inferior.exp: test equality comparison (true)
+            PASS: gdb.python/py-inferior.exp: test Inferior.num
+            PASS: gdb.python/py-inferior.exp: test Inferior.pid
+            PASS: gdb.python/py-inferior.exp: test Inferior.was_attached
+            FAIL: gdb.python/py-inferior.exp: test Inferior.threads
+            PASS: gdb.python/py-inferior.exp: read str contents
+            PASS: gdb.python/py-inferior.exp: write str
+            PASS: gdb.python/py-inferior.exp: ensure str was changed in the inferior
+            [about five dozen of additional PASSes]
+
+        In
+        20f498edfd7e57d3297febcf9c7c7d667cc74239..69a5e2b022c7d15ec4c7c49e6f53a8d924d3b72b
+        further threading tests have been added and we now see:
+
+            Running ../../../Ferry_Tagscherer/gdb/testsuite/gdb.python/py-inferior.exp ...
+            [...]
+            PASS: gdb.python/py-inferior.exp: successfully compiled posix threads test case
+            (gdb) run
+            Starting program: /media/erich/home/thomas/tmp/gdb/tschwinge/Ferry_Tagscherer.build/gdb/testsuite/gdb.python/py-inferior
+            [New Thread 25565.5]
+            
+            Breakpoint 1, main (argc=1, argv=0x15ff218) at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.python/py-inferior.c:88
+            88        test_threads ();
+            (gdb) python inferiors = gdb.inferiors ()
+            (gdb) PASS: gdb.python/py-inferior.exp: get inferiors list
+            python print inferiors
+            (<gdb.Inferior object at 0xe1920>,)
+            (gdb) PASS: gdb.python/py-inferior.exp: verify inferiors list
+            python i0 = inferiors[0]
+            (gdb) python print 'result =', i0 == inferiors[0]
+            result = True
+            (gdb) PASS: gdb.python/py-inferior.exp: test equality comparison (true)
+            python print 'result =', i0.num
+            result = 1
+            (gdb) PASS: gdb.python/py-inferior.exp: test Inferior.num
+            python print 'result =', i0.pid
+            result = 25565
+            (gdb) PASS: gdb.python/py-inferior.exp: test Inferior.pid
+            python print 'result =', i0.was_attached
+            result = False
+            (gdb) PASS: gdb.python/py-inferior.exp: test Inferior.was_attached
+            python print i0.threads ()
+            (<gdb.InferiorThread object at 0x61170>, <gdb.InferiorThread object at 0x61160>)
+            (gdb) FAIL: gdb.python/py-inferior.exp: test Inferior.threads
+            break check_threads
+            Breakpoint 2 at 0x8048869: file ../../../Ferry_Tagscherer/gdb/testsuite/gdb.python/py-inferior.c, line 61.
+            (gdb) continue
+            Continuing.
+            [New Thread 25565.6]
+            [New Thread 25565.7]
+            [New Thread 25565.8]
+            [New Thread 25565.9]
+            [New Thread 25565.10]
+            [New Thread 25565.11]
+            [New Thread 25565.12]
+            [New Thread 25565.13]
+            
+            Breakpoint 2, check_threads (barrier=0x15ff134) at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.python/py-inferior.c:61
+            61        pthread_barrier_wait (barrier);
+            (gdb) PASS: gdb.python/py-inferior.exp: continue to breakpoint: cont to check_threads
+            python print len (i0.threads ())
+            10
+            (gdb) FAIL: gdb.python/py-inferior.exp: test Inferior.threads 2
+            break 28
+            Breakpoint 3 at 0x80487c2: file ../../../Ferry_Tagscherer/gdb/testsuite/gdb.python/py-inferior.c, line 28.
+            (gdb) continue
+            Continuing.
+            FAIL: gdb.python/py-inferior.exp: continue to breakpoint: cont to Break here. (timeout)
+            python addr = gdb.selected_frame ().read_var ('str')
+            FAIL: gdb.python/py-inferior.exp: read str address (timeout)
+            python str = gdb.inferiors()[0].read_memory (addr, 5)
+            FAIL: gdb.python/py-inferior.exp: read str contents (timeout)
+            [All following 80 tests FAIL (timeout).]
+            py print gdb.selected_inferior().num
+            FAIL: gdb.python/py-inferior.exp: Third inferior selected (timeout)
+            inferior 1
+            FAIL: gdb.python/py-inferior.exp: Switch to first inferior (timeout)
+            remove-inferiors 3
+            FAIL: gdb.python/py-inferior.exp: Remove second inferior (timeout)
+            [System becomes completely unresponsible, but nothing on the Mach console.]
+
+        The last FAIL in fact is from the last action in that testsuite.
+
   * `UNSUPPORTED: gdb.threads/ia64-sigill.exp: Couldn't compile ../../../master/gdb/testsuite/gdb.threads/ia64-sigill.c: unrecognized error`
 
         ../../../master/gdb/testsuite/gdb.threads/ia64-sigill.c:29:24: fatal error: asm/unistd.h: No such file or directory
@@ -249,5 +354,14 @@ GNU/Hurd, this has be seen for `gdb.base/structs-tf-td`,
   * `UNSUPPORTED: gdb.threads/watchpoint-fork.exp: parent: multithreaded: Couldn't compile ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/watchpoint-fork-mt.c ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/watchpoint-fork-parent.c: unrecognized error`
 
         ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/watchpoint-fork-mt.c:29:24: fatal error: asm/unistd.h: No such file or directory
+
+  * `UNSUPPORTED: gdb.threads/create-fail.exp: Couldn't compile ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/create-fail.c: unrecognized error`
+
+        [...]/gdb.threads/create-fail.c:77: undefined reference to `pthread_attr_setaffinity_np'
+        [...]/gdb.threads/create-fail.c:83: undefined reference to `pthread_create'
+
+  * `UNSUPPORTED: gdb.threads/siginfo-threads.exp: Couldn't compile ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/siginfo-threads.c: unrecognized error`
+
+        ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/sigstep-threads.c:22:24: fatal error: asm/unistd.h: No such file or directory
 
 TODO.
