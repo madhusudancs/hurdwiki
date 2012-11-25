@@ -128,6 +128,26 @@ case $project:$action in
             find '"$branch$build_suffix"'.sums/ -type f \
               -exec sed -e "s%\('"$mount"'\)\?${PWD}%[...]%g" -i \{\} \;'
         case $project in
+          gcc)
+            # Rename host-specific directory to a generic name.
+            # This is probably not the most beautiful solution.
+            case $host in
+              "$linux_host")
+                arch=i686-pc-linux-gnu
+                ;;
+              "$hurd_host")
+                arch=i686-unknown-gnu0.3
+                ;;
+              *)
+                echo >&2 "Internal error."
+                exit 1
+                ;;
+            esac
+            ssh \
+              "$host" \
+                'cd '"$project_base"'/'"$branch$build_suffix"'.sums/ && \
+                mv '"$arch"' [ARCH]'
+            ;;
           gdb)
             # Remove the summary file; we got the individual ones.
             ssh \
