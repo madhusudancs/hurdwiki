@@ -198,3 +198,149 @@ License|/fdl]]."]]"""]]
       get all that crap
     <braunr> that's very good
     <braunr> more test cases to fix the vm
+
+
+### IRC, freenode, #hurd, 2012-11-01
+
+    <youpi> braunr: Assertion `diff != 0' failed in file "vm/vm_map.c", line
+      1002
+    <youpi> that's in rbtree_insert
+    <braunr> youpi: the problem isn't the tree, it's the map entries
+    <braunr> some must overlap
+    <braunr> if you can inspect that, it would be helpful
+    <youpi> I have a kdb there
+    <youpi> it's within a port_name_to_task system call
+    <braunr> this assertion basically means there already is an item in the
+      tree where the new item is supposed to be inserted
+    <youpi> this port_name_to_task presence in the stack is odd
+    <braunr> it's in vm_map_enter
+    <youpi> there's a vm_map just after that (and the assembly trap code
+      before)
+    <youpi> I know
+    <youpi> I'm wondering about the caller
+    <braunr> do you have a way to inspect the inserted map entry ?
+    <youpi> I'm actually wondering whether I have the right kernel in gdb
+    <braunr> oh
+    <youpi> better
+    <youpi> with the right kernel :)
+    <youpi> 0x80039acf (syscall_vm_map)
+      (target_map=d48b6640,address=d3b63f90,size=0,mask=0,anywhere=1)
+    <youpi> size == 0 seems odd to me
+    <youpi> (same parameters for vm_map)
+    <braunr> right
+    <braunr> my code does assume an entry has a non null size
+    <braunr> (in the entry comparison function)
+    <braunr>        EINVAL (since Linux 2.6.12) length was 0.
+    <braunr> that's a quick glance at mmap(2)
+    <braunr> might help track bugs from userspace (e.g. in exec .. :))
+    <braunr> posix says the saem
+    <braunr> same*
+    <braunr> the gnumach manual isn't that precise
+    <youpi> I don't seem to manage to read the entry
+    <youpi> but I guess size==0 is the problem anyway
+    <mcsim> youpi, braunr: Is there another kernel fault? Was that in my
+      kernel?
+    <braunr> no that's another problem
+    <braunr> which became apparent following the addition of red black trees in
+      the vm_map code
+    <braunr> (but which was probably present long before)
+    <mcsim> braunr: BTW, do you know if there where some specific circumstances
+      that led to memory exhaustion in my code? Or it just aggregated over
+      time?
+    <braunr> mcsim: i don't know
+    <mcsim> s/where/were
+    <mcsim> braunr: ok
+
+
+### IRC, freenode, #hurd, 2012-11-05
+
+    <tschwinge> braunr: I have now also hit the diff != 0 assertion error;
+      sitting in KDB, waiting for your commands.
+    <braunr> tschwinge: can you check the backtrace, have a look at the system
+      call and its parameters like youpi did ?
+    <tschwinge> If I manage to figure out how to do that...  :-)
+    * tschwinge goes read scrollback.
+    <braunr> "trace" i suppose
+    <braunr> if running inside qemu, you can use the integrated gdb server
+    <tschwinge> braunr: No, hardware.  And work intervened.  And mobile phone
+      <-> laptop via bluetooth didn't work.  But now:
+    <tschwinge> Pretty similar to Samuel's:
+    <tschwinge>     Assert([...])
+    <tschwinge>     vm_map_enter(0xc11de6c8, 0xc1785f94, 0, 0, 1)
+    <tschwinge>     vm_map(0xc11de6c8, 0xc1785f94, 0, 0, 1)
+    <tschwinge>     syscall_vm_map(1, 0x1024a88, 0, 0, 1)
+    <tschwinge>     mach_call_call(1, 0x1024a88, 0, 0, 1)
+    <braunr> thanks
+    <braunr> same as youpi observed, the requested size for the mapping is 0
+    <braunr> tschwinge: thanks
+    <tschwinge> braunr: Anything else you'd like to see before I reboot?
+    <braunr> tschwinge: no, that's enough for now, and the other kind of info
+      i'd like are much more difficult to obtain
+    <braunr> if we still have the problem once a small patch to prevent null
+      size is applied, then it'll be worth looking more into it
+    <pinotree> isn't it possible to find out who called with that size?
+    <braunr> not easy, no
+    <braunr> it's also likely that the call that fails isn't the first one
+    <pinotree> ah sure
+    <pinotree> braunr: making mmap reject 0 size length could help? posix says
+      such size should be rejected straight away
+    <braunr> 17:09 < braunr> if we still have the problem once a small patch to
+      prevent null size is applied, then it'll be worth looking more into it
+    <braunr> that's the idea
+    <braunr> making faulty processes choke on it should work fine :)
+    <pinotree> «If len is zero, mmap() shall fail and no mapping shall be
+      established.»
+    <pinotree> braunr: should i cook up such patch for mmap?
+    <braunr> no, the change must be applied in gnumach
+    <pinotree> sure, but that could simply such condition in mmap (ie avoiding
+      to call io_map on a file)
+    <braunr> such calls are erroneous and rare, i don't see the need
+    <pinotree> ok
+    <braunr> i bet it comes from the exec server anyway :p
+    <tschwinge> braunr: Is the mmap with size 0 already a reproducible testcase
+      you can use for the diff != 0 assertion?
+    <tschwinge> Otherwise I'd have a reproducer now.
+    <braunr> tschwinge: i'm not sure but probably yes
+    <tschwinge> braunr: Otherwise, take GDB sources, then: gcc -fsplit-stack
+      gdb/testsuite/gdb.base/morestack.c && ./a.out
+    <tschwinge> I have not looked what exactly this does; I think -fsplit-stack
+      is not really implemented for us (needs something in libgcc we might not
+      have), is on my GCC TODO list already.
+    <braunr> tschwinge: interesting too :)
+
+
+### IRC, freenode, #hurd, 2012-11-19
+
+    <tschwinge> braunr: Hmm, I have now hit the diff != 0 GNU Mach assertion
+      failure during some GCC invocation (GCC testsuite) that does not relate
+      to -fsplit-stack (as the others before always have).
+    <tschwinge> Reproduced:
+      /media/erich/home/thomas/tmp/gcc/hurd/master.build/gcc/xgcc
+      -B/media/erich/home/thomas/tmp/gcc/hurd/master.build/gcc/
+      /home/thomas/tmp/gcc/hurd/master/gcc/testsuite/gcc.dg/torture/pr42878-1.c
+      -fno-diagnostics-show-caret -O2 -flto -fuse-linker-plugin
+      -fno-fat-lto-objects -fcompare-debug -S -o pr42878-1.s
+    <tschwinge> Will check whether it's the same backtrace in GNU Mach.
+    <tschwinge> Yes, same.
+    <braunr> tschwinge: as youpi seems quite busy these days, i'll cook a patch
+      and commit it directly
+    <tschwinge> braunr: Thanks!  I have, by the way, confirmed that the
+      following is enough to trigger the issue: vm_map(mach_task_self(), 0, 0,
+      0, 1, 0, 0, 0, 0, 0, 0);
+    <tschwinge> ... and before the allocator patch, GNU Mach did accept that
+      and return 0 -- though I did not check what effect it actually has.  (And
+      I don't think it has any useful one.)  I'm also reading that as of lately
+      (Linux 2.6.12), mmap (length = 0) is to return EINVAL, which I think is
+      the foremost user of vm_map.
+    <pinotree> tschwinge: posix too says to return EINVAL for length = 0
+    <braunr> yes, we checked that earlier with youpi
+
+[[!message-id "87sj8522zx.fsf@kepler.schwinge.homeip.net"]].
+
+    <braunr> tschwinge: well, actually your patch is what i had in mind
+      (although i'd like one in vm_map_enter to catch wrong kernel requests
+      too)
+    <braunr> tschwinge: i'll work on it tonight, and do some testing to make
+      sure we don't regress critical stuff (exec is another major direct user
+      of vm_map iirc)
+    <tschwinge> braunr: Oh, OK.  :-)

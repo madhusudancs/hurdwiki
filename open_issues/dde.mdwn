@@ -17,30 +17,15 @@ Still waiting for interface finalization and proper integration.
 
 [[!toc]]
 
+See [[user-space_device_drivers]] for generic discussion related to user-space
+device drivers.
+
 
 # Disk Drivers
 
 Not yet supported.
 
 The plan is to use [[libstore_parted]] for accessing partitions.
-
-
-## Booting
-
-A similar problem is described in
-[[community/gsoc/project_ideas/unionfs_boot]], and needs to be implemented.
-
-
-### IRC, freenode, #hurd, 2012-07-17
-
-    <bddebian> OK, here is a stupid question  I have always had.  If you move
-      PCI and disk drivers in to userspace, how do do initial bootstrap to get
-      the system booting?
-    <braunr> that's hard
-    <braunr> basically you make the boot loader load all the components you
-      need in ram
-    <braunr> then you make it give each component something (ports) so they can
-      communicate
 
 
 # Upstream Status
@@ -68,6 +53,33 @@ At the microkernel davroom at [[community/meetings/FOSDEM_2012]]:
     <antrik> (both from the Dresdem L4 group)
 
 
+### IRC, freenode, #hurd, 2012-08-12
+
+    <antrik>
+      http://genode.org/documentation/release-notes/12.05#Re-approaching_the_Linux_device-driver_environment
+    <antrik> I wonder whether the very detailed explanation was prompted by our
+      DDE discussions at FOSDEM...
+    <pinotree> antrik: one could think about approaching them to develop the
+      common dde libs + dde_linux together
+    <antrik> pinotree: that's what I did at FOSDEM -- they weren't interested
+    <pinotree> antrik: this year's one? why weren't they?
+    <pinotree> maybe at that time dde was not integrated properly yet (netdde
+      is just few months "old")
+    <braunr> do you really consider it integrated properly ?
+    <pinotree> no, but a bit better than last year
+    <antrik> I don't see what our integration has to do with anything...
+    <antrik> they just prefer hacking thing ad-hoc than having some central
+      usptream
+    <pinotree> the helenos people?
+    <antrik> err... how did helenos come into the picture?...
+    <antrik> we are talking about genode
+    <pinotree> sorry, confused wrong microkernel OS
+    <antrik> actually, I don't remember exactly who said what; there were
+      people from genode there and from one or more other DDE projects... but
+      none of them seemed interested in a common DDE
+    <antrik> err... one or two other L4 projects
+
+
 ## IRC, freenode, #hurd, 2012-02-19
 
     <youpi> antrik: do we know exactly which DDE version Zheng Da took as a
@@ -89,6 +101,12 @@ At the microkernel davroom at [[community/meetings/FOSDEM_2012]]:
     <youpi> well, the advantage of DDE is that it already exists now
     <antrik> on the positive side, one of the projcets (not sure which)
       apparently have both USB and SATA working with some variant of DDE
+
+
+### IRC, freenode, #hurd, 2012-11-03
+
+    <mcsim> DrChaos: there is DDEUSB framework for L4. You could port it, if
+      you want. It uses Linux 2.6.26 usb subsystem.
 
 
 # IRC, OFTC, #debian-hurd, 2012-02-15
@@ -455,6 +473,59 @@ At the microkernel davroom at [[community/meetings/FOSDEM_2012]]:
       any movement in that regard :-(
     <braunr> wasn't it needed for dde ?
     <antrik> hm... good point
+
+
+# IRC, freenode, #hurd, 2012-08-14
+
+    <braunr> it's amazing how much code just gets reimplemented needlessly ...
+    <braunr> libddekit has its own mutex, condition, semaphore etc.. objects
+    <braunr> with the *exact* same comment about the dequeueing-on-timeout
+      problem found in libpthread
+    <braunr> *sigh*
+
+
+
+# IRC, freenode, #hurd, 2012-08-18
+
+    <braunr> hum, leaks and potential deadlocks in libddekit/thread.c :/
+
+
+# IRC, freenode, #hurd, 2012-08-18
+
+    <braunr> nice, dde relies on a race to start ..
+
+
+# IRC, freenode, #hurd, 2012-08-18
+
+    <braunr> hm looks like if netdde crashes, the kernel doesn't handle it
+      cleanly, and we can't attach another netdde instance
+
+[[!message-id "877gu8klq3.fsf@kepler.schwinge.homeip.net"]]
+
+
+# IRC, freenode, #hurd, 2012-08-21
+
+In context of [[libpthread]].
+
+    <braunr> hm, i thought my pthreads patches introduced a deadlock, but
+      actually this one is present in the current upstream/debian code :/
+    <braunr> (the deadlock occurs when receiving data fast with sftp)
+    <braunr> either in netdde or pfinet
+
+
+# DDE for Filesystems
+
+## IRC, freenode, #hurd, 2012-10-07
+
+    * pinotree wonders whether the dde layer could aldo theorically support
+        also file systems
+    <antrik> pinotree: yeah, I also brought up the idea of creating a DDE
+      extension or DDE-like wrapper for Linux filesystems a while back... don't
+      know enough about it though to decide whether it's doable
+    <antrik> OTOH, I'm not sure it would be worthwhile. we still should
+      probably have a native (not GPLv2-only) implementation for the main FS at
+      least; so the wrapper would only be for accessing external
+      partitions/media...
 
 
 # virtio

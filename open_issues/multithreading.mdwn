@@ -134,6 +134,75 @@ Tom Van Cutsem, 2009.
     <braunr> (i still strongly believe those shouldn't be used at all)
 
 
+## IRC, freenode, #hurd, 2012-08-31
+
+    <braunr> and the hurd is all but scalable
+    <gnu_srs> I thought scalability was built-in already, at least for hurd??
+    <braunr> built in ?
+    <gnu_srs> designed in
+    <braunr> i guess you think that because you read "aggressively
+      multithreaded" ?
+    <braunr> well, a system that is unable to control the amount of threads it
+      creates for no valid reason and uses global lock about everywhere isn't
+      really scalable
+    <braunr> it's not smp nor memory scalable
+    <gnu_srs> most modern OSes have multi-cpu support.
+    <braunr> that doesn't mean they scale
+    <braunr> bsd sucks in this area
+    <braunr> it got better in recent years but they're way behind linux
+    <braunr> linux has this magic thing called rcu
+    <braunr> and i want that in my system, from the beginning
+    <braunr> and no, the hurd was never designed to scale
+    <braunr> that's obvious
+    <braunr> a very common mistake of the early 90s
+
+
+## IRC, freenode, #hurd, 2012-09-06
+
+    <braunr> mel-: the problem with such a true client/server architecture is
+      that the scheduling context of clients is not transferred to servers
+    <braunr> mel-: and the hurd creates threads on demand, so if it's too slow
+      to process requests, more threads are spawned
+    <braunr> to prevent hurd servers from creating too many threads, they are
+      given a higher priority
+    <braunr> and it causes increased latency for normal user applications
+    <braunr> a better way, which is what modern synchronous microkernel based
+      systems do
+    <braunr> is to transfer the scheduling context of the client to the server
+    <braunr> the server thread behaves like the client thread from the
+      scheduler perspective
+    <gnu_srs> how can creating more threads ease the slowness, is that a design
+      decision??
+    <mel-> what would be needed to implement this?
+    <braunr> mel-: thread migration
+    <braunr> gnu_srs: is that what i wrote ?
+    <mel-> does mach support it?
+    <braunr> mel-: some versions do yes
+    <braunr> mel-: not ours
+    <gnu_srs> 21:49:03) braunr: mel-: and the hurd creates threads on demand,
+      so if it's too slow to process requests, more threads are spawned
+    <braunr> of course it's a design decision
+    <braunr> it doesn't "ease the slowness"
+    <braunr> it makes servers able to use multiple processors to handle
+      requests
+    <braunr> but it's a wrong design decision as the number of threads is
+      completely unchecked
+    <gnu_srs> what's the idea of creating more theads then, multiple cpus is
+      not supported?
+    <braunr> it's a very old decision taken at a time when systems and machines
+      were very different
+    <braunr> mach used to support multiple processors
+    <braunr> it was expected gnumach would do so too
+    <braunr> mel-: but getting thread migration would also require us to adjust
+      our threading library and our servers
+    <braunr> it's not an easy task at all
+    <braunr> and it doesn't fix everything
+    <braunr> thread migration on mach is an optimization
+    <mel-> interesting
+    <braunr> async ipc remains available, which means notifications, which are
+      async by nature, will create messages floods anyway
+
+
 # Alternative approaches:
 
   * <http://www.concurrencykit.org/>

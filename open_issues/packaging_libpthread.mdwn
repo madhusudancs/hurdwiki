@@ -187,3 +187,60 @@ License|/fdl]]."]]"""]]
       upstream
     <youpi> the slibdir change, however, is odd
     <youpi> it must be a leftover
+
+
+# IRC, freenode, #hurd, 2012-11-16
+
+    <pinotree> *** $(common-objpfx)resolv/gai_suspend.o: uses
+      /usr/include/i386-gnu/bits/pthread.h
+    <pinotree> so the ones in the libpthread addon are not used...
+    <tschwinge> pinotree: The latter at leash should be useful information.
+    <pinotree> tschwinge: i'm afraid i didn't get you :) what are you referring
+      to?
+    <tschwinge> pinotree: s%leash%least -- what I mean was the it's actually a
+      real bug that not the in-tree libpthread addon include files are being
+      used.
+    <pinotree> tschwinge: ah sure -- basically, the stuff in
+      libpthread/sysdeps/generic are not used at all
+    <pinotree> (glibc only uses generic for glibc/sysdeps/generic)
+    <pinotree> tschwinge: i might have an idea how to fix it: moving the
+      contents from libpthread/sysdeps/generic to libpthread/sysdeps/pthread,
+      and that would depend on one of the latest libpthread patches i sent
+
+
+# libihash
+
+## IRC, freenode, #hurd, 2012-11-16
+
+    <pinotree> also, libpthread uses hurd's ihash
+    <tschwinge> Yes, I already thought a little bit about the ihash thing.  I
+      besically see two options: move ihash into glibc ((probably?) not as a
+      public interface, though), or have libpthread use of of the hash
+      implementations that surely are already present in glibc.
+    <tschwinge> My notes say:
+    <tschwinge>       * include/inline-hashtab.h
+    <tschwinge>       * locale/programs/simple-hash.h
+    <tschwinge>       * misc/hsearch_r.c
+    <tschwinge>       * NNS; cf. f46f0abfee5a2b34451708f2462a1c3b1701facd
+    <tschwinge> No idea whether they're equivalent/usable.
+    <pinotree> interesting
+    <tschwinge> And no immediate recollection what NNS is;
+      f46f0abfee5a2b34451708f2462a1c3b1701facd is not a glibc commit after all.
+      ;-)
+    <tschwinge> Oh, and: libiberty: `hashtab.c`
+    <pinotree> hmm, but then you would need to properly ifdef the libpthread
+      hash usage (iirc only for pthread keys) depending on whether it's in
+      glibc or standalone
+    <pinotree> but that shouldn't be an ussue, i guess
+    <pinotree> *issue
+    <tschwinge> No that'd be fine.
+    <tschwinge> My understanding is that the long-term goal (well, no so
+      long-term, actually) is to completely move libpthread into glibc.
+    <pinotree> ie have it buildable only ad glibc addon?
+    <tschwinge> Yes.
+    <tschwinge> No need for more than one mechanism for building it, I think.
+    <tschwinge> Hmm, this doesn't bring us any further:
+      https://www.google.com/search?q=f46f0abfee5a2b34451708f2462a1c3b1701facd
+    <pinotree> yay for acronyms ;)
+    <tschwinge> So, if someone figures out what NNS and this commit it are: one
+      beer.  ;-)

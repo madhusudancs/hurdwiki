@@ -1,0 +1,238 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+Several people have expressed interested in a port of GNU/Hurd for the ARM
+architecture.
+
+
+# IRC, freenode, #hurd, 2012-10-09
+
+    <mcsim> bootinfdsds: There was an unfinished port to arm, if you're
+      interested.
+    <tschwinge> mcsim: Has that ever been published?
+    <mcsim> tschwinge: I don't think so. But I have an email of that person and
+      I think that this could be discussed with him.
+
+
+## IRC, freenode, #hurd, 2012-10-10
+
+    <tschwinge> mcsim: If you have a contact to the ARM porter, could you
+      please ask him to post what he has?
+    <antrik> tschwinge: we all have the "contact" -- let me remind you that he
+      posted his questions to the list...
+
+
+## IRC, freenode, #hurd, 2012-10-17
+
+    <mcsim> tschwinge: Hello. The person who I wrote regarding arm port of
+      gnumach still hasn't answered. And I don't think that he is going to
+      answer.
+
+
+# IRC, freenode, #hurd, 2012-11-15
+
+    <matty3269> Well, I have a big interest in the ARM architecture, I worked
+      at ARM for a bit too, and I've written my own little OS that runs on
+      qemu. Is there an interest in getting hurd running on ARM?
+    <braunr> matty3269: not really currently
+    <braunr> but if that's what you want to do, sure
+    <tschwinge> matty3269: Well, interest -- sure!, but we don't really have
+      people savvy in low-level kernel implementation on ARM.  I do know some
+      bits about it, but more about the instruction set than about its memory
+      architecture, for example.
+    <tschwinge> matty3269: But if you're feeling adventurous, by all means work
+      on it, and we'll try to help as we can.
+    <tschwinge> matty3269: There has been one previous attempt for an ARM port,
+      but that person never published his code, and apparently moved to a
+      different project.
+    <tschwinge> matty3269: I can help with toolchains (GCC, etc.) things for
+      ARM, if there's need.
+    <matty3269> tschwinge: That sounds great, thanks! Where would you recommend
+      I start (at the moment I've got Mach checked out and am trying to get it
+      compiled for i386)
+    <matty3269> I'm guessing that the Mach micro-kernel is all that would need
+      to be ported or are there arch-dependant bits of code in the server
+      processes?
+    <tschwinge> matty3269:
+      http://www.gnu.org/software/hurd/faq/system_port.html has some
+      information.  Mach is the biggest part, yes.  Then some bits in glibc and
+      libpthread, and even less in the Hurd libraries and servers.
+    <tschwinge> matty3269: Basically, you'd need equivalents for the i386 (and
+      similar) directories, yep.
+    <tschwinge> Though, you may be able to avoid some cruft in there.
+    <tschwinge> Does building for x86 have any issues?
+    <tschwinge> matty3269: How is generally your understanding of the Hurd on
+      Mach system architecture, and on microkernel-based systems generally, and
+      on Mach in particular?
+    <matty3269> tschwinge: yes, it seems to be progressing... I've got mig
+      installed and it's just compiling now
+    <matty3269> hmm, not too great if I'm honest, I've done mostly monolithic
+      kernel development so having such low-level processes, such as
+      scheduling, done in user-space seems a little strinage
+    <tschwinge> Ah, yes, MIG will need a little bit of porting, too.  I can
+      help with that, but that's not a priority -- first you have to get Mach
+      to boot at all; MIG will only be needed once you need to deal with RPCs,
+      so user-land/kernel interaction, basically.  Before, you can hack around
+      it.
+    <matty3269> tschwinge: I have been running a GNU/Hurd system for a while
+      now though
+    <tschwinge> I'm happy to tell you that the schedules is still in the
+      kernel.  ;-)
+    <tschwinge> OK, good, so you know about the basic ideas.
+    <braunr> matty3269: there has to be machine specific stuff in user space
+    <braunr> for initial thread contexts for example
+    <matty3269> tschwinge: Ok, just got gnumach built
+    <braunr> but there isn't much and you can easily base your work from the
+      x86 implementation
+    <tschwinge> Yes.  Mach itself is the more difficult one.
+    <matty3269> braunr: Yeah, looking around at things, it doesn't seem that
+      there will be too much work involoved in the user-space stuff
+    <tschwinge> braunr: Do you know off-hand whether there are some old Mach
+      research papers describing architecture ports?
+    <tschwinge> I know there are some describing the memory system (obviously),
+      and I/O system -- which may help matty3269 to understand the general
+      design/structure.
+    <tschwinge> We might want to identify some documents, and make a list.
+    <braunr> all mach related documentation i have is available here:
+      ftp://ftp.sceen.net/mach/
+    <braunr> (also through http://)
+    <tschwinge> matty3269: Oh, definitely I'd suggest the Mach 3 Kernel
+      Principles book.  That gives a good description of the Mach architecture.
+    <matty3269> Great, that's my weekends reading then!
+    <braunr> you don't need all that for a port
+    <matty3269> Is it possible to run the gnumach binary standalone with qemu?
+    <braunr> you won't go far with it
+    <braunr> you really need at least one program
+    <braunr> but sure, for a port development, it can easily be done
+    <braunr> i'd suggest writing a basic static application for your tests once
+      you reach an advanced state
+    <braunr> the critical parts of a port are memory and interrupts
+    <braunr> and memory can be particularly difficult to implement correctly
+    <tschwinge> matty3269: I once used QEMU's
+      virtual-FAT-filesystem-from-a-directory-on-the-host, and configured GRUB
+      to boot from that one, so it was easy to quickly reboot for kernel
+      development.
+    <braunr> but the good news is that almost every bsd system still uses a
+      similar interface
+    <tschwinge> matty3269: And, you may want to become familiar with QEMU's
+      built-in gdbserver, and how to connect to and use that.
+    <braunr> so, for example, you could base your work from the netbsd/arm pmap
+      module
+    <tschwinge> matty3269: I think that's better than starting on real
+      hardware.
+    <braunr> tschwinge: you can use -kernel with a multiboot binary now
+    <braunr> tschwinge: and even creating iso images is so fast it's not any
+      slower
+    <tschwinge> braunr: Yeah, I thought so, but never checked this out --
+      recently I saw in qemu --help's output some »multiboot« thing flashing
+      by.  :-)
+    <braunr> i think it only supports 32-bits executables though
+    <matty3269> braunr: Yeah, I just tried passing gnumach as the -kernel
+      parameter to qemu, but it segged qemu :S
+    <braunr> otherwise i'd be using it for x15
+    <matty3269> qemu: fatal: Trying to execute code outside RAM or ROM at
+      0xc0100000
+    <braunr> how much ram did you give qemu ?
+    <matty3269> I used '-m 512'
+    <braunr> hum, so the -kernel option doesn't correctly implement elf loading
+      or something like that
+    <braunr> anyway, i'm not sure how well building gnumach on a non-hurd
+      system is supported
+    <braunr> so you may want to simply develop inside your VM for the time
+      being, and reboot
+    <matty3269> doing an objdump of it seems fine...
+    <braunr> ?
+    <braunr> ah, the gnumach executable is a correct elf image
+    <braunr> that's not the point
+    <matty3269> Is there particular reason that mach is linked at 0xc0100000?
+    <matty3269> or is that where it is expected to be in VM>
+    <tschwinge> That's my understanding.
+    <braunr> kernels commmonly sti at high addresses
+    <braunr> that's the "standard" 3G/1G split for user/kernel space
+    <matty3269> I think Linux sits at a similar VA for 32-bit
+    <braunr> no
+    <matty3269> Oh, I thought it did, I know it does on ARM, the kernel is
+      mapped to 0xc000000 
+    <braunr> i don't know arm, but are you sure about this number ?
+    <braunr> seems to lack a 0
+    <matty3269> Ah, yes sorry
+    <matty3269> so 0xC0000000
+    <braunr> 0xc0100000 is just 1 MiB above it
+    <braunr> the .text section of linux on x86 actually starts at c1000000
+      (above 16 MiB, certainly to preserve as much dma-able memory since modern
+      machines now have a lot more)
+    <tschwinge> Surely the GRUB multiboot loader is not that much used/tested?
+    <braunr> unfortunately, no
+    <braunr> matty3269: FYI, my kernel starts at 0xfff00000 :p
+    <matty3269> braunr: hmm, you could be right, I know it's arround there
+      someone
+    <matty3269> somewhere*
+    <matty3269> braunr: that's an interesting address :S
+    <matty3269> braunr: is that the PA address of the kernel or the VA inside a
+      process?
+    <braunr> the VA
+    <matty3269> hmm
+    <braunr> it can't be a PA
+    <braunr> such high addresses are normally device memory
+    <braunr> but don't worry, i have good reasons to have chosen this address
+      :)
+    <matty3269> so with gnumach, does the boot-up sequence use PIC until VM is
+      active and the kernel mapped to the linking address?
+    <braunr> no
+    <braunr> actually i'm not certain of the details
+    <braunr> but there is no PIC
+    <braunr> either special sections are linked at physical addresses
+    <braunr> or it relies on the fact that all executable code uses near jumps
+    <braunr> and uses offsets when accessing data
+    <braunr> (which is why the kernel text is at 3 GiB + 1 MiB, and not 3 GiB)
+    <matty3269> hmm,
+    <matty3269> gah, I need to learn x86
+    <braunr> that would certainly help
+    <matty3269> I've just had a look at boothdr.S; I presume that there must be
+      something else that is executed before this to setup VM, switch to 32-bit
+      more etc...?
+    <matty3269> mode*
+    <braunr> have a look at the multiboot specification
+    <braunr> it sets protected mode
+    <braunr> but not paging
+    <braunr> (i mean, the boot loader does, before passing control to the
+      kernel)
+    <matty3269> Ah, I see
+    <tschwinge> matty3269: Multiboot should be documented in the GRUB package.
+    <matty3269> tschwinge: yep, got that, thanks
+    <matty3269> hmm, I can't find any reference to CR0 in gnumach so paging
+      must be enabled elsewhere
+    <matty3269> oh wait, found it
+    <braunr> $ git grep -i '\<cr0\>'
+    <braunr> i386/i386/proc_reg.h, linux/dev/include/asm-i386/system.h
+    <braunr> although i suspect only the first one is relevant to us :)
+    <matty3269> Yeah, that seems to have the setup code for paging :)
+    <matty3269> I'm still confused how it could run that without paging or PIC
+      though
+    <matty3269> I think I need to watch the boot sequence with qemu
+    <braunr> it's a bit tricky
+    <braunr> but actually simple
+    <braunr> 00:44 < braunr> either special sections are linked at physical
+      addresses
+    <braunr> 00:44 < braunr> or it relies on the fact that all executable code
+      uses near jumps
+    <braunr> that's really all there is
+    <braunr> but you shouldn't worry about that i suppose, as the protocol
+      between the boot loader and an arm kernel will certainly not be the saem
+    <braunr> same*
+    <matty3269> indeed, ARM is tricky because memory maps are vastly differnt
+      on every platform
+
+
+## IRC, freenode, #hurd, 2012-11-21
+
+    <matty3269> Well, I have a ARM gnumach kernel compiled. It just doesn't
+      run! :)
+    <braunr> matty3269: good luck :)

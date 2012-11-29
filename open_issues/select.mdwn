@@ -1395,6 +1395,114 @@ IRC, unknown channel, unknown date:
 [[libpthread]].
 
 
+## IRC, freenode, #hurd, 2012-08-07
+
+    <rbraun_hurd> anyone knows of applications extensively using non-blocking
+      networking functions ?
+    <rbraun_hurd> (well, networking functions in a non-blocking way)
+    <antrik> rbraun_hurd: X perhaps?
+    <antrik> it's single-threaded, so I guess it must be pretty async ;-)
+    <antrik> thinking about it, perhaps it's the reason it works so poorly on
+      Hurd...
+    <braunr> it does ?
+    <rbraun_hurd> ah maybe at the client side, right
+    <rbraun_hurd> hm no, the client side is synchronous
+    <rbraun_hurd> oh by the way, i can use gitk on darnassys
+    <rbraun_hurd> i wonder if it's because of the select fix
+    <tschwinge> rbraun_hurd: If you want, you could also have a look if there's
+      any improvement for these:
+      http://www.gnu.org/software/hurd/open_issues/select.html (elinks),
+      http://www.gnu.org/software/hurd/open_issues/dbus.html,
+      http://www.gnu.org/software/hurd/open_issues/runit.html
+    <tschwinge> rbraun_hurd: And congratulations, again!  :-)
+    <rbraun_hurd> tschwinge: too bad it can't be merged before the pthread port
+      :(
+    <antrik> rbraun_hurd: I was talking about server. most clients are probably
+      sync.
+    <rbraun_hurd> antrik: i guessed :)
+    <antrik> (thought certainly not all... multithreaded clients are not really
+      supported with xlib IIRC)
+    <rbraun_hurd> but i didn't have much trouble with X 
+    <antrik> tried something pushing a lot of data? like, say, glxgears? :-)
+    <rbraun_hurd> why not
+    <rbraun_hurd> the problem with tests involving "a lot of data" is that it
+      can easily degenerate into a livelock
+    <antrik> yeah, sounds about right
+    <rbraun_hurd> (with the current patch i mean)
+    <antrik> the symptoms I got were general jerkiness, with occasional long
+      hangs
+    <rbraun_hurd> that applies to about everything on the hurd
+    <rbraun_hurd> so it didn't alarm me
+    <antrik> another interesting testcase is freeciv-gtk... it reporducibly
+      caused a thread explosion after idling for some time -- though I don't
+      remember the details; and never managed to come up with a way to track
+      down how this happens...
+    <rbraun_hurd> dbus is more worthwhile
+    <rbraun_hurd> pinotree: hwo do i test that ?
+    <pinotree> eh?
+    <rbraun_hurd> pinotree: you once mentioned dbus had trouble with non
+      blocking selects
+    <pinotree> it does a poll() with a 0s timeout
+    <rbraun_hurd> that's the non blocking select part, yes
+    <pinotree> you'll need also fixes for the socket credentials though,
+      otherwise it won't work ootb
+    <rbraun_hurd> right but, isn't it already used somehow ?
+    <antrik> rbraun_hurd: uhm... none of the non-X applications I use expose a
+      visible jerkiness/long hangs pattern... though that may well be a result
+      of general load patterns rather than X I guess
+    <rbraun_hurd> antrik: that's my feeling
+    <rbraun_hurd> antrik: heavy communication channels, unoptimal scheduling,
+      lack of scalability, they're clearly responsible for the generally
+      perceived "jerkiness" of the system
+    <antrik> again, I can't say I observe "general jerkiness". apart from slow
+      I/O the system behaves rather normally for the things I do
+    <antrik> I'm pretty sure the X jerkiness *is* caused by the socket
+      communication
+    <antrik> which of course might be a scheduling issue
+    <antrik> but it seems perfectly possible that it *is* related to the select
+      implementation
+    <antrik> at least worth a try I'd say
+    <rbraun_hurd> sure
+    <rbraun_hurd> there is still some work to do on it though
+    <rbraun_hurd> the client side changes i did could be optimized a bit more
+    <rbraun_hurd> (but i'm afraid it would lead to ugly things like 2 timeout
+      parameters in the io_select_timeout call, one for the client side, the
+      other for the servers, eh)
+
+
+## IRC, freenode, #hurd, 2012-08-07
+
+    <braunr> when running gitk on [darnassus], yesterday, i could push the CPU
+      to 100% by simply moving the mouse in the window :p
+    <braunr> (but it may also be caused by the select fix)
+    <antrik> braunr: that cursor might be "normal"
+    <rbraunrh> antrik: what do you mean ?
+    <antrik> the 100% CPU
+    <rbraunh> antrik: yes i got that, but what would make it normal ?
+    <rbraunh> antrik: right i get similar behaviour on linux actually
+    <rbraunh> (not 100% because two threads are spread on different cores, but
+      their cpu usage add up to 100%)
+    <rbraunh> antrik: so you think as long as there are events to process, the
+      x client is running
+    <rbraunh> thath would mean latencies are small enough to allow that, which
+      is actually a very good thing
+    <antrik> hehe... sound kinda funny :-)
+    <rbraunh> this linear search on dequeue is a real pain :/
+
+
+## IRC, freenode, #hurd, 2012-08-09
+
+`screen` doesn't close a window/hangs after exiting the shell.
+
+    <rbraunh> the screen issue seems linked to select :p
+    <rbraunh> tschwinge: the term server may not correctly implement it
+    <rbraunh> tschwinge: the problem looks related to the term consoles not
+      dying
+    <rbraunh> http://www.gnu.org/software/hurd/open_issues/term_blocking.html
+
+[[Term_blocking]].
+
+
 # See Also
 
 See also [[select_bogus_fd]] and [[select_vs_signals]].

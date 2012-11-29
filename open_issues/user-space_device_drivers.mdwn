@@ -50,6 +50,65 @@ Also see [[device drivers and IO systems]].
 
       * I/O MMU.
 
+
+### IRC, freenode, #hurd, 2012-08-15
+
+    <carli2> hi. does hurd support mesa?
+    <braunr> carli2: software only, but yes
+    <carli2> :(
+    <carli2> so you did not solve the problem with the CS checkers and GPU DMA
+      for microkernels yet, right?
+    <braunr> cs = ?
+    <carli2> control stream
+    <carli2> the data sent to the gpu
+    <braunr> no
+    <braunr> and to be honest we're not currently trying to
+    <carli2> well, a microkernel containing cs checkers for each hardware is
+      not a microkernel any more
+    <braunr> the problem is having the ability to check
+    <braunr> or rather, giving only what's necessary to delegate checking to
+      mmus
+    <carli2> but maybe the kernel could have a smaller interface like a
+      function to check if a memory block is owned by a process
+    <braunr> i'm not sure what you refer to
+    <carli2> about DMA-capable devices you can send messages to
+    <braunr> carli2: dma must be delegated to a trusted server
+    <carli2> linux checks the data sent to these devices, parses them and
+      checks all pointers if they are in a memory range that the client is
+      allowed to read/write from
+    <braunr> the client ?
+    <carli2> in linux, 3d drivers are in user space, so the kernel side checks
+      the pointer sent to the GPU
+    <youpi> carli2: mach could do that as well
+    <braunr> well, there is a rather large part in kernel space too
+    <carli2> so in hurd I trust some drivers to not do evil things?
+    <braunr> those in the kernel yes
+    <carli2> what does "in the kernel" mean? afaik a microkernel only has
+      memory manager and some basic memory sharing and messaging functionality
+    <braunr> did you read about the hurd ?
+    <braunr> mach is considered an hybrid kernel, not a true microkernel
+    <braunr> even with all drivers outside, it's still an hybrid
+    <youpi> although we're to move some parts into userlands :)
+    <youpi> braunr: ah, why?
+    <braunr> youpi: the vm part is too large
+    <youpi> ok
+    <braunr> the microkernel dogma is no policy inside the kernel
+    <braunr> "except scheduling because it's very complicated"
+    <braunr> but all modern systems have moved memory management outisde the
+      kernel, leaving just the kernel abstraction inside
+    <braunr> the adress space kernel abstraction
+    <braunr> and the two components required to make it work are what l4re
+      calls region mappers (the rough equivalent of our vm_map), which decides
+      how to allocate regions in an address space
+    <braunr> and the pager, like ours, which are already external
+    <carli2> i'm not a OS developer, i mostly develop games, web services and
+      sometimes I fix gpu drivers
+    <braunr> that was just FYI
+    <braunr> but yes, dma must be considered something privileged
+    <braunr> and the hurd doesn't have the infrastructure you seem to be
+      looking for
+
+
 ## I/O Ports
 
   * Security considerations.
@@ -63,7 +122,12 @@ Also see [[device drivers and IO systems]].
   * [[GNU Mach|microkernel/mach/gnumach]] is said to have a high overhead when
     doing RPC calls.
 
+
 ## System Boot
+
+A similar problem is described in
+[[community/gsoc/project_ideas/unionfs_boot]], and needs to be implemented.
+
 
 ### IRC, freenode, #hurd, 2011-07-27
 
@@ -89,10 +153,268 @@ Also see [[device drivers and IO systems]].
     < Tekk_> mhm
     < braunr> s/disk/storage/
 
+
 ### IRC, freenode, #hurd, 2012-04-25
 
     <youpi> btw, remember the initrd thing?
     <youpi> I just came across task.c in libstore/ :)
+
+
+### IRC, freenode, #hurd, 2012-07-17
+
+    <bddebian> OK, here is a stupid question  I have always had.  If you move
+      PCI and disk drivers in to userspace, how do do initial bootstrap to get
+      the system booting?
+    <braunr> that's hard
+    <braunr> basically you make the boot loader load all the components you
+      need in ram
+    <braunr> then you make it give each component something (ports) so they can
+      communicate
+
+
+### IRC, freenode, #hurd, 2012-08-12
+
+    <antrik> braunr: so, about booting with userspace disk drivers
+    <antrik> after rereading the chapter in my thesis, I see that there aren't
+      really all than many interesting options...
+    <antrik> I pondered some variants involving a temporary boot filesystem
+      with handoff to the real root FS; but ultimately concluded with another
+      option that is slightly less elegant but probably gets a much better
+      usefulness/complexity ratio:
+    <antrik> just start the root filesystem as the first process as we used to;
+      only hack it so that initially it doesn't try to access the disk, but
+      instead gets the files from GRUB
+    <antrik> once the disk driver is operational, we flip a switch, and the
+      root filesystem starts reading stuff from disk normally
+    <antrik> transparently for all other processes
+    <bddebian> How does grub access the disk without drivers?
+    <antrik> bddebian: GRUB obviously has its own drivers... that's how it
+      loads the kernel and modules
+    <antrik> bddebian: basically, it would have to load additional modules for
+      all the components necessary to get the Hurd disk driver going
+    <bddebian> Right, why wouldn't that be possible?
+    <antrik> (I have some more crazy ideas too -- but these are mostly
+      orthogonal :-) )
+    <antrik> ?
+    <antrik> I'm describing this because I'm pretty sure it *is* possible :-)
+    <bddebian> That grub loads the kernel and whatever server/module gets
+      access to the disk
+    <antrik> not sure what you mean
+    <bddebian> Well as usual I probably don't know the proper terminology but
+      why could grub load gnumach and the hurd "disk server" that contains the
+      userspace drivers?
+    <antrik> disk server?
+    <bddebian> Oh FFS whatever contains the disk drivers :)
+    <bddebian> diskdde, whatever :)
+    <antrik> actually, I never liked the idea of having a big driver blob very
+      much... ideally each driver should have it's own file
+    <antrik> but that's admittedly beside the point :-)
+    <antrik> its
+    <antrik> so to restate: in addition to gnumach, ext2fs.static, and ld.so,
+      in the new scenario GRUB will also load exec, the disk driver, any
+      libraries these two depend upon, and any additional infrastructure
+      involved in getting the disk driver running (for automatic probing or
+      whatever)
+    <antrik> probably some other Hurd core servers too, so we can have a more
+      complete POSIX environment for the disk driver to run in
+    <bddebian> There ya go :)
+    <antrik> the interesting part is modifying ext2fs so it will access only
+      the GRUB-provided files, until it is told that it's OK now to access the
+      real disk
+    <antrik> (and the mechanism how ext2 actually gets at the GRUB-provided
+      files)
+    <bddebian> Or write some new really small ext2fs? :)
+    <antrik> ?
+    <bddebian> I'm just talking out my butt.  Something temporary that gets
+      disposed of when the real disk is available :)
+    <antrik> well, I mentioned above that I considered some handoff
+      schemes... but they would probably be more complex to implement than
+      doing the switchover internally in ext2
+    <bddebian> Ah
+    <bddebian> boot up in a ramdisk? :)
+    <antrik> (and the temporary FS would *not* be an ext2 obviously, but rather
+      some special ramdisk-like filesystem operating from GRUB-loaded files...)
+    <antrik> again, that would require a complicated handoff-scheme
+    <bddebian> Bah, what do I know? :)
+    <antrik> (well, you could of course go with a trivial chroot()... but that
+      would be ugly and inefficient, as the initial processes would still run
+      from the ramdisk)
+    <bddebian> Aren't most things running in memory initially anyway?  At what
+      point must it have access to the real disk?
+    <braunr> antrik: but doesn't that require that disk drivers be statically
+      linked ?
+    <braunr> and having all disk drivers in separate tasks (which is what we
+      prefer to blobs as you put it) seems to pretty much forbid using static
+      linking
+    <braunr> hm actually, i don't see how any solution could work without
+      static linking, as it would create a recursion
+    <braunr> and the only one required is the one used by the root file system
+    <braunr> others can be run from the dynamically linked version
+    <braunr> antrik: i agree, it's a good approach, requiring only a slightly
+      more complicated boot script/sequence
+    <antrik> bddebian: at some point we have to access the real disk so we
+      don't have to work exclusively with stuff loaded by grub... but there is
+      no specific point where it *has* to happen. generally speaking, the
+      sooner the better
+    <antrik> braunr: why wouldn't that work with a dynamically linked disk
+      driver? we only need to make sure all required libraries are loaded by
+      grub too
+    <braunr> antrik: i have a problem with that approach :p
+    <braunr> antrik: it would probably require a reboot when those libraries
+      are upgraded, wouldn't it ?
+    <antrik> I'd actually wish we could run with a dynamically linked ext2fs as
+      well... but that would require a separated boot filesystem and some kind
+      of handoff approach, which would be much more complicated I fear...
+    <braunr> and if a driver is restarted, would it use those libraries too ?
+      and if so, how to find them ?
+    <braunr> but how can you run a dynamically linked root file system ?
+    <braunr> unless the libraries it uses are provided by something else, as
+      you said
+    <antrik> braunr: well, if you upgrade the libraries, *and* want the disk
+      driver to use the upgraded libraries, you are obviously in a tricky
+      situation ;-)
+    <braunr> yes
+    <antrik> perhaps you could tell ext2 to preload the new libraries before
+      restarting the disk driver...
+    <antrik> but that's a minor quibble anyways IMHO
+    <braunr> but that case isn't that important actually, since upgrading these
+      libraries usually means we're upgrading the system, which can imply a
+      reoobt
+    <braunr> i don't think it is
+    <braunr> it looks very complicated to me
+    <braunr> think of restart as after a crash :p
+    <braunr> you can't preload stuff in that case
+    <antrik> uh? I don't see anything particularily complicated. but my point
+      was more that it's not a big thing if that's not implemented IMHO
+    <braunr> right
+    <braunr> it's not that important
+    <braunr> but i still think statically linking is better
+    <braunr> although i'm not sure about some details
+    <antrik> oh, you mean how to make the root filesystem use new libraries
+      without a reboot? that would be tricky indeed... but this is not possible
+      right now either, so that's not a regression
+    <braunr> i assume that, when statically linking, only the .o providing the
+      required symbols are included, right ?
+    <antrik> making the root filesystem restartable is a whole different epic
+      story ;-)
+    <braunr> antrik: not the root file system, but the disk driver
+    <braunr> but i guess it's the same
+    <antrik> no, it's not
+    <braunr> ah
+    <antrik> for the disk driver it's really not that hard I believe
+    <antrik> still some extra effort, but definitely doable
+    <braunr> with the preload you mentioned
+    <antrik> yes
+    <braunr> i see
+    <braunr> i don't think it's worth the trouble actually
+    <braunr> statically linking looks way simpler and should make for smaller
+      binaries than if libraries were loaded by grub
+    <antrik> no, I really don't want statically linked disk drivers
+    <braunr> why ?
+    <antrik> again, I'd prefer even ext2fs to be dynamic -- only that would be
+      much more complicated
+    <braunr> the point of dynamically linking is sharing
+    <antrik> while dynamic disk drivers do not require any extra effort beyond
+      loading the libraries with grub
+    <braunr> but if it means sharing big files that are seldom used (i assume
+      there is a lot of code that simply isn't used by hurd servers), i don't
+      see the point
+    <antrik> right. and with the approach I proposed that will work just as it
+      should
+    <antrik> err... what big files?
+    <braunr> glibc ?
+    <antrik> I don't get your point
+    <antrik> you prefer statically linking everything needed before the disk
+      driver runs (which BTW is much more than only the disk driver itself) to
+      using normal shared libraries like the rest of the system?...
+    <braunr> it's not "like the rest of the system"
+    <braunr> the libraries loaded by grub wouldn't be back by the ext2fs server
+    <braunr> they would be wired in memory
+    <braunr> you'd have two copies of them, the one loaded by grub, and the one
+      shared by normal executables
+    <antrik> no
+    <braunr> i prefer static linking because, if done correctly, the combined
+      size of the root file system and the disk driver should be smaller than
+      that of the rootfs+disk driver and libraries loaded by grub
+    <antrik> apparently I was not quite clear how my approach would work :-(
+    <braunr> probably not
+    <antrik> (preventing that is actually the reason why I do *not* want as
+      simple boot filesystem+chroot approach)
+    <braunr> and initramfs can be easily freed after init
+    <braunr> an*
+    <braunr> it wouldn't be a chroot but something a bit more involved like
+      switch_root in linux
+    <antrik> not if various servers use files provided by that init filesystem
+    <antrik> yes, that's the complex handoff I'm talking about
+    <braunr> yes
+    <braunr> that's one approach
+    <antrik> as I said, that would be a quite elegant approach (allowing a
+      dynamically linked ext2); but it would be much more complicated to
+      implement I believe
+    <braunr> how would it allow a dynamically linked ext2 ?
+    <braunr> how can the root file system be linked with code backed by itself
+      ?
+    <braunr> unless it requires wiring all its memory ?
+    <antrik> it would be loaded from the init filesystem before the handoff
+    <braunr> init sn't the problem here
+    <braunr> i understand how it would boot
+    <braunr> but then, you need to make sure the root fs is never used to
+      service page faults on its own address space
+    <braunr> or any address space it depends on, like the disk driver
+    <braunr> so this basically requires wiring all the system libraries, glibc
+      included
+    <braunr> why not
+    <antrik> ah. yes, that's something I covered in a separate section in my
+      thesis ;-)
+    <braunr> eh :)
+    <antrik> we have to do that anyways, if we want *any* dynamically linked
+      components (such as the disk driver) in the paging path
+    <braunr> yes
+    <braunr> and it should make swapping more reliable too
+    <antrik> so that adds a couple MiB of wired memory... I guess we will just
+      have to live with that
+    <braunr> yes it seems acceptable
+    <braunr> thanks
+    <antrik> (it is actually one reason why I want to avoid static linking as
+      much as possible... so at least we have to wire these libraries only
+      *once*)
+    <antrik> anyways, back to my "simpler" approach
+    <antrik> the idea is that a (static) ext2fs would still be the first task
+      running, and immediately able to serve filesystem access requests -- only
+      it would serve these requests from files preloaded by GRUB rather than
+      the actual disk driver
+    <braunr> i understand now
+    <antrik> until a switch is flipped telling it that now the disk driver (and
+      anything it depends upon) is operational
+    <braunr> you still need to make sure all this is wired
+    <antrik> yes
+    <antrik> that's orthogonal
+    <antrik> which is why I have a separate section about it :-)
+    <braunr> what was the relation with ggi ?
+    <antrik> none strictly speaking
+    <braunr> i'll rephrase it: how did it end up in your thesis ?
+    <antrik> I just covered all aspects of userspace drivers in one of the
+      "introduction" sections of my thesis
+    <braunr> ok
+    <antrik> before going into specifics of KGI
+    <antrik> (and throwing in along the way that most of the issues described
+      do not matter for KGI ;-) )
+    <braunr> hehe
+    <braunr> i'm wondering, do we have mlockall on the hurd ? it seems not
+    <braunr> that's something deeply missing in mach
+    <antrik> well, bootstrap in general *is* actually relevant for KGI as well,
+      because of console messages during boot... but the filesystem bootstrap
+      is mostly irrelevant there ;-)
+    <antrik> braunr: oh? that's a problem then... I just assumed we have it
+    <braunr> well, it's possible to implement MCL_CURRENT, but not MCL_FUTURE
+    <braunr> or at least, it would be a bit difficult
+    <braunr> every allocation would need to be aware of that property
+    <braunr> it's better to have it managed by the vm system
+    <braunr> mach-defpager has its own version of vm_allocate for that
+    <antrik> braunr: I don't think we care about MCL_FUTURE here
+    <antrik> hm, wait... MCL_CURRENT is fine for code, but it might indeed be a
+      problem for dynamically allocated memory :-(
+    <braunr> yes
 
 
 # Plan
@@ -114,6 +436,112 @@ Also see [[device drivers and IO systems]].
 
         Some (unfinished?) code written by Robert Millan in 2003: PC keyboard
         and parallel port drivers, using `libtrivfs`.
+
+
+## I/O Server
+
+### IRC, freenode, #hurd, 2012-08-10
+
+    <braunr> usually you'd have an I/O server, and serveral device drivers
+      using it
+    <bddebian> Well maybe that's my question.  Should there be unique servers
+      for say ISA, PCI, etc or could all of that be served by one "server"?
+    <braunr> forget about ISA
+    <bddebian> How?  Oh because the ISA bus is now served via a PCI bridge?
+    <braunr> the I/O server would merely be there to help device drivers map
+      only what they require, and avoid conflicts
+    <braunr> because it's a relic of the past :p
+    <braunr> and because it requires too high privileges
+    <bddebian> But still exists in several PCs :)
+    <braunr> so usually, you'd directly ask the kernel for the I/O ports you
+      need
+    <mel-> so do floppy drives
+    <mel-> :)
+    <braunr> if i'm right, even the l4 guys do it that way
+    <braunr> he's right, some devices are still considered ISA
+    <bddebian> But that is where my confusion lies.  Something has to figure
+      out what/where those I/O ports are
+    <braunr> and that's why i tell you to forget about it
+    <braunr> ISA has both statically allocated ports (the historical ones) and
+      others usually detected through PnP, when it works
+    <braunr> PCI is much cleaner, and memory mapped I/O is both better and much
+      more popular currently
+    <bddebian> So let's say I have a PCI SCSI card.  I need some device driver
+      to know how to talk to that, right?
+    <bddebian> something is going to enumerate all the PCI devices and map them
+      to and address space
+    <braunr> bddebian: that would be the I/O server
+    <braunr> we'll call it the PCI server
+    <bddebian> OK, that is where I am headed.  What if everything isn't PCI?
+      Is the "I/O server" generic enough?
+    <youpi> nowadays everything is PCI
+    <bddebian> So we are completely ignoring legacy hardware?
+    <braunr> we could have separate servers using a shared library that would
+      provide allocation routines like resource maps
+    <braunr> yes
+    <youpi> for what is not, the translator just needs to be run as root
+    <youpi> to get i/o perm from the kernel
+    <braunr> the idea for projects like ours, where the user base is very small
+      is: don't implement what you can't test
+    <youpi> bddebian: legacy can not be supported in a nice way, so for them we
+      can just afford a bad solution
+    <youpi> i.e. leave the driver in kernel
+    <braunr> right
+    <youpi> e.g. the keyboard
+    <bddebian> Well what if I have a USB keyboard? :-P
+    <braunr> that's a different matter
+    <youpi> USB keyboard is not legacy hardware
+    <youpi> it's usb
+    <youpi> which can be enumerated like pci
+    <braunr> and USB uses PCI
+    <youpi> and pci could be on usb :)
+    <braunr> so it's just a separate stack on top of the PCI server
+    <bddebian> Sure so would SCSI in my example above but is still a seperate
+      bus
+    <braunr> netbsd has a very nice way of attaching drivers to buses
+    <youpi> bddebian: also, yes, and it can be enumerated
+    <bddebian> Which was my original question.  This magic I/O server handles
+      all of the buses?
+    <youpi> no, just PCI, and then you'd have other servers for other busses
+    <braunr> i didn't mean that there would be *one* I/O server instance
+    <bddebian> So then it isn't a generic I/O server is it?
+    <bddebian> Ahhhh
+    <youpi> that way you can even put scsi over ppp or other crazy things
+    <braunr> it's more of an idea
+    <braunr> there would probably be a generic interface for basic stuff
+    <braunr> and i assume it could be augmented with specific (e.g. USB)
+      interfaces for servers that need more detailed communication
+    <braunr> (well, i'm pretty sure of it)
+    <bddebian> So the I/O server generalizes all functions, say read and write,
+      and then the PCI, USB, SCIS, whatever servers are contacted by it?
+    <braunr> no, not read and write
+    <braunr> resource allocation rather
+    <youpi> and enumeration
+    <braunr> probing perhaps
+    <braunr> bddebian: the goal of the I/O server is to make it possible for
+      device drivers to access the resources they need without a chance to
+      interfere with other device drivers
+    <braunr> (at least, that's one of the goals)
+    <braunr> so a driver would request the bus space matching the device(s) and
+      obtain that through memory mapping
+    <bddebian> Shouldn't that be in the "global address space"?  SOrry if I am
+      using the wrong terminology
+    <youpi> well, the i/o server should also trigger the start of that driver
+    <youpi> bddebian: address space is not a matter for drivers
+    <braunr> bddebian: i'm not sure what you think of with "global address
+      space"
+    <youpi> bddebian: it's just a matter for the pci enumerator when (and if)
+      it places the BARs in physical address space
+    <youpi> drivers merely request mapping that, they don't need to know about
+      actual physical addresses
+    <braunr> i'm almost sure you lost him at BARs
+    <braunr> :(
+    <braunr> youpi: that's what i meant with probing actually
+    <bddebian> Actually I know BARs I have been reading on PCI :)
+    <bddebian> I suppose physicall address space is more what I meant when I
+      used "global address space"
+    <braunr> i see
+    <youpi> bddebian: probably, yes
 
 
 # Documentation

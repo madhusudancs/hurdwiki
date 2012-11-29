@@ -214,3 +214,176 @@ License|/fdl]]."]]"""]]
     <braunr> or these meetings won't be as useful as they could be
     <tschwinge> Yes.  But also please don't wait for the meetings, but ask
       questions throughout the week, too.
+
+
+# IRC, freenode, #hurd, 2012-08-09
+
+    <nowhere_man> hey, does anyone knows the network device interface well?
+    <nowhere_man> I don't get it by reading net_io.c/h in gnumach
+    <braunr> nowhere_man: ask your question
+    <braunr> nowhere_man: http://www.sceen.net/~rbraun/pcap-hurd.c <- this may
+      help
+    <nowhere_man> I don't see what the entry point is
+    <nowhere_man> I finally understood that I actually don't need to touch
+      pfinet for gsoc project
+    <nowhere_man> but I should do a replacement network device instead
+    <nowhere_man> is the net_io_init function called at start?
+    <braunr> what entry point ?
+    <braunr> and you should perhaps have a look at the eth-multiplexer by
+      zhengda
+    <braunr> yes net_io_init is called at startup
+    <braunr> nowhere_man: did you find your answers about networking ?
+    <nowhere_man> no, I'm still digging in mach's code
+    <braunr> nowhere_man: well keep asking :/
+    <braunr> you left conversation without notice :/
+    <braunr> nowhere_man: and why mach ?
+    <nowhere_man> I thought hardware devices are there
+    <tschwinge> nowhere_man: You wanted to push your documentation one/two
+      weeks ago.  Why has that not yet happened?
+    <youpi> nowhere_man: they used to be there, they are now in netdde, but in
+      both case it's just a matter of the same RPC interface
+    <nowhere_man> tschwinge: I spent very few time this week on gsoc, and
+      completely forgot about the push on savannah
+    <braunr> nowhere_man: i told you to look at the work by zhengda concerning
+      eth-multiplexer, did you do that ?
+    <tschwinge> nowhere_man: You realize GSoC is meant to be a full-time job?
+    <tschwinge> Or, next to full-time?
+    <braunr> it's full-time normally
+    <braunr> the payment is justified by that
+    <youpi> nowhere_man: most RPC operations you need to know about network can
+      be seen at work in pfinet/ethernet.c, wherever "ether_port" appears
+    <youpi> i.e. device_open, set_filter, write, set/get_status
+    <braunr> again, http://www.sceen.net/~rbraun/pcap-hurd.c should guide you
+      pretty well
+    <braunr> since it's the very least necessary to use that interface
+    <tschwinge> nowhere_man: How, roughly but realistically, are your plans to
+      continue this task?
+    <tschwinge> nowhere_man: What has been blocking you this week so you
+      couldn't work on your task?
+    <nowhere_man> tschwinge: mostly a previous work that was supposed to end at
+      the beginning of the summer and only went online now, for which I'm
+      basically sysadmin
+    <braunr> 21:25 < tschwinge> nowhere_man: How, roughly but realistically,
+      are your plans to continue this task?
+    <braunr> this question is really more interesting actually
+    <nowhere_man> right now, I want to write a netword device that just sends
+      its frames by IPC
+    <braunr> why ?
+    <nowhere_man> as I never wrote any program using Mach's IPC, that seems the
+      easiest to get them right
+    <braunr> you won't have time
+    <braunr> 21:22 < braunr> nowhere_man: i told you to look at the work by
+      zhengda concerning eth-multiplexer, did you do that ?
+    <nowhere_man> braunr: not yet, no
+    <braunr> well that's your best chance to make some progress
+    <nowhere_man> braunr: is writing the virtal network device that hard?
+    <braunr> basically, it allows "bridgind" the pfinet instances of various
+      subhurds
+    <braunr> the virtual network device you want *is* eth-multiplexer
+    <tschwinge> nowhere_man: GSoC is nearly over.  That's why I'm asking how
+      this task is going to continue.  I'm sorry but I reckon you have not
+      spend anywhere near the amount of hours that are meant to be spent on it.
+    <braunr> and from what antrik told me, yes it's hard, and moreover, why
+      rewrite it if it already exists and you're late
+    <braunr> i agree
+    <nowhere_man> tschwinge: I know, I've started way too late because of my
+      second round of exams
+    <tschwinge> nowhere_man: OK, that's how you started.  But how is it going
+      to continue...
+    <nowhere_man> tschwinge: in short, I write a prototype that just starts a
+      subhurd, and when that works correctly I add the network
+    <tschwinge> nowhere_man: I mean from an organizational point of view.
+    <nowhere_man> well, between now and the beginning of september, I'll work
+      full-time on this
+    <nowhere_man> up until september 8th
+
+
+# IRC, freenode, #hurd, 2012-08-09
+
+    <antrik> nowhere_man: you do *not* have to do a replacement network
+      device. zhengda did that years ago.
+    <antrik> nowhere_man: also note that zhengda also implemented the support
+      for *using* the virtual network device (in fact any replacement devices
+      -- except that no others actually exist yet) in boot
+    <youpi> which is already in, actually, isn't it?
+    <antrik> youpi: hm, yes... it was the patch that zhengda posted on the list
+      once, but later updated, and at some later point you merged the outdated
+      variant from the list...
+    <youpi> outdated?
+    <youpi> ah, but he never posted the updated one, and it got lost in git
+      repos, right?
+    <youpi> (what was updated actually?)
+    <antrik> he changed the option name and description later for more
+      clarity. don't remember whether there were other changes
+    <antrik>   -f, --device=device_name=device_file
+    <antrik>                              Specify a device file used by subhurd
+      and its
+    <antrik>                              virtual name.
+    <antrik> that's the one from the Debian package
+    <antrik>   -m, --device-map=DEBICENAME=DEVICEFILE
+    <antrik>                              Map the device in subhurd to the
+      device in the
+    <antrik>                              main Hurd.
+    <antrik> that's the one I have locally built from his tree
+    <youpi> so you actually have access to his tree?
+    <antrik> uhm... I used to... it was on flubber
+
+
+# IRC, freenode, #hurd, 2012-08-18
+
+    <nowhere_man> so, this week I discovered how fun it is to work on a
+      non-mainstream OS
+    <nowhere_man> I hoped to start coding the tool itself, put together the
+      skeleton, but every Lisp implementation I tried had problems
+    <braunr> ah you want to write it in lisp ?
+    <nowhere_man> ECL, that I had ported a few years ago, actually FTBFS since
+    <nowhere_man> I hoped to be able, it would be easier for me
+    <nowhere_man> and when I tried Scheme, I started with Guile (it's GNU's own
+      Scheme implementation, after all)
+    <nowhere_man> and when I execute the FFI functions, to access functions in
+      libmachdec
+    <nowhere_man> I get SIGILL
+    <braunr> i can't advise you about anything lisp related
+    <braunr> the most reliable thing you'll find on the hurd is C
+    <nowhere_man> I tried to debug that, but running Guile in GDB gets me a
+      SIGSEV
+    <nowhere_man> I'll try to make ECL to build again
+    <braunr> this seems like a waste of time to me
+    <braunr> avoid spending time on anything that isn't directly related to
+      your goal if you still hope to finish it
+    <nowhere_man> I'm ten times more comfortable coding in Lisp
+    <braunr> it doesn't matter, you're late
+    <nowhere_man> yeah, I know, so taking the time to correct that problem
+      won't change the fact that I won't finish in time
+    <nowhere_man> so I'll finish anyway, and in Lisp
+    <braunr> and if you lack something else, like some mach/hurd specific lisp
+      bindings, you'll have to spend more time on that
+    <braunr> ok
+    <nowhere_man> do you know if someone had a SIGILL situation on Hurd in the
+      past?
+    <nowhere_man> I'm wondering if that's a known kind of issue
+    <braunr> there are lots of issues
+    <braunr> especially when it comes to other languages and runtime
+      environments
+    <nowhere_man> but is it like MAX_PATH_LEN, something that is known to
+      happen when porting something on Hurd?
+    <braunr> i'm not sure how comparable it is
+    <braunr> i'd say it's often before of the conformance issues of the hurd
+    <braunr> because*
+    <nowhere_man> like missing bits of POSIX ?
+    <braunr> or simple wrong for some corner cases
+    <braunr> simply*
+    <bubu^> nowhere_man, I was able to run guile on my hurd image through qemu
+    <bubu^> but I didn't make any complexe programms to check if everything
+      works fine
+    <nowhere_man> yeah, it runs fine
+    <nowhere_man> FFI functions get you a SIGILL
+    <nowhere_man>
+      http://www.gnu.org/software/guile/manual/html_node/Dynamic-FFI.html
+    <nowhere_man> the define-module form at the beginning triggers the signal
+    <antrik> nowhere_man: what do you want to implement in Lisp?
+    <antrik> BTW, the guy working on Lisp bindings a couple of years ago used
+      Clisp
+    <antrik> it was working back then
+    <nowhere_man> antrik: the program that sets up a subhurd
+    <nowhere_man> I always forget about clisp, I'll try it right away
