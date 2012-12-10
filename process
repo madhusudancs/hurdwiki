@@ -100,9 +100,10 @@ case $project:$action in
     : "${host:?}"
     : "${mount:?}"
     : "${project_base:?}"
+    # Log files.
     case $project:$step in
       binutils:build | binutils:install \
-      | gcc:build | gcc:install \
+      | gcc:build | gcc:install | gcc:test \
       | gdb:build | gdb:install \
       | glibc:build | glibc:install | glibc:test)
         ssh \
@@ -110,10 +111,28 @@ case $project:$action in
           'cd '"$project_base"'/ && \
           cat '"$branch$build_suffix"'/log_'"$step"'* \
             | sed -e "s%\('"$mount"'\)\?${PWD}%[...]%g"' \
-          > toolchain/logs/"$project"/"$host"/"$step"
-        exit
+          > toolchain/logs/"$project"/"$host"/log_"$step"
         ;;
-      binutils:test | gcc:test | gdb:test)
+      binutils:test \
+      | gdb:test)
+        :
+        ;;
+      *)
+        echo >&2 "Internal error."
+        exit 1
+        ;;
+    esac
+    # Detailed log files.
+    case $project:$step in
+      binutils:build | binutils:install \
+      | gcc:build | gcc:install \
+      | gdb:build | gdb:install \
+      | glibc:build | glibc:install | glibc:test)
+        :
+        ;;
+      binutils:test \
+      | gcc:test \
+      | gdb:test)
         # First, create a temporary directory, where the *.sum files are copied
         # into, and then individually filtered through sed.
         ssh \
@@ -146,7 +165,7 @@ case $project:$action in
             ssh \
               "$host" \
                 'cd '"$project_base"'/'"$branch$build_suffix"'.sums/ && \
-                mv '"$arch"' [ARCH]'
+                if test -d '"$arch"'; then mv '"$arch"' [ARCH]; fi'
             ;;
           gdb)
             # Remove the summary file; we got the individual ones.
@@ -160,13 +179,13 @@ case $project:$action in
           -vr --delete \
           "$host":"$project_base"/"$branch$build_suffix".sums/ \
           toolchain/logs/"$project"/"$host"/"$step"/
-        exit
         ;;
       *)
         echo >&2 "Internal error."
         exit 1
         ;;
     esac
+    exit
     ;;
   binutils:diff | gcc:diff | gdb:diff)
     [ $# = 0 ]
@@ -175,31 +194,43 @@ case $project:$action in
     : "${hurd_host:?}"
     case $project:$step in
       binutils:build | binutils:install \
-      | gcc:build | gcc:install \
+      | gcc:build | gcc:install | gcc:test \
       | gdb:build | gdb:install)
         sed \
-          -f toolchain/logs/"$project"/"$linux_host"/"$step".sed \
-          < toolchain/logs/"$project"/"$linux_host"/"$step" \
-          > toolchain/logs/"$project"/"$linux_host"/"$step"_
+          -f toolchain/logs/"$project"/"$linux_host"/log_"$step".sed \
+          < toolchain/logs/"$project"/"$linux_host"/log_"$step" \
+          > toolchain/logs/"$project"/"$linux_host"/log_"$step"_
         sed \
-          -f toolchain/logs/"$project"/"$hurd_host"/"$step".sed \
-          < toolchain/logs/"$project"/"$hurd_host"/"$step" \
-          > toolchain/logs/"$project"/"$hurd_host"/"$step"_
+          -f toolchain/logs/"$project"/"$hurd_host"/log_"$step".sed \
+          < toolchain/logs/"$project"/"$hurd_host"/log_"$step" \
+          > toolchain/logs/"$project"/"$hurd_host"/log_"$step"_
         r=0
         diff \
           -wu -F ^Running \
-          toolchain/logs/"$project"/"$linux_host"/"$step"_ \
-          toolchain/logs/"$project"/"$hurd_host"/"$step"_ \
-          > toolchain/logs/"$project"/"$step".diff \
+          toolchain/logs/"$project"/"$linux_host"/log_"$step"_ \
+          toolchain/logs/"$project"/"$hurd_host"/log_"$step"_ \
+          > toolchain/logs/"$project"/log_"$step".diff \
         || r=$?
         rm \
           -f \
-          toolchain/logs/"$project"/"$linux_host"/"$step"_ \
-          toolchain/logs/"$project"/"$hurd_host"/"$step"_
+          toolchain/logs/"$project"/"$linux_host"/log_"$step"_ \
+          toolchain/logs/"$project"/"$hurd_host"/log_"$step"_
         [ "$r" = 0 ] || [ "$r" = 1 ]
-        exit
         ;;
-      binutils:test | gcc:test | gdb:test)
+      binutils:test \
+      | gdb:test)
+        :
+        ;;
+    esac
+    case $project:$step in
+      binutils:build | binutils:install \
+      | gcc:build | gcc:install \
+      | gdb:build | gdb:install)
+        :
+        ;;
+      binutils:test \
+      | gcc:test\
+      | gdb:test)
         r=0
         diff \
           -Nrwu -F ^Running \
@@ -208,13 +239,13 @@ case $project:$action in
           > toolchain/logs/"$project"/"$step".diff \
         || r=$?
         [ "$r" = 0 ] || [ "$r" = 1 ]
-        exit
         ;;
       *)
         echo >&2 "Internal error."
         exit 1
         ;;
     esac
+    exit
     ;;
   *)
     echo >&2 "Internal error."
