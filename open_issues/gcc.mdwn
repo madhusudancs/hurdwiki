@@ -37,8 +37,8 @@ git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C
 
 -->
 
-Last reviewed up to the [[Git mirror's 6b7a0b5b7dfa4071c95418040cc0ee1528ba7915
-(2012-08-05) sources|source_repositories/gcc]].
+Last reviewed up to the [[Git mirror's 769bf18a20ee2540ca7601cdafabd62b18b9751b
+(2012-10-01) sources|source_repositories/gcc]].
 
 <http://gcc.gnu.org/install/configure.html> has documentation for the
 `configure` switches.
@@ -74,18 +74,21 @@ Last reviewed up to the [[Git mirror's 6b7a0b5b7dfa4071c95418040cc0ee1528ba7915
 
   * [[`libmudflap`|libmudflap]].
 
-  * Might [`-fsplit-stack`](http://nickclifton.livejournal.com/6889.html) be
-    worthwhile w.r.t. our [[multithreaded|multithreading]] libraries?
+  * [`-fsplit-stack`](http://nickclifton.livejournal.com/6889.html)
 
       * Also see `libgcc/config/i386/morestack.S`: comments w.r.t
-        `TARGET_THREAD_SPLIT_STACK_OFFSET`; likely needs porting.
+        `TARGET_THREAD_SPLIT_STACK_OFFSET`/`%gs:0x30` usage; likely needs
+        porting.
 
-    As per `libgcc/config/i386/t-stack-i386`, the former file is only used for
-    `-fsplit-stack` support -- which is currently enabled for us in
-    `libgcc/config.host`, but not usable via GCC proper.
+      * As per `libgcc/config/i386/t-stack-i386`, the former file is only used
+        for `-fsplit-stack` support -- which is currently enabled for us in
+        `libgcc/config.host`.
 
       * `gcc/config/gnu-user.h` defines `*SPLIT_STACK*` macros -- which aren't
         valid for us (yet), I think.
+
+      * Might `-fsplit-stack` be useful for us with respect to our
+        [[multithreaded|multithreading]] libraries?
 
   * `--enable-languages=[...]`
 
@@ -302,13 +305,13 @@ Last reviewed up to the [[Git mirror's 6b7a0b5b7dfa4071c95418040cc0ee1528ba7915
 # Build
 
 Here's a log of a GCC build run; this is from our [[Git repository's
-3336556d2cb32f46322922a83015f760cfb79d8f (2012-11-13;
-6b7a0b5b7dfa4071c95418040cc0ee1528ba7915 (2012-08-05))
+b401cb7ed15602d244a6807835b0b9d740a302a8 (2012-11-26;
+769bf18a20ee2540ca7601cdafabd62b18b9751b (2012-10-01))
 sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
     $ (cd ../master/ && contrib/gcc_update --touch)
-    $ ../master/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 --enable-build-with-cxx --enable-languages=all,ada 2>&1 | tee log_build
+    $ ../master/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 --enable-languages=all,ada 2>&1 | tee log_build
     [...]
     $ make 2>&1 | tee log_build_
     [...]
@@ -401,7 +404,7 @@ This takes up around 3.1 GiB, and needs roughly 3.25 h on kepler.SCHWINGE and
 
     Just different order of object files, or another problem?  TODO
 
-  * `libobjc/encoding.c`: 
+  * `libobjc/encoding.c`:
 
          libtool: compile:  [...]/hurd/master.build/./gcc/xgcc [...] [...]/hurd/master/libobjc/encoding.c -c [...]
         +[...]/hurd/master/libobjc/encoding.c:128:1: warning: '_darwin_rs6000_special_round_type_align' defined but not used [-Wunused-function]
@@ -435,8 +438,10 @@ This takes up around 3.1 GiB, and needs roughly 3.25 h on kepler.SCHWINGE and
 
   * *default library search path*
 
-        -checking for the default library search path... /lib /usr/lib /lib/i386-linux-gnu /usr/lib/i386-linux-gnu /lib/i486-linux-gnu /usr/lib/i486-linux-gnu /usr/local/lib /lib64 /usr/lib64 
+        -checking for the default library search path... /lib /usr/lib /lib/i386-linux-gnu /usr/lib/i386-linux-gnu /lib/i486-linux-gnu /usr/lib/i486-linux-gnu /usr/local/lib
         +checking for the default library search path... /lib /usr/lib
+
+    [[binutils]] issue?  Should be aligned by Samuel's binutils patch.
 
   * `./classpath/[...]/*.properties`
 
@@ -470,13 +475,6 @@ This takes up around 3.1 GiB, and needs roughly 3.25 h on kepler.SCHWINGE and
     coulomb.SCHWINGE a GCJ one.
 
     There are other instances of this in the following.
-
-  * *default library search path*
-
-        -checking for the default library search path... /lib /usr/lib /lib/[MULTIARCH] /usr/lib/[MULTIARCH] /lib/i486-linux-gnu /usr/lib/i486-linux-gnu /usr/local/lib /lib64 /usr/lib64 
-        +checking for the default library search path... /lib /usr/lib
-
-    Should be aligned by Samuel's binutils patch.
 
   * `value-unwind.h`
 
@@ -557,25 +555,51 @@ that we'll catch any fundamental rearrangements of/additions to the testsuites.
 
 kepler.SCHWINGE:
 
-    $ make -k RUNTESTFLAGS=-v check 2>&1 | tee log_test
+    $ make -k check 2>&1 | tee log_test
     [...]
 
 coulomb.SCHWINGE:
 
-    $ grep ^CHECK_TARGETS gcc/Makefile 
+    $ awk '/^maybe-check-target/ { next; }; /^maybe-check-[^:]*:./ { print; };' < Makefile
+    maybe-check-fixincludes: check-fixincludes
+    maybe-check-gcc: check-gcc
+    maybe-check-intl: check-intl
+    maybe-check-libbacktrace: check-libbacktrace
+    maybe-check-libcpp: check-libcpp
+    maybe-check-libdecnumber: check-libdecnumber
+    maybe-check-libiberty: check-libiberty
+    maybe-check-zlib: check-zlib
+    maybe-check-gnattools: check-gnattools
+    maybe-check-lto-plugin: check-lto-plugin
+    $ grep ^CHECK_TARGETS gcc/Makefile
     CHECK_TARGETS =  check-ada check-c check-c++ check-fortran check-java check-lto check-objc
 
     $ export LC_ALL=C
-    $ t=check-ada/t=check-c/t=check-c++/t=check-fortran/t=check-java/t=check-lto/t=check-objc
-    $ make -k -C gcc RUNTESTFLAGS=-v "$t" 2>&1 | tee log_test_gcc_"$t"
+
+    $ make -k check-fixincludes 2>&1 | tee log_test_1_check-fixincludes
     [...]
-    $ make -k RUNTESTFLAGS=-v check-target 2>&1 | tee log_test_check-target
+    $ make -k -C gcc check-ada 2>&1 | tee log_test_2_gcc_check-ada
+    [...]
+    [reboot]
+    $ make -k -C gcc check-c 2>&1 | tee log_test_2_gcc_check-c
+    [...]
+    [reboot]
+    $ make -k -C gcc check-c++ 2>&1 | tee log_test_2_gcc_check-c++
+    [...]
+    [reboot]
+    $ make -k -C gcc check-fortran check-java check-lto check-objc 2>&1 | tee log_test_2_gcc_check-fortran,check-java,check-lto,check-objc
+    [...]
+    [reboot]
+    $ make -k check-intl check-libbacktrace check-libcpp check-libdecnumber check-libiberty check-zlib check-gnattools check-lto-plugin 2>&1 | tee log_test_3
+    [...]
+    $ make -k check-target 2>&1 | tee log_test_4_check-target
     [...]
 
-This needs roughly 6.75 h on kepler.SCHWINGE and 3.75 h (`gcc/check-ada`) +
-12.5 h (`gcc/check-c`) + 4.5 h (`gcc/check-c++`) + 5.25 h (`gcc/check-fortran`)
-+ 0 h (`gcc/check-java`) + 0 h (`gcc/check-lto`) + 0.5 h (`gcc/check-objc`) +
-8.5 h (`check-target`) = 35 h on coulomb.SCHWINGE.
+This needs roughly 6.75 h on kepler.SCHWINGE and 3.5 h (`check-fixincludes`,
+`gcc/check-ada`) + 10 h (`gcc/check-c`) + 3.75 h (`gcc/check-c++`) + 5.5 h
+(`gcc/check-fortran`, `gcc/check-java`, `gcc/check-lto`, `gcc/check-objc`) +
+8.25 h (`check-intl`, [...], `check-lto-plugin`, `check-target`) = 31 h on
+coulomb.SCHWINGE.
 
 
 ## Analysis
@@ -590,10 +614,25 @@ This needs roughly 6.75 h on kepler.SCHWINGE and 3.75 h (`gcc/check-ada`) +
 
     TODO.
 
+  * As of b401cb7ed15602d244a6807835b0b9d740a302a8 (2012-11-26;
+    769bf18a20ee2540ca7601cdafabd62b18b9751b (2012-10-01)), all
+    `gcc.dg/guality` and `g++.dg/guality` and a few more are no longer tested
+    on coulomb.SCHWINGE and kepler.SCHWINGE.
+
+  * As of b401cb7ed15602d244a6807835b0b9d740a302a8 (2012-11-26;
+    769bf18a20ee2540ca7601cdafabd62b18b9751b (2012-10-01)), there are
+    regressions (FAILs) in libgomp execution tests on coulomb.SCHWINGE.
+
   * TODO
 
 
 ## Enhancements
+
+
+### `contrib/testsuite-management/`, `contrib/regression/`
+
+  * 35a27ee8c4b349fea44fd1fadc9614ab3cc9d578 `Add an xfail manifest for
+    x86_64-unknown-linux-gnu to trunk.`
 
 
 ### Parallel Testing
