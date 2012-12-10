@@ -29,12 +29,12 @@ Here's what's to be done for maintaining GNU GDB.
 git checkout reviewed
 git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..sourceware/master
 -i
-/^commit |^Merge:|^---$|hurd|linux|nacl|nptl|glibc|gs:|gnu-nat|i386gnu
+/^commit |^merge:|^---$|hurd|linux|nacl|nptl|glibc|gs:|gnu-nat|i386gnu
 
 -->
 
-Last reviewed up to the [[Git mirror's 38950d85c63f8528d11112d10b11bfa76e3d5bf8
-(2012-11-11) sources|source_repositories/gdb]].
+Last reviewed up to the [[Git mirror's ded7dfe6274b281d92a6ed76cedf29d06c918dec
+(2012-12-10) sources|source_repositories/gdb]].
 
   * Globally
 
@@ -63,12 +63,15 @@ Last reviewed up to the [[Git mirror's 38950d85c63f8528d11112d10b11bfa76e3d5bf8
   * 82763a3d329b0d342d0273941b1521be9ef0c604 »MODIFIED is unknown, pass it as
     true.«
 
+  * Configure so that Debian system's `/usr/lib/debug/[...]` will be loaded
+    automatically.
+
 
 # Build
 
 Here's a log of a GDB build run; this is from our [[Git
 repository|source_repositories/gdb]]'s `tschwinge/Ferry_Tagscherer` branch,
-commit 38950d85c63f8528d11112d10b11bfa76e3d5bf8 (2012-11-11), run on
+commit ded7dfe6274b281d92a6ed76cedf29d06c918dec (2012-12-10), run on
 kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -101,14 +104,6 @@ out most of the differences that are due to GNU/Linux supporting more core file
 formats and more emulation vectors.
 
     $ toolchain/logs/process gdb build
-
-  * DFP
-
-        -checking for decimal floating point... bid
-        +checking for decimal floating point... configure: WARNING: decimal float is not supported for this target, ignored
-        +dpd
-
-    Have to sync libdecnumber?
 
   * Why do we specify `-D_GNU_SOURCE`, and GNU/Linux doesn't?
 
@@ -212,7 +207,7 @@ min on coulomb.SCHWINGE.
     $ make -k check
     [...]
 
-This needs roughly 14 min on kepler.SCHWINGE and 135 min on coulomb.SCHWINGE.
+This needs roughly 14 min on kepler.SCHWINGE and 110 min on coulomb.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
 the `tee` process does not terminate if there are still stray leftover
@@ -229,10 +224,6 @@ GNU/Hurd, these generally are `gdb.multi/watchpoint-multi`, and an unknown
 
   * Disabled
 
-      * `gdb.base/morestack.exp`
-
-        TODO `-fsplit-stack` issue.
-
       * `gdb.base/readline.exp`
 
         [[term_blocking]] issue.
@@ -240,6 +231,50 @@ GNU/Hurd, these generally are `gdb.multi/watchpoint-multi`, and an unknown
       * `gdb.base/sigall.exp`
 
         From `send signal TSTP` on, all FAIL running into timeouts.
+
+      * `gdb.python/py-inferior.exp` (mostly disabled)
+
+            Running ../../../Ferry_Tagscherer/gdb/testsuite/gdb.python/py-inferior.exp ...
+            [...]
+            python print 'result =', i0.was_attached
+            result = False
+            (gdb) PASS: gdb.python/py-inferior.exp: test Inferior.was_attached
+            python print i0.threads ()
+            (<gdb.InferiorThread object at 0x61170>, <gdb.InferiorThread object at 0x61160>)
+            (gdb) FAIL: gdb.python/py-inferior.exp: test Inferior.threads
+            break check_threads
+            Breakpoint 2 at 0x8048869: file ../../../Ferry_Tagscherer/gdb/testsuite/gdb.python/py-inferior.c, line 61.
+            (gdb) continue
+            Continuing.
+            [New Thread 25670.6]
+            [New Thread 25670.7]
+            [New Thread 25670.8]
+            [New Thread 25670.9]
+            [New Thread 25670.10]
+            [New Thread 25670.11]
+            [New Thread 25670.12]
+            [New Thread 25670.13]
+            
+            Breakpoint 2, check_threads (barrier=0x15ff144) at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.python/py-inferior.c:61
+            61        pthread_barrier_wait (barrier);
+            (gdb) PASS: gdb.python/py-inferior.exp: continue to breakpoint: cont to check_threads
+            python print len (i0.threads ())
+            10
+            (gdb) FAIL: gdb.python/py-inferior.exp: test Inferior.threads 2
+            break 28
+            Breakpoint 3 at 0x80487c2: file ../../../Ferry_Tagscherer/gdb/testsuite/gdb.python/py-inferior.c, line 28.
+            (gdb) continue
+            Continuing.
+            FAIL: gdb.python/py-inferior.exp: continue to breakpoint: cont to Break here. (timeout)
+            python addr = gdb.selected_frame ().read_var ('str')
+            FAIL: gdb.python/py-inferior.exp: read str address (timeout)
+            [All following tests FAIL with timeout.]
+            FAIL: gdb.python/py-inferior.exp: Switch to first inferior (timeout)
+            remove-inferiors 3
+            FAIL: gdb.python/py-inferior.exp: Remove second inferior (timeout)
+
+        At this point, the system hangs; no new processes can be spawned, so
+        perhaps an issue with the exec server.
 
   * `UNSUPPORTED: gdb.threads/ia64-sigill.exp: Couldn't compile ../../../master/gdb/testsuite/gdb.threads/ia64-sigill.c: unrecognized error`
 
