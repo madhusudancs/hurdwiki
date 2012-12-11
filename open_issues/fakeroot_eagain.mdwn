@@ -1,0 +1,216 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_glibc open_issue_porting]]
+
+
+# IRC, freenode, #hurd, 2012-12-05
+
+    <braunr> rbraun   18813 R        2hrs ln -sf ../af_ZA/LC_NUMERIC
+      debian/locales-all/usr/lib/locale/en_BW/LC_NUMERIC
+    <braunr> when building glibc
+    <braunr> is this a known issue ?
+    <tschwinge> braunr: No.  Can you get a backtrace?
+    <braunr> tschwinge: with gdb you mean ?
+    <tschwinge> Yes.  If you have any debugging symbols (glibc?).
+    <braunr> or the build log leading to that ?
+    <braunr> ok, i will next time i have it
+    <tschwinge> OK.
+    <braunr> (i regularly had it when working on the pthreads port)
+    <braunr> tschwinge:
+      http://www.sceen.net/~rbraun/hurd_glibc_build_deadlock_trace
+    <braunr> youpi: ^
+    <youpi> Mmm, there's not so much we can do about this one
+    <braunr> youpi: what do you mean ?
+    <youpi> the problem is that it's really a reentrency issue of the libc
+      locale
+    <youpi> it would happen just the same on linux
+    <braunr> sure
+    <braunr> but hat doesn't mean we can't report and/or fix it :)
+    <youpi> (the _nl_state_lock)
+    <braunr> do you have any workaround in mind ?
+    <youpi> no
+    <youpi> actually that's what I meant by "there's not so much we can do
+      about this"
+    <braunr> ok
+    <youpi> because it's a bad interaction between libfakeroot and glibc
+    <youpi> glibc believe fxtstat64 would never call locale functions
+    <youpi> but with libfakeroot it does
+    <braunr> i see
+    <youpi> only because we get an EAGAIN here
+    <braunr> but hm, doesn't it happen on linux ?
+    <youpi> EAGAIN doesn't happen on linux for fxstat64, no :)
+    <braunr> why does it happen on the hurd ?
+    <youpi> I mean for fakeroot stuff
+    <youpi> probably because fakeroot uses socket functions
+    <youpi> for which we probably don't properly handleEAGAIN
+    <youpi> I've already seen such kind of issue
+    <youpi> in buildd failures
+    <braunr> ok
+    <youpi> (so the actual bug here is EAGAIN
+    <youpi> )
+    <braunr> yes, so we can do something about it
+    <braunr> worth a look
+    <pinotree> (implement sysv semaphores)
+    <youpi> pinotree: if we could also solve all these buildd EAGAIN issues
+      that'd be nice :)
+    <braunr> that EAGAIN error might also be what makes exim behave badly and
+      loop forever
+    <youpi> possibly
+    <braunr> i've updated the trace with debugging symbols
+    <braunr> it fails on connect
+    <pinotree> like http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=563342 ?
+    <braunr> it's EAGAIN, not ECONNREFUSED
+    <pinotree> ah ok
+    <braunr> might be an error in tcp_v4_get_port
+
+
+## IRC, freenode, #hurd, 2012-12-06
+
+    <braunr> hmm, tcp_v4_get_port sometimes fails indeed
+    <gnu_srs> braunr: may I ask how you found out, adding print statements in
+      pfinet, or?
+    <braunr> yes
+    <gnu_srs> OK, so that's the only (easy) way to debug.
+    <braunr> that's the last resort
+    <braunr> gdb is easy too
+    <braunr> i could have added a breakpoint too
+    <braunr> but i didn't want to block pfinet while i was away
+    <braunr> is it possible to force the use of fakeroot-tcp on linux ?
+    <braunr> the problem seems to be that fakeroot doesn't close the sockets
+      that it connected to faked-tcp
+    <braunr> which, at some point, exhauts the port space
+    <pinotree> braunr: sure
+    <pinotree> change the fakeroot dpkg alternative
+    <braunr> ok
+    <pinotree> calling it explicitly `fakeroot-tcp command` or
+      `dpkg-buildpackage -rfakeroot-tcp ...` should work too
+    <braunr> fakeroot-tcp looks really evil :p
+    <braunr> hum, i don't see any faked-tcp process on linux :/
+    <pinotree> not even with `fakeroot-tcp bash -c "sleep 10"`?
+    <braunr> pinotree: now yes
+    <braunr> but, does it mean faked-tcp is started for *each* process loading
+      fakeroot-tcp ?
+    <braunr> (the lib i mean)
+    <pinotree> i think so
+    <braunr> well the hurd doesn't seem to do that at all
+    <braunr> or maybe it does and i don't see it
+    <braunr> the stale faked-tcp processes could be those that failed something
+      only
+    <pinotree> yes, there's also that issue: sometimes there are stake
+      faked-tcp processes
+    <braunr> hum no, i see one faked-tcp that consumes cpu when building glibc
+    <pinotree> *stale
+    <braunr> it's the same process for all commands
+    <pinotree> <braunr> but, does it mean faked-tcp is started for *each*
+      process loading fakeroot-tcp ?
+    <pinotree> → everytime you start fakeroot, there's a new faked-xxx for it
+    <braunr> it doesn't look that way
+    <braunr> again, on the hurd, i see one faked-tcp, consuming cpu while
+      building so i assume it services libfakeroot-tcp requests
+    <pinotree> yes
+    <braunr> which means i probably won't reproduce the problem on linux
+    <pinotree> it serves that fakeroot under which the binary(-arch) target is
+      run
+    <braunr> or perhaps it's the normal fakeroot-tcp behaviour on sid
+    <braunr> pinotree: a faked-tcp that is started for each command invocation
+      will implicitely make the network stack close all its sockets when
+      exiting
+    <braunr> pinotree: as our fakeroot-tcp uses the same instance of faked-tcp,
+      it's a lot more likely to exhaust the port space
+    <pinotree> i see
+    <braunr> i'll try on sid and see how it behaves
+    <braunr> pinotree: on the other hand, forking so many processes at each
+      command invocation may make exec leak a lot :p
+    <braunr> or rather, a lot more
+    <braunr> (or maybe not, since it leaks only in some cases)
+
+[[exec_leak]].
+
+    <braunr> pinotree: actually, the behaviour under linux is the same with the
+      alternative correctly set, whereas faked-tcp is restarted (if used at
+      all) with -rfakeroot-tcp
+    <braunr> hm no, even that isn't true
+    <braunr> grr
+    <braunr> pinotree: i think i found a handy workaround for fakeroot
+    <braunr> pinotree: the range of local ports in our networking stack is a
+      lot more limited than what is configured in current systems
+    <braunr> by extending it, i can now build glibc \o/
+    <pinotree> braunr: what are the current ours and the usual one?
+    <braunr> see pfinet/linux-src/net/ipv4/tcp_ipv4.c
+    <braunr> the modern ones are the ones suggested in the comment
+    <braunr> sysctl_local_port_range is the symbol storing the range
+    <pinotree> i see
+    <pinotree> what's the current range on linux?
+    <braunr> 20:44 < braunr> the modern ones are the ones suggested in the
+      comment
+    <pinotree> i see
+    <braunr> $ cat /proc/sys/net/ipv4/ip_local_port_range 
+    <braunr> 32768   61000
+    <braunr> so, i'm not sure why we have the problem, since even on linux,
+      netstat doesn't show open bound ports, but it does help
+    <braunr> the fact faked-tcp can remain after its use is more problematic
+    <pinotree> (maybe pfinet could grow a (startup-only?) option to change it,
+      similar to that sysctl)
+    <braunr> but it can also stems from the same issue gnu_srs found about
+      closed sockets that haven't been shut down
+    <braunr> perhaps
+    <braunr> but i don't see the point actually
+    <braunr> we could simply change the values in the code
+
+    <braunr> youpi: first, in pfinet, i increased the range of local ports to
+      reduce the likeliness of port space exhaustion
+    <braunr> so we should get a lot less EAGAIN after that
+    <braunr> (i've not committed any of those changes)
+    <youpi> range of local ports?
+    <braunr> see pfinet/linux-src/net/ipv4/tcp_ipv4.c, tcp_v4_get_port function
+      and sysctl_local_port_range array
+    <youpi> oh
+    <braunr> EAGAIN is caused by tcp_v4_get_port failing at
+    <braunr>                 /* Exhausted local port range during search? */
+    <braunr>                 if (remaining <= 0)
+    <braunr>                         goto fail;
+    <youpi> interesting
+    <youpi> so it's not a hurd bug after all
+    <youpi> just a problem in fakeroot eating a lot of ports
+    <braunr> maybe because of the same issue gnu_srs worked on (bad socket
+      close when no clean shutdown)
+    <braunr> maybe, maybe not
+    <braunr> but increasing the range is effective
+    <braunr> and i compared with what linux does today, which is exactly what
+      is in the comment above sysctl_local_port_range
+    <braunr> so it looks safe
+    <youpi> so that means that the pfinet just uses ports 1024- 4999 for
+      auto-allocated ports?
+    <braunr> i guess so
+    <youpi> the linux pfinet I meant
+    <braunr> i haven't checked the whole code but it looks that way
+    <youpi> ./sysctl_net_ipv4.c:static int ip_local_port_range_min[] = { 1, 1
+      };
+    <youpi> ./sysctl_net_ipv4.c:static int ip_local_port_range_max[] = { 65535,
+      65535 };
+    <youpi> looks like they have increased it since then :)
+    <braunr> hum :)
+    <braunr> $ cat /proc/sys/net/ipv4/ip_local_port_range 
+    <braunr> 32768   61000
+    <youpi> yep, same here
+    <youpi> ./inet_connection_sock.c:	.range = { 32768, 61000 },
+    <youpi> so there are two things apparently
+    <youpi> but linux now defaults to 32k-61k
+    <youpi> braunr: please just push the port range upgrade to 32Ki-61K
+    <braunr> ok, will do
+    <youpi> there's not reason not to do it
+
+
+## IRC, freenode, #hurd, 2012-12-11
+
+    <braunr> youpi: at least, i haven't had any failure building eglibc since
+      the port range patch
+    <youpi> good :)

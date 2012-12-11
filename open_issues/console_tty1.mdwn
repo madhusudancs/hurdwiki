@@ -1,0 +1,151 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+Seen in context of [[libpthread]], but probably not directly related to it.
+
+
+# IRC, freenode, #hurd, 2012-08-30
+
+    <gnu_srs> Do you also experience a frozen hurd console?
+    <braunr> yes
+    <braunr> i didn't check but i'm almost certain it's a bug in my branch
+    <braunr> the replacement of condition_implies was a bit hasty in some
+      places
+    <braunr> this is why i want to rework it separately
+
+
+## IRC, freenode, #hurd, 2012-09-03
+
+    <gnu_srs> braunr: Did you find the cause of the Hurd console freeze for
+      your libpthread branch?
+    <braunr> gnu_srs: like i said, a bug
+    <braunr> probably in the replacement of condition_implies
+    <braunr> i rewrote that part in libpipe and it no works
+    <braunr> now*
+
+    <braunr> gnu_srs: the packages have been updated
+    <braunr> and these apparently fix the hurd console issue correctly
+
+## IRC, freenode, #hurd, 2012-09-04
+
+    <braunr> gnu_srs: this hurd console problem isn't fixed
+    <braunr> it seems to be due to a race condition that only affects the first
+      console
+    <braunr> and by reading the code i can't see how it can even work oO
+    <gnu_srs> braunr: just rebooted, tty1 is still locked, tty2-6 works. And
+      the floppy error stays (maybe a kvm bug??) 
+    <braunr> the floppy error is probably a kvm bug as we discussed
+    <braunr> the tty1 locked isn't
+    <braunr> i have it too
+    <braunr> it seems to be a bug in the hurd console server
+    <braunr> which is started by tty1, but for some reason, doesn't return a
+      valid answer at init time
+    <braunr> if you kill the term handling tty1, you'll see your first tty
+      starts working
+    <braunr> for now i'll try a hack that starts the hurd console server before
+      the clients
+    <braunr> doesn't work eh
+    <braunr> tty1 is the only one started before runttys
+    <braunr> indeed, fixing /etc/hurd/runsystem.gnu so that it doesn't touch
+      tty1 fixes the problem
+    <gnu_srs> do you have an explanation?
+    <braunr> not really no
+    <braunr> but it will do for now
+    <pinotree> samuel added that with the comment above, apparently to
+      workaround some other issue of the hurd console
+    <braunr> i'm pretty sure the bug is already visible with cthreads
+    <braunr> the first console always seems weird compared to the others
+    <braunr> with a login: at the bottom of the screen
+    <braunr> didn't you notice ?
+    <pinotree> sometimes, but not often
+    <braunr> typical of a race
+    <pinotree> (at least for me)
+    <braunr> pthreads being slightly slower exposes it
+    <gnu_srs> confirmed, it works by commenting out touch /dev/tty1
+    <gnu_srs> yes, the login is at the bottom of the screen, sometimes one in
+      the upper part too:-/
+    <braunr> so we have a new open issue
+    <braunr> hm
+    <braunr> exiting the first tty doesn't work
+    <braunr> which makes me think of the issue we have with screen
+    <gnu_srs> confirmed!
+    <braunr> also, i don't understand why we have getty on tty1, but nothing on
+      the other terminals
+    <braunr> something is really wrong with terminals on hurd *sigh*
+    <braunr> ah, the problem looks like it happens when getty attempts to
+      handle a terminal !
+    <braunr> gnu_srs: anyway, i don't think it should be blocking for the
+      conversion to pthreads
+    <braunr> but it would be better if someone could assign himself that bug
+    <braunr> :)
+
+
+## IRC, freenode, #hurd, 2012-09-05
+
+    <antrik> braunr: the login at the bottom of the screen if from the Mach
+      console I believe
+    <braunr> antrik: well maybe, but it shouldn't be there anyway
+    <antrik> braunr: why not?
+    <antrik> it's confusing, but perfectly correct as far as I can tell
+    <braunr> antrik: two login: on the same screen ?
+    <braunr> antrik: it's even more confusing when comparing with other ttys
+    <antrik> I mean it's correct from a techincal point of view... I'm not
+      saying it's helpful for the user ;-)
+    <braunr> i'm not even sure it's correct
+    <braunr> i've double checked the pthreads patch and didn't see anything
+      wrong there
+    <antrik> perhaps the startup of the Hurd console could be delayed a bit to
+      make sure it happens after the Mach console login is done printing
+      stuff...
+    <braunr> why are our gettys stubs ?
+    <antrik> I never understood the point of a getty TBH...
+    <braunr> well you need to communicate to something behind your terminal,
+      don't you ?
+    <braunr> with*
+    <antrik> why not just launch the login program or login shell right away?
+    <braunr> what if you want something else than a login program ?
+    <antrik> like what?
+    <antrik> and how would a getty help with that?
+    <braunr> an ascii-art version of star wars
+    <braunr> it would be configured to start something else
+    <antrik> and why does that need a getty? why not just start something else
+      directly?
+    <braunr> well getty is about the serial line parameters actually
+    <antrik> yeah, I had a vague understanding that it has something to do with
+      serial lines (or real TTY lines)... but we hardly need that on local
+      cosoles :-)
+    <antrik> consoles
+    <braunr> right
+    <braunr> but then why even bother with something like runttys
+    <antrik> well, something has to start the terminal servers?...
+    <antrik> I might be confused though
+    <braunr> what i don't understand is
+    <braunr> why is there no getty at startup, whereas they are spawned when
+      logging off ?
+    <antrik> they are? that's fascinating indeed ;-)
+    <braunr> does it behave like this on your old version ?
+    <antrik> I don't remember ever having seen a "getty" process on my Hurd
+      systems...
+    <braunr> can you log on e.g. tty2 and then log out, and see ?
+    <antrik> OTOH, I'm hardly ever using consoles...
+    <antrik> hm... I think that should be possible remotely using the console
+      client with ncurses driver? never tried that...
+    <braunr> ncurses driver ?
+    <braunr> hum i don't know, never tried either
+    <braunr> and it may add other bugs :p
+    <braunr> better wait to be close to the machine
+    <antrik> hehe
+    <antrik> well, it's a good excuse for trying the ncurses driver ;-)
+    <antrik> hrm
+    <antrik> alien:~# console -d ncursesw
+    <antrik> console: loading driver `ncursesw' failed: Gratuitous error
+    <antrik> I guess nobody tested that stuff in years

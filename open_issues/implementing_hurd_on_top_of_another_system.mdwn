@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2011, 2012 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -15,9 +16,12 @@ One obvious variant is [[emulation]] (using [[hurd/running/QEMU]], for
 example), but
 doing that does not really integratable the Hurd guest into the host system.
 There is also a more direct way, more powerful, but it also has certain
-requirements to do it effectively:
+requirements to do it effectively.
 
-IRC, #hurd, August / September 2010
+See also [[Mach_on_top_of_POSIX]].
+
+
+# IRC, freenode, #hurd, August / September 2010
 
     <marcusb> silver_hook: the Hurd can also refer to the interfaces of the
       filesystems etc, and a lot of that is really just server/client APIs that
@@ -56,7 +60,7 @@ IRC, #hurd, August / September 2010
     <marcusb> ArneBab: in fact, John Tobey did this a couple of years ago, or
       started it
 
-([[tschwinge]] has tarballs of John's work.)
+[[Mach_on_top_of_POSIX]].
 
     <marcusb> ArneBab: or you can just implement parts of it and relay to Linux
       for the rest
@@ -64,11 +68,10 @@ IRC, #hurd, August / September 2010
       are sufficiently happy with the translator stuff, it's not hard to bring
       the Hurd to Linux or BSD
 
-Continue reading about the [[benefits of a native Hurd implementation]].
+Continue reading about the [[benefits_of_a_native_Hurd_implementation]].
 
----
 
-IRC, #hurd, 2010-12-28
+# IRC, freenode, #hurd, 2010-12-28
 
     <antrik> kilobug: there is no real requirement for the Hurd to run on a
       microkernel... as long as the important mechanisms are provided (most
@@ -79,9 +82,8 @@ IRC, #hurd, 2010-12-28
       Hurd on top of a monolithic kernel would actually be a useful approach
       for the time being...
 
----
 
-IRC, #hurd, 2011-02-11
+# IRC, freenode, #hurd, 2011-02-11
 
     <neal> marcus and I were discussing how to add Mach to Linux
     <neal> one could write a module to implement Mach IPC
@@ -115,3 +117,303 @@ IRC, #hurd, 2011-02-11
     <neal> I'm unlikely to work on it, sorry
     <antrik> didn't really expect that :-)
     <antrik> would be nice though if you could write up your conclusions...
+
+
+# IRC, freenode, #hurd, 2012-10-12
+
+    <peo-xaci> do hurd system libraries make raw system calls ever
+      (i.e. inlined syscall() / raw assembly)?
+    <braunr> sure
+    <peo-xaci> hmm, so a hurd emulation layer would need to use ptrace if it
+      should be fool proof? :/
+    <braunr> there is no real need for raw assembly, and the very syscalls are
+      all available through macros
+    <braunr> hum what are you trying to say ?
+    <peo-xaci> well, if they are done through syscall, as a function, not a
+      macro, then they can be intercepted with LD_PRELOAD
+    <peo-xaci> so applications that do Hurd (Mach?) syscalls could work on
+      f.e. Linux, if a special libc is injected into the program with
+      LD_PRELOAD
+    <peo-xaci> same thing with making standard Linux-applications go through
+      the Hurd emulation layer
+    <peo-xaci> without recompilation
+    <mel-_> peo-xaci: the second direction is implemented in glibc.
+    <mel-_> for the other direction, I personally see little use for it
+    <braunr> peo-xaci: ok i misunderstood
+    <braunr> peo-xaci: i don't think there is any truely direct syscall usage
+      in the hurd
+    <peo-xaci> hmm, I'm not sure I understand what directions you are referring
+      to mel-_ 
+    <braunr> peo-xaci: what are you trying to achieve ?
+    <peo-xaci> I want to make the Hurd design more accessible by letting Hurd
+      application run on the Linux kernel, preferably without
+      recompilation. This would be done with a daemon that implements Mach and
+      which all syscalls would go to.
+    <peo-xaci> then, I also want so that standard Linux applications can go
+      through that Mach daemon as well, if a special libc is preloaded
+    <braunr> you might want to discuss this with antrik 
+    <peo-xaci> what I'm trying to figure out specifically is if there is some
+      library/interface that glue Hurd with Mach and would be better suited to
+      emulate than Mach? Mach seems to be more of an implementation detail to
+      the hurd and not something an application would directly use.
+    <braunr> yes, the various hurd libraries (libports and libpager mostly)
+    <peo-xaci> From [http://www.gnu.org/software/hurd/hurd/libports.html]:
+      "libports is not (at least, not for now) a generalization / abstraction
+      of Mach ports to the functionality the Hurd needs, that is, it is not
+      meant to provide an interface independently of the underlying
+      microkernel."
+    <peo-xaci> Is this still true?
+    <peo-xaci> Does libpager abstract the rest?
+    <peo-xaci> (and the other hurd libraries)
+    <braunr> there is nothing that really abstracts the hurd from mach
+    <braunr> for example, reference counting often happens here and there
+    <braunr> and core libraries like glibc and libpthread heavily rely on it
+      (through sysdeps specific code though)
+    <braunr> libports and libpager are meant to simplify object manipulation
+      for the former, and pager operations for the latter
+    <peo-xaci> and applications, such as translators, often use Mach interfaces
+      directly?
+    <peo-xaci> correct?
+    <braunr> depends on what often means
+    <braunr> let's say they do
+    <peo-xaci> :/ then it probably is better to emulate Mach after all
+    <braunr> there was a mach on posix port a long time ago
+    <peo-xaci> I thought applications were completely separated from the
+      microkernel in use by the Hurd
+    <braunr> that level of abstraction is pretty new
+    <braunr> genode is the only system i know which does that
+
+[[microkernel/Genode]].
+
+    <braunr> and it's still for "l4 variants"
+    <pinotree> ah, thanks (i forgot that name)
+    <antrik> braunr: Genode also runs on Linux and a few other non-L4
+      environments IIRC
+    <antrik> peo-xaci: I'm not sure binary emulation is really useful. rather,
+      I'd recompile stuff as "regular" Linux executables, only using a special
+      glibc
+    <antrik> where the special glibc could be basically a port of the Hurd
+      glibc communicating with the Mach emulation instead of real Mach; or it
+      could do emulation at a higher level
+    <antrik> a higher level emulation would be more complicated to implement,
+      but more efficient, and allow better integration with the ordinary
+      GNU/Linux environment
+    <antrik> also note that any regular program could be recompiled against the
+      HELL glibc to run in the Hurdish environment...
+    <antrik> (well, glibc + hurd server libraries)
+    <peo-xaci> I'm willing to accept that Hurd-application would need to be
+      recompiled to work on the HELL
+    <peo-xaci> but not Linux-applications :)
+    <antrik> peo-xaci: if you happen to understand German, there is a fairly
+      good overview in my thesis report ;-)
+    <antrik> peo-xaci: there are no "Hurd applications" or "Linux applications"
+    <peo-xaci> well, let me define what I mean by the terms: Hurd applications
+      use Hurd-specific interfaces/syscalls, and Linux applications use
+      Linux-specific interfaces/syscalls
+    <antrik> a few programs use Linux-specific interfaces (and we probably
+      can't run them in HELL just as we can't run them on actual Hurd); but all
+      other programs work in any glibc environment
+    <antrik> (usually in any POSIX environment in fact...)
+    <antrik> peo-xaci: no sane application uses syscalls
+    <peo-xaci> they do under the hood
+    <peo-xaci> I have read about inlined syscalls
+    <antrik> again, there are *some* applications using Linux-specific
+      interfaces (sometimes because they are inherently bound to Linux
+      features, sometimes unnecessarily)
+    <antrik> so far there are no applications using Hurd-specific interfaces
+    <peo-xaci> translators do?
+    <peo-xaci> they are standard executables are they not?
+    <peo-xaci> I would like so that translators also can be run in the HELL
+    <antrik> I wouldn't consider them applications. all existing translators
+      are pretty much components of the Hurd itself
+    <peo-xaci> okay, it's a question about semantics, perhaps I should use
+      another word than "applications" :)
+    <peo-xaci> for me, applications are what have a main-function, or similar
+      single entry point
+    <braunr> hum
+    <braunr> that's not a good enough definition
+    <antrik> anyways, as I said, I think recompiling translators against a
+      Hurdish glibc and ported translator libraries seems the most reasonable
+      approach to me
+    <braunr> let's say applications are userspace processes that make use of
+      services provided by the operating system
+    <braunr> translators being part of the operating system here
+    <antrik> braunr: do you know whether the Mach-on-POSIX was actually
+      functional, or just an abandoned experiment?...
+    <antrik> (I don't remember hearing of it before...)
+    <braunr> incomplete iirc
+    <peo-xaci> braunr: still, when I've explained what I meant, even if I used
+      the wrong term, then my previous statements should come in another light
+    <peo-xaci> antrik / braunr: are you still interested in hearing my
+      thoughts/ideas about HELL?
+    <antrik> oh, there is more to come? ;-)
+    <peo-xaci> yes! I don't think I have made myself completely understood :/
+    <peo-xaci> what I envision is a HELL system that works on as low level as
+      feasible, to make it possible to do almost anything that can be done on
+      the real Hurd (except possibly testing hardware drivers and such very low
+      level stuff).
+    <braunr> sure
+    <peo-xaci> I want it to be more than just allowing programs to access a
+      virtual filesystem à la FUSE. My idea is that all user space system
+      libraries/programs of the Hurd should be inside the HELL as well, and
+      they should not be emulated.
+    <peo-xaci> The system should at the very least be API compatible, so at the
+      very most a recompilation is necessary.
+    <peo-xaci> I also want so that GNU/Linux-programs can access the features
+      of the HELL with little effort on the user. At most perhaps a script that
+      wraps LD_PRELOADing has to be run on the binary. Best would be if it
+      could work also with insane assembly programs using raw system calls, or
+      if glibc happens to have some well hidden syscall being inlined to raw
+      assembly code.
+    <peo-xaci> And I think I have an idea on how an implementation could
+      satisfy these things!
+    <peo-xaci> By modifying the kernel and replace those syscalls that make
+      sense for the Hurd/Mach
+    <peo-xaci> with "the kernel", I meant Linux
+    <braunr> it's possible but tedious and not very useful so better do that
+      later
+    <braunr> mach did something similar at its time
+    <braunr> there was a syscall emulation library
+    <peo-xaci> but isn't it about as much work as emulating the interface on
+      user-level?
+    <braunr> and the kernel cooperated so that unmodified unix binaries
+      performing syscalls would actually jump to functions provided by that
+      library, which generally made an RPC
+    <peo-xaci> instead of a bunch of extern-declerations, one would put the
+      symbols in the syscall table
+    <braunr> define what "those syscalls that make sense for the Hurd/Mach"
+      actually means
+    <peo-xaci> open/close, for example
+    <braunr> otherwise i don't see another better way than what the old mach
+      folks did
+    <braunr> well, with that old, but existing support, your open would perform
+      a syscall
+    <braunr> the kernel would catch it and redirect the caller to its syscall
+      emulation library
+    <braunr> which would call the open RPC instead
+    <peo-xaci> wait, so this "existing support" you're talking about; is this a
+      module for the Linux kernel (or a fork, or something else)?
+    <peo-xaci> where can I find it?
+    <braunr> no
+    <braunr> it was for mach
+    <braunr> in order to run unmodified unix binaries
+    <braunr> the opposite of what you're trying to do
+    <peo-xaci> ah okay
+    <braunr> well
+    <braunr> not really either :)
+    <peo-xaci> does posix/unix define a standard for how a syscall table should
+      look like, to allow binary syscall compatibility?
+    <braunr> absolutely not
+    <peo-xaci> so how could this mach module run any unmodified unix binary? if
+      they expected different sys calls at different offsets?
+    <braunr> posix specifically (and very early) states that it almost forbids
+      itself to deal with anything regarding to ABIs
+    <braunr> depends
+    <braunr> since it was old, there weren't that many unix systems
+    <braunr> and even today, there are techniques like those used by netbsd
+      (and many other actually)
+    <braunr> that are able to inspect the binary and load a syscall emulation
+      environment depending on its exposed ABI
+    <braunr> e.g. file on an executable states which system it's for
+    <peo-xaci> hmm, I'm not sure how a kernel would implement that in
+      practice.. I thought these things were so hard coded and dependent on raw
+      memory reads that it would not be possible
+    <braunr> but i really think it's not worth the time for your project
+    <peo-xaci> to be honest I have virtually no experience of practical kernel
+      programming
+    <braunr> with an LDT on x86 for example
+    <braunr> no, there is really not that much hardcoded
+    <braunr> quite the contrary
+    <braunr> there is a lot of runtime detection today
+    <peo-xaci> well I mean how the syscall table is read
+    <braunr> it's not read
+    <peo-xaci> it's read to find the function pointer to the syscall handler in
+      the kernel?
+    <braunr> no
+    <braunr> that's the really basic approach
+    <braunr> (and in practice it can happen of course)
+    <braunr> what really happens is that, for example, on linux, the user space
+      system call code is loaded as a virtual shared library
+    <braunr> use ldd on an executable to see it
+    <braunr> this virtual object provides code that, depending on what the
+      kernel has detected, will use the appropriate method to perform a system
+      call
+    <peo-xaci> but this user space system calls need to make some kind of cpu
+      interupt to communicate with the kernel, right?
+    <braunr> the glibc itself has no idea how a system call will look like in
+      the end
+    <braunr> yes
+    <peo-xaci> an assembler programmer would be able to get around this glue
+      code?
+    <braunr> that's precisely what is embedded in this virtual library
+    <braunr> it could yes
+    <braunr> i think even when sysenter/sysexit is supported, legacy traps are
+      still implemented to support old binaries
+    <braunr> but then all these different entry points will lead to the same
+      code inside the kernel
+    <peo-xaci> but when the glue code is used, then its API compatible, and
+      then I can understand that the kernel can allow different syscall
+      implementations for different executables
+    <braunr> what glue code ?
+    <peo-xaci> what you talked about above "the user space system call code is
+      loaded as a virtual shared library"
+    <braunr> let's call it vdso
+    <braunr> i have to leave in a few minutes
+    <braunr> keep going, i'll read later
+    <peo-xaci> thanks, I looked it up on Wikipedia and understand immediately
+      :P
+    <peo-xaci> so VDSOs are provided by the kernel, not a regular library file,
+      right?
+    <vdox2> What does HELL stand for :) ?
+    <dardevelin> vdox2,  Hurd Emulation Layer for Linux
+    <vdox2> dardevelin: thanks
+    <braunr> peo-xaci: yes
+    <antrik> peo-xaci: I believe your goals are conflicting. a low-level
+      implementation makes it basically impossible to interact between the HELL
+      environment and the GNU/Linux environment in any meaningful way. to allow
+      such interaction, you *have* to have some glue at a higher semantic level
+    <braunr> agreed
+    <antrik> peo-xaci: BTW, if you want regular Linux binaries to get somehow
+      redirected to access HELL facilities, there is already a framework (don't
+      remember the name right now) that allows this kind of system call
+      redirection on Linux
+    <antrik> (it can run both through LD_PRELOAD or as a kernel module -- where
+      obviously only the latter would allow raw system call redirection... but
+      TBH, I don't think that's worthwhile anyways. the rare cases where
+      programs use raw system calls are usually for extremely system-specific
+      stuff anyways...)
+    <antrik> ViewOS is the name
+    <antrik> err... View-OS I mean
+    <antrik> or maybe View OS ? ;-)
+    <antrik> whatever, you'll find it :-)
+
+[[Virtual_Square_View-OS]].
+
+    <antrik> I'm not sure it's really worthwhile to use this either
+      though... the most meaningful interaction is probably at the FS level,
+      and that can be done with FUSE
+    <antrik> OHOH, View-OS probably allows doing more interesting stuff that
+      FUSE, such as modyfing the way the VFS works...
+    <antrik> OTOH
+    <antrik> so it could expose more of the Hurd features, at least in theory
+
+
+## IRC, freenode, #hurd, 2012-10-13
+
+    <peo-xaci> antrik / braunr: thanks for your input! I'm not entirely
+      convinced though. :) I will probably return to this project once I have
+      acquired a lot more knowledge about low level stuff. I want to see for
+      myself whether a low level HELL is not feasible. :P
+    <braunr> peo-xaci: what's the point of a low level hell ?
+    <peo-xaci> more Hurd code can be tested in the hell, if the hell is at a
+      low level
+    <peo-xaci> at a higher level, some Hurd code cannot run, because the
+      interfaces they use would not be accessible from the higher level
+      emulation
+    <antrik> peo-xaci: I never said it's not possible. I actually said it would
+      be easier to do. I just said you can't do it low level *and* have
+      meaningful interaction with the host system
+    <peo-xaci> I don't understand why
+    <braunr> peo-xaci: i really don't see what you want to achieve with low
+      level support
+    <braunr> what would be unavailable with a higher level approach ?

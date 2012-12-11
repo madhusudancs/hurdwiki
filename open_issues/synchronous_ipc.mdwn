@@ -1,0 +1,185 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+
+# IRC, freenode, #hurd, 2012-07-20
+
+From [[Genode RPC|microkernel/genode/rpc]].
+
+    <braunr> assuming synchronous ipc is the way to go (it seems so), there is
+      still the need for some async ipc (e.g signalling untrusted recipients
+      without risking blocking on them)
+    <braunr> 1/ do you agree on that and 2/ how would this low-overhead async
+      ipc be done ? (and 3/ are there relevant examples ?
+    <antrik> if you think about this stuff too much you will end up like marcus
+      and neal ;-)
+    <braunr> antrik: likely :)
+    <antrik> the truth is that there are various possible designs all with
+      their own tradeoffs, and nobody can really tell which one is better
+    <braunr> the only sensible one i found is qnx :/
+    <braunr> but it's still messy
+    <braunr> they have what they call pulses, with a strictly defined format
+    <braunr> so it's actually fine because it guarantees low overhead, and can
+      easily be queued
+    <braunr> but i'm not sure about the format
+    <antrik> I must say that Neal's half-sync approach in Viengoos still sounds
+      most promising to me. it's actually modelled after the needs of a
+      Hurd-like system; and he thought about it a lot...
+    <braunr> damn i forgot to reread that
+    <braunr> stupid me
+    <antrik> note that you can't come up with a design that allows both a)
+      delivering reliably and b) never blocking the sender -- unless you cache
+      in the kernel, which we don't want
+    <antrik> but I don't think it's really necessary to fulfill both of these
+      requirements
+    <antrik> it's up to the receiver to make sure it gets important signals
+    <braunr> right
+    <braunr> caching in the kernel is ok as long as the limit allows the
+      receiver to handle its signals
+    <antrik> in the Viengoos approach, the receiver can allocate a number of
+      receive buffers; so it's even possible to do some queuing if desired
+    <braunr> ah great, limits in the form of resources lent by the receiver
+    <braunr> one thing i really don't like in mach is the behaviour on full
+      message queues
+    <braunr> blocking :/
+    <braunr> i bet the libpager deadlock is due to that
+
+[[libpager_deadlock]].
+
+    <braunr> it simply means async ipc doesn't prevent at all from deadlocks
+    <antrik> the sender can set a timeout. blocking only happens when setting
+      it to infinite...
+    <braunr> which is commonly the case
+    <antrik> well, if you see places where blocking is done but failing would
+      be more appropriate, try changing them I'd say...
+    <braunr> it's not that easy :/
+
+
+# IRC, freenode, #hurd, 2012-08-18
+
+    <lcc> what is the deepest design mistake of the HURD/gnumach?
+    <braunr> lcc: async ipc
+    <savask> braunr: You mentioned that moving to L4 will create problems. Can
+      you name some, please?
+    <savask> I thought it was going to be faster on L4
+    <braunr> the problem is that l4 *only* provides sync ipc
+    <braunr> so implementing async communication would require one seperated
+      thread for each instance of async communication
+    <savask> But you said that the deepest design mistake of Hurd is asynch
+      ipc.
+    <braunr> not the hurd, mach
+    <braunr> and hurd depends on it now
+    <braunr> i said l4 provides *only* sync ipc
+    <braunr> systems require async communication tools
+    <braunr> but they shouldn't be built entirely on top of them
+    <savask> Hmm, so you mean mach has bad asynch ipc?
+    <braunr> you can consider mach and l4 as two extremes in os design
+    <braunr> mach *only* has async ipc
+    <lcc> what was viengoos trying to explore?
+    * savask is confused
+    <braunr> lcc: half-sync ipc :)
+    <braunr> lcc: i can't tell you more on that, i need to understand it better
+      myself before any explanation attempt
+    <savask> You say that mach problem is asynch ipc. And L4's problem is it's
+      sync ipc. That means problems are in either of them!
+    <braunr> exactly
+    <lcc> how did apple resolve issues with mach?
+    <savask> What is perfect then? A "golden middle"?
+    <braunr> lcc: they have migrating threads, which make most rpc behave as if
+      they used sync ipc
+    <braunr> savask: nothing is perfect :p
+    <mcsim> braunr: but why async ipc is the problem?
+    <braunr> mcsim: it requires in-kernel buffering
+    <savask> braunr: Yes, but we can't have problems everywhere o_O
+    <braunr> mcsim: this not only reduces communication performance, but
+      creates many resource usage problems
+    <braunr> mcsim: and potential denial of service, which is what we
+      experience most of the time when something in the hurd fails
+    <braunr> savask: there are problems we can live with
+    <mcsim> braunr: But this could be replaced by userspace server, isn't it?
+    <braunr> savask: this is what monolithic kernels do
+    <braunr> mcsim: what ?
+    <braunr> mcsim: this would be the same, this central buffering server would
+      suffer from the same kind of issue
+    <mcsim> braunr: async ipc. Buffer can hold special server
+    <mcsim> But there could be created several servers, and queue could have
+      limit.
+    <braunr> queue limits are a problem
+    <braunr> when a queue limit is reached, you either block (= sync ipc) or
+      lose a message
+    <braunr> to keep messaging reliable, mach makes senders block
+    <braunr> the problem is that async ipc is often used to avoid blocking
+    <braunr> so blocking when you don't expect it can create deadlocks
+    <braunr> savask: a good compromise is to use sync ipc most of the time, and
+      async ipc for a few special cases, like signals
+    <braunr> this is what okl4 does if i'm right
+    <braunr> i'm not sure of the details, but like many other projects they
+      realized current systems simply need good support for async ipc, so they
+      extended l4 or something on top of it to provide it
+    <braunr> it took years of research for very smart people to get to some
+      consensus like "sync ipc is better but async is needed too"
+    <braunr> personaly i don't like l4 :/
+    <braunr> really not
+    <mcsim> braunr: Anyway there is some queue for messaging, but at the moment
+      if it overflows panics kernel. And with limited queue servers will panic.
+    <braunr> mcsim: it can't overflow
+    <braunr> mach blocks senders
+    <braunr> queuing basically means "block and possible deadlock" or "lose
+      messages and live with it"
+    <mcsim> So, deadlocks are still possible?
+    <braunr> of course
+    <braunr> have a look at the libpager debian patch and the discussion around
+      it
+    <braunr> it's a perfect example
+    <youpi> braunr: it makes gnu mach slow as hell sometimes, which I guess is
+      because all threads (which can ben 1000s) wake at the same time
+    <braunr> youpi: you mean are created ?
+    <braunr> because they'll have to wake in any case
+    <braunr> i can understand why creating lots of threads is slower, but
+      cthreads never destroyes kernel threads
+    <braunr> doesn't seem to be a mach problem, rather a cthreads one
+    <braunr> i hope we're able to remove the patch after pthreads are used
+
+[[libpthread]].
+
+    <mcsim> braunr: You state that hurd can't move to sync ipc, since it
+      depends on async ipc. But at the same time async ipc doesn't guarantee
+      that task wouldn't block. So, I don't understand why limited queues will
+      lead to more deadlocks?
+    <braunr> mcsim: async ipc can block because of queue limits
+    <braunr> mcsim: if you remove the limit, you remove the deadlock problem,
+      and replace it with denial of service
+    <braunr> mcsim: i didn't say the hurd can't move to sync ipc
+    <braunr> mcsim: i said it came to depend on async ipc as provided by mach,
+      and we would need to change that
+    <braunr> and it's tricky
+    <youpi> braunr: no, I really mean are woken. The timeout which gets dropped
+      by the patch makes threads wake after some time, to realize they should
+      go away. It's a hell long when all these threads wake at the same time
+      (because theygot created at the same time)
+    <braunr> ahh
+
+    <antrik> savask: what is perfect regarding IPC is something nobody can
+      really answer... there are competing opinions on that matter. but we know
+      by know that the Mach model is far from ideal, and that the (original) L4
+      model is also problematic -- at least for implementing a UNIX-like system
+    <braunr> personally, if i'd create a system now, i'd use sync ipc for
+      almost everything, and implement posix-like signals in the kernel
+    <braunr> that's one solution, it's not perfect
+    <braunr> savask: actually the real answer may be "noone knows for now and
+      it still requires work and research"
+    <braunr> so for now, we're using mach
+    <antrik> savask: regarding IPC, the path explored by Viengoos (and briefly
+      Coyotos) seems rather promising to me
+    <antrik> savask: and yes, I believe that whatever direction we take, we
+      should do so by incrementally reworking Mach rather than jumping to a
+      completely new microkernel...

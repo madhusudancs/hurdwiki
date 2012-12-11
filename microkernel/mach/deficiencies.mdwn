@@ -258,3 +258,265 @@ License|/fdl]]."]]"""]]
       working on research around mach
     <antrik> braunr: BTW, I have little doubt that making RPC first-class would
       solve a number of problems... I just wonder how many others it would open
+
+
+# IRC, freenode, #hurd, 2012-09-04
+
+X15
+
+    <braunr> it was intended as a mach clone, but now that i have better
+      knowledge of both mach and the hurd, i don't want to retain mach
+      compatibility
+    <braunr> and unlike viengoos, it's not really experimental
+    <braunr> it's focused on memory and cpu scalability, and performance, with
+      techniques likes thread migration and rcu
+    <braunr> the design i have in mind is closer to what exists today, with
+      strong emphasis on scalability and performance, that's all
+    <braunr> and the reason the hurd can't be modified first is that my design
+      relies on some important design changes
+    <braunr> so there is a strong dependency on these mechanisms that requires
+      the kernel to exists first
+
+
+## IRC, freenode, #hurd, 2012-09-06
+
+In context of [[open_issues/multithreading]] and later [[open_issues/select]].
+
+    <gnu_srs> And you will address the design flaws or implementation faults
+      with x15?
+    <braunr> no
+    <braunr> i'll address the implementation details :p
+    <braunr> and some design issues like cpu and memory resource accounting 
+    <braunr> but i won't implement generic resource containers
+    <braunr> assuming it's completed, my work should provide a hurd system on
+      par with modern monolithic systems
+    <braunr> (less performant of course, but performant, scalable, and with
+      about the same kinds of problems)
+    <braunr> for example, thread migration should be mandatory
+    <braunr> which would make client calls behave exactly like a userspace task
+      asking a service from the kernel
+    <braunr> you have to realize that, on a monolithic kernel, applications are
+      clients, and the kernel is a server
+    <braunr> and when performing a system call, the calling thread actually
+      services itself by running kernel code
+    <braunr> which is exactly what thread migration is for a multiserver system
+    <braunr> thread migration also implies sync IPC
+    <braunr> and sync IPC is inherently more performant because it only
+      requires one copy, no in kernel buffering
+    <braunr> sync ipc also avoids message floods, since client threads must run
+      server code
+    <gnu_srs> and this is not achievable with evolved gnumach and/or hurd?
+    <braunr> well that's not entirely true, because there is still a form of
+      async ipc, but it's a lot less likely
+    <braunr> it probably is
+    <braunr> but there are so many things to change i prefer starting from
+      scratch
+    <braunr> scalability itself probably requires a revamp of the hurd core
+      libraries
+    <braunr> and these libraries are like more than half of the hurd code
+    <braunr> mach ipc and vm are also very complicated
+    <braunr> it's better to get something new and simpler from the start
+    <gnu_srs> a major task nevertheless:-D
+    <braunr> at least with the vm, netbsd showed it's easier to achieve good
+      results from new code, as other mach vm based systems like freebsd
+      struggled to get as good
+    <braunr> well yes
+    <braunr> but at least it's not experimental
+    <braunr> everything i want to implement already exists, and is tested on
+      production systems
+    <braunr> it's just time to assemble those ideas and components together
+      into something that works
+    <braunr> you could see it as a qnx-like system with thread migration, the
+      global architecture of the hurd, and some improvements from linux like
+      rcu :)
+
+
+### IRC, freenode, #hurd, 2012-09-07
+
+    <antrik> braunr: thread migration is tested on production systems?
+    <antrik> BTW, I don't think that generally increasing the priority of
+      servers is a good idea
+    <antrik> in most cases, IPC should actually be sync. slpz looked at it at
+      some point, and concluded that the implementation actually has a
+      fast-path for that case. I wonder what happens to scheduling in this case
+      -- is the receiver sheduled immediately? if not, that's something to
+      fix...
+    <braunr> antrik: qnx does something very close to thread migration, yes
+    <braunr> antrik: i agree increasing the priority isn't a good thing, but
+      it's the best of the quick and dirty ways to reduce message floods
+    <braunr> the problem isn't sync ipc in mach
+    <braunr> the problem is the notifications (in our cases the dead name
+      notifications) that are by nature async
+    <braunr> and a malicious program could send whatever it wants at the
+      fastest rate it can
+    <antrik> braunr: malicious programs can do any number of DOS attacks on the
+      Hurd; I don't see how increasing priority of system servers is relevant
+      in that context
+    <antrik> (BTW, I don't think dead name notifications are async by
+      nature... just like for most other IPC, the *usual* case is that a server
+      thread is actively waiting for the message when it's generated)
+    <braunr> antrik: it's async with respect to the client
+    <braunr> antrik: and malicious programs shouldn't be able to do that kind
+      of dos
+    <braunr> but this won't be fixed any time soon
+    <braunr> on the other hand, a higher priority helps servers not create too
+      many threads because of notifications, and that's a good thing
+    <braunr> gnu_srs: the "fix" for this will be to rewrite select so that it's
+      synchronous btw
+    <braunr> replacing dead name notifications with something like cancelling a
+      previously installed select request
+    <antrik> no idea what "async with respect to the client" means
+    <braunr> it means the client doesn't wait for anything
+    <antrik> what is the client? what scenario are you talking about? how does
+      it affect scheduling?
+    <braunr> for notifications, it's usually the kernel
+    <braunr> it doesn't directly affect scheduling
+    <braunr> it affects the amount of messages a hurd server has to take care
+      of
+    <braunr> and the more messages, the more threads
+    <braunr> i'm talking about event loops
+    <braunr> and non blocking (or very short) selects
+    <antrik> the amount of messages is always the same. the question is whether
+      they can be handled before more come in. which would be the case if be
+      default the receiver gets scheduled as soon as a message is sent...
+    <braunr> no
+    <braunr> scheduling handoff doesn't imply the thread will be ready to
+      service the next message by the time a client sends a new one
+    <braunr> the rate at which a message queue gets filled has nothing to do
+      with scheduling handoff
+    <antrik> I very much doubt rates come into play at all
+    <braunr> well they do
+    <antrik> in my understanding the problem is that a lot of messages are sent
+      before the receive ever has a chance to handle them. so no matter how
+      fast the receiver is, it looses
+    <braunr> a lot of non blocking selects means a lot of reply ports
+      destroyed, a lot of dead name notifications, and what i call message
+      floods at server side
+    <braunr> no
+    <braunr> it used to work fine with cthreads
+    <braunr> it doesn't any more with pthreads because pthreads are slightly
+      slower
+    <antrik> if the receiver gets a chance to do some work each time a message
+      arrives, in most cases it would be free to service the next request with
+      the same thread
+    <braunr> no, because that thread won't have finished soon enough
+    <antrik> no, it *never* worked fine. it might have been slighly less
+      terrible.
+    <braunr> ok it didn't work fine, it worked ok
+    <braunr> it's entirely a matter of rate here
+    <braunr> and that's the big problem, because it shouldn't
+    <antrik> I'm pretty sure the thread would finish before the time slice ends
+      in almost all cases
+    <braunr> no
+    <braunr> too much contention
+    <braunr> and in addition locking a contended spin lock depresses priority
+    <braunr> so servers really waste a lot of time because of that
+    <antrik> I doubt contention would be a problem if the server gets a chance
+      to handle each request before 100 others come in
+    <braunr> i don't see how this is related
+    <braunr> handling a request doesn't mean entirely processing it
+    <braunr> there is *no* relation between handoff and the rate of incoming
+      message rate
+    <braunr> unless you assume threads can always complete their task in some
+      fixed and low duration
+    <antrik> sure there is. we are talking about a single-processor system
+      here.
+    <braunr> which is definitely not the case
+    <braunr> i don't see what it changes
+    <antrik> I'm pretty sure notifications can generally be handled in a very
+      short time
+    <braunr> if the server thread is scheduled as soon as it gets a message, it
+      can also get preempted by the kernel before replying
+    <braunr> no, notifications can actually be very long
+    <braunr> hurd_thread_cancel calls condition_broadcast
+    <braunr> so if there are a lot of threads on that ..
+    <braunr> (this is one of the optimizations i have in mind for pthreads,
+      since it's possible to precisely select the target thread with a doubly
+      linked list)
+    <braunr> but even if that's the case, there is no guarantee
+    <braunr> you can't assume it will be "quick enough"
+    <antrik> there is no guarantee. but I'm pretty sure it will be "quick
+      enough" in the vast majority of cases. which is all it needs.
+    <braunr> ok
+    <braunr> that's also the idea behind raising server priorities
+    <antrik> braunr: so you are saying the storms are all caused by select(),
+      and once this is fixed, the problem should be mostly gone and the
+      workaround not necessary anymore?
+    <braunr> yes
+    <antrik> let's hope you are right :-)
+    <braunr> :)
+    <antrik> (I still think though that making hand-off scheduling default is
+      the right thing to do, and would improve performance in general...)
+    <braunr> sure
+    <braunr> well
+    <braunr> no it's just a hack ;p
+    <braunr> but it's a right one
+    <braunr> the right thing to do is a lot more complicated
+    <braunr> as roland wrote a long time ago, the hurd doesn't need dead-name
+      notifications, or any notification other than the no-sender (which can be
+      replaced by a synchronous close on fd like operation)
+    <antrik> well, yes... I still think the viengoos approach is promising. I
+      meant the right thing to do in the existing context ;-)
+    <braunr> better than this priority hack
+    <antrik> oh? you happen to have a link? never heard of that...
+    <braunr> i didn't want to do it initially, even resorting to priority
+      depression on trhead creation to work around the problem
+    <braunr> hm maybe it wasn't him, i can't manage to find it
+    <braunr> antrik:
+      http://lists.gnu.org/archive/html/l4-hurd/2003-09/msg00009.html
+    <braunr> "Long ago, in specifying the constraints of
+    <braunr> what the Hurd needs from an underlying IPC system/object model we
+      made it
+    <braunr> very clear that we only need no-senders notifications for object
+    <braunr> implementors (servers)"
+    <braunr> "We don't in general make use of dead-name notifications,
+    <braunr> which are the general kind of object death notification Mach
+      provides and
+    <braunr> what serves as task death notification."
+    <braunr> "In the places we do, it's to serve
+    <braunr> some particular quirky need (and mostly those are side effects of
+      Mach's
+    <braunr> decouplable RPCs) and not a semantic model we insist on having."
+
+
+### IRC, freenode, #hurd, 2012-09-08
+
+    <antrik> The notion that seemed appropriate when we thought about these
+      issues for
+    <antrik> Fluke was that the "alert" facility be a feature of the IPC system
+      itself
+    <antrik> rather than another layer like the Hurd's io_interrupt protocol.
+    <antrik> braunr: funny, that's *exactly* what I was thinking when looking
+      at the io_interrupt mess :-)
+    <antrik> (and what ultimately convinced me that the Hurd could be much more
+      elegant with a custom-tailored kernel rather than building around Mach)
+
+
+## IRC, freenode, #hurd, 2012-09-24
+
+    <braunr> my initial attempt was a mach clone
+    <braunr> but now i want a mach-like kernel, without compability
+    <lisporu> which new licence ?
+    <braunr> and some very important changes like sync ipc
+    <braunr> gplv3
+    <braunr> (or later)
+    <lisporu> cool 8)
+    <braunr> yes it is gplv2+ since i didn't take the time to read gplv3, but
+      now that i have, i can't use anything else for such a project: )
+    <lisporu> what is mach-like ? (how it is different from Pistachio like ?) 
+    <braunr> l4 doesn't provide capabilities
+    <lisporu> hmmm..
+    <braunr> you need a userspace for that
+    <braunr> +server
+    <braunr> and it relies on complete external memory management
+    <lisporu> how much work is done ?
+    <braunr> my kernel will provide capabilities, similar to mach ports, but
+      simpler (less overhead)
+    <braunr> i want the primitives right
+    <braunr> like multiprocessor, synchronization, virtual memory, etc..
+
+
+### IRC, freenode, #hurd, 2012-09-30
+
+    <braunr> for those interested, x15 is now a project of its own, with no
+      gnumach compability goal, and covered by gplv3+

@@ -1,0 +1,256 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+For [[DDE]]/X.org/...
+
+
+# IRC, freenode, #hurd, 2012-02-19
+
+    <youpi> antrik: we should probably add a gsoc idea on pci bus arbitration
+    <youpi> DDE is still experimental for now so it's ok that you  have to
+      configure it by hand, but it should be automatic at some ponit
+
+
+## IRC, freenode, #hurd, 2012-02-21
+
+    <braunr> i'm not familiar with the new gnumach interface for userspace
+      drivers, but can this pci enumerator be written with it as it is ?
+    <braunr> (i'm not asking for a precise answer, just yes - even probably -
+      or no)
+    <braunr> (idk or utsl will do as well)
+    <youpi> I'd say yes
+    <youpi> since all drivers need is interrupts, io ports and iomem
+    <youpi> the latter was already available through /dev/mem
+    <youpi> io ports through the i386 rpcs
+    <youpi> the changes provide both interrupts, and physical-contiguous
+      allocation
+    <youpi> it should be way enough
+    <braunr> youpi: ok
+    <braunr> youpi: thanks for the details :)
+    <antrik> braunr: this was mentioned in the context of the interrupt
+      forwarding interface... the original one implemented by zhengda isn't
+      suitable for a PCI server; but the ones proposed by youpi and tschwinge
+      would work
+    <antrik> same for the physical memory interface: the current implementation
+      doesn't allow delegation; but I already said that it's wrong
+
+
+# IRC, freenode, #hurd, 2012-07-15
+
+    <bddebian> youpi: Oh, BTW, I keep meaning to ask you.  Could sound be done
+      with dde or would there still need to be some kernel work?
+    <youpi> bddebian: we'd need a PCI arbitrer for that
+    <youpi> for now just one userland poking with PCI is fine
+    <youpi> but two can produce bonks
+    <bddebian> They can't use the same?
+    <youpi> that's precisely the matter
+    <youpi> they have to use the same
+    <youpi> and not poke with it themselves
+    <braunr> that's what an arbiter is for
+    <bddebian> OK, so if we don't have a PCI arbiter now, how do things like
+      netdde and video not collide currently?
+    <bddebian> s/netdde/network/
+    <bddebian> or disk for that matter
+    <braunr> bddebian: ah currently, well currently, the network is the only
+      thing using the pci bus
+    <bddebian> How is that possible when I have a PCI video card and disk
+      controller?
+    <braunr> they are accessed through compatible means
+    <bddebian> I suppose one of the hardest parts is prioritization?
+    <braunr> i don't think it matters much, no
+    <youpi> bddebian: netdde and Xorg don't collide essentially because they
+      are not started at the same time (hopefully)
+    <bddebian> braunr: What do you mean it doesn't matter?
+    <braunr> bddebian: well the point is rather serializing access, we don't
+      need more
+    <braunr> do other systems actually schedule access to the pci bus ?
+    <bddebian> From what I am reading, yes
+    <braunr> ok
+
+
+# IRC, freenode, #hurd, 2012-07-16
+
+    <antrik> youpi: the lack of a PCI arbiter is a problem, but I wounldn't
+      consider it a precondition for adding another userspace driver
+      class... it's up to the user to make sure he has only one class active,
+      or take the risk of not doing so...
+    <antrik> (plus, I suspect writing the arbiter is a smaller task than
+      implementing another DDE class anyways...)
+    <bddebian> Where would the arbiter need to reside, in gnumach?
+    <antrik> bddebian: kernel would be one possible place (with the advantage
+      of running both userspace and kernel drivers without the potential for
+      conflicts)
+    <antrik> but I think I would prefer a userspace server
+    <youpi> antrik: we'd rather have PCI devices automatically set up
+    <youpi> just like /dev/netdde is already set up for the user
+    <youpi> so you can't count on the user
+    <youpi> for the arbitrer, it could as well be userland, while still
+      interacting with the kernel for some devices
+    <youpi> we however "just" need to get disk drivers in userland to drop PCI
+      drivers from kernel, actually
+
+
+# IRC, freenode, #hurd, 2012-07-17
+
+    <bddebian> youpi: So this PCI arbiter should be a hurd server?
+    <youpi> that'd be better
+    <bddebian> youpi: Is there anything existing to look at as a basis?
+    <youpi> no idea off-hand
+    <bddebian> I mean you couldn't take what netdde does and generalize it?
+    <youpi> netdde doesn't do any arbitration
+
+
+# IRC, OFTC, #debian-hurd, 2012-07-19
+
+    <bdefreese> youpi: Well at some point if you ever have time I'd like to
+      understand better how you see the PCI architecture working in Hurd.
+      I.E. would you expect the server to do enumeration and arbitration?
+    <youpi> I'd expect both, yes, but that's probably to be discussed rather
+      with antrik, he's the one who took some time to think about it
+    <bdefreese> netdde uses libpciaccess currently, right?
+    <youpi> yes
+    <youpi> libpciaccess would have to be fixed into using the arbitrer
+    <youpi> (that'd fix xorg as well)
+    <bdefreese> Man, I am still a bit unclear on how this all interacting
+      currently.. :(
+    <youpi> currently it's not
+    <youpi> and it's just by luck that it doesn't break
+    <bdefreese> Long term xxxdde would use the new server, correct?
+    <youpi> (well, we are also sure that the gnumach enumeration comes always
+      before the netdde enumeration, and xorg is currently not started
+      automatically, so its enumeration is also always after that)
+    <youpi> yes
+    <youpi> the server would essentially provide an interface equivalent to
+      libpciaccess
+    <bdefreese> Right
+    <bdefreese> In general, where does the pci map get "stored"?  In GNU/Linux,
+      is it all /proc based?
+    <youpi> what do you mean by "pci map" ?
+    <bdefreese> Once I have enumerated all of the buses and devices, does it
+      stay stored or is it just redone for every call to a pci device?
+    <youpi> in linux it's stored in the kernel
+    <youpi> the abritrator would store it itself
+
+
+# IRC, freenode, #hurd, 2012-07-20
+
+    <bddebian> antrik: BTW, youpi says you are the one to talk to for design of
+      a PCI server :)
+    <antrik> oh, am I?
+    * antrik feels honoured :-)
+    <antrik> I guess it's true though: I *did* spent a little thought on
+      it... even mentioned something in my thesis IIRC
+    <antrik> there is one tricky aspect to it though, which I'm not sure how to
+      handle best: we need two different instances of libpciaccess
+    <bddebian> Why two instances of libpciaccess?
+    <antrik> one used by the PCI server to access the hardware directly (using
+      the existing port poking backend), and one using a new backend to access
+      our PCI server...
+    <braunr> bddebian: hum, both i guess ?
+    <bddebian> antrik: Why wouldn't the server access the hardware directly?  I
+      thought libpciaccess was supposed to be generic on purpose?
+    <antrik> hm... guess I wasn't clear
+    <antrik> the point is that the PCI server should use the direct hardware
+      access backend of libpciaccess
+    <antrik> however, *clients* should use the PCI server backend of
+      libpciaccess
+    <antrik> I'm not sure backends can be selected at runtime...
+    <antrik> which might mean that we actually have to compile two different
+      versions of the library. erk.
+    <bddebian> So you are saying the pci server should itself use libpci access
+      rather than having it's own?
+    <antrik> admittedly, that's not the most fundamental design decision to
+      make ;-)
+    <antrik> bddebian: yes. no need to rewrite (or copy) this code...
+    <bddebian> Hmm
+    <antrik> actually that was the plan all along when I first suggested
+      implementing the register poking backend for libpciaccess
+    <bddebian> Hmm, not sure I like it but I am certainly in no position to
+      question it right now :)
+    <braunr> why don't you like it ?
+    <bddebian> I shouldn't need an Xorg specific library to access PCI on my OS
+      :)
+    <braunr> oh
+    <bddebian> Though I don't disagree that reinventing the wheel is a bit
+      tedious. :)
+    <antrik> bddebian: although it originates from X.Org, I don't think there
+      is anything about the library technically making it X-specific...
+    <braunr> yes that's my opinion too
+    <antrik> (well, there are some X-specific functions IIRC, but these do not
+      hurt the other functionality)
+    <bddebian> But what is there is api/abi breakage? :)
+    <bddebian> s/is/if/
+    <antrik> BTW according to rdepends there appear to be a number of non-X
+      things using the library now
+    <pinotree> like, uhm, hurd
+    <antrik> yeah, that too... we are already using it for DDE
+    <pinotree> if you have deb-src lines in your sources.list, use the
+      grep-dctrl power:
+    <pinotree> grep-dctrl -sPackage -FBuild-Depends libpciaccess-dev
+      /var/lib/apt/lists/*_source_Sources | sort -u
+    <bddebian> I know we are using it for netdde.
+    <antrik> nice thing about it is that once we have the PCI server and an
+      appropriate backend for libpciaccess, the same netdde and X binaries
+      should work either with or without the PCI server
+    <bddebian> Then why have the server at all?
+    <braunr> it's the arbiter
+    <braunr> you can use the library directly only if you're the only user
+    <braunr> and what antrik means is that the interface should be the same for
+      both modes
+    <bddebian> Ugh, that is where I am getting confused
+    <bddebian> In that case shouldn't everything use libpciaccess and the PCI
+      server has to arbitrate the requests?
+    <braunr> bd	?
+    <braunr> bddebian: yes
+    <braunr> bddebian: but they use the indirect version of the library
+    <braunr> whereas the server uses the raw version
+    <bddebian> OK, I gotcha (I think)
+    <braunr> (but they both provide the same interface, so if you don't have a
+      pci server and you know you're the only user, the direct version can be
+      used)
+    <bddebian> But I am not sure I see the difference between creating a second
+      library or just moving the raw access to the PCI server :)
+    <braunr> uh, there is no difference in that
+    <braunr> and you shouldn't do it
+    <braunr> (if that's what antrik meant at least)
+    <braunr> if you can select the backend (raw or pci server) easily, then
+      stick to the same code base
+    <bddebian> That's where I struggle.  In my worthless opinion, raw access
+      should be the OS job while indirect access would be the libraries
+      responsibility
+    <braunr> that's true
+    <braunr> but as an optimization, if an application is the only user, it can
+      directly use raw access
+    <bddebian> How would you know that?
+    <bddebian> I'm sorry if these are dumb questions
+    <braunr> hum, don't try to make this behaviour automatic
+    <braunr> it would be selected by the user through command line switches
+    <bddebian> But the OS itself uses PCI for things like disk access and
+      video, no?
+    <braunr> (it could be automatic but it makes things more complicated)
+    <braunr> you don't need an arbiter all the time
+    <braunr> i can't tell you more, wait for antrik to return
+    <braunr> i realize i might already have said some bullshit
+    <antrik> bddebian: well, you have a point there that once we have the
+      arbiter and use it for everthing, it isn't strictly useful to still have
+      the register poking in the library
+    <antrik> however, the code will remain in the library anyways, so we better
+      continue using it rather than introducing redundancy...
+    <antrik> but again, that's rather a side issue concerning the design of the
+      PCI server
+    <bddebian> antrik: Fair enough. :)  So how would I even start on this?
+    <antrik> bddebian: actually, libpciaccess is a good starting point:
+      checking the API should give you a fairly good idea what functionality
+      the server needs to implement
+    <pinotree> (+1 on library (re)use)
+    <bddebian> antrik: KK
+    <antrik> sorry, I'm a bit busy right now...

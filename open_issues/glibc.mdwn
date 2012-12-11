@@ -81,6 +81,35 @@ Last reviewed up to the [[Git mirror's e80d6f94e19d17b91e3cd3ada7193cc88f621feb
 
     Might simply be a missing patch(es) from master.
 
+  * `--disable-multi-arch`
+
+    IRC, freenode, #hurd, 2012-11-22
+
+        <pinotree> tschwinge: is your glibc build w/ or w/o multiarch?
+        <tschwinge> pinotree: See open_issues/glibc: --disable-multi-arch
+        <pinotree> ah, because you do cross-compilation?
+        <tschwinge> No, that's natively.
+        <tschwinge> There is also a not of what happened in cross-gnu when I
+          enabled multi-arch.
+        <tschwinge> No idea whether that's still relevant, though.
+        <pinotree> EPARSE
+        <tschwinge> s%not%note
+        <tschwinge> Better?
+        <pinotree> yes :)
+        <tschwinge> As for native builds: I guess I just didn't (want to) play
+          with it yet.
+        <pinotree> it is enabled in debian since quite some time, maybe other
+          i386/i686 patches (done for linux) help us too
+        <tschwinge> I though we first needed some CPU identification
+          infrastructe before it can really work?
+        <tschwinge> I thought [...].
+        <pinotree> as in use the i686 variant as runtime automatically? i guess
+          so
+        <tschwinge> I thought I had some notes about that, but can't currently
+          find them.
+        <tschwinge> Ah, I probably have been thinking about open_issues/ifunc
+          and open_issues/libc_variant_selection.
+
   * --build=X
 
     `long double` test: due to `cross_compiling = maybe` wants to execute a
@@ -350,6 +379,24 @@ Last reviewed up to the [[Git mirror's e80d6f94e19d17b91e3cd3ada7193cc88f621feb
             <pinotree> like posix/tst-waitid.c, you mean?
             <youpi> yes
 
+      * `getconf` things
+
+        IRC, freenode, #hurd, 2012-10-03
+
+            <pinotree> getconf -a | grep CACHE
+            <Tekk_> pinotree: I hate spoiling data, but 0 :P
+            <pinotree> had that feeling, but wanted to be sure -- thanks!
+            <Tekk_> http://dpaste.com/809519/
+            <Tekk_> except for uhh
+            <Tekk_> L4 linesize
+            <Tekk_> that didn't have any number associated
+            <pinotree> weird
+            <Tekk_> I actually didn't even know that there was L4 cache
+            <pinotree> what do you get if you run `getconf
+              LEVEL4_CACHE_LINESIZE`?
+            <Tekk_> pinotree: undefined
+            <pinotree> expected, given the output above
+
     For specific packages:
 
       * [[octave]]
@@ -383,6 +430,270 @@ Last reviewed up to the [[Git mirror's e80d6f94e19d17b91e3cd3ada7193cc88f621feb
     `install_root=//[...]`) is enough to obfuscate the Makefile rules.
 
   * `sysdeps/unix/sysv/linux/syslog.c`
+
+  * `fsync` on a pipe
+
+    IRC, freenode, #hurd, 2012-08-21:
+
+        <braunr> pinotree: i think gnu_srs spotted a conformance problem in
+          glibc
+        <pinotree> (only one?)
+        <braunr> pinotree: namely, fsync on a pipe (which is actually a
+          socketpair) doesn't return EINVAL when the "operation not supported"
+          error is returned as a "bad request message ID"
+        <braunr> pinotree: what do you think of this case ?
+        <pinotree> i'm far from an expert on such stuff, but seems a proper E*
+          should be returned
+        <braunr> (there also is a problem in clisp falling in an infinite loop
+          when trying to handle this, since it uses fsync inside the error
+          handling code, eww, but we don't care :p)
+        <braunr> basically, here is what clisp does
+        <braunr> if fsync fails, and the error isn't EINVAL, let's report the
+          error
+        <braunr> and reporting the error in turn writes something on the
+          output/error stream, which in turn calls fsync again
+        <pinotree> smart
+        <braunr> after the stack is exhausted, clisp happily crashes
+        <braunr> gnu_srs: i'll alter the clisp code a bit so it knows about our
+          mig specific error
+        <braunr> if that's the problem (which i strongly suspect), the solution
+          will be to add an error conversion for fsync so that it returns
+          EINVAL
+        <braunr> if pinotree is willing to do that, he'll be the only one
+          suffering from the dangers of sending stuff to the glibc maintainers
+          :p
+        <pinotree> that shouldn't be an issue i think, there are other glibc
+          hurd implementations that do such checks
+        <gnu_srs> does fsync return EINVAL for other OSes?
+        <braunr>        EROFS, EINVAL
+        <braunr>               fd is bound to a special file which does not
+          support synchronization.
+        <braunr> obviously, pipes and sockets don't
+        <pinotree>
+          http://pubs.opengroup.org/onlinepubs/9699919799/functions/fsync.html
+        <braunr> so yes, other OSes do just that
+        <pinotree> now that you speak about it, it could be the failure that
+          the gnulib fsync+fdatasync testcase have when being run with `make
+          check` (although not when running as ./test-foo)
+        <braunr> hm we may not need change glibc
+        <braunr> clisp has a part where it defines a macro IS_EINVAL which is
+          system specific
+        <braunr> (but we should change it in glibc for conformance anyway)
+        <braunr> #elif defined(UNIX_DARWIN) || defined(UNIX_FREEBSD) ||
+          defined(UNIX_NETBSD) || defined(UNIX_OPENBSD) #define IS_EINVAL_EXTRA
+          ((errno==EOPNOTSUPP)||(errno==ENOTSUP)||(errno==ENODEV))
+        <pinotree> i'd rather add nothing to clisp
+        <braunr> let's see what posix says
+        <braunr> EINVAL
+        <braunr> so right, we should simply convert it in glibc
+        <gnu_srs> man fsync mentions EINVAL
+        <braunr> man pages aren't posix, even if they are usually close
+        <gnu_srs> aha
+        <pinotree> i think checking for MIG_BAD_ID and EOPNOTSUPP (like other
+          parts do) will b enough
+        <pinotree> *be
+        <braunr> gnu_srs: there, it finished correctly even when piped
+        <gnu_srs> I saw that, congrats!
+        <braunr> clisp is quite tricky to debug
+        <braunr> i never had to deal with a program that installs break points
+          and handles segfaults itself in order to implement growing stacks :p
+        <braunr> i suppose most interpreters do that
+        <gnu_srs> So the permanent change will be in glibc, not clisp?
+        <braunr> yes
+
+    IRC, freenode, #hurd, 2012-08-24:
+
+        <gnu_srs1> pinotree: The changes needed for fsync.c is at
+          http://paste.debian.net/185379/ if you want to try it out (confirmed
+          with rbraun)
+        <youpi> I agree with the patch, posix indeed documents einval as the
+          "proper"  error value
+        <pinotree> there's fdatasync too
+        <pinotree> other places use MIG_BAD_ID instead of EMIG_BAD_ID
+        <braunr> pinotree: i assume that if you're telling us, it's because
+          they have different values
+        <pinotree> braunr: tbh i never seen the E version, and everywhere in
+          glibc the non-E version is used
+        <gnu_srs1> in sysdeps/mach/hurd/bits/errno.h only the E version is
+          defined
+        <pinotree> look in gnumach/include/mach/mig_errors.h
+        <pinotree> (as the comment in errno.h say)
+        <gnu_srs1> mig_errors.h yes. Which comment: from errors.h: /* Errors
+          from <mach/mig_errors.h>.  */ and then the EMIG_ stuff?
+        <gnu_srs1> Which one is used when building libc?
+        <gnu_srs1> Answer: At least in fsync.c errno.h is used: #include
+          <errno.h>
+        <gnu_srs1> Yes, fdatasync.c should be patched too.
+        <gnu_srs1> pinotree: You are right: EMIG_ or MIG_ is confusing. 
+        <gnu_srs1> /usr/include/i386-gnu/bits/errno.h:     /* Errors from
+          <mach/mig_errors.h>.  */
+        <gnu_srs1> /usr/include/hurd.h:#include <mach/mig_errors.h>
+
+    IRC, freenode, #hurd, 2012-09-02:
+
+        <antrik> braunr: regarding fsync(), I agree that EOPNOTSUPP probably
+          should be translated to EINVAL, if that's what POSIX says. it does
+          *not* sound right to translate MIG_BAD_ID though. the server should
+          explicitly return EOPNOTSUPP, and that's what the default trivfs stub
+          does. if you actually do see MIG_BAD_ID, there must be some other
+          bug...
+        <braunr> antrik: right, pflocal doesn't call the trivfs stub for socket
+          objects
+        <braunr> trivfs_demuxer is only called by the pflocal node demuxer, for
+          socket objects it's another call, and i don't think it's the right
+          thing to call trivfs_demuxer there either
+        <pinotree> handling MAG_BAD_ID isn't a bad idea anyway, you never know
+          what the underlying server actually implements
+        <pinotree> (imho)
+        <braunr> for me, a bad id is the same as a not supported operation
+        <pinotree> ditto
+        <pinotree> from fsync's POV, both the results are the same anyway, ie
+          that the server does not support a file_sync operation
+        <antrik> no, a bad ID means the server doesn't implement the protocol
+          (or not properly at least)
+        <antrik> it's usually a bug IMHO
+        <antrik> there is a reason we have EOPNOTSUPP for operations that are
+          part of a protocol but not implemented by a particular server
+        <pinotree> antrik: even if it could be the case, there's no reason to
+          make fsync fail anyway
+        <antrik> pinotree: I think there is. it indicates a bug, which should
+          not be hidden
+        <pinotree> well, patches welcome then...
+        <antrik> thing is, if sock objects are actually not supposed to
+          implement the file interface, glibc shouldn't even *try* to call
+          fsync on them
+        <pinotree> how?
+        <pinotree> i mean, can you check whether the file interface is not
+          implemented, without doing a roundtrip^
+        <pinotree> ?
+        <antrik> well, the sock objects are not files, i.e. they were *not*
+          obtained by file_name_lookup(), but rather a specific call. so glibc
+          actually *knows* that they are not files.
+        <braunr> antrik: this way of thinking means we need an "fd" protocol
+        <braunr> so that objects accessed through a file descriptor implement
+          all fd calls
+        <antrik> now I wonder though whether there are conceivable use cases
+          where it would make sense for objects obtained through the socket
+          call to optionally implement the file interface...
+        <antrik> which could actually make sense, if libc lets through other
+          file calls as well (which I guess it does, if the sock ports are
+          wrapped in normal fd structures?)
+        <braunr> antrik: they are
+        <braunr> and i'd personally be in favor of such an fd protocol, even if
+          it means implementing stubs for many useless calls
+        <braunr> but the way things are now suggest a bad id really means an
+          operation is simply not supported
+        <antrik> the question in this case is whether we should make the file
+          protocol mandatory for anything that can end up in an FD; or whether
+          we should keep it optional, and add the MIG_BAD_ID calls to *all* FD
+          operations
+        <antrik> (there is no reason for fsync to be special in this regard)
+        <braunr> yes
+        <antrik> braunr: BTW, I'm rather undecided whether the right approach
+          is a) requiring an FD interface collection, b) always checking
+          MIG_BAD_ID, or perhaps c) think about introducing a mechanism to
+          explicitly query supported interfaces...
+
+    IRC, freenode, #hurd, 2012-09-03:
+
+        <braunr> antrik: querying interfaces sounds like an additional penalty
+          on performance
+        <antrik> braunr: the query usually has to be done only once. in fact it
+          could be integrated into the name lookup...
+        <braunr> antrik: once for every object
+        <braunr> antrik: yes, along with the lookup would be a nice thing
+
+    [[!message-id "1351231423.8019.19.camel@hp.my.own.domain"]].
+
+  * `t/no-hp-timing`
+
+    IRC, freenode, #hurd, 2012-11-16
+
+        <pinotree> tschwinge: wrt the glibc topgit branch t/no-hp-timing,
+          couldn't that file be just replaced by #include
+          <sysdeps/generic/hp-timing.h>?
+
+  * `flockfile`/`ftrylockfile`/`funlockfile`
+
+    IRC, freenode, #hurd, 2012-11-16
+
+        <pinotree> youpi: uhm, in glibc we use
+          stdio-common/f{,try,un}lockfile.c, which do nothing (as opposed to eg
+          the nptl versions, which do lock/trylock/unlock); do you know more
+          about them?
+        <youpi> pinotree: ouch
+        <youpi> no, I don't know
+        <youpi> well, I do know what they're supposed to do
+        <pinotree> i'm trying fillig them, let's see
+        <youpi> but not why we don't have them
+        <youpi> (except that libpthread is "recent")
+        <youpi> yet another reason to build libpthread in glibc, btw
+        <youpi> oh, but we do provide lockfile in libpthread, don't we ?
+        <youpi> pinotree: yes, and libc has weak variants, so the libpthread
+          will take over
+        <pinotree> youpi: sure, but that in stuff linking to pthreads
+        <pinotree> if you do a simple application doing eg main() { fopen +
+          fwrite + fclose }, you get no locking
+        <youpi> so?
+        <youpi> if you don't have threads, you don't need locks :)
+        <pinotree> ... unless there is some indirect recursion
+        <youpi> ?
+        <pinotree> basically, i was debugging why glibc tests with mtrace() and
+          ending with muntrace() would die (while tests without muntrace call
+          wouldn't)
+        <youpi> well, I still don't see what a lock will bring
+        <pinotree> if you look at the muntrace implementation (in
+          malloc/mtrace.c), basically fclose can trigger a malloc hook (because
+          of the free for the FILE*)
+        <youpi> either you have threads, and it's need, or you don't, and it's
+          a nop
+        <youpi> yes, and ?
+        <braunr> does the signal thread count ?
+        <youpi> again, in linux, when you don't have threads, the lock is a nop
+        <youpi> does the signal thread use IO ?
+        <braunr> that's the question :)
+        <braunr> i hope not
+        <youpi> IIRC the signal thread just manages signals, and doesn't
+          execute the handler itself
+        <braunr> sure
+        <braunr> i was more thinking about debug stuff
+        <youpi> can't hurt to add them anyway, but let me still doubt that it'd
+          fix muntrace, I don't see why it would, unless you have threads
+        <pinotree> that's what i'm going next
+        <pinotree> pardon, it seems i got confused a bit
+        <pinotree> it'd look like a genuine muntrace bug (muntrace → fclose →
+          free hook → lock lock → fprint (since the FILE is still set) → malloc
+          → malloc hook → lock lock → spin)
+        <pinotree> at least i got some light over the flockfile stuff, thanks
+          ;)
+        <pinotree> youpi: otoh, __libc_lock_lock (etc) are noop in the base
+          implementation, while doing real locks on hurd in any case, and on
+          linux only if nptl is loaded, it seems
+        <pinotree> that would explain why on linux you get no deadlock
+        <youpi> unless using nptl, that is?
+        <pinotree> hm no, even with pthread it works
+        <pinotree> but hey, at least the affected glibc test now passes
+        <pinotree> will maybe try to do investigation on why it works on linux
+          tomorrow
+
+    [[!message-id "201211172058.21035.toscano.pino@tiscali.it"]].
+
+  * `t/pagesize`
+
+    IRC, freenode, #hurd, 2012-11-16
+
+        <pinotree> tschwinge: somehow related to your t/pagesize branch: due to
+          the fact that EXEC_PAGESIZE is not defined on hurd, libio/libioP.h
+          switches the allocation modes from mmap to malloc
+
+  * `LD_DEBUG`
+
+    IRC, freenode, #hurd, 2012-11-22
+
+        <pinotree> woot, `LD_DEBUG=libs /bin/ls >/dev/null` prints stuff and
+          then sigsegv
+        <tschwinge> Yeah, that's known for years...  :-D
+        <tschwinge> Probably not too difficult to resolve, though.
 
   * Verify baseline changes, if we need any follow-up changes:
 
@@ -559,6 +870,11 @@ Last reviewed up to the [[Git mirror's e80d6f94e19d17b91e3cd3ada7193cc88f621feb
       * *baseline*
       * [high] `sendmmsg` usage, c030f70c8796c7743c3aa97d6beff3bd5b8dcd5d --
         need a `ENOSYS` stub.
+      * ea4d37b3169908615b7c17c9c506c6a6c16b3a26 -- IRC, freenode, #hurd,
+        2012-11-20, pinotree: »tschwinge: i agree on your comments on
+        ea4d37b3169908615b7c17c9c506c6a6c16b3a26, especially since mach's
+        sleep.c is buggy (not considers interruption, extra time() (= RPC)
+        call)«.
 
 
 # Build
