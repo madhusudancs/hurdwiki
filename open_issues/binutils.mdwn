@@ -123,20 +123,22 @@ sources|source_repositories/binutils]], run on kepler.SCHWINGE and
 coulomb.SCHWINGE.
 
     $ export LC_ALL=C
-    $ ../master/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 2>&1 | tee log_build
+    $ ../master/configure --prefix="$PWD".install --with-sysroot=/ SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 2>&1 | tee log_build
     [...]
     $ make 2>&1 | tee log_build_
     [...]
 
 Different hosts may default to different shells and compiler versions; thus
-harmonized.
+harmonized.  Debian GCC (which is used in binutils' testsuite) likes to pass
+`--sysroot=/` to `ld`, so we need to configure binutils with support for
+sysroots.
 
 This takes up around 120 MiB, and needs roughly 4 min on kepler.SCHWINGE and
 15 min on coulomb.SCHWINGE.
 
 <!--
 
-    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && make -k check 2>&1 | tee log_check
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && make -k check 2>&1 | tee log_test
 
 -->
 
@@ -147,9 +149,7 @@ x86 GNU/Linux' and GNU/Hurd's configurations are slightly different, thus mask
 out most of the differences that are due to GNU/Linux supporting more core file
 formats, and more emulation vectors.
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/binutils/ && cat hurd/master.build/log_build* | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/binutils/linux/log_build
-    $ ssh coulomb.SCHWINGE 'cd tmp/binutils/ && cat hurd/master.build/log_build* | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/binutils/hurd/log_build
-    $ diff -wu <(sed -f toolchain/logs/binutils/linux/log_build.sed < toolchain/logs/binutils/linux/log_build) <(sed -f toolchain/logs/binutils/hurd/log_build.sed < toolchain/logs/binutils/hurd/log_build) > toolchain/logs/binutils/log_build.diff
+    $ toolchain/logs/process binutils build
 
 
 # Install
@@ -163,9 +163,7 @@ min on coulomb.SCHWINGE.
 
 ## Analysis
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/binutils/ && cat hurd/master.build/log_install | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/binutils/linux/log_install
-    $ ssh coulomb.SCHWINGE 'cd tmp/binutils/ && cat hurd/master.build/log_install | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/binutils/hurd/log_install
-    $ diff -wu <(sed -f toolchain/logs/binutils/linux/log_install.sed < toolchain/logs/binutils/linux/log_install) <(sed -f toolchain/logs/binutils/hurd/log_install.sed < toolchain/logs/binutils/hurd/log_install) > toolchain/logs/binutils/log_install.diff
+    $ toolchain/logs/process binutils install
 
   * `libtool: finish`: `ldconfig` is not run for the Hurd.
 
@@ -177,12 +175,10 @@ min on coulomb.SCHWINGE.
 
 This needs roughly 3 min on kepler.SCHWINGE and 13 min on coulomb.SCHWINGE.
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/binutils/ && cat hurd/master.build/*/*.sum hurd/master.build/*/*/*.sum | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/binutils/linux/sum
-    $ ssh coulomb.SCHWINGE 'cd tmp/binutils/ && cat hurd/master.build/*/*.sum hurd/master.build/*/*/*.sum | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/binutils/hurd/sum
-    $ diff -u -F ^Running toolchain/logs/binutils/linux/sum toolchain/logs/binutils/hurd/sum > toolchain/logs/binutils/sum.diff
-
 
 ## Analysis
+
+    $ toolchain/logs/process binutils test
 
   * <a name="static"><!-- stable_URL -->`FAIL: static [...]`</a>
 
