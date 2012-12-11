@@ -83,6 +83,109 @@ call|/glibc/fork]]'s case.
     <antrik> ouch
 
 
+## [[!message-id "20121202101508.GA30541@mail.sceen.net"]]
+
+
+## IRC, freenode, #hurd, 2012-12-04
+
+    <damo22> why do some people think hurd is slow? i find it works well even
+      under heavy load inside a virtual machine
+    <braunr> damo22: the virtual machine actually assists the hurd a lot :p
+    <braunr> but even with that, the hurd is a slow system
+    <damo22> i would have thought it would have the potential to be very fast,
+      considering the model of the kernel
+    <braunr> the design implies by definition more overhead, but the true cause
+      is more than 15 years without optimization on the core components
+    <braunr> how so ?
+    <damo22> since there are less layers of code between the hardware bare
+      metal and the application that users run
+    <braunr> how so ? :)
+    <braunr> it's the contrary actually
+    <damo22> VFS -> IPC -> scheduler -> device drivers -> hardware
+    <damo22> that is monolithic
+    <braunr> well, it's not really meaningful
+    <braunr> and i'd say the same applies for a microkernel system
+    <damo22> if the application can talk directly to hardware through the
+      kernel its almost like plugging directly into the hardware
+    <braunr> you never talk directly to hardware
+    <braunr> you talk to servers instead of the kernel
+    <damo22> ah
+    <braunr> consider monolithic kernel systems like systems with one big
+      server
+    <braunr> the kernel
+    <braunr> whereas a multiserver system is a kernel and many servers
+    <braunr> you still need the VFS to identify your service (and thus your
+      server)
+    <braunr> you need much more IPC, since system calls are "replaced" with RPC
+    <braunr> the scheduler is basically the same
+    <damo22> okay
+    <braunr> device drivers are similar too, except they run in thread context
+      (which is usually a bit heavier)
+    <damo22> but you can do cool things like report when an interrupt line is
+      blocked
+    <braunr> and there are many context switches between all that
+    <braunr> you can do all that in a monolithic kernel too, and faster
+    <braunr> but it's far more elegant, and (when well done) easy to do on a
+      microkernel based system
+    <damo22> yes
+    <damo22> i like elegant, makes coding easier if you know the basics
+    <braunr> there are only two major differences between a monolilthic kernel
+      and a multiserver microkernel system
+    * damo22 listens
+    <braunr> 1/ independence of location (your resources could be anywhere)
+    <braunr> 2/ separation of address spaces (your servers have their own
+      addresses)
+    <damo22> wow
+    <braunr> these both imply additional layers of indirection, making the
+      system as a whole slower
+    <damo22> but it would be far more secure though i suspect
+    <braunr> yes
+    <braunr> and reliable
+    <braunr> that's why systems like qnx were usually adopted for critical
+      tasks
+    <damo22> security and reliability are very important, i would switch to the
+      hurd if it supported all the hardware i use 
+    <braunr> so would i :)
+    <braunr> but performance matters too
+    <damo22> not to me
+    <braunr> it should :p
+    <braunr> it really does matter a lot in practice
+    <damo22> i mean, a 2x slowdown compared to linux would not affect me
+    <damo22> if it had all the benefits we mentioned above
+    <braunr> but the hurd is really slow for other reasons than its additional
+      layers of indrection unfortunately
+    <damo22> is it because of lack of optimisation in the core code?
+    <braunr> we're working on these issues, but it's not easy and takes a lot
+      of time :p
+    <damo22> like you said
+    <braunr> yes
+    <braunr> and also because of some fundamental design choices related to the
+      microkernel back in the 80s
+    <damo22> what about the darwin system
+    <damo22> it uses a mach kernel?
+    <braunr> yes
+    <damo22> what is stopping someone taking the MIT code from darwin and
+      creating a monster free OS
+    <braunr> what for ?
+    <damo22> because it already has hardware support
+    <damo22> and a mach kernel
+    <braunr> in kernel drivers ?
+    <damo22> it has kernel extensions
+    <damo22> you can do things like kextload module
+    <braunr> first, being a mach kernel doesn't make it compatible or even
+      easily usable with the hurd, the interfaces have evolved independantly
+    <braunr> and second, we really do want more stuff out of the kernel
+    <braunr> drivers in particular
+    <damo22> may i ask why you are very keen to have drivers out of kernel?
+    <braunr> for the same reason we want other system services out of the
+      kernel
+    <braunr> security, reliability, etc..
+    <braunr> ease of debugging
+    <braunr> the ability to restart drivers separately, without restarting the
+      kernel
+    <damo22> i see
+
+
 # IRC, freenode, #hurd, 2012-09-13
 
 {{$news/2011-q2#phoronix-3}}.

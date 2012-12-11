@@ -1234,3 +1234,95 @@ There is a [[!FF_project 275]][[!tag bounty]] on this task.
       of a "message server" à la dmesg
 
 [[translator_stdout_stderr]].
+
+
+### IRC, freenode, #hurd, 2012-12-10
+
+    <youpi> braunr: unable to adjust libports thread priority: (ipc/send)
+      invalid destination port
+    <youpi> I'll see what package brought that
+    <youpi> (that was on a buildd)
+    <braunr> wow
+    <youpi> mkvtoolnix_5.9.0-1:
+    <pinotree> shouldn't that code be done in pthreads and then using such
+      pthread api? :p
+    <braunr> pinotree: you've already asked that question :p
+    <pinotree> i know :p
+    <braunr> the semantics of pthreads are larger than what we need, so that
+      will be done "later"
+    <braunr> but this error shouldn't happen
+    <braunr> it looks more like a random mach bug
+    <braunr> youpi: anything else on the console ?
+    <youpi> nope
+    <braunr> i'll add traces to know which step causes the error
+
+
+## IRC, freenode, #hurd, 2012-12-05
+
+    <braunr> tschwinge: i'm currently working on a few easy bugs and i have
+      planned improvements for libpthreads soon
+    <pinotree> wotwot, which ones?
+    <braunr> pinotree: first, fixing pthread_cond_timedwait (and everything
+      timedsomething actually)
+    <braunr> pinotree: then, fixing cancellation
+    <braunr> pinotree: and last but not least, optimizing thread wakeup
+    <braunr> i also want to try replacing spin locks and see if it does what i
+      expect
+    <pinotree> which fixes do you plan applying to cond_timedwait?
+    <braunr> see sysdeps/generic/pt-cond-timedwait.c
+    <braunr> the FIXME comment
+    <pinotree> ah that
+    <braunr> well that's important :)
+    <braunr> did you have something else in mind ?
+    <pinotree> hm, __pthread_timedblock... do you plan fixing directly there? i
+      remember having seem something related to that (but not on conditions),
+      but wasn't able to see further
+    <braunr> it has the same issue
+    <braunr> i don't remember the details, but i wrote a cthreads version that
+      does it right
+    <braunr> in the io_select_timeout branch
+    <braunr> see
+      http://git.savannah.gnu.org/cgit/hurd/hurd.git/tree/libthreads/cancel-cond.c?h=rbraun/select_timeout
+      for example
+    * pinotree looks
+    <braunr> what matters is the msg_delivered member used to synchronize
+      sleeper and waker
+    <braunr> the waker code is in
+      http://git.savannah.gnu.org/cgit/hurd/hurd.git/tree/libthreads/cprocs.c?h=rbraun/select_timeout
+    <pinotree> never seen cthreads' code before :)
+    <braunr> soon you shouldn't have any more reason to :p
+    <pinotree> ah, so basically the cthread version of the pthread cleanup
+      stack + cancelation (ie the cancel hook) broadcasts the condition
+    <braunr> yes
+    <pinotree> so a similar fix would be needed in all the places using
+      __pthread_timedblock, that is conditions and mutexes
+    <braunr> and that's what's missing in glibc that prevents deploying a
+      pthreads based hurd currently
+    <braunr> no that's unrelated
+    <pinotree> ok
+    <braunr> the problem is how __pthread_block/__pthread_timedblock is
+      synchronized with __pthread_wakeup
+    <braunr> libpthreads does exactly the same thing as cthreads for that,
+      i.e. use messages
+    <braunr> but the message alone isn't enough, since, as explained in the
+      FIXME comment, it can arrive too late
+    <braunr> it's not a problem for __pthread_block because this function can
+      only resume after receiving a message
+    <braunr> but it's a problem for __pthread_timedblock which can resume
+      because of a timeout
+    <braunr> my solution is to add a flag that says whether a message was
+      actually sent, and lock around sending the message, so that the thread
+      resume can accurately tell in which state it is
+    <braunr> and drain the message queue if needed
+    <pinotree> i see, race between the "i stop blocking because of timeout" and
+      "i stop because i got a message" with the actual check for the real cause
+    <braunr> locking around mach_msg may seem overkill but it's not in
+      practice, since there can only be one message at most in the message
+      queue
+    <braunr> and i checked that in practice by limiting the message queue size
+      and check for such errors
+    <braunr> but again, it would be far better with mutexes only, and no spin
+      locks
+    <braunr> i wondered for a long time why the load average was so high on the
+      hurd under even "light" loads
+    <braunr> now i know :)
