@@ -1,0 +1,54 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+This documents the currently-needed tricks to successfully build a
+[[glibc/chroot]] in GNU/Hurd.
+
+# Preparation
+
+For proper translator startup, the chroot storage needs to be handled by a
+separate translator, for instance:
+
+    # dd [...] < /dev/zero > storage
+    # mke2fs storage
+    # settrans -c chroot /hurd/ext2fs $PWD/storage
+
+# Unpack
+
+Debootstrap should be able to build the content:
+
+    # debootstrap sid chroot
+
+# Tricks
+
+One current issue to know about chroots is that since passive translators (e.g.
+`/servers/socket/1`) are started by the root translator, which is not aware
+of the chrooting, these passive translators are started non-chrooted, leading to
+a few issues.
+[[!tag open_issue_hurd]]
+
+## Sockets
+
+Since the passive [[translator/pflocal]] translator will not be chrooted, local
+socket creation
+will actually happen in the root filesystem. To make things work correctly the
+programs inside the chroot need to be able to access them:
+
+    # settrans chroot/servers/socket/1 /hurd/firmlink /servers/socket/1
+    # settrans chroot/tmp /hurd/firmlink /tmp
+    # settrans -c chroot/var/lib/dbus /hurd/firmlink /var/lib/dbus
+
+## Network
+
+Unless using a separate IP for the chroot, it is preferrable to share the
+[[translator/pfinet]] translator:
+
+    # settrans chroot/servers/socket/2 /hurd/firmlink /servers/socket/2
+    # settrans chroot/servers/socket/26 /hurd/firmlink /servers/socket/26
