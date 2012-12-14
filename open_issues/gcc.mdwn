@@ -33,12 +33,12 @@ example.  Especially all the compiler magic is all the same.
 git checkout reviewed
 git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..upstream/trunk
 -i
-/^commit |^Merge:|^---$|hurd|linux|nacl|nptl|glibc|gs:
+/^commit |^merge:|^---$|hurd|linux|nacl|nptl|glibc|gs:
 
 -->
 
-Last reviewed up to the [[Git mirror's 769bf18a20ee2540ca7601cdafabd62b18b9751b
-(2012-10-01) sources|source_repositories/gcc]].
+Last reviewed up to the [[Git mirror's be3860ba8df48cca3253da4f02fd2d42d856ce80
+(2012-12-10) sources|source_repositories/gcc]].
 
 <http://gcc.gnu.org/install/configure.html> has documentation for the
 `configure` switches.
@@ -301,12 +301,39 @@ Last reviewed up to the [[Git mirror's 769bf18a20ee2540ca7601cdafabd62b18b9751b
     "20110609002620.GA16719@const.famille.thibault.fr"]].  commit
     026e608ecebcb2a6193971006a85276307d79b00.
 
+  * 549e2197b118efb2d947aaa15d445b05c1b5ed62 `Import the asan runtime library
+    into GCC tree`.  Linux-specific things:
+    `ASAN_USE_ALIAS_ATTRIBUTE_FOR_INDEX`, `ASAN_LINUX`, `ASAN_POSIX`,
+    `libsanitizer/asan/asan_linux.cc`,
+    `libsanitizer/asan/asan_malloc_linux.cc`,
+    `libsanitizer/asan/asan_posix.cc`,
+    `libsanitizer/interception/interception.h`,
+    `libsanitizer/interception/interception_linux.cc`,
+    `libsanitizer/interception/interception_linux.h`,
+    `libsanitizer/sanitizer_common/sanitizer_allocator.cc`,
+    `libsanitizer/sanitizer_common/sanitizer_linux.cc`,
+    `libsanitizer/sanitizer_common/sanitizer_posix.cc`,
+    `libsanitizer/sanitizer_common/sanitizer_procmaps.h`,
+    `libsanitizer/sanitizer_common/sanitizer_symbolizer_linux.cc`.
+    4afab99bf0fe2d6905a9fa9d6ab886ca102312df `Enable libsanitizer just on x86
+    linux for now`.  492e75a7336b4dbfe38207ea3abf8d5bd72376a9 `Move
+    libsanitizer configure logic to subdirectory`.
+    6aea389d84c2172668af5f108e2b17e131120d0b `Add STATIC_LIBASAN_LIBS for
+    -static-libasan`.  Further commits later on.
+
+      * 9cf754572854d9d9cd43c277eb7afb12e4911358 `Import tsan runtime from
+        llvm`.  Linux-specific things: `libsanitizer/tsan/tsan_platform.h`,
+        `libsanitizer/tsan/tsan_platform_linux.cc`,
+        `libsanitizer/tsan/tsan_symbolize_addr2line_linux.cc`.
+        a96132f29aa3dfe94141a87537f62ea73ce0fc19 `Set TSAN_SUPPORTED=yes for
+        x86_64/i686-linux for 64-bit multilib`.  Further commits later on.
+
 
 # Build
 
 Here's a log of a GCC build run; this is from our [[Git repository's
-b401cb7ed15602d244a6807835b0b9d740a302a8 (2012-11-26;
-769bf18a20ee2540ca7601cdafabd62b18b9751b (2012-10-01))
+a1d48e100791bc67ff355e0931a604e767c827b7 (2012-12-10;
+be3860ba8df48cca3253da4f02fd2d42d856ce80 (2012-12-10))
 sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -319,8 +346,8 @@ sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 Different hosts may default to different shells and compiler versions; thus
 harmonized.
 
-This takes up around 3.1 GiB, and needs roughly 3.25 h on kepler.SCHWINGE and
-13.25 h on coulomb.SCHWINGE.
+This takes up around 3.5 GiB, and needs roughly 3.25 h on kepler.SCHWINGE and
+14.25 h on coulomb.SCHWINGE.
 
 <!--
 
@@ -337,42 +364,6 @@ This takes up around 3.1 GiB, and needs roughly 3.25 h on kepler.SCHWINGE and
     works... no`|glibc_madvise_vs_static_linking]]
 
     Addressed in Debian glibc.
-
-  * DFP
-
-    Addressed in *hurd/decimal_floating_point* branch.
-
-        +configure: WARNING: decimal float is not supported for this target, ignored
-
-    ... and later on:
-
-        -checking for decimal floating point... bid
-        +checking for decimal floating point... configure: WARNING: decimal float is not supported for this target, ignored
-        +dpd
-
-    ... and later on:
-
-        -checking whether decimal floating point is supported... yes
-        +checking whether decimal floating point is supported... no
-        +configure: WARNING: decimal float is not supported for this target, ignored
-
-      * `libstdc++-v3/acinclude.m4`: ISO/IEC TR 24733
-
-            -checking for ISO/IEC TR 24733 ... yes
-            +checking for ISO/IEC TR 24733 ... no
-
-      * `--enable-decimal-float`, `--enable-fixed-point`, `--with-long-double-128`
-
-        `configure: WARNING: decimal float is not supported for this target,
-        ignored`
-
-          * `libgcc/configure.ac` [might
-            need](http://gcc.gnu.org/ml/gcc-patches/2008-10/msg00315.html) to be
-            aligned for us to the `*linux*` cases.  As well as at the end of
-            `libgcc/config.host`.  Check.
-
-                checking whether decimal floating point is supported... no
-                checking whether fixed-point is supported... no
 
   * `host-linux.c` vs. `host-default.c`
 
@@ -508,13 +499,34 @@ This takes up around 3.1 GiB, and needs roughly 3.25 h on kepler.SCHWINGE and
 
     TODO.
 
+  * 769bf18a20ee2540ca7601cdafabd62b18b9751b..be3860ba8df48cca3253da4f02fd2d42d856ce80
+
+    Both GNU/Linux and GNU/Hurd:
+
+         checking whether gcc-4.6 supports -fno-exceptions... yes
+         checking whether gcc-4.6 supports -fno-rtti... yes
+        +checking whether gcc-4.6 supports ... yes
+         checking valgrind.h usability... no
+         checking valgrind.h presence... no
+
+         checking for ld... /usr/bin/ld
+        +[...]/hurd/master/gcc/configure: 21384: test: xld: unexpected operator
+        +[...]/hurd/master/gcc/configure: 21385: test: xld: unexpected operator
+         checking whether we are using gold... no
+
+         checking for unwind.h... yes
+         checking for _Unwind_Backtrace... yes
+        +checking for  option... yes
+         checking whether gcc-4.6 supports -W... yes
+         checking whether gcc-4.6 supports -Wall... yes
+
 
 # Install
 
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 850 MiB, and needs roughly 4 min on kepler.SCHWINGE and 35
+This takes up around 1 GiB, and needs roughly 5 min on kepler.SCHWINGE and 37
 min on coulomb.SCHWINGE.
 
 
@@ -595,10 +607,10 @@ coulomb.SCHWINGE:
     $ make -k check-target 2>&1 | tee log_test_4_check-target
     [...]
 
-This needs roughly 6.75 h on kepler.SCHWINGE and 3.5 h (`check-fixincludes`,
-`gcc/check-ada`) + 10 h (`gcc/check-c`) + 3.75 h (`gcc/check-c++`) + 5.5 h
+This needs roughly 7 h on kepler.SCHWINGE and 4 h (`check-fixincludes`,
+`gcc/check-ada`) + 12.5 h (`gcc/check-c`) + 4.25 h (`gcc/check-c++`) + 5.5 h
 (`gcc/check-fortran`, `gcc/check-java`, `gcc/check-lto`, `gcc/check-objc`) +
-8.25 h (`check-intl`, [...], `check-lto-plugin`, `check-target`) = 31 h on
+9 h (`check-intl`, [...], `check-lto-plugin`, `check-target`) = 35.25 h on
 coulomb.SCHWINGE.
 
 
@@ -622,6 +634,20 @@ coulomb.SCHWINGE.
   * As of b401cb7ed15602d244a6807835b0b9d740a302a8 (2012-11-26;
     769bf18a20ee2540ca7601cdafabd62b18b9751b (2012-10-01)), there are
     regressions (FAILs) in libgomp execution tests on coulomb.SCHWINGE.
+
+  * 769bf18a20ee2540ca7601cdafabd62b18b9751b..be3860ba8df48cca3253da4f02fd2d42d856ce80
+
+    On GNU/Hurd:
+
+         Running [...]/hurd/master/gcc/testsuite/g++.dg/tls/tls.exp ...
+        +FAIL: g++.dg/tls/thread_local3.C -std=gnu++11 execution test
+        +FAIL: g++.dg/tls/thread_local3g.C -std=gnu++11 execution test
+        +FAIL: g++.dg/tls/thread_local4.C -std=gnu++11 execution test
+        +FAIL: g++.dg/tls/thread_local4g.C -std=gnu++11 execution test
+        +FAIL: g++.dg/tls/thread_local5.C -std=gnu++11 execution test
+        +FAIL: g++.dg/tls/thread_local5g.C -std=gnu++11 execution test
+
+    They used to PASS.
 
   * TODO
 
