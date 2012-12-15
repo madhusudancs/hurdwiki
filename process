@@ -8,7 +8,12 @@ set -e -x
 project=$1
 build_suffix=.build
 case $project in
-  binutils | gcc)
+  binutils)
+    branch=tschwinge/Paul_Desmond
+    linux_host=kepler.SCHWINGE
+    hurd_host=coulomb.SCHWINGE
+    ;;
+  gcc)
     branch=hurd/master
     linux_host=kepler.SCHWINGE
     hurd_host=coulomb.SCHWINGE
@@ -102,7 +107,7 @@ case $project:$action in
     : "${project_base:?}"
     # Log files.
     case $project:$step in
-      binutils:build | binutils:install \
+      binutils:build | binutils:install | binutils:test \
       | gcc:build | gcc:install | gcc:test \
       | gdb:build | gdb:install | gdb:test \
       | glibc:build | glibc:install | glibc:test)
@@ -112,9 +117,6 @@ case $project:$action in
           cat '"$branch$build_suffix"'/log_'"$step"'* \
             | sed -e "s%\('"$mount"'\)\?${PWD}%[...]%g"' \
           > toolchain/logs/"$project"/"$host"/log_"$step"
-        ;;
-      binutils:test)
-        :
         ;;
       *)
         echo >&2 "Internal error."
@@ -192,7 +194,7 @@ case $project:$action in
     : "${linux_host:?}"
     : "${hurd_host:?}"
     case $project:$step in
-      binutils:build | binutils:install \
+      binutils:build | binutils:install | binutils:test \
       | gcc:build | gcc:install | gcc:test \
       | gdb:build | gdb:install | gdb:test)
         sed \
@@ -216,8 +218,9 @@ case $project:$action in
           toolchain/logs/"$project"/"$hurd_host"/log_"$step"_
         [ "$r" = 0 ] || [ "$r" = 1 ]
         ;;
-      binutils:test)
-        :
+      *)
+        echo >&2 "Internal error."
+        exit 1
         ;;
     esac
     case $project:$step in
