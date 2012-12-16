@@ -39,8 +39,8 @@ git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C
 
 -->
 
-Last reviewed up to the [[Git mirror's 81a734055750a1de753adfd86f7ae9e1d72575e4
-(2012-12-15) sources|source_repositories/binutils]].
+Last reviewed up to the [[Git mirror's 7c102198e4a1ecee9cf175bd4ad87ee435956cae
+(2012-12-16) sources|source_repositories/binutils]].
 
   * Globally
 
@@ -123,11 +123,11 @@ Last reviewed up to the [[Git mirror's 81a734055750a1de753adfd86f7ae9e1d72575e4
 
 Here's a log of a binutils build run; this is from our [[Git
 repository|source_repositories/binutils]]'s `tschwinge/Paul_Desmond` branch,
-commit 81a734055750a1de753adfd86f7ae9e1d72575e4 (2012-12-15), run on
+commit 7c102198e4a1ecee9cf175bd4ad87ee435956cae (2012-12-16), run on
 kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
-    $ ../Paul_Desmond/configure --prefix="$PWD".install --with-sysroot=/ SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 2>&1 | tee log_build
+    $ ../Paul_Desmond/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 2>&1 | tee log_build
     [...]
     $ make 2>&1 | tee log_build_
     [...]
@@ -137,8 +137,8 @@ harmonized.  Debian GCC (which is used in binutils' testsuite) likes to pass
 `--sysroot=/` to `ld`, so we need to configure binutils with support for
 sysroots.
 
-This takes up around 130 MiB, and needs roughly 5 min on kepler.SCHWINGE and
-14 min on coulomb.SCHWINGE.
+This takes up around 900 MiB, and needs roughly 11 min on kepler.SCHWINGE and
+42 min on coulomb.SCHWINGE.
 
 <!--
 
@@ -155,13 +155,20 @@ formats, and more emulation vectors.
 
     $ toolchain/logs/process binutils build
 
+  * gold GNU/Linux vs. GNU/Hurd
+
+        -checking for glibc ifunc support... both
+        +checking for glibc ifunc support... dyn
+
+    Missing [[IFUNC]] support on GNU/Hurd.
+
 
 # Install
 
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 70 MiB, and needs roughly 1 min on kepler.SCHWINGE and 2
+This takes up around 150 MiB, and needs roughly 1 min on kepler.SCHWINGE and 3
 min on coulomb.SCHWINGE.
 
 
@@ -177,7 +184,7 @@ min on coulomb.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This needs roughly 4 min on kepler.SCHWINGE and 24 min on coulomb.SCHWINGE.
+This needs roughly 6 min on kepler.SCHWINGE and 42 min on coulomb.SCHWINGE.
 
 
 ## Analysis
@@ -213,7 +220,7 @@ This needs roughly 4 min on kepler.SCHWINGE and 24 min on coulomb.SCHWINGE.
         WARNING: program timed out.
         FAIL: gas/i386/rept
 
-  * IFUNC execution tests
+  * ld IFUNC execution tests
 
     Missing [[IFUNC]] support on GNU/Hurd.
 
@@ -221,3 +228,28 @@ This needs roughly 4 min on kepler.SCHWINGE and 24 min on coulomb.SCHWINGE.
 
         FAIL: Common symbol override ifunc test 1a
         FAIL: Common symbol override ifunc test 1b
+
+  * gold GNU/Linux vs. GNU/Hurd
+
+        -FAIL: relro_test.sh
+        +PASS: relro_test.sh
+
+        -PASS: ver_matching_test.sh
+        +FAIL: ver_matching_test.sh
+
+        -PASS: script_test_3
+        +FAIL: script_test_3
+
+        -PASS: tls_phdrs_script_test
+        +FAIL: tls_phdrs_script_test
+
+        -PASS: ifuncmain1static
+        -PASS: ifuncmain1picstatic
+        -PASS: ifuncmain2static
+        -PASS: ifuncmain2picstatic
+        -PASS: ifuncmain4static
+        -PASS: ifuncmain4picstatic
+        -PASS: ifuncmain5static
+        -PASS: ifuncmain5picstatic
+        -PASS: ifuncmain7static
+        -PASS: ifuncmain7picstatic
