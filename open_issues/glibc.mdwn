@@ -220,7 +220,7 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
     `open_by_handle_at`, `process_vm_readv`, `process_vm_writev`, `sendmmsg`,
     `setns`, `sync_file_range`
 
-    Check also the content of `gnu/stubs-32.h`, which lists all the functions
+    Check also the content of `gnu/stubs.h`, which lists all the functions
     marked as stub which only return `ENOSYS`.
 
       * `chflags`
@@ -304,10 +304,6 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
             <tschwinge> OK, that at least matches my understanding.
 
       * [[`mremap`|mremap]]
-
-      * `syncfs`
-
-        We should be easily able to implement that one.
 
       * `futimesat`
 
@@ -839,9 +835,9 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
         kinds of unused configuration options and dead code.`).  `NO_STARTER`
         changes (should be OK).
       * [high] `pagesize`, 02d46fc4b969e25e4ba0c54aa95fa98d7279bd05 (`Simplify
-        malloc initialization`); aebae0537dcb408100b88c6b7647a7e858c43237, `BZ
-        11929`.  Is this all kosher for us?  See [[!message-id
-        "87mxd9hl2n.fsf@kepler.schwinge.homeip.net"]].
+        malloc initialization`); aebae0537dcb408100b88c6b7647a7e858c43237,
+        [[!sourceware_PR 11929]].  Is this all kosher for us?  See
+        [[!message-id "87mxd9hl2n.fsf@kepler.schwinge.homeip.net"]].
       * [OK] 83cd14204559abbb52635006832eaf4d2f42514a (`Remove --wth-tls
         option, TLS support is required`).
       * a7c8e6a1478de9f990b11e5e853318ccbe4330f2 (`Fix invalid conversion in
@@ -944,7 +940,7 @@ default]` identifiers which warning flag triggered.
 
 TODO.
 
-  * With GCC 4.5, there's a ton of these warnings:
+  * With GCC >= 4.5, there's a ton of these warnings:
 
         hurd/hurd.h: In function '__hurd_fail':
         hurd/hurd.h:73: warning: case value '0' not in enumerated type 'error_t'
@@ -1089,8 +1085,378 @@ Comparing the results files, [[sum_linux]] to [[sum_hurd]]:
 
 There is quite a baseline of failures.
 
+  * `annexc.out`
 
-### Additional Failures Compared to Debian
+    TODO
+
+  * `bug22.out`
+
+    TODO
+
+  * `bug-atexit3.out`
+
+    TODO
+
+  * `bug-getcontext.out`
+
+        getcontext failed, errno: 1073741902.
+
+    Is not implemented; see above.  In 8958805c11c741d9211e20612c86271d906c9a0b
+    testing, `stdlib/bug-getcontext.out` now says: *Skipping test; no support
+    for FP exceptions.*, in cba1c83ad62a11347684a9daf349e659237a1741 testing,
+    it's back to the previous failure.
+
+  * `bug-regex31-mem`, `tst-error1-mem`, `tst-fnmatch-mem`,
+    `tst-fopenloc.check`
+
+    *output* files: some memory not freed.
+
+    Caused by different memory allocation way in libio, see also
+    [[!message-id "87mxd9hl2n.fsf@kepler.schwinge.homeip.net"]]
+
+  * `bug-ulimit1.out`
+
+    Buggy sysdeps/unix/bsd/ulimit.c return values.
+
+    [[!message-id "201211182342.51619.toscano.pino@tiscali.it"]]
+
+  * `check-execstack.out`
+
+        $BUILDDIR/libc.so.phdr: *** executable stack signaled
+
+  * `check-local-headers.out`
+
+    Most of the external headers used are:
+
+       * `/usr/include/device/bpf.h`
+
+       * `/usr/include/device/device_types.h`
+
+       * `/usr/include/device/net_status.h`
+
+       * `/usr/include/cthreads.h`
+
+       * `/usr/include/hurd/hurd_types.h`
+
+       * `/usr/include/hurd/ioctls.defs`
+
+       * `/usr/include/hurd/ioctl_types.h`
+
+       * `/usr/include/hurd/paths.h`
+
+  * `check-localplt.out`
+
+    Around 500 or so `Extra PLT reference`.
+
+  * `check-textrel.out`
+
+        $BUILDDIR/libc.so.dyn: *** text relocations used
+
+  * `opendir-tst1.out`, `tst-fdopendir2.out`
+
+    `opendir` and `fdopendir` do not return `ENOTDIR` if `fd` is not a directory.
+
+  * `test-assert-perr.out`
+
+    TODO
+
+  * `math/test-idouble`, `math/test-ifloat`, `math/test-ildoubl`,
+    `math/test-ldouble`
+
+    SIGSEGV.
+
+  * `test-float.out`
+
+    TODO
+
+  * `test-lfs.out`
+
+    TODO
+
+  * `test-multiarch.out`
+
+    Needs [[`/proc/cpuinfo`|hurd/translator/procfs/jkoenig/discussion]]
+    providing the `flags` line.
+
+  * `tst-aio2`, `tst-aio3`,
+    `tst-mqueue3`, `tst-mqueue6`,
+    `tst-mqueue8`, `tst-thrlock`, `tst-timer3`,
+    `libnss_test1.so`
+
+    Compilation: missing `pthread_attr_init`, `pthread_barrier_init`,
+    `pthread_create`, etc.
+
+  * `tst-aio8.out`, `tst-aio9.out`, `tst-aio10`
+
+    Compilation: missing `pthread_attr_init`, `pthread_barrier_init`,
+    `pthread_create`, etc.
+
+    Most will compile and work (except `tst-aio`, `tst-aio9`, `tst-aio10`) with
+    [[!message-id "201209302353.51055.toscano.pino@tiscali.it"]] in libpthread.
+
+  * `tst-array*`
+
+    Failures also seen on GNU/Linux; [[!message-id
+    "50950082.1070906@df1tl.local.here"]].
+
+        gcc-4.6 tst-array1.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/
+        gcc-4.6 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1  -Wl,-dynamic-linker=/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
+        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/ld.so.1 --library-path [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/math:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf:[
+        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1.out tst-array1.exp > /dev/null
+        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1.out] Error 1
+        gcc-4.6 tst-array2.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/
+        gcc-4.6 tst-array2dep.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes   -fPIC       -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc
+        gcc-4.6   -shared -static-libgcc  -Wl,-dynamic-linker=/lib/ld.so.1 -Wl,-z,defs -B[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/csu/  -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both  -L[...]/tschwinge/Roger_Whittaker.build-gcc-4.6
+        gcc-4.6 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array2  -Wl,-dynamic-linker=/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
+        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/ld.so.1 --library-path [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/math:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf:[
+        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array2.out tst-array2.exp > /dev/null
+        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array2.out] Error 1
+        gcc-4.6 tst-array3.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/
+        gcc-4.6 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array3  -Wl,-dynamic-linker=/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
+        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/ld.so.1 --library-path [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/math:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf:[
+        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array3.out tst-array1.exp > /dev/null
+        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array3.out] Error 1
+        gcc-4.6 tst-array4.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/
+        gcc-4.6 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array4  -Wl,-dynamic-linker=/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
+        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/ld.so.1 --library-path [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/math:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf:[
+        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array4.out tst-array4.exp > /dev/null
+        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array4.out] Error 1
+
+    `tst-array5` passes.
+
+        gcc-4.6 tst-array1-static.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4
+        gcc-4.6 -nostdlib -nostartfiles -static -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static    [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/csu/crt0.o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/csu/crti
+        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static > [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static.out
+        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static.out tst-array1.exp > /dev/null
+        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static.out] Error 1
+
+    `tst-array5-static` passes.
+
+  * `tst-audit1.out`, `tst-audit2.out`
+
+    SIGKILL.
+
+  * `tst-chk1.out`
+
+    TODO
+
+  * `tst-chk2.out`
+
+    TODO
+
+  * `tst-chk3.out`
+
+    TODO
+
+  * `tst-chk4.out`
+
+    TODO
+
+  * `tst-chk5.out`
+
+    TODO
+
+  * `tst-chk6.out`
+
+    TODO
+
+  * `tst-cputimer1.o`, `tst-cputimer2.o`, `tst-cputimer3.o`,
+    `tst-timer4.o`, `tst-timer5.o`
+
+    Missing `SIGRTMIN`.
+
+    All these tests #include `tst-timer4.c`.
+
+  * `tst-timer5.o`
+
+    TODO
+
+  * `tst-dlmopen1.out`
+
+    TODO
+
+  * `tst-ether_line.o`
+
+        tst-ether_line.c:19: error: 'ETH_ALEN' undeclared (first use in this function)
+
+    Will either need a `hurd/netinet/if_ether.h` that includes
+    `<net/if_ether.h>`, or can do that in the generic `netinet/if_ether.h`?
+    See also [[!sourceware_PR 11142]].
+
+  * `tst-fdopendir.out`
+
+        directory atime changed
+
+    TODO
+
+  * `tst-futimesat.out`
+
+    `futimesat` is a stub.
+
+  * `tst-getconf.out`
+
+    Ends with:
+
+        getconf POSIX_ALLOC_SIZE_MIN /: [...]/posix/getconf: pathconf: /: Invalid argument
+
+    It fails because of unimplemented pathconf cases: `_PC_ALLOC_SIZE_MIN`,
+    `_PC_REC_INCR_XFER_SIZE`, `_PC_REC_MAX_XFER_SIZE`, `_PC_REC_MIN_XFER_SIZE`,
+    `_PC_REC_XFER_ALIGN`, `_PC_SYMLINK_MAX`, `_PC_2_SYMLINKS`.
+
+    `_CS_GNU_LIBPTHREAD_VERSION` will be cleanly solved with
+    [[!message-id "201209302353.51055.toscano.pino@tiscali.it"]] and libpthread
+    compiled as add-on.
+
+  * `tst-grantpt.out`
+
+        posix_openpt(O_RDWR) failed
+        errno 1073741902 (Function not implemented)
+
+    `posix_openpt` is a stub.
+
+        grantpt(): expected: return = -1, errno = 1073741846
+                   got: return = -1, errno = -303
+
+    `grantpt` (actually `ptsname_r`), does not fail with `ENOTTY` when the `fd`
+    does not refer to a PTY master.
+
+  * `tst-lfschk2.out`
+
+    TODO
+
+  * `tst-lfschk3.out`
+
+    TODO
+
+  * `tst-lfschk4.out`
+
+    TODO
+
+  * `tst-lfschk5.out`
+
+    TODO
+
+  * `tst-lfschk6.out`
+
+    TODO
+
+  * `tst-longjmp_chk2.out`
+
+    TODO
+
+  * `tst-mqueue5.o`
+
+    Missing `SIGRTMIN`.
+
+  * `tst-pselect.o`
+
+    Missing `SA_NOCLDWAIT`.
+
+  * `tst-secure-getenv.out`
+
+    Needs [[`/proc/self/exe`|hurd/translator/procfs/jkoenig/discussion]].
+
+  * `tst-sprofil.out`
+
+        Floating point exception
+
+  * `tst-stackguard1.out`
+
+    TODO
+
+  * `tst-stackguard1-static.out`
+
+    TODO
+
+  * `tststatic2.out`
+
+    TODO
+
+  * `tststatic.out`
+
+    TODO
+
+  * `tst-strtod-round.out`
+
+    TODO
+
+  * `tst-timer2.o`
+
+    Missing `SIGRTMIN`.
+
+  * `tst-timer.out`
+
+    TODO
+
+  * `tst-tls9-static.out`
+
+    TODO
+
+  * `tst-unique3lib.so`, `tst-unique3lib2.so`, `tst-unique4lib.so`
+
+    Only with GCC 4.4; no longer with 4.5 or 4.6:
+
+        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486/elf/tst-unique3lib.os:(.data.DW.ref.__gxx_personality_v0[DW.ref.__gxx_personality_v0]+0x0): undefined reference to `__gxx_personality_v0'
+
+  * `tst-vfork3-mem`
+
+        + 0x0804cee0 Alloc 10 duplicate: 0x1095389 $BUILDDIR/libc.so.0.3:[0x1095389]
+        + 0x0804cf90 Alloc 11 duplicate: 0x1156963 $BUILDDIR/libc.so.0.3:(tsearch+0xe3)[0x1156963]
+        + 0x0804cfa8 Alloc 12 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x00000008 Alloc 17 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x0804cee0 Alloc 18 duplicate: 0x1095389 $BUILDDIR/libc.so.0.3:[0x1095389]
+        + 0x0804cf90 Alloc 19 duplicate: 0x1156963 $BUILDDIR/libc.so.0.3:(tsearch+0xe3)[0x1156963]
+        + 0x0804cfa8 Alloc 20 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x00000008 Alloc 25 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x0804cee0 Alloc 26 duplicate: 0x1095389 $BUILDDIR/libc.so.0.3:[0x1095389]
+        + 0x0804cf90 Alloc 27 duplicate: 0x1156963 $BUILDDIR/libc.so.0.3:(tsearch+0xe3)[0x1156963]
+        + 0x0804cfa8 Alloc 28 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x00000008 Alloc 33 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x0804cee0 Alloc 34 duplicate: 0x1095389 $BUILDDIR/libc.so.0.3:[0x1095389]
+        + 0x0804cf90 Alloc 35 duplicate: 0x1156963 $BUILDDIR/libc.so.0.3:(tsearch+0xe3)[0x1156963]
+        + 0x0804cfa8 Alloc 36 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x00000008 Alloc 41 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x0804cee0 Alloc 42 duplicate: 0x1095389 $BUILDDIR/libc.so.0.3:[0x1095389]
+        + 0x0804cf90 Alloc 43 duplicate: 0x1156963 $BUILDDIR/libc.so.0.3:(tsearch+0xe3)[0x1156963]
+        + 0x0804cfa8 Alloc 44 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x00000008 Alloc 49 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x0804cee0 Alloc 50 duplicate: 0x1095389 $BUILDDIR/libc.so.0.3:[0x1095389]
+        + 0x0804cf90 Alloc 51 duplicate: 0x1156963 $BUILDDIR/libc.so.0.3:(tsearch+0xe3)[0x1156963]
+        + 0x0804cfa8 Alloc 52 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x00000008 Alloc 57 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x0804cee0 Alloc 58 duplicate: 0x1095389 $BUILDDIR/libc.so.0.3:[0x1095389]
+        + 0x0804cf90 Alloc 59 duplicate: 0x1156963 $BUILDDIR/libc.so.0.3:(tsearch+0xe3)[0x1156963]
+        + 0x0804cfa8 Alloc 60 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x00000008 Alloc 65 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x0804cee0 Alloc 66 duplicate: 0x1095389 $BUILDDIR/libc.so.0.3:[0x1095389]
+        + 0x0804cf90 Alloc 67 duplicate: 0x1156963 $BUILDDIR/libc.so.0.3:(tsearch+0xe3)[0x1156963]
+        + 0x0804cfa8 Alloc 68 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x00000008 Alloc 73 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x0804cee0 Alloc 74 duplicate: 0x1095389 $BUILDDIR/libc.so.0.3:[0x1095389]
+        + 0x0804cf90 Alloc 75 duplicate: 0x1156963 $BUILDDIR/libc.so.0.3:(tsearch+0xe3)[0x1156963]
+        + 0x0804cfa8 Alloc 76 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x00000008 Alloc 81 duplicate: 0x10df0c8 $BUILDDIR/libc.so.0.3:(argz_create+0x68)[0x10df0c8]
+        + 0x0804cee0 Alloc 82 duplicate: 0x1095389 $BUILDDIR/libc.so.0.3:[0x1095389]
+        + 0x0804cf90 Alloc 83 duplicate: 0x1156963 $BUILDDIR/libc.so.0.3:(tsearch+0xe3)[0x1156963]
+        - 0x0804c8d8 Free 84 was never alloc'd 0x10955fc
+        - 0x0804c960 Free 87 was never alloc'd 0x115672f
+        - 0x0804c9b8 Free 88 was never alloc'd 0x1156737
+        
+        Memory not freed:
+        -----------------
+           Address     Size     Caller
+        0x0804cfa8     0x73  at 0x10df0c8
+        0x00000008        0  at 0x10df0c8
+
+    TODO
+
+  * `tst-waitid.out`
+
+    Fails sometimes (is listed in Debian eglibc-2.13-21's
+    `expected-results-i486-gnu-libc`).
+
+
+### Additional Failures Compared to Debian (OLD)
 
     $ bash ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/convertlog.sh log_test  > log_test.filtered
     $ bash ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/compare.sh ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/expected-results-i486-gnu-libc log_test.filtered
@@ -1186,9 +1552,12 @@ There is quite a baseline of failures.
 
         Floating point exception
 
-  * `posix/bug-regex31-mem`, `posix/tst-fnmatch-mem`
+  * `posix/bug-regex31-mem`, `posix/tst-fnmatch-mem`, `misc/tst-error1-mem`,
+    `libio/tst-fopenloc.check`
 
     *output* files: some memory not freed.
+
+    [[!message-id "87mxd9hl2n.fsf@kepler.schwinge.homeip.net"]]
 
   * `assert/test-assert.out`
 

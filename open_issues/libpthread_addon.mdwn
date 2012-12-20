@@ -1,0 +1,150 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="libpthread as glibc addon"]]
+
+[[!tag open_issue_glibc open_issue_libpthread]]
+
+This page lists all the notes, issues, etc, only about compiling libpthread
+as addon for glibc, *not* for general libpthread issues.
+
+# Building
+
+To build libpthread as glibc addon, copy libpthread inside the glibc tree,
+and then tell glibc's configure to use it:
+
+    $ cp /path/to/libpthread libpthread
+    $ ./configure [...] --enable-add-ons=[...],libpthread
+
+Currently, it is build like that in Debian since eglibc 2.13-31.
+
+# Issues and notes
+
+### `bits/` headers not used
+
+Recompiling glibc (e.g. on a Debian system) and running the
+`check-local-headers` test, `check-local-headers.out` shows:
+
+    *** $(common-objpfx)elf/tst-thrlock.o: uses /usr/include/i386-gnu/bits/pthread.h
+    *** $(common-objpfx)elf/tst-thrlock.o: uses /usr/include/i386-gnu/bits/thread-attr.h
+    *** $(common-objpfx)elf/tst-thrlock.o: uses /usr/include/i386-gnu/bits/mutex-attr.h
+    *** $(common-objpfx)elf/tst-thrlock.o: uses /usr/include/i386-gnu/bits/mutex.h
+    *** $(common-objpfx)elf/tst-thrlock.o: uses /usr/include/i386-gnu/bits/condition-attr.h
+    *** $(common-objpfx)elf/tst-thrlock.o: uses /usr/include/i386-gnu/bits/condition.h
+    *** $(common-objpfx)elf/tst-thrlock.o: uses /usr/include/i386-gnu/bits/rwlock-attr.h
+    *** $(common-objpfx)elf/tst-thrlock.o: uses /usr/include/i386-gnu/bits/rwlock.h
+    *** $(common-objpfx)elf/tst-thrlock.o: uses /usr/include/i386-gnu/bits/barrier-attr.h
+    *** $(common-objpfx)elf/tst-thrlock.o: uses /usr/include/i386-gnu/bits/barrier.h
+    *** $(common-objpfx)elf/tst-thrlock.o: uses /usr/include/i386-gnu/bits/thread-specific.h
+    *** $(common-objpfx)elf/tst-thrlock.o: uses /usr/include/i386-gnu/bits/once.h
+    *** $(common-objpfx)elf/tst-thrlock.o: uses /usr/include/i386-gnu/bits/cancelation.h
+    *** $(common-objpfx)elf/tst-thrlock.o: uses /usr/include/i386-gnu/bits/pthread-np.h
+
+This happens because these headers are in the `bits/` subdirectory in
+`sysdeps/generic` -- a `generic` sysdep is used only for the top-level
+`sysdeps` directory in glibc.
+
+### Use of hurd's libihash
+
+libpthread makes use of the ihash hurd library, as also glibc's
+`check-local-headers` test shows:
+
+    *** $(common-objpfx)libpthread/pt-alloc.o: uses /usr/include/hurd/ihash.h
+
+Possible alternatives: [[hurd/libihash]].
+
+### Executable stack
+
+Running glibc's `check-execstack` test gives in `check-execstack.out`:
+
+    $BUILDDIR/libpthread/libpthread.so.phdr: *** executable stack signaled
+
+### Extra PLT references
+
+Running glibc's `check-localplt` test gives in `check-localplt.out`:
+
+    Extra PLT reference: libpthread.so: pthread_detach
+    Extra PLT reference: libpthread.so: pthread_mutex_lock
+    Extra PLT reference: libpthread.so: pthread_mutexattr_settype
+    Extra PLT reference: libpthread.so: pthread_rwlock_rdlock
+    Extra PLT reference: libpthread.so: _pthread_spin_lock
+    Extra PLT reference: libpthread.so: pthread_attr_setstacksize
+    Extra PLT reference: libpthread.so: pthread_attr_getstacksize
+    Extra PLT reference: libpthread.so: pthread_attr_getstackaddr
+    Extra PLT reference: libpthread.so: pthread_attr_setstackaddr
+    Extra PLT reference: libpthread.so: pthread_exit
+    Extra PLT reference: libpthread.so: pthread_getspecific
+    Extra PLT reference: libpthread.so: __mutex_lock_solid
+    Extra PLT reference: libpthread.so: pthread_mutex_unlock
+    Extra PLT reference: libpthread.so: pthread_setcanceltype
+    Extra PLT reference: libpthread.so: pthread_key_create
+    Extra PLT reference: libpthread.so: pthread_cond_wait
+    Extra PLT reference: libpthread.so: pthread_rwlock_wrlock
+    Extra PLT reference: libpthread.so: pthread_once
+    Extra PLT reference: libpthread.so: pthread_cond_broadcast
+    Extra PLT reference: libpthread.so: pthread_setspecific
+    Extra PLT reference: libpthread.so: __pthread_get_cleanup_stack
+    Extra PLT reference: libpthread.so: pthread_rwlock_unlock
+    Extra PLT reference: libpthread.so: pthread_create
+    Extra PLT reference: libpthread.so: pthread_mutex_init
+    Extra PLT reference: libpthread.so: pthread_mutexattr_init
+    Extra PLT reference: libpthread.so: __mutex_unlock_solid
+    Extra PLT reference: libpthread.so: pthread_mutexattr_destroy
+    Extra PLT reference: libpthread.so: pthread_setcancelstate
+
+### `pthread` sysdep
+
+glibc provides a `pthread` sysdep (`sysdeps/pthread`) with pthread-based
+implementations of most of the `aio_*` and `lio_*` functions.
+
+[[!message-id "201209302353.51055.toscano.pino@tiscali.it"]]
+
+The above patches allows also to cleanly set the libpthread string version,
+returned e.g. for the `_CS_GNU_LIBPTHREAD_VERSION` value of `confstr`.
+
+About the glibc aio tests, they would all compile and work, except:
+
+   - `tst-aio` -- fails
+   - `tst-aio9`, `tst-aio10` -- time out
+
+### `bits/posix_opt.h`
+
+`bits/posix_opt.h` is the glibc header defining the various
+supported/unsupported `_POSIX_*` defines (e.g. `_POSIX_THREADS`, etc).
+
+Currently, glibc's `sysdeps/mach/hurd/bits/posix_opt.h` is patched in Debian
+to add all the defines advertizing thread-related support.
+An idea to avoid this would be to follow what is done in NPTL, and do the
+following:
+
+   - in glibc: leave `sysdeps/mach/hurd/bits/posix_opt.h` with *no*
+thread-related macros at all.
+
+   - in libpthread: provide `sysdeps/mach/hurd/bits/posix_opt.h` which would
+be a copy of glibc's `sysdeps/mach/hurd/bits/posix_opt.h` with also the thread
+macros.
+
+This approach would have the drawback that changes in the glibc header must be
+mirrored also in the libpthread version, but with the advantage that defines
+according to supported features in libpthread can be added in libpthread's own
+version (and glibc would pick it automatically).
+
+### Tests
+
+The (few) existing tests are not built (thus neither run) just like other tests
+in glibc.
+
+### `gai_misc.h`
+
+A pthread version of `gai_misc.h` must be provided by libpthread (just like
+NPTL provides one), either in `sysdeps/mach/hurd` or `sysdeps/pthread`
+(better, see above).
+
+Currently, it is provided in glibc itself in Debian.
