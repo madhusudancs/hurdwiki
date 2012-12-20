@@ -8,35 +8,358 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
-There are two implementations of `mmap` for GNU Hurd:
-`sysdeps/mach/hurd/mmap.c` (main implementation) and
-`sysdeps/mach/hurd/dl-sysdep.c` (*Minimal mmap implementation sufficient for
-initial loading of shared libraries.*).
-
-  * `MAP_COPY`
-
-    What exactly is that?  `elf/dl-load.c` has some explanation.
-    <http://lkml.indiana.edu/hypermail/linux/kernel/0110.1/1506.html>
-
-    It is only handled in `dl-sysdep.c`, when `flags & (MAP_COPY|MAP_PRIVATE)`
-    is used for `vm_map`'s `copy` parameter, and `mmap.c` uses `! (flags &
-    MAP_SHARED)` instead, which seems inconsistent?
+The `mmap` call is generally supported on GNU Hurd, as indicated by
+`_POSIX_MAPPED_FILES` (`sysconf (_SC_MAPPED_FILES)`).
 
 
-# `io_map` Failure
+# Flags
+
+*Flags contain mapping type, sharing type and options.*
+
+  * *Mapping type (must choose one and only one of these).*
+
+      * `MAP_FILE` (*Mapped from a file or device.*)
+
+      * `MAP_ANON`/`MAP_ANONYMOUS` (*Allocated from anonymous virtual memory.*)
+
+    Even though it is not defined to zero (it is for the Linux kernel; why not
+    for us?), `MAP_FILE` is the default and can be omitted.
+
+  * *Sharing types (must choose one and only one of these).*
+
+      * `MAP_SHARED` (*Share changes.*)
+
+      * `MAP_PRIVATE` (*Changes private; copy pages on write.*)
+
+      * `MAP_COPY` (*Virtual copy of region at mapping time.*)
+
+    For us, `MAP_PRIVATE` is the default (is defined to zero), for the Linux
+    kernel, one of `MAP_SHARED` or `MAP_PRIVATE` has to be specified
+    explicitly.
+
+    The Linux kernel does not support `MAP_COPY`, and as per the comment in
+    `elf/dl-load.c`, `MAP_PRIVATE | MAP_DENYWRITE` is Linux' replacement for
+    `MAP_COPY`.  However, `MAP_DENYWRITE` is defunct (`mmap` manpage).
+
+    In contrast to `MAP_COPY`, for `MAP_PRIVATE` *it is unspecified whether
+    changes made to the file after the `mmap` call are visible in the mapped
+    region* (`mmap` manpage).
+
+    `MAP_COPY`:
+
+        What exactly is that?  `elf/dl-load.c` has some explanation.
+        <http://lkml.indiana.edu/hypermail/linux/kernel/0110.1/1506.html>
+
+        It is only handled in `dl-sysdep.c`, when `flags &
+        (MAP_COPY|MAP_PRIVATE)` is used for
+        [[`vm_map`|microkernel/mach/interface/vm_map]]'s `copy` parameter, and
+        `mmap.c` uses `! (flags & MAP_SHARED)` instead, which seems
+        inconsistent?
+
+        Usage in glibc:
+
+          * `catgets/open_catalog.c:__open_catalog`,
+            `locale/loadlocale.c:_nl_load_locale`: *Linux seems to lack read-only
+            copy-on-write.*
+
+  * `MAP_TYPE` (*Mask for type field.*/*Mask for type of mapping.*)
+
+    [[!tag open_issue_glibc]]In `bits/mman.h` this is described and defined to
+    be a mask for the *mapping* type, in the `bits/mman.h` files corresponding
+    to Linux kernel it is described an defined to be a mask for the *sharing*
+    type.
+
+  * *Other flags.*
+
+      * `MAP_FIXED` (*Map address must be exactly as requested.*)
+
+        If the memory region is already in use, an unmap is attempted before
+        (re-)mapping it.
+
+        [[!tag open_issue_glibc]]The following text should be improved:
+
+        `[glibc]/llio.texi` says:
+        
+            @var{address} gives a preferred starting address for the mapping.
+            @code{NULL} expresses no preference. Any previous mapping at that
+            address is automatically removed. [...]
+
+        The comments in `misc/sys/mman.h`, `misc/mmap.c`, `misc/mmap64.c`,
+        `ports/sysdeps/unix/sysv/linux/hppa/mmap.c`, and
+        `sysdeps/mach/hurd/mmap.c` have a better wording:
+
+            A successful `mmap' call
+            deallocates any previous mapping for the affected region.
+
+        This is correct insofar that for `MAP_FIXED` indeed it is first
+        unmapped if already in use, and for the regular cases, an address will
+        be chosen that has no previous mapping.
+
+      * `MAP_NOEXTEND` (*For `MAP_FILE`, don't change file size.*)
+
+        Referenced in `[hurd]/TODO` as unimplemented.
+
+      * `MAP_HASSEMPHORE` (*Region may contain semaphores.*)
+
+      * `MAP_INHERIT` (*Region is retained after exec.*)
+
+  * Linux-specific flags
+
+      * `MAP_GROWSDOWN` (*Stack-like segment.*), `MAP_GROWSUP` (*Register
+        stack-like segment.*)
+
+        See `mmap` manpage.
+
+      * `MAP_DENYWRITE` (*`ETXTBSY`*)
+
+        As per the comment in `elf/dl-load.c`, `MAP_PRIVATE | MAP_DENYWRITE` is
+        Linux' replacement for `MAP_COPY`.  However, `MAP_DENYWRITE` is defunct
+        (`mmap` manpage).
+
+      * `MAP_EXECUTABLE` (*Mark it as an executable.*)
+
+      * `MAP_LOCKED` (*Lock the mapping.*)
+
+        ... à la `mlock`.  Not implemented for us, but probably
+        could[[open_issue_glibc]].
+
+      * `MAP_NORESERVE` (*Don't check for reservations.*)
+
+        See `mmap` manpage.
+
+        From [[hurd/porting/guidelines]]: *Not POSIX, but we could implement
+        it.*
+
+      * `MAP_POPULATE` (*Populate (prefault) pagetables.*)
+
+        From the `mmap` manpage:
+
+            Populate (prefault) page tables for a mapping.  For a file mapping,
+            this causes read-ahead on the file.  Later accesses to the mapping
+            will not be blocked by page faults.  MAP_POPULATE is only supported
+            for private mappings since Linux 2.6.23.
+
+        Unknown Linux kernel version, `mm/mmap.c`:
+
+                if (vm_flags & VM_LOCKED) {
+                        if (!mlock_vma_pages_range(vma, addr, addr + len))
+                                mm->locked_vm += (len >> PAGE_SHIFT);
+                } else if ((flags & MAP_POPULATE) && !(flags & MAP_NONBLOCK))
+                        make_pages_present(addr, addr + len);
+                return addr;
+
+        Is only advisory, so can worked around with `#define MAP_POPULATE 0`,
+        8069478040336a7de3461be275432493cc7e4c91.
+
+      * `MAP_NONBLOCK` (*Do not block on IO.*)
+
+        From the `mmap` manpage:
+
+            Only meaningful in conjunction with MAP_POPULATE.  Don't perform
+            read-ahead: only create page tables entries for pages that are
+            already present in RAM.  Since Linux 2.6.23, this flag causes
+            MAP_POPULATE to do nothing.  One day the combination of
+            MAP_POPULATE and MAP_NONBLOCK may be reimplemented.
+
+      * `MAP_STACK` (*Allocation is for a stack.*)
+
+        See `mmap` manpage.
+
+      * `MAP_HUGETLB` (*Create huge page mapping.*)
+
+        See `mmap` manpage.
+
+      * `MAP_32BIT` (*Only give out 32-bit addresses.*)
+
+        See `mmap` manpage.
+
+
+# Implementation
+
+Essentially, `mmap` is implemented by means of
+[[`io_map`|hurd/interface/io_map]] (not for `MAP_ANON`) followed by
+[[`vm_map`|microkernel/mach/interface/vm_map]].
+
+There are two implementations: `sysdeps/mach/hurd/mmap.c` (main implementation)
+and `sysdeps/mach/hurd/dl-sysdep.c` (*Minimal mmap implementation sufficient
+for initial loading of shared libraries.*).
+
+
+## `mmap ("/dev/zero")`
+
+[[!tag open_issue_glibc open_issue_hurd]]Do we implement that (equivalently to
+`MAP_ANON`)?
+
+
+## Mapping Size
+
+From the `mmap` manpage:
+
+    A file is mapped in multiples of the page size.  For a file that is not a
+    multiple of the page size, the remaining memory is zeroed when mapped, and
+    writes to that region are not written out to the file.  The effect of
+    changing the size of the underlying file of a mapping on the pages that
+    correspond to added or removed regions of the file is unspecified.
+
+[[!tag open_issue_glibc]]Do we implement that?
+
+
+## Use of a Mapped Region
+
+From the `mmap` manpage:
+
+    Use of a mapped region can result in these signals:
+    
+    SIGSEGV Attempted write into a region mapped as read-only.
+    
+    SIGBUS  Attempted access to a portion of the buffer that does not
+            correspond to the file (for example, beyond the end of the file,
+            including the case where another process has truncated the file).
+
+[[!tag open_issue_glibc]]Do we implement that?
+
+
+# Usage in glibc itself
+
+Review of `mmap` usage in generic bits of glibc (omitted: `nptl/`,
+`sysdeps/unix/sparc/`, `sysdepts/unix/sysv/linux/`), based on
+a1bcbd4035ac2483dc10da150d4db46f3e1744f8 (2012-03-11).  `MAP_FILE` is the
+interesting case; `MAP_ANON` is generally fine.  Some of the `mmap` usages in
+glibc have fallback code for the `MAP_FAILED` case, some do not.
+
+    catgets/open_catalog.c:    (struct catalog_obj *) __mmap (NULL, st.st_size, PROT_READ,
+    catgets/open_catalog.c-                                  MAP_FILE|MAP_COPY, fd, 0);
+
+Has fallback for `MAP_FAILED`.
+
+    elf/cache.c:    = mmap (NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    elf/cache.c:    = mmap (NULL, aux_cache_size, PROT_READ, MAP_PRIVATE, fd, 0);
+
+No fallback for `MAP_FAILED`.
+
+    elf/dl-load.c:        l->l_map_start = (ElfW(Addr)) __mmap ((void *) mappref, maplength,
+    elf/dl-load.c-                                              c->prot,
+    elf/dl-load.c-                                              MAP_COPY|MAP_FILE,
+    elf/dl-load.c-                                              fd, c->mapoff);
+    elf/dl-load.c:            && (__mmap ((void *) (l->l_addr + c->mapstart),
+    elf/dl-load.c-                        c->mapend - c->mapstart, c->prot,
+    elf/dl-load.c-                        MAP_FIXED|MAP_COPY|MAP_FILE,
+    elf/dl-load.c-                        fd, c->mapoff)
+
+No fallback for `MAP_FAILED`.
+
+    elf/dl-misc.c:            result = __mmap (NULL, *sizep, prot,
+    elf/dl-misc.c-#ifdef MAP_COPY
+    elf/dl-misc.c-                             MAP_COPY
+    elf/dl-misc.c-#else
+    elf/dl-misc.c-                             MAP_PRIVATE
+    elf/dl-misc.c-#endif
+    elf/dl-misc.c-#ifdef MAP_FILE
+    elf/dl-misc.c-                             | MAP_FILE
+    elf/dl-misc.c-#endif
+    elf/dl-misc.c-                             , fd, 0);
+
+No fallback for `MAP_FAILED`.
+
+    elf/dl-profile.c:  addr = (struct gmon_hdr *) __mmap (NULL, expected_size, PROT_READ|PROT_WRITE,
+    elf/dl-profile.c-                                  MAP_SHARED|MAP_FILE, fd, 0);
+
+No fallback for `MAP_FAILED`.
+
+    elf/readlib.c:  file_contents = mmap (0, statbuf.st_size, PROT_READ, MAP_SHARED,
+    elf/readlib.c-                        fileno (file), 0);
+
+No fallback for `MAP_FAILED`.
+
+    elf/sprof.c:      result->symbol_map = mmap (NULL, max_offset - min_offset,
+    elf/sprof.c-                           PROT_READ, MAP_SHARED|MAP_FILE, symfd,
+    elf/sprof.c-                           min_offset);
+    elf/sprof.c:  addr = mmap (NULL, st.st_size, PROT_READ, MAP_SHARED|MAP_FILE, fd, 0);
+
+No fallback for `MAP_FAILED`.
+
+    iconv/gconv_cache.c:  gconv_cache = __mmap (NULL, cache_size, PROT_READ, MAP_SHARED, fd, 0);
+    iconv/iconv_charmap.c:            && ((addr = mmap (NULL, st.st_size, PROT_READ, MAP_PRIVATE,
+    iconv/iconv_charmap.c-                              fd, 0)) != MAP_FAILED))
+    iconv/iconv_prog.c:           && ((addr = mmap (NULL, st.st_size, PROT_READ, MAP_PRIVATE,
+    iconv/iconv_prog.c-                             fd, 0)) != MAP_FAILED))
+
+Have fallback for `MAP_FAILED`.
+
+    intl/loadmsgcat.c:  data = (struct mo_file_header *) mmap (NULL, size, PROT_READ,
+    intl/loadmsgcat.c-                                     MAP_PRIVATE, fd, 0);
+
+Has fallback for `MAP_FAILED`.
+
+    libio/fileops.c:        p = __mmap (NULL, st.st_size, PROT_READ, MAP_SHARED,
+    libio/fileops.c-                    fp->_fileno, 0);
+    libio/fileops.c:      p = __mmap (NULL, st.st_size, PROT_READ, MAP_SHARED, fp->_fileno, 0);
+
+Has fallback for `MAP_FAILED`.
+
+    locale/loadarchive.c:      result = __mmap64 (NULL, mapsize, PROT_READ, MAP_FILE|MAP_COPY, fd, 0);
+    locale/loadarchive.c:   result = __mmap64 (NULL, mapsize, PROT_READ, MAP_FILE|MAP_COPY,
+    locale/loadarchive.c-                      fd, 0);
+    locale/loadarchive.c:   addr = __mmap64 (NULL, to - from, PROT_READ, MAP_FILE|MAP_COPY,
+    locale/loadarchive.c-                    fd, from);
+
+Some have fallback for `MAP_FAILED`.
+
+    locale/programs/locale.c:               void *mapped = mmap64 (NULL, st.st_size, PROT_READ,
+    locale/programs/locale.c-                                      MAP_SHARED, fd, 0);
+    locale/programs/locale.c:                   && ((mapped = mmap64 (NULL, st.st_size, PROT_READ,
+    locale/programs/locale.c-                                         MAP_SHARED, fd, 0))
+    locale/programs/locale.c:  addr = mmap64 (NULL, len, PROT_READ, MAP_SHARED, fd, 0);
+    locale/programs/locarchive.c:      void *p = mmap64 (NULL, RESERVE_MMAP_SIZE, PROT_NONE, MAP_SHARED, fd, 0);
+    locale/programs/locarchive.c:  p = mmap64 (p, total, PROT_READ | PROT_WRITE, MAP_SHARED | xflags, fd, 0);
+    locale/programs/locarchive.c:  void *p = mmap64 (ah->addr + start, st.st_size - start,
+    locale/programs/locarchive.c-             PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED,
+    locale/programs/locarchive.c-             ah->fd, start);
+    locale/programs/locarchive.c:    ah->addr = mmap64 (ah->addr, st.st_size, PROT_READ | PROT_WRITE,
+    locale/programs/locarchive.c-                MAP_SHARED | MAP_FIXED, ah->fd, 0);
+    locale/programs/locarchive.c:      ah->addr = mmap64 (NULL, st.st_size, PROT_READ | PROT_WRITE,
+    locale/programs/locarchive.c-                  MAP_SHARED, ah->fd, 0);
+    locale/programs/locarchive.c:  p = mmap64 (p, total, PROT_READ | PROT_WRITE, MAP_SHARED | xflags, fd, 0);
+    locale/programs/locarchive.c:  ah->addr = mmap64 (p, st.st_size, PROT_READ | (readonly ? 0 : PROT_WRITE),
+    locale/programs/locarchive.c-              MAP_SHARED | xflags, fd, 0);
+    locale/programs/locarchive.c:     data[cnt].addr = mmap64 (NULL, st.st_size, PROT_READ, MAP_SHARED,
+    locale/programs/locarchive.c-                              fd, 0);
+
+No fallback for `MAP_FAILED`.
+
+    nscd/connections.c:           else if ((mem = mmap (NULL, dbs[cnt].max_db_size,
+    nscd/connections.c-                                 PROT_READ | PROT_WRITE,
+    nscd/connections.c-                                 MAP_SHARED, fd, 0))
+    nscd/connections.c:               || (mem = mmap (NULL, dbs[cnt].max_db_size,
+    nscd/connections.c-                               PROT_READ | PROT_WRITE,
+    nscd/connections.c-                               MAP_SHARED, fd, 0)) == MAP_FAILED)
+    nscd/nscd_helper.c:  void *mapping = __mmap (NULL, mapsize, PROT_READ, MAP_SHARED, mapfd, 0);
+
+No fallback for `MAP_FAILED`.
+
+    nss/makedb.c:  const struct nss_db_header *header = mmap (NULL, st.st_size, PROT_READ,
+    nss/makedb.c-                                      MAP_PRIVATE|MAP_POPULATE, fd, 0);
+    nss/nss_db/db-open.c:   mapping->header = mmap (NULL, header.allocate, PROT_READ,
+    nss/nss_db/db-open.c-                           MAP_PRIVATE, fd, 0);
+
+No fallback for `MAP_FAILED`.
+
+    posix/tst-mmap.c:  ptr = mmap (NULL, 1000, PROT_READ, MAP_SHARED, fd, ps);
+    posix/tst-mmap.c:  ptr = mmap64 (NULL, 1000, PROT_READ, MAP_SHARED, fd, ps);
+    rt/tst-mqueue3.c:  void *mem = mmap (NULL, ps, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    rt/tst-mqueue5.c:  void *mem = mmap (NULL, ps, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    rt/tst-shm.c:  mem = mmap (NULL, 4000, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    stdio-common/tst-fmemopen.c:  if ((mmap_data = (char *) mmap (NULL, fs.st_size, PROT_READ,
+    stdio-common/tst-fmemopen.c-                            MAP_SHARED, fd, 0)) == MAP_FAILED)
+
+No fallback for `MAP_FAILED`.
+
+
+## `io_map` Failure
 
 This is the [[libnetfs: `io_map`|open_issues/libnetfs_io_map]] issue.
 
-[[!tag open_issue_glibc]]
-
-Review of `mmap` usage in generic bits of glibc, based on
-a1bcbd4035ac2483dc10da150d4db46f3e1744f8 (2012-03-11), listing these cases
-where failure (due to `io_map` failing; that is, invocations where a `fd` is
-passed) is not properly handled.
-
-`catgets/open_catalog.c`, `iconv/gconv_cache.c`, `intl/loadmsgcat.c`,
-`locale/loadlocale.c` have fallback code for the `MAP_FAILED` case.
-
+[[!tag open_issue_glibc open_issue_hurd]]
 [[tschwinge]]'s current plan is to make the following cases do the same (if
 that is possible); probably by introducing a generic `mmap_or_read` function,
 that first tries `mmap` (and that will succeed on Linux-based systems and also
@@ -56,43 +379,8 @@ In parallel (or even alternatively?), it should be researched how Linux (or any
 other kernel) implements `mmap` on NFS and similar file systems, and then
 implement the same in [[hurd/libnetfs]] and/or [[hurd/translator/nfs]], etc.
 
-Here, also probably the whole mapping region [has to be
-read](http://lists.gnu.org/archive/html/bug-hurd/2001-10/msg00306.html) at
-`mmap` time.
-
-List of files without fallback code for the *`MAP_FAILED` due to `io_map`
-failed* case:
-
-  * `elf/cache.c`
-
-  * `elf/dl-load.c`
-
-  * `elf/dl-misc.c`
-
-  * `elf/dl-profile.c`
-
-  * `elf/readlib.c`
-
-  * `elf/sprof.c`
-
-  * `locale/loadarchive.c`
-
-  * `locale/programs/locale.c`
-
-  * `locale/programs/locarchive.c`
-
-  * `nscd/connections.c`
-
-  * `nscd/nscd_helper.c`
-
-  * `nss/makedb.c`
-
-  * `nss/nss_db/db-open.c`
-
-  * Omitted:
-
-      * `nptl/`
-
-      * `sysdeps/unix/sparc/`
-
-      * `sysdepts/unix/sysv/linux/`
+Here, also probably the whole mapping region [[!message-id desc="has to be
+read" "871yjkl50c.fsf@becket.becket.net"]] ([bug-hurd list
+archive](http://lists.gnu.org/archive/html/bug-hurd/2001-10/msg00306.html)) at
+`mmap` time.  Then, only `MAP_PRIVATE` (or rather: `MAP_COPY`) is possible, but
+not `MAP_SHARED`.

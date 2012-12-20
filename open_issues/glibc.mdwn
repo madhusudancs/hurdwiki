@@ -189,7 +189,8 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
     `RLIMIT_RTTIME`, `SEEK_DATA` (`unistd.h`), `SEEK_HOLE` (`unistd.h`)
     `clock_adjtime`, `fallocate`, `fallocate64`, `name_to_handle_at`,
     `open_by_handle_at`, `process_vm_readv`, `process_vm_writev`, `sendmmsg`,
-    `setns`, `sync_file_range`
+    `setns`, `sync_file_range`, [[`mremap`|mremap]] and [[several
+    `MAP_*`|glibc/mmap]]
 
       * `chflags`
 
@@ -269,8 +270,6 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
               initialization
             <tschwinge> OK, that at least matches my understanding.
 
-      * [[`mremap`|mremap]]
-
       * `syncfs`
 
         We should be easily able to implement that one.
@@ -285,21 +284,6 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
 
         Do we support `AT_FDCWD` et al.?
         (80b4e5f3ef231702b24d44c33e8dceb70abb3a06.)
-
-      * `MAP_POPULATE` (`mmap`, `sys/mman.h`) -- *Populate (prefault)
-        pagetables.*
-
-        Some Linux kernel version, `mm/mmap.c`:
-
-                if (vm_flags & VM_LOCKED) {
-                        if (!mlock_vma_pages_range(vma, addr, addr + len))
-                                mm->locked_vm += (len >> PAGE_SHIFT);
-                } else if ((flags & MAP_POPULATE) && !(flags & MAP_NONBLOCK))
-                        make_pages_present(addr, addr + len);
-                return addr;
-
-        Is only advisory, so can worked around with `#define MAP_POPULATE 0`,
-        8069478040336a7de3461be275432493cc7e4c91.
 
       * `t/opendirat`: `opendirat` (`scandirat`, `scandirat64`)
 
