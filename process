@@ -6,6 +6,7 @@ set -e -x
 # passed to another shell.
 
 project=$1
+[ $# = 0 ] || shift
 build_suffix=.build
 case $project in
   binutils)
@@ -34,17 +35,17 @@ case $project in
     exit 1
     ;;
 esac
-shift
 
 step=$1
+[ $# = 0 ] || shift
 case $step in
   build | install | test)
     ;;
   '')
     # If there is no step specified, try a default set.
-    "$0" "$project" build
-    "$0" "$project" install
-    "$0" "$project" test
+    "$0" "$project" build "$@"
+    "$0" "$project" install "$@"
+    "$0" "$project" test "$@"
     exit
     ;;
   *)
@@ -52,16 +53,16 @@ case $step in
     exit 1
     ;;
 esac
-shift
 
 action=$1
+[ $# = 0 ] || shift
 case $action in
   fetch | diff)
     ;;
   '')
     # If there is no action specified, try a default set.
-    "$0" "$project" "$step" fetch
-    "$0" "$project" "$step" diff
+    "$0" "$project" "$step" fetch "$@"
+    "$0" "$project" "$step" diff "$@"
     exit
     ;;
   *)
@@ -69,11 +70,11 @@ case $action in
     exit 1
     ;;
 esac
-shift
 
 case $project:$action in
   binutils:fetch | gcc:fetch | gdb:fetch | glibc:fetch)
     host=$1
+    [ $# = 0 ] || shift
     case $host in
       coulomb.SCHWINGE)
         project_base=tmp/"$project"
@@ -87,8 +88,8 @@ case $project:$action in
         # If there is no host specified, try a default set.
         : "${linux_host:?}"
         : "${hurd_host:?}"
-        "$0" "$project" "$step" "$action" "$linux_host"
-        "$0" "$project" "$step" "$action" "$hurd_host"
+        "$0" "$project" "$step" "$action" "$linux_host" "$@"
+        "$0" "$project" "$step" "$action" "$hurd_host" "$@"
         exit
         ;;
       *)
@@ -96,7 +97,6 @@ case $project:$action in
         exit 1
         ;;
     esac
-    shift
 
     [ $# = 0 ]
 
