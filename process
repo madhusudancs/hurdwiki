@@ -30,6 +30,11 @@ case $project in
     hurd_host=coulomb.SCHWINGE
     build_suffix=.build-gcc-4.6-486
     ;;
+  llvm)
+    branch=tschwinge/Horace_Silver
+    linux_host=kepler.SCHWINGE
+    hurd_host=coulomb.SCHWINGE
+    ;;
   *)
     echo >&2 "Don't know about project »$project«."
     exit 1
@@ -72,7 +77,7 @@ case $action in
 esac
 
 case $project:$action in
-  binutils:fetch | gcc:fetch | gdb:fetch | glibc:fetch)
+  binutils:fetch | gcc:fetch | gdb:fetch | glibc:fetch | llvm:fetch)
     host=$1
     [ $# = 0 ] || shift
     case $host in
@@ -110,7 +115,8 @@ case $project:$action in
       binutils:build | binutils:install | binutils:test \
       | gcc:build | gcc:install | gcc:test \
       | gdb:build | gdb:install | gdb:test \
-      | glibc:build | glibc:install | glibc:test)
+      | glibc:build | glibc:install | glibc:test \
+      | llvm:build | llvm:install | llvm:test)
         ssh \
           "$host" \
           'cd '"$project_base"'/ && \
@@ -128,7 +134,8 @@ case $project:$action in
       binutils:build | binutils:install \
       | gcc:build | gcc:install \
       | gdb:build | gdb:install \
-      | glibc:build | glibc:install | glibc:test)
+      | glibc:build | glibc:install | glibc:test \
+      | llvm:build | llvm:install | llvm:test)
         :
         ;;
       binutils:test \
@@ -188,7 +195,7 @@ case $project:$action in
     esac
     exit
     ;;
-  binutils:diff | gcc:diff | gdb:diff)
+  binutils:diff | gcc:diff | gdb:diff | llvm:diff)
     [ $# = 0 ]
 
     : "${linux_host:?}"
@@ -196,7 +203,8 @@ case $project:$action in
     case $project:$step in
       binutils:build | binutils:install | binutils:test \
       | gcc:build | gcc:install | gcc:test \
-      | gdb:build | gdb:install | gdb:test)
+      | gdb:build | gdb:install | gdb:test \
+      | llvm:build | llvm:install | llvm:test)
         sed \
           -f toolchain/logs/"$project"/"$linux_host"/log_"$step".sed \
           < toolchain/logs/"$project"/"$linux_host"/log_"$step" \
@@ -226,7 +234,8 @@ case $project:$action in
     case $project:$step in
       binutils:build | binutils:install \
       | gcc:build | gcc:install \
-      | gdb:build | gdb:install)
+      | gdb:build | gdb:install \
+      | llvm:build | llvm:install | llvm:test)
         :
         ;;
       binutils:test \
