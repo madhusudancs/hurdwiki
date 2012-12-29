@@ -8,15 +8,15 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
-This documents the currently-needed tricks to successfully build a chroot in
-GNU/Hurd.
+This documents the currently-needed tricks to successfully build a
+[[glibc/chroot]] in GNU/Hurd.
 
 # Preparation
 
 For proper translator startup, the chroot storage needs to be handled by a
 separate translator, for instance:
 
-    # dd < /dev/zero > storage
+    # dd [...] < /dev/zero > storage
     # mke2fs storage
     # settrans -c chroot /hurd/ext2fs $PWD/storage
 
@@ -29,13 +29,15 @@ Debootstrap should be able to build the content:
 # Tricks
 
 One current issue to know about chroots is that since passive translators (e.g.
-/servers/socket/pflocal) are started by the root translator, which is not aware
+`/servers/socket/1`) are started by the root translator, which is not aware
 of the chrooting, these passive translators are started non-chrooted, leading to
 a few issues.
+[[!tag open_issue_hurd]]
 
 ## Sockets
 
-Since the passive pflocal translator will not be chrooted, local socket creation
+Since the passive [[translator/pflocal]] translator will not be chrooted, local
+socket creation
 will actually happen in the root filesystem. To make things work correctly the
 programs inside the chroot need to be able to access them:
 
@@ -45,7 +47,8 @@ programs inside the chroot need to be able to access them:
 
 ## Network
 
-Unless using a separate IP for the chroot, it is preferrable to share the pfinet translator:
+Unless using a separate IP for the chroot, it is preferrable to share the
+[[translator/pfinet]] translator:
 
     # settrans chroot/servers/socket/2 /hurd/firmlink /servers/socket/2
     # settrans chroot/servers/socket/26 /hurd/firmlink /servers/socket/26

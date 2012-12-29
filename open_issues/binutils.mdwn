@@ -33,14 +33,14 @@ though, as explained below.
 <!--
 
 git checkout reviewed
-git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc ..sourceware/master
+git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..sourceware/master
 -i
-/^commit |^---$|hurd|linux|nacl
+/^commit |^merge:|^---$|hurd|linux|nacl|nptl|glibc|gs:
 
 -->
 
-Last reviewed up to the [[Git mirror's dde164167b2db4c05d58b1941d610beb6d5ca99f
-(2012-06-08) sources|source_repositories/binutils]].
+Last reviewed up to the [[Git mirror's 7c102198e4a1ecee9cf175bd4ad87ee435956cae
+(2012-12-16) sources|source_repositories/binutils]].
 
   * Globally
 
@@ -114,29 +114,35 @@ Last reviewed up to the [[Git mirror's dde164167b2db4c05d58b1941d610beb6d5ca99f
             Compare to `i[3-7]86-*-linux-*`, but don't need a.out (`i386linux`)
             and 64 bit support.
 
+  * `__ehdr_start symbol`, c84ed8d89d0b8bf5a2968d465f77ac24bcfc40c2 -- can this
+    be helpful in the exec server, glibc, or elsewhere?  Used in GDB (BFD)
+    commit bdbd9758806ed855af89244870fdc52cf3ff09bc.
+
 
 # Build
 
-Here's a log of a binutils build run; this is from our [[Git repository's
-e1104996559067c40207c803ab1a5847a4a05145 (2012-06-07)
-sources|source_repositories/binutils]], run on kepler.SCHWINGE and
-coulomb.SCHWINGE.
+Here's a log of a binutils build run; this is from our [[Git
+repository|source_repositories/binutils]]'s `tschwinge/Paul_Desmond` branch,
+commit 7c102198e4a1ecee9cf175bd4ad87ee435956cae (2012-12-16), run on
+kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
-    $ ../master/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 2>&1 | tee log_build
+    $ ../Paul_Desmond/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 2>&1 | tee log_build
     [...]
     $ make 2>&1 | tee log_build_
     [...]
 
 Different hosts may default to different shells and compiler versions; thus
-harmonized.
+harmonized.  Debian GCC (which is used in binutils' testsuite) likes to pass
+`--sysroot=/` to `ld`, so we need to configure binutils with support for
+sysroots.
 
-This takes up around 120 MiB, and needs roughly 4 min on kepler.SCHWINGE and
-15 min on coulomb.SCHWINGE.
+This takes up around 900 MiB, and needs roughly 11 min on kepler.SCHWINGE and
+42 min on coulomb.SCHWINGE.
 
 <!--
 
-    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && make -k check 2>&1 | tee log_check
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && make -k check 2>&1 | tee log_test
 
 -->
 
@@ -147,9 +153,14 @@ x86 GNU/Linux' and GNU/Hurd's configurations are slightly different, thus mask
 out most of the differences that are due to GNU/Linux supporting more core file
 formats, and more emulation vectors.
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/binutils/ && cat hurd/master.build/log_build* | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/binutils/linux/log_build
-    $ ssh coulomb.SCHWINGE 'cd tmp/binutils/ && cat hurd/master.build/log_build* | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/binutils/hurd/log_build
-    $ diff -wu <(sed -f toolchain/logs/binutils/linux/log_build.sed < toolchain/logs/binutils/linux/log_build) <(sed -f toolchain/logs/binutils/hurd/log_build.sed < toolchain/logs/binutils/hurd/log_build) > toolchain/logs/binutils/log_build.diff
+    $ toolchain/logs/process binutils build
+
+  * gold GNU/Linux vs. GNU/Hurd
+
+        -checking for glibc ifunc support... both
+        +checking for glibc ifunc support... dyn
+
+    Missing [[IFUNC]] support on GNU/Hurd.
 
 
 # Install
@@ -157,32 +168,28 @@ formats, and more emulation vectors.
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 70 MiB, and needs roughly 1 min on kepler.SCHWINGE and 3
+This takes up around 150 MiB, and needs roughly 1 min on kepler.SCHWINGE and 3
 min on coulomb.SCHWINGE.
 
 
 ## Analysis
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/binutils/ && cat hurd/master.build/log_install | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/binutils/linux/log_install
-    $ ssh coulomb.SCHWINGE 'cd tmp/binutils/ && cat hurd/master.build/log_install | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/binutils/hurd/log_install
-    $ diff -wu <(sed -f toolchain/logs/binutils/linux/log_install.sed < toolchain/logs/binutils/linux/log_install) <(sed -f toolchain/logs/binutils/hurd/log_install.sed < toolchain/logs/binutils/hurd/log_install) > toolchain/logs/binutils/log_install.diff
+    $ toolchain/logs/process binutils install
 
   * `libtool: finish`: `ldconfig` is not run for the Hurd.
 
 
 # Testsuite
 
-    $ make -k check
+    $ make -k check 2>&1 | tee log_test
     [...]
 
-This needs roughly 3 min on kepler.SCHWINGE and 13 min on coulomb.SCHWINGE.
-
-    $ ssh kepler.SCHWINGE 'cd tmp/source/binutils/ && cat hurd/master.build/*/*.sum hurd/master.build/*/*/*.sum | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/binutils/linux/sum
-    $ ssh coulomb.SCHWINGE 'cd tmp/binutils/ && cat hurd/master.build/*/*.sum hurd/master.build/*/*/*.sum | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/binutils/hurd/sum
-    $ diff -u -F ^Running toolchain/logs/binutils/linux/sum toolchain/logs/binutils/hurd/sum > toolchain/logs/binutils/sum.diff
+This needs roughly 6 min on kepler.SCHWINGE and 42 min on coulomb.SCHWINGE.
 
 
 ## Analysis
+
+    $ toolchain/logs/process binutils test
 
   * <a name="static"><!-- stable_URL -->`FAIL: static [...]`</a>
 
@@ -203,3 +210,46 @@ This needs roughly 3 min on kepler.SCHWINGE and 13 min on coulomb.SCHWINGE.
     [[I|tschwinge]] suppose this is due to us having an override w.r.t. weak
     symbol handling in glibc, needed for our external [[/libpthread]].  TODO:
     document properly.
+
+  * `FAIL: gas/i386/rept`
+
+    Added in commit 06f1247c54126b9f1e6acb8ff8c7be35aec6f44c (2012-06-07) as
+    part of the fix for [[!sourceware_PR 14201]], renamed in commit
+    d654e24bbc2f601df4dc43b26049b0339528b93a (2012-06-07):
+
+        WARNING: program timed out.
+        FAIL: gas/i386/rept
+
+  * ld IFUNC execution tests
+
+    Missing [[IFUNC]] support on GNU/Hurd.
+
+    Added in commit 82c5587db078581cfe94a4385ed99de1d1fa6657 (2012-09-19):
+
+        FAIL: Common symbol override ifunc test 1a
+        FAIL: Common symbol override ifunc test 1b
+
+  * gold GNU/Linux vs. GNU/Hurd
+
+        -FAIL: relro_test.sh
+        +PASS: relro_test.sh
+
+        -PASS: ver_matching_test.sh
+        +FAIL: ver_matching_test.sh
+
+        -PASS: script_test_3
+        +FAIL: script_test_3
+
+        -PASS: tls_phdrs_script_test
+        +FAIL: tls_phdrs_script_test
+
+        -PASS: ifuncmain1static
+        -PASS: ifuncmain1picstatic
+        -PASS: ifuncmain2static
+        -PASS: ifuncmain2picstatic
+        -PASS: ifuncmain4static
+        -PASS: ifuncmain4picstatic
+        -PASS: ifuncmain5static
+        -PASS: ifuncmain5picstatic
+        -PASS: ifuncmain7static
+        -PASS: ifuncmain7picstatic

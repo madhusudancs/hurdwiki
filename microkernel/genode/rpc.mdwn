@@ -1,0 +1,65 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+
+# IRC, freenode, #hurd, 2012-07-20
+
+    <braunr> for the curious, genode has a very interesting way to provide IPC
+    <braunr> i think they're on the right path at least (synchronous rpc,
+      shared memory, signals, no IDL)
+    <braunr> (i just don't like their choosing C++ at the system core)
+    <kilobug> braunr: hum, how do you write the rpc if there is no IDL ?
+    <kilobug> braunr: in a dynamic language like Python or Ruby, you can have
+      "transparent" RPC with no IDL, but in a language like C or C++ ?
+    <kilobug> when you call them I mean
+    <braunr> kilobug: they call this dynamic marshalling based on C++ streams
+    <braunr> http://genode-labs.com/publications/dynrpc-2007.pdf
+    <kilobug> sounds quite ugly to use :s but that may because I'm not fond of
+      C++ itself ;)
+    <braunr> same for me
+    <braunr> they say inheritance in RPC interfaces is "a must"
+    <braunr> makes me skeptical
+    <braunr> other than that, it's very promising
+    <kilobug> from the caller side, having the RPC appearing to be normal
+      function calls (like you do with Mig or Corba) is quite pleasant, even if
+      writing IDL is burdersome, you write IDL only once while calling RPC is
+      done very often
+    <braunr> oh but they have that as well
+    <braunr> there is just an additional, thin layer of hand written code to
+      provide that
+    <kilobug> ok
+    <braunr> basically, interfaces are C++ virtual classes, which are then
+      inherited in client and server classes
+    <braunr> (although they're changing that with recursive templates)
+    <braunr> but i really like to idea of not relying on an IDL
+    <kilobug> recursive templates :s
+    <braunr> yeah :>
+    <braunr> must be some tricky code, but i guess once it's there, it must be
+      practical
+    <braunr> see
+      http://genode.org/documentation/release-notes/11.05#New_API_for_type-safe_inter-process_communication
+    <braunr> they also added typed capabilities, but i don't really like that
+      idea
+    <antrik> braunr: shared memory for what?
+    <braunr> antrik: for uh.. sharing ? :)
+    <braunr> antrik: these systems don't provide ipc primitives able to share
+      memory directly
+    <braunr> messages are always copied (although zero copy can be used)
+    <braunr> so sharing must be done separately
+    <antrik> hm... I realise that I have no idea how the map operation in L4 is
+      actually done...
+    <braunr> iirc, privileged threads handle that
+    <antrik> I guess you have to explicitly map before an RPC and revoke
+      afterwards, which is some overhead...
+    <braunr> so i guess it's separated as well
+    <braunr> i have one question in mind for now, maybe you can help me with
+      that :
+
+[[open_issues/synchronous_ipc]].

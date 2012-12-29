@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2009, 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2009, 2011, 2012 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -113,8 +114,197 @@ user started GDB test suite, noticed the PTY it's using; in a root shell
 started GDB (the system one, for `.debug` stuff) on `/hurd/term`, `set
 noninvasive on`, attach to the *term* that GDB is using.
 
+---
 
 [[2011-07-04]].
+
+---
+
+2012-11-05
+
+Log file from a 2011-09-07 run:
+
+    [...]
+    Running ../../../master/gdb/testsuite/gdb.base/readline.exp ...
+    spawn [...]/gdb/testsuite/../../gdb/gdb -nw -nx -data-directory [...]/gdb/testsuite/../data-directory
+    GNU gdb (GDB) 7.3.50.20110906-cvs
+    Copyright (C) 2011 Free Software Foundation, Inc.
+    License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+    This is free software: you are free to change and redistribute it.
+    There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+    and "show warranty" for details.
+    This GDB was configured as "i686-unknown-gnu0.3".
+    For bug reporting instructions, please see:
+    <http://www.gnu.org/software/gdb/bugs/>.
+    (gdb) set height 0
+    (gdb) set width 0
+    (gdb) dir
+    Reinitialize source path to empty? (y or n) y
+    Source directories searched: $cdir:$cwd
+    (gdb) dir ../../../master/gdb/testsuite/gdb.base
+    Source directories searched: [...]/gdb/testsuite/../../../master/gdb/testsuite/gdb.base:$cdir:$cwd
+    (gdb) p 1
+    $1 = 1
+    PASS: gdb.base/readline.exp: Simple operate-and-get-next - send p 1
+    (gdb) p 2
+    $2 = 2
+    PASS: gdb.base/readline.exp: Simple operate-and-get-next - send p 2
+    (gdb) p 3
+    $3 = 3
+    PASS: gdb.base/readline.exp: Simple operate-and-get-next - send p 3
+    (gdb) p 3(gdb) p 3PASS: gdb.base/readline.exp: Simple operate-and-get-next - C-p to p 3
+    ^H2(gdb) p 2PASS: gdb.base/readline.exp: Simple operate-and-get-next - C-p to p 2
+    ^H1(gdb) p 1PASS: gdb.base/readline.exp: Simple operate-and-get-next - C-p to p 1
+    ^OFAIL: gdb.base/readline.exp: Simple operate-and-get-next - C-o for p 1
+    FAIL: gdb.base/readline.exp: operate-and-get-next with secondary prompt - send if 1 > 0
+    FAIL: gdb.base/readline.exp: print 42 (timeout)
+    FAIL: gdb.base/readline.exp: arrow keys with secondary prompt (timeout)
+    spawn [...]/gdb/testsuite/../../gdb/gdb -nw -nx -data-directory [...]/gdb/testsuite/../data-directory
+    ERROR: (timeout) GDB never initialized after 10 seconds.
+    ERROR: no fileid for coulomb
+    ERROR: no fileid for coulomb
+    UNRESOLVED: gdb.base/readline.exp: Simple operate-and-get-next - send p 7
+    testcase ../../../master/gdb/testsuite/gdb.base/readline.exp completed in 646 seconds
+    Running ../../../master/gdb/testsuite/gdb.base/wchar.exp ...
+    Executing on host: gcc  -c -g  -o [...]/gdb/testsuite/gdb.base/wchar0.o ../../../master/gdb/testsuite/gdb.base/wchar.c    (timeout = 300)
+    spawn gcc -c -g -o [...]/gdb/testsuite/gdb.base/wchar0.o ../../../master/gdb/testsuite/gdb.base/wchar.c
+    Executing on host: gcc [...]/gdb/testsuite/gdb.base/wchar0.o  -g  -lm   -o [...]/gdb/testsuite/gdb.base/wchar    (timeout = 300)
+    spawn gcc [...]/gdb/testsuite/gdb.base/wchar0.o -g -lm -o [...]/gdb/testsuite/gdb.base/wchar
+    get_compiler_info: gcc-4-6-1
+    spawn [...]/gdb/testsuite/../../gdb/gdb -nw -nx -data-directory [...]/gdb/testsuite/../data-directory
+    ERROR: (timeout) GDB never initialized after 10 seconds.
+    ERROR: no fileid for coulomb
+    ERROR: no fileid for coulomb
+    ERROR: no fileid for coulomb
+    ERROR: couldn't load [...]/gdb/testsuite/gdb.base/wchar into [...]/gdb/testsuite/../../gdb/gdb (timed out).
+    ERROR: no fileid for coulomb
+    ERROR: Delete all breakpoints in delete_breakpoints (timeout)
+    ERROR: no fileid for coulomb
+    UNRESOLVED: gdb.base/wchar.exp: setting breakpoint at wchar.c:34 (timeout)
+    testcase ../../../master/gdb/testsuite/gdb.base/wchar.exp completed in 797 seconds
+    [...]
+
+
+# IRC, freenode, #hurd, 2012-08-09
+
+In context of the [[select]] issue.
+
+    <braunr> i wonder where the tty allocation is made
+    <braunr> it could simply be that current applications don't handle old BSD
+      ptys correctly
+    <braunr> hm no, allocation is fine
+    <braunr> does someone know why there is no term instance for /dev/ttypX ?
+    <braunr> showtrans says "/hurd/term /dev/ttyp0 pty-slave /dev/ptyp0" though
+    <youpi> braunr: /dev/ttypX share the same translator with /dev/ptypX
+    <braunr> youpi: but how ?
+    <youpi> see the main function of term
+    <youpi> it attaches itself to the other node
+    <youpi> with file_set_translator
+    <youpi> just  like pfinet can attach itself to /servers/socket/26 too
+    <braunr> youpi: isn't there a possible race when the same translator tries
+      to sets itself on several nodes ?
+    <youpi> I don't know
+    <tschwinge> There is.
+    <braunr> i guess it would just faikl
+    <braunr> fail
+    <tschwinge> I remember some discussion about this, possibly in context of
+      the IPv6 project.
+    <braunr> gdb shows weird traces in term
+    <braunr> i got this earlier today: http://www.sceen.net/~rbraun/gdb.txt
+    <braunr> 0x805e008 is the ptyctl, the trivs control for the pty
+    <tschwinge> braunr: How do you mean »weird«?
+    <braunr> tschwinge: some peropen (po) are never destroyed
+    <tschwinge> Well, can't they possibly still be open?
+    <braunr> they shouldn't
+    <braunr> that's why term doesn't close cleany, why select still reports
+      readiness, and why screen loops on it
+    <braunr> (and why each ssh session uses a different pty)
+    <tschwinge> ... but only on darnassus, I think?  (I think I haven't seen
+      this anywhere else.)
+    <braunr> really ?
+    <braunr> i had it on my virtual machines too
+    <tschwinge> But perhaps I've always been rebooting systems quickly enough
+      to not notice.
+    <tschwinge> OK, I'll have a look next time I boot mine.
+    <braunr> i suppose it's why you can't login anymore quickly when syslog is
+      running
+
+[[syslog]]?
+
+    <braunr> i've traced the problem to ptyio.c, where pty_open_hook returns
+      EBUSY because ptyopen is still true
+    <braunr> ptyopen remains true because pty_po_create_hook doesn't get called
+    <youpi> tschwinge: I've seen the pty issue on exodar too, and on my qemu
+      image too
+    <braunr> err, pty_po_destroy_hook
+    <tschwinge> OK.
+    <braunr> and pty_po_destroy_hook doesn't get called from users.c because
+      po->cntl != ptyctl
+    <braunr> which means, somehow, the pty never gets closed
+    <youpi> oddly enough it seems to happen on all qemu systems I have, and no
+      xen system I have
+    <braunr> Oo
+    <braunr> are they all (xen and qemu) up to date ?
+    <braunr> (so we can remove versions as a factor)
+    <tschwinge> Aha.  I only hve Xen and real hardware.
+    <youpi> braunr: no
+    <braunr> youpi: do you know any obscur site about ptys ? :)
+    <youpi> no
+    <youpi> well, actually yes
+    <youpi> http://dept-info.labri.fr/~thibault/a (in french)
+    <braunr> :D
+    <braunr> http://www.linusakesson.net/programming/tty/index.php looks
+      interesting
+    <youpi> indeed
+
+
+## IRC, freenode, #hurdfr, 2012-08-09
+
+    <braunr> youpi: ce que j'ai le plus de mal à comprendre, c'est ce qu'est un
+      "controlling tty"
+    <youpi> c'est le plus obscur d'obscur :)
+    <braunr> s'il est exclusif à une appli, comment ça doit se comporter sur un
+      fork, etc..
+    <youpi> de manière simple, c'est ce qui permet de faire ^C
+    <braunr> eh oui, et c'est sûrement là que ça explose
+    <youpi> c'est pas exclusif, c'est hérité
+    <braunr>
+      http://homepage.ntlworld.com/jonathan.deboynepollard/FGA/bernstein-on-ttys/cttys.html
+
+
+## IRC, freenode, #hurd, 2012-08-10
+
+    <braunr> youpi: and just to be sure about the test procedure, i log on a
+      system, type tty, see e.g. ttyp0, log out, and in again, then tty returns
+      ttyp1, etc..
+    <youpi> yes
+    <braunr> youpi: and an open (e.g. cat) on /dev/ptyp0 returns EBUSY
+    <youpi> indeed
+    <braunr> so on xen it doesn't
+    <braunr> grmbl
+    <youpi> I've never seen it, more precisely
+    <braunr> i also have the problem with a non-accelerated qemu
+    <braunr> antrik: do you have the term problems we've seen on your bare
+      hardware ?
+    <antrik> I'm not sure what problem you are seeing exactly :-)
+    <braunr> antrik: when logging through ssh, tty first returns ttyp0, and the
+      second time (after logging out from the first session) ttyp1
+    <braunr> antrik: and term servers that have been used are then stuck in a
+      busy state
+    <antrik> braunr: my ptys seem to be reused just fine
+    <braunr> or perhaps they didn't have the bug
+    <braunr> antrik: that's so weird
+    <antrik> (I do *sometimes* get hanging ptys, but that's a different issue
+      -- these are *not* busy; they just hang when reused...)
+    <braunr> antrik: yes i saw that too
+    <antrik> braunr: note though that my hurd package is many months old...
+    <antrik> (in fact everything on this system)
+    <braunr> antrik: i didn't see anything relevant about the term server in
+      years
+    <braunr> antrik: what shell do you use ?
+    <antrik> yeah, but such errors could be caused by all kinds of changes in
+      other parts of the Hurd, glibc, whatever...
+    <antrik> bash
 
 
 # Formal Verification

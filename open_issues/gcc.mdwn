@@ -31,14 +31,14 @@ example.  Especially all the compiler magic is all the same.
 <!--
 
 git checkout reviewed
-git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -p -C --cc ..upstream/trunk
+git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..upstream/trunk
 -i
-/^commit |^---$|hurd|linux|nptl|glibc
+/^commit |^merge:|^---$|hurd|linux|nacl|nptl|glibc|gs:
 
 -->
 
-Last reviewed up to the [[Git mirror's dfed30bca14de84e0446cc02f5a27407dbfdc3e1
-(2012-06-11) sources|source_repositories/gcc]].
+Last reviewed up to the [[Git mirror's be3860ba8df48cca3253da4f02fd2d42d856ce80
+(2012-12-10) sources|source_repositories/gcc]].
 
 <http://gcc.gnu.org/install/configure.html> has documentation for the
 `configure` switches.
@@ -74,24 +74,27 @@ Last reviewed up to the [[Git mirror's dfed30bca14de84e0446cc02f5a27407dbfdc3e1
 
   * [[`libmudflap`|libmudflap]].
 
-  * Might [`-fsplit-stack`](http://nickclifton.livejournal.com/6889.html) be
-    worthwhile w.r.t. our [[multithreaded|multithreading]] libraries?
+  * [`-fsplit-stack`](http://nickclifton.livejournal.com/6889.html)
 
       * Also see `libgcc/config/i386/morestack.S`: comments w.r.t
-        `TARGET_THREAD_SPLIT_STACK_OFFSET`; likely needs porting.
+        `TARGET_THREAD_SPLIT_STACK_OFFSET`/`%gs:0x30` usage; likely needs
+        porting.
 
-    As per `libgcc/config/i386/t-stack-i386`, the former file is only used for
-    `-fsplit-stack` support -- which is currently enabled for us in
-    `libgcc/config.host`, but not usable via GCC proper.
+      * As per `libgcc/config/i386/t-stack-i386`, the former file is only used
+        for `-fsplit-stack` support -- which is currently enabled for us in
+        `libgcc/config.host`.
 
       * `gcc/config/gnu-user.h` defines `*SPLIT_STACK*` macros -- which aren't
         valid for us (yet), I think.
 
+      * Might `-fsplit-stack` be useful for us with respect to our
+        [[multithreaded|multithreading]] libraries?
+
   * `--enable-languages=[...]`
 
-      * GNAT is not yet ported / bootstrapped?
+      * [[Ada (GNAT)|GNAT]] support is work in progress.
 
-      * The Google Go's libgo (introduced in
+      * The [[Google Go's libgo|gccgo]] (introduced in
         e440a3286bc89368b8d3a8fd6accd47191790bf2 (2010-12-03)) needs
         OS configuration / support.
 
@@ -109,9 +112,7 @@ Last reviewed up to the [[Git mirror's dfed30bca14de84e0446cc02f5a27407dbfdc3e1
 
   * `--enable-gnu-unique-object`
 
-  * `--enable-lto`, `--enable-gold`
-
-    [[binutils_gold]]
+  * `--enable-lto`
 
   * `--enable-indirect-function`
 
@@ -136,9 +137,13 @@ Last reviewed up to the [[Git mirror's dfed30bca14de84e0446cc02f5a27407dbfdc3e1
   * [-fstack-protector shouldn't use TLS in freestanding
     mode](http://gcc.gnu.org/bugzilla/show_bug.cgi?id=29838)
 
+      * See also commit bf1c0af128f33bd342636c4afeaa8f3a8a7cf8ca (reverted in
+        commit a204f0622242865ffea889bd698bc7c7bd236bd1), commit
+        05c1aa95e6c37b3b281d749c76c673392941a031.
+
   * Check before/after Joseph changes.  (Should be fine.)
 
-  * 34618b3190c110b8926cc2b1db4b4eac95451995
+  * 34618b3190c110b8926cc2b1db4b4eac95451995 »config-list.mk«
 
     What's this used for?  (Check ML.)  Ask to include i686-pc-gnu (once it is
     buildable out of the box)?  See also
@@ -194,6 +199,17 @@ Last reviewed up to the [[Git mirror's dfed30bca14de84e0446cc02f5a27407dbfdc3e1
           to find out why some stuff wasn't compiling even after kfreebsd
           porting patches adding preprocessors checks for __GLIBC__
 
+    GNU/kFreeBSD and GNU/kNetBSD: commit
+    6396cc37141180db4d2c8f73cab4f5977d8a1e19 (2004-06-24, r83577),
+    GNU/kOpenSolaris: commit 3bef40126fb1633018fce47828df0fa9f65f110c
+    (2009-01-29, r143768).  See also GDB commits
+    fda1b24c62843f81d31de2af57b1ed9c55f1e348 and
+    1acb4f4ff73d20850a7524fc939d2651be75f47b, and binutils commits
+    e3081899be7570eb90ccfd5d767950d3a62871ee,
+    127c4d4a4fe65bd17ea64db1be7f3c93d393afcb,
+    47dbf5b634b955c2db1221715d15751e1281546a, and
+    ad2be7e8b846f4cd67fa1e032f98d5dc1cdb6b8d.
+
     IRC, freenode, #hurd, 2012-05-25:
 
         <gnu_srs> Hi, looks like __GLIBC__ is not defined by default for GNU?
@@ -248,7 +264,7 @@ Last reviewed up to the [[Git mirror's dfed30bca14de84e0446cc02f5a27407dbfdc3e1
         <pinotree> what should be done first is, however, find out why that
           define has been added to gcc
 
-    [[!message-id "201211061305.02565.pino@debian.org"]]
+    [[!message-id "201211061305.02565.pino@debian.org"]].
 
   * [low] Does `-mcpu=native` etc. work?  (For example,
     2ae1f0cc764e998bfc684d662aba0497e8723e52.)
@@ -280,18 +296,47 @@ Last reviewed up to the [[Git mirror's dfed30bca14de84e0446cc02f5a27407dbfdc3e1
     C.f. [[!message-id "x57jobtqx89w.fsf@frobland.mtv.corp.google.com"]],
     [[!message-id "x57jd359fkx3.fsf@frobland.mtv.corp.google.com"]] as well as
     [[!debbug 629866]]/[[!message-id
-    "20110609002620.GA16719@const.famille.thibault.fr"]].
+    "20110609002620.GA16719@const.famille.thibault.fr"]].  commit
+    026e608ecebcb2a6193971006a85276307d79b00.
+
+  * 549e2197b118efb2d947aaa15d445b05c1b5ed62 `Import the asan runtime library
+    into GCC tree`.  Linux-specific things:
+    `ASAN_USE_ALIAS_ATTRIBUTE_FOR_INDEX`, `ASAN_LINUX`, `ASAN_POSIX`,
+    `libsanitizer/asan/asan_linux.cc`,
+    `libsanitizer/asan/asan_malloc_linux.cc`,
+    `libsanitizer/asan/asan_posix.cc`,
+    `libsanitizer/interception/interception.h`,
+    `libsanitizer/interception/interception_linux.cc`,
+    `libsanitizer/interception/interception_linux.h`,
+    `libsanitizer/sanitizer_common/sanitizer_allocator.cc`,
+    `libsanitizer/sanitizer_common/sanitizer_linux.cc`,
+    `libsanitizer/sanitizer_common/sanitizer_posix.cc`,
+    `libsanitizer/sanitizer_common/sanitizer_procmaps.h`,
+    `libsanitizer/sanitizer_common/sanitizer_symbolizer_linux.cc`.
+    4afab99bf0fe2d6905a9fa9d6ab886ca102312df `Enable libsanitizer just on x86
+    linux for now`.  492e75a7336b4dbfe38207ea3abf8d5bd72376a9 `Move
+    libsanitizer configure logic to subdirectory`.
+    6aea389d84c2172668af5f108e2b17e131120d0b `Add STATIC_LIBASAN_LIBS for
+    -static-libasan`.  Further commits later on.
+
+      * 9cf754572854d9d9cd43c277eb7afb12e4911358 `Import tsan runtime from
+        llvm`.  Linux-specific things: `libsanitizer/tsan/tsan_platform.h`,
+        `libsanitizer/tsan/tsan_platform_linux.cc`,
+        `libsanitizer/tsan/tsan_symbolize_addr2line_linux.cc`.
+        a96132f29aa3dfe94141a87537f62ea73ce0fc19 `Set TSAN_SUPPORTED=yes for
+        x86_64/i686-linux for 64-bit multilib`.  Further commits later on.
 
 
 # Build
 
 Here's a log of a GCC build run; this is from our [[Git repository's
-2e2db3f92b534460c68c2f9ae64455884424beb6 (2012-06-15; 2012-06-06)
+a1d48e100791bc67ff355e0931a604e767c827b7 (2012-12-10;
+be3860ba8df48cca3253da4f02fd2d42d856ce80 (2012-12-10))
 sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
     $ (cd ../master/ && contrib/gcc_update --touch)
-    $ ../master/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 --enable-build-with-cxx --enable-languages=all,ada 2>&1 | tee log_build
+    $ ../master/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 --enable-languages=all,ada 2>&1 | tee log_build
     [...]
     $ make 2>&1 | tee log_build_
     [...]
@@ -299,12 +344,12 @@ sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 Different hosts may default to different shells and compiler versions; thus
 harmonized.
 
-This takes up around 3.1 GiB, and needs roughly 3.0 h on kepler.SCHWINGE and
-12.75 h on coulomb.SCHWINGE.
+This takes up around 3.5 GiB, and needs roughly 3.25 h on kepler.SCHWINGE and
+14.25 h on coulomb.SCHWINGE.
 
 <!--
 
-    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && make -k RUNTESTFLAGS=-v check 2>&1 | tee log_check
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && make -k RUNTESTFLAGS=-v check 2>&1 | tee log_test
 
 -->
 
@@ -317,42 +362,6 @@ This takes up around 3.1 GiB, and needs roughly 3.0 h on kepler.SCHWINGE and
     works... no`|glibc_madvise_vs_static_linking]]
 
     Addressed in Debian glibc.
-
-  * DFP
-
-    Addressed in *hurd/decimal_floating_point* branch.
-
-        +configure: WARNING: decimal float is not supported for this target, ignored
-
-    ... and later on:
-
-        -checking for decimal floating point... bid
-        +checking for decimal floating point... configure: WARNING: decimal float is not supported for this target, ignored
-        +dpd
-
-    ... and later on:
-
-        -checking whether decimal floating point is supported... yes
-        +checking whether decimal floating point is supported... no
-        +configure: WARNING: decimal float is not supported for this target, ignored
-
-      * `libstdc++-v3/acinclude.m4`: ISO/IEC TR 24733
-
-            -checking for ISO/IEC TR 24733 ... yes
-            +checking for ISO/IEC TR 24733 ... no
-
-      * `--enable-decimal-float`, `--enable-fixed-point`, `--with-long-double-128`
-
-        `configure: WARNING: decimal float is not supported for this target,
-        ignored`
-
-          * `libgcc/configure.ac` [might
-            need](http://gcc.gnu.org/ml/gcc-patches/2008-10/msg00315.html) to be
-            aligned for us to the `*linux*` cases.  As well as at the end of
-            `libgcc/config.host`.  Check.
-
-                checking whether decimal floating point is supported... no
-                checking whether fixed-point is supported... no
 
   * `host-linux.c` vs. `host-default.c`
 
@@ -384,7 +393,7 @@ This takes up around 3.1 GiB, and needs roughly 3.0 h on kepler.SCHWINGE and
 
     Just different order of object files, or another problem?  TODO
 
-  * `libobjc/encoding.c`: 
+  * `libobjc/encoding.c`:
 
          libtool: compile:  [...]/hurd/master.build/./gcc/xgcc [...] [...]/hurd/master/libobjc/encoding.c -c [...]
         +[...]/hurd/master/libobjc/encoding.c:128:1: warning: '_darwin_rs6000_special_round_type_align' defined but not used [-Wunused-function]
@@ -418,8 +427,10 @@ This takes up around 3.1 GiB, and needs roughly 3.0 h on kepler.SCHWINGE and
 
   * *default library search path*
 
-        -checking for the default library search path... /lib /usr/lib /lib/i386-linux-gnu /usr/lib/i386-linux-gnu /lib/i486-linux-gnu /usr/lib/i486-linux-gnu /usr/local/lib /lib64 /usr/lib64 
+        -checking for the default library search path... /lib /usr/lib /lib/i386-linux-gnu /usr/lib/i386-linux-gnu /lib/i486-linux-gnu /usr/lib/i486-linux-gnu /usr/local/lib
         +checking for the default library search path... /lib /usr/lib
+
+    [[binutils]] issue?  Should be aligned by Samuel's binutils patch.
 
   * `./classpath/[...]/*.properties`
 
@@ -454,13 +465,6 @@ This takes up around 3.1 GiB, and needs roughly 3.0 h on kepler.SCHWINGE and
 
     There are other instances of this in the following.
 
-  * *default library search path*
-
-        -checking for the default library search path... /lib /usr/lib /lib/[MULTIARCH] /usr/lib/[MULTIARCH] /lib/i486-linux-gnu /usr/lib/i486-linux-gnu /usr/local/lib /lib64 /usr/lib64 
-        +checking for the default library search path... /lib /usr/lib
-
-    Should be aligned by Samuel's binutils patch.
-
   * `value-unwind.h`
 
         -DEFINES='' HEADERS='../../../master/libgcc/config/i386/value-unwind.h' \
@@ -484,13 +488,22 @@ This takes up around 3.1 GiB, and needs roughly 3.0 h on kepler.SCHWINGE and
   * `libatomic` on GNU/Linux compiles several more files than on GNU/Hurd.  Is
     that correct?  Probably futex support.
 
+  * 2e2db3f92b534460c68c2f9ae64455884424beb6..3336556d2cb32f46322922a83015f760cfb79d8f
+
+    Both GNU/Linux and GNU/Hurd:
+
+        -checking assembler for rep and lock prefix... yes
+        +checking assembler for rep and lock prefix... no
+
+    TODO.
+
 
 # Install
 
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 850 MiB, and needs roughly 4 min on kepler.SCHWINGE and 45
+This takes up around 1 GiB, and needs roughly 5 min on kepler.SCHWINGE and 37
 min on coulomb.SCHWINGE.
 
 
@@ -516,24 +529,172 @@ min on coulomb.SCHWINGE.
 Testing on GNU/Hurd is blocked on
 [[fork_mach_port_mod_refs_ekern_urefs_owerflow]].
 
-TODO.  Can use parallel testing, see [[!message-id
-"20110331070322.GI11563@sunsite.ms.mff.cuni.cz"]].
+TODO.  On GNU/Hurd, it is advisable to reboot after having built and installed
+GCC, before running the testsuite, as otherwise there seems to be a tendency
+that the system crashes during the `gcc.c-torture/compile/limits-structnest.c`
+tests, which are rather memory hungry, see [[!message-id
+"87bol6aixd.fsf@schwinge.name"]].  Likewise, it also seems advisable to add
+further reboots in between, that is, separate `make check`'s `check-host` into
+several separate runs, and then one for `check-target` (see
+`[build]/Makefile:do-check`, `[build]/gcc/Makefile:CHECK_TARGETS`), as
+otherwise there seems to be a tendency for the system crashing sooner or later.
+(Running `check-host` accumulates to something like 44 hours worth of
+forking/execing of GCC and testcases.)  On GNU/Linux we run it in one go, so
+that we'll catch any fundamental rearrangements of/additions to the testsuites.
 
-    $ make -k RUNTESTFLAGS=-v check 2>&1 | tee log_check
+kepler.SCHWINGE:
+
+    $ make -k check 2>&1 | tee log_test
     [...]
 
-This needs roughly 6.5 h on kepler.SCHWINGE and 50.25 h on coulomb.SCHWINGE.
+coulomb.SCHWINGE:
+
+    $ awk '/^maybe-check-target/ { next; }; /^maybe-check-[^:]*:./ { print; };' < Makefile
+    maybe-check-fixincludes: check-fixincludes
+    maybe-check-gcc: check-gcc
+    maybe-check-intl: check-intl
+    maybe-check-libbacktrace: check-libbacktrace
+    maybe-check-libcpp: check-libcpp
+    maybe-check-libdecnumber: check-libdecnumber
+    maybe-check-libiberty: check-libiberty
+    maybe-check-zlib: check-zlib
+    maybe-check-gnattools: check-gnattools
+    maybe-check-lto-plugin: check-lto-plugin
+    $ grep ^CHECK_TARGETS gcc/Makefile
+    CHECK_TARGETS =  check-ada check-c check-c++ check-fortran check-java check-lto check-objc
+
+    $ export LC_ALL=C
+
+    $ make -k check-fixincludes 2>&1 | tee log_test_1_check-fixincludes
+    [...]
+    $ make -k -C gcc check-ada 2>&1 | tee log_test_2_gcc_check-ada
+    [...]
+    [reboot]
+    $ make -k -C gcc check-c 2>&1 | tee log_test_2_gcc_check-c
+    [...]
+    [reboot]
+    $ make -k -C gcc check-c++ 2>&1 | tee log_test_2_gcc_check-c++
+    [...]
+    [reboot]
+    $ make -k -C gcc check-fortran check-java check-lto check-objc 2>&1 | tee log_test_2_gcc_check-fortran,check-java,check-lto,check-objc
+    [...]
+    [reboot]
+    $ make -k check-intl check-libbacktrace check-libcpp check-libdecnumber check-libiberty check-zlib check-gnattools check-lto-plugin 2>&1 | tee log_test_3
+    [...]
+    $ make -k check-target 2>&1 | tee log_test_4_check-target
+    [...]
+
+This needs roughly 7 h on kepler.SCHWINGE and 4 h (`check-fixincludes`,
+`gcc/check-ada`) + 12.5 h (`gcc/check-c`) + 4.25 h (`gcc/check-c++`) + 5.5 h
+(`gcc/check-fortran`, `gcc/check-java`, `gcc/check-lto`, `gcc/check-objc`) +
+9 h (`check-intl`, [...], `check-lto-plugin`, `check-target`) = 35.25 h on
+coulomb.SCHWINGE.
 
 
 ## Analysis
 
     $ toolchain/logs/process gcc test
 
-TODO.
+  * PTYs
+
+    Occasionally tests FAIL due to:
+
+        spawn -open -1 failed, 1 5, The system has no more ptys.  Ask your system administrator to create more.
+
+    TODO.
+
+  * As of b401cb7ed15602d244a6807835b0b9d740a302a8 (2012-11-26;
+    769bf18a20ee2540ca7601cdafabd62b18b9751b (2012-10-01)), all
+    `gcc.dg/guality` and `g++.dg/guality` and a few more are no longer tested
+    on coulomb.SCHWINGE and kepler.SCHWINGE.
+
+  * As of b401cb7ed15602d244a6807835b0b9d740a302a8 (2012-11-26;
+    769bf18a20ee2540ca7601cdafabd62b18b9751b (2012-10-01)), there are
+    regressions (FAILs) in libgomp execution tests on coulomb.SCHWINGE.
+
+  * 769bf18a20ee2540ca7601cdafabd62b18b9751b..be3860ba8df48cca3253da4f02fd2d42d856ce80
+
+    On GNU/Hurd:
+
+         Running [...]/hurd/master/gcc/testsuite/g++.dg/tls/tls.exp ...
+        +FAIL: g++.dg/tls/thread_local3.C -std=gnu++11 execution test
+        +FAIL: g++.dg/tls/thread_local3g.C -std=gnu++11 execution test
+        +FAIL: g++.dg/tls/thread_local4.C -std=gnu++11 execution test
+        +FAIL: g++.dg/tls/thread_local4g.C -std=gnu++11 execution test
+        +FAIL: g++.dg/tls/thread_local5.C -std=gnu++11 execution test
+        +FAIL: g++.dg/tls/thread_local5g.C -std=gnu++11 execution test
+
+    They used to PASS.
+
+  * TODO
 
 
-# Specific Languages
+## Enhancements
 
-  * [[GNAT]]
 
-  * [[gccgo]]
+### `contrib/testsuite-management/`, `contrib/regression/`
+
+  * 35a27ee8c4b349fea44fd1fadc9614ab3cc9d578 `Add an xfail manifest for
+    x86_64-unknown-linux-gnu to trunk.`
+
+
+### Parallel Testing
+
+[[!message-id "20110331070322.GI11563@sunsite.ms.mff.cuni.cz"]].
+
+
+### Distributed Testing
+
+
+#### IRC, OFTC, #gcc, 2012-05-31
+
+    <dnovillo> jsm28: in your mentor testing, you have the source and build
+      tree available for make check?  or it's a pure installed-tree test?
+    <jsm28> dnovillo: Source tree, install tree, no build tree.
+    <dnovillo> jsm28: so, you run make check on top of the source tree or copy
+      the */testsuite trees to a testing area?
+    <jsm28> Create a site.exp and do runtest in a temporary directory.  runtest
+      is pointed to the source tree to find sources.
+    <jsm28> For cross testing for GNU/Linux targets, the temporary directory is
+      mounted at the same path on host and target.
+    <dnovillo> jsm28: thanks.  i guess i'll have to find the slice of the
+      source tree i need to copy.
+    <dnovillo> jsm28: for libstdc++ do you write a different site.exp? 
+    <dnovillo> i noticed that it generates a different site,exp there.
+    <jsm28> The site.exp is mostly the same for all testsuites (so includes
+      settings that only some testsuites use).
+    <dnovillo> ok, thanks.
+    <dnovillo> and when you say "pointed to the source tree" you mean "set
+      srcdir /path/to/top/of/gcc" ?
+    <dnovillo> (in site.exp)
+    <jsm28> The GDB testsuite requires that you run the GDB testsuite's
+      configure script in the temporary directory where you will run runtest.
+      I don't think any GCC testsuites we use have requirements like that.
+    <jsm28> dnovillo: --srcdir option to runtest.
+    <dnovillo> ah, yes.
+    <jsm28> (and --tool, --target_board etc.)
+    <dnovillo> right
+    <dnovillo> since i'm distributing the tests. i want each node to only do a
+      bunch of files.  this means that i either use 'tool.exp=file-pattern' or
+      simply copy the subset of files i want tool.exp to find.
+    <dnovillo> i chose the second approach, but that breaks in a handful of
+      cases that need files from other sub-directories.
+    <dnovillo> like g++.dg gcc.dg using stuff from c-c++-common.
+    <dnovillo> for libstdc++, the possibilities for splitting are enormous as
+      it has many directories.
+    <dnovillo> but i'm not setting it right.  runtest runs without even trying
+      to test anything.
+    <dnovillo> i'm not having it pick up the right driver.
+    <jsm28> Probably all .exp files should be copied to anywhere running
+      testsuites, since some read .exp files from other directories.
+    <dnovillo> jsm28: that could be it too.  it's irritating that libstdc++
+      does not even error out.  runtest just does nothing and returns 0.
+
+##### IRC, OFTC, #gcc, 2012-06-06
+
+    <dnovillo> any libstdc++ maintainer around?
+    <dnovillo> or, does anyone know when the testsuite/data files are copied
+      into the running testsuite/ dir?
+    <dnovillo> seems to be done in advance by make.
+
+##### [[!message-id "4FC7791E.6040407@gmail.com"]]

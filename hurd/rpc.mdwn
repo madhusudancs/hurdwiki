@@ -1,0 +1,121 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[Remote procedure call|/rpc]]s are the basis for about everything in the Hurd.
+They're based on the [[Mach RPC mechanism (`mach_msg` system
+call)|microkernel/mach/rpc]].  An RPC is made against a [[Mach
+port|microkernel/mach/port]], which is the gateway to the [[translator]] that
+will serve the RPC.  Let's explore the case of `open`ing a file, and advancing
+(`lseek`) ten bytes into it.  The user program will be something like:
+
+    #include <fcntl.h>
+
+    int main(void) {
+      int fd = open("test.txt", O_RDONLY);
+      lseek(fd, 10, SEEK_CUR);
+    }
+
+Both `open` and `lseek` are functions provided by [[glibc]], which translates
+these into the appropriate remote procedure calls.
+
+`open` first has to find its way to the actual translator serving that file,
+but for a file on the root filesystem, what happens boils down to calling the
+`dir_lookup` function against the root filesystem.  This is an RPC from the
+[[`fs` interface (see `fs.defs`)|interface/fs]].  The implementation of this
+function is thus actually generated during the glibc build in
+`RPC_dir_lookup.c`, based on the `fs.defs` file, using
+[[microkernel/mach/MIG]].  This generated function essentially [[encodes the
+parameters into a data buffer|idl]], and makes a `mach_msg` system call to send
+the buffer to the root filesystem port, with the `dir_lookup` RPC ID.
+
+The root filesystem, for instance [[translator/ext2fs]], was sitting in its
+main service loop (`libdiskfs/init-first.c:master_thread_function`), which
+calls `ports_manage_port_operations_multithread`, which essentially simply
+keeps making `mach_msg` system calls to receive [[microkernel/mach/message]]s,
+and calls the demultiplexer on it, here the `diskfs_demuxer`.  This
+demultiplexer calls the demultiplexers for the various interfaces supported by
+ext2fs.  These demuxers are generated using MIG during the Hurd build.  For
+instance, the `fs` interface demultiplexer for [[diskfs|libdiskfs]],
+`diskfs_fs_server`, is in `libdiskfs/fsServer.c`.  It simply checks whether the
+RPC ID is an `fs` interface ID, and if so uses the `diskfs_fs_server_routines`
+array for calling the appropriate function corresponding to the RPC ID.  Here
+it's `_Xdir_lookup` which thus gets called.  This one decodes the parameters
+from the message data buffer, and calls `diskfs_S_dir_lookup`.
+
+`diskfs_S_dir_lookup` in the ext2fs translator does stuff to check that the
+file exists, etc. and eventually creates a new port, which will represent the
+open file, and a structure to keep information about it.  It returns this new
+port to its caller, `_Xdir_lookup`, which puts it into the reply message data
+buffer and returns.  `ports_manage_port_operations_multithread` then calls
+`mach_msg` to send that port to the user program.
+
+The `mach_msg` call in the user program thus returns, returning the port,
+decoded by `dir_lookup`.  glibc adds a new slot to its
+[[glibc/file_descriptor]] table, and records the port in it.
+
+`lseek` is simpler.  The glibc implementation simply calls the `__io_seek`
+function against the port of the file descriptor.  This is an RPC from the
+[[`io` interface (see io.defs)|interface/io]].  As explained above, the
+implementation is thus in `RPC_io_seek.c`, it encodes parameters and makes a
+`mach_msg` system call to the port of the file descriptor with the `io_seek`
+RPC ID.
+
+In the root filesystem, it's now the demultiplexer for the `io` interface,
+`diskfs_io_server`, which will recognize the RPC ID, and call `_Xio_seek`,
+which retrieves the data structure for the port, and calls `diskfs_S_io_seek`.
+The latter simply modifies ext2fs' internal data structure to account for the
+file position change, and returns the new position.  `_Xio_seek` encodes the
+position into the reply message, which is sent back by
+`ports_manage_port_operations_multithread` through `mach_msg`.
+
+The `mach_msg` call in the user program thus returns the new offset, decoded by
+`__io_seek`.  `lseek` can then return it to the user application.
+
+
+When hacking, one usually does *not* have to keep all that in mind.  All one
+needs to remember (or look up) is that when the application program calls
+`open`, the glibc implementation actually calls `dir_lookup`, which triggers a
+call to `diskfs_S_dir_lookup` in the ext2fs translator.  When the application
+program calls `lseek`, the glibc implementation calls `__io_seek`, which
+triggers a call to `diskfs_S_io_seek` in the ext2fs translator.  And so on...
+
+
+# Questions and Answers
+
+## How do I know whether a function is an RPC or not?
+
+Simply `grep` the function name (without leading underscores) in the
+`/usr/include/hurd/*.defs` files.
+
+
+## Why is it a libdiskfs function that get called?
+
+Because the filesystem serving the file, ext2fs, is [[libdiskfs]]-based (see
+`HURDLIBS = diskfs` in `ext2fs/Makefile`).  Other translators are
+[[libnetfs]]-based or [[libtrivfs]]-based.  `grep` for RPC names in those
+according to what your translator is based on.
+
+
+## How do I know which translator the RPC gets into?
+
+Check the type of file whose port the RPC was made on. Most files are handled
+by the translator which is mounted where the files are opened. Some special
+files are handled by particular translators:
+
+  * `PF_LOCAL`/`PF_UNIX` sockets are served by [[translator/pflocal]], see
+    [[hurd/networking]];
+  * `PF_INET`/`PF_INET6` sockets are served by [[translator/pfinet]], see
+    [[hurd/networking]];
+  * named sockets (also known as FIFOs) are served by [[translator/fifo]].
+
+
+# See Also
+
+  * [[hurd/debugging/rpctrace]]

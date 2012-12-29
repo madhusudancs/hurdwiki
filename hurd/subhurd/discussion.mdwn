@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2012 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -8,9 +8,10 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
-[[!tag open_issue_documentation]]
+[[!tag open_issue_documentation open_issue_hurd]]
 
-IRC, freenode, #hurd, 2011-08-10
+
+# IRC, freenode, #hurd, 2011-08-10
 
     < braunr> youpi: aren't sub-hurds actually called "neighbor hurds" ?
     < youpi> no idea
@@ -67,3 +68,92 @@ IRC, freenode, #hurd, 2011-08-10
     < antrik> I don't think that's actually supported in the boot
       program... but it doesn't really matter, as you don't really need the
       terminal anyways -- you can always log in through the network
+
+
+# IRC, freenode, #hurd, 2012-07-31
+
+    <gg0> subhurd seems like bsd jail (tried none of them)
+    <antrik> gg0: nope. BSD jails are mostly chroot AIUI. subhurd is quite
+      different
+    <antrik> gg0: you actually boot a completely new system instance
+    <antrik> complete with all the Hurd servers, UNIX daemons etc.
+    <braunr> jails are between subhhurds and chroots :p
+    <braunr> i suppose there is nothing against making the root server of the
+      subhurd use a file instead of a raw disk, is there ?
+    <gg0> well, I said jails cos afaik are more isolated from real system than
+      chroots
+    <braunr> yes
+    <gg0> maybe comparing subhurd to virtual machines would be more
+      appropriated then
+    <braunr> they're not VMs either
+    <gg0> say chroot -> jail -> subhurd -> vm ?
+    <braunr> unless you consider the microkernel to be a hypervisor, with its
+      own architecture, which some actually do
+    <braunr> gg0: something like that, yes
+    <gg0> [system-in-system evolution]
+    <braunr> a subhurd is an operating system instance
+    <braunr> i think the closest analogy you can get is openvz
+    <antrik> yeah, I'd also consider it closest. but it's still quite
+      different: with OpenVZ, the kernel facilities are only logically
+      isolated; but they use the same kernel code. with subhurds, most of the
+      system facilities are independent
+
+
+# IRC, freenode, #hurd, 2012-08-03
+
+    <antrik> hm... are Mach task IDs exposed to userspace?
+    <braunr> antrik: ids ?
+    <braunr> antrik: what do you call a mach task id ?
+    <antrik> task have numeric IDs in the kernel
+    <antrik> I wonder whether these are ever exposed to userspace
+    <braunr> i'm not sure
+    <braunr> i don't remember the had numeric IDs
+    <braunr> they*
+    <antrik> well, perhaps I'm making things up... but I believe I saw such IDs
+      in the debugger and/or in error messages
+    <braunr> probably their address
+    <braunr> or creation time orpc_sample
+    <antrik> braunr: well, any unique ID would do
+    <braunr> antrik: yes but i was wondering what kdb would actually show
+    <antrik> I just realised that it would be useful for debugging accross
+      subhurds or kernel/userspace if some kind of unique task IDs could be
+      shown in ps output
+    <braunr> yes
+    <braunr> this requires some thought though
+    <braunr> ps shouldn't show that
+    <braunr> there should be mach specific commands i suppose
+    <braunr> but then, gdb and other tools wouldn't have access to subhurd
+      tasks either
+    <antrik> why shouldn't ps show that? I don't think it's any more sensitive
+      information than all the other stuff ps shows...
+    <braunr> it doesn't feel right
+    <braunr> i would want my system instances to be truely isolated
+    <braunr> and use special "cross instance" facilities
+    <braunr> when necessary
+    <antrik> that's completely orthogonal to what I'm talking about
+    <braunr> like eth-multiplexer
+    <braunr> you seem to be talking about security
+    <braunr> or privacy
+    <antrik> we discussed such options when zhengda worked on rootless subhurd
+    <antrik> no, I'm talking about convenient debugging
+    <braunr> right
+    <braunr> i don't think it'zs orthogonal here
+    <braunr> if we increase separation, it becomes less convenient
+    <antrik> for debugging purposes you would *not* use the isolation options
+    <braunr> ok so you propose two modes of operations
+    <antrik> BTW, as an isolated subhurd relies on the parent, it makes no
+      sense to hide subhurd tasks from the parent hurd -- only hide parent hurd
+      task from the subhurd
+    <braunr> agreed
+    <antrik> so even with an isolated subhurd global task IDs would still be
+      useful
+
+
+# IRC, freenode, #hurd, 2012-08-06
+
+    <braunr> antrik: if i'm right, the root file system executable is read from
+      the parent, right ?
+    <antrik> braunr: probably... I'm not sure about that part
+    <braunr> antrik: i've installed the same packages in both the main and
+      subhurds to be sure
+    <braunr> and to have the right binary and debugging symbols in gdb anyway

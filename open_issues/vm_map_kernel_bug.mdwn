@@ -1,0 +1,54 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_glibc open_issue_gnumach]]
+
+
+# IRC, frenode, #hurd, 2012-11-04
+
+    <tschwinge> braunr, pinotree, youpi: Has either of you already figured out
+      what [glibc]/sysdeps/mach/hurd/dl-sysdep.c:fmh »XXX loser kludge for
+      vm_map kernel bug« is about?
+    <pinotree> tschwinge: ETOOLOWLEVELFORME :)
+    <pinotree> tschwinge: 5bf62f2d3a8af353fac661b224fc1604d4de51ea added it
+    <braunr> tschwinge: no, but that looks interesting
+    <braunr> i'll have a look later
+    <tschwinge> Heh, "interesting".  ;-)
+    <tschwinge> It seems related to vm_map's mask
+      parameter/ELF_MACHINE_USER_ADDRESS_MASK, though the latter in only used
+      in the mmap implementation in sysdeps/mach/hurd/dl-sysdep.c (in mmap.c, 0
+      is passed; perhaps due to the bug?).
+    <tschwinge> braunr: Anyway, I'd already welcome a patch to simply turn that
+      into a more comprehensible form.
+    <braunr> tschwinge: ELF_MACHINE_USER_ADDRESS_MASK is defined as "Mask
+      identifying addresses reserved for the user program, where the dynamic
+      linker should not map anything."
+    <braunr> about the vm_map parameter, which is a mask, it is described by
+      "Bits asserted in this mask must not be asserted in the address returned"
+    <braunr> so it's an alignment constraint
+    <braunr> the kludge disables alignment, apparently because gnumach doesn't
+      handle them correctly for some cases
+    <tschwinge> braunr: But ELF_MACHINE_USER_ADDRESS_MASK is 0xf8000000, so I'd
+      rather assume this means to restrict to addresses lower than 0xf8000000.
+      (What are whigher ones reserved for?)
+    <braunr> tschwinge: the linker i suppose
+    <braunr> tschwinge: sorry, i don't understand what
+      ELF_MACHINE_USER_ADDRESS_MASK really is used for :/
+    <braunr> tschwinge: it looks unused for the other systems
+    <braunr> tschwinge: i guess it's just one way to partition the address
+      space, so that the linker knows where to load libraries and mmap can
+      still allocate large contiguous blocks
+    <braunr> tschwinge: 0xf8000000 means each "chunk" of linker/other blocks
+      are 128 MiB large
+    <tschwinge> braunr: OK, thanks for looking.  I guess I'll ask Roland about
+      it.
+    <braunr> it could be that gnumach isn't good at aligning to large values
+
+[[!message-id "87fw4pb4c7.fsf@kepler.schwinge.homeip.net"]]

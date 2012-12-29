@@ -1,0 +1,39 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_documentation]]There should be a page listing ways to get
+system statistics, how to interpret them, and some example/expected values.
+
+
+# IRC, frenode, #hurd, 2012-11-04
+
+    <mcsim> Hi, is that normal that memory cache "ipc_port" is 24 Mb already?
+      Some memory has been already swapped out.
+    <mcsim> Other caches are big too
+    <braunr> how many ports ?
+    <mcsim> 45922
+    <braunr> yes it's normal
+    <braunr> ipc_port              0010      76   4k    50  45937 302050
+      24164k       4240k
+    <braunr> it's a bug in exim
+    <braunr> or triggered by exim, from time to time
+    <braunr> lots of ports are created until the faulty processes are killed
+    <braunr> the other big caches you have are vm_object and vm_map_entry,
+      probably because of a big build like glibc
+    <braunr> and if they remain big, it's because there was no memory pressure
+      since they got big
+    <braunr> memory pressure can only be caused by very large files on the
+      hurd, because of the limited page cache size (4000 objects at most)
+    <braunr> the reason you have swapped memory is probably because of a glibc
+      test that allocates a very large (more than 1.5 GiB iirc) block and fills
+      it
+    <mcsim> yes
+    <braunr> (a test that fails with the 2G/2G split of the debian kernel, but
+      not on your vanilla version btw)
