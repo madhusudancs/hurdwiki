@@ -1,0 +1,97 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+
+# IRC, freenode, #hurd, 2013-01-05
+
+    <youpi> so we have a "remap" root translator?
+    <youpi> I  mean this:
+    <youpi> I'd run my shell in a subhurd whose only difference is that the
+      root is not the system's root, but my own
+    <youpi> which catches accesses to /servers/socket/2 for instance
+    <youpi> but leaves the rest flow through the system's root
+    <braunr> there is just boot, i don't think it can do that
+    <youpi> it'd be useful to have that
+    <youpi> it'd be a very useful feature
+    <youpi> to use another tcp/ip stack etc.
+    <braunr> what happens when translators need to locate other translators
+      used by the client ?
+    <youpi> can't it tell the client to ask the real system's root?
+    <youpi> (with the same path)
+    <youpi> I don't remember the exact reply name
+    <braunr> hum, it's getting too fuzzy for my head :p
+    <youpi> well, I mean it's just like translator entries in an ext2fs
+    <youpi> ext2fs replies "not me, this one"
+    <braunr> but what if e.g. a user has its own pflocal, and when calling
+      another translator, that one wants to contact the pflocal used by the
+      client ?
+    <youpi> ah, that won't work of course
+    <braunr> do we actually have such cases btw ?
+    <braunr> procfs perhaps
+    <youpi> I don't think we'd want it actually
+    <braunr> but isn't that required sometimes ?
+    <youpi> inside a shell script, yes
+    <braunr> for example, a storeio translator could ask about the priority
+      properties of the client to proc
+    <youpi> but I don't remember a case where an external translator would need
+      the access
+    <youpi> well, that's actually what we want
+    <youpi> we don't want to fool the storeio with user-provided data :)
+    <braunr> yes
+    <youpi> unless the user starts the storeio himself, in which case he will
+      have to re-root it
+    <braunr> so it has to locate the right translator, despite not using the
+      remap root translator
+    <youpi> err, it will already
+    <youpi> by just using the system's path
+    <braunr> ?
+    <youpi> maybe you need to say exactly what "it" and "right" are :)
+    <braunr> ok, let's imagine your previous example with a subhurd and pfinet
+    <braunr> the remap translator would imply that users from the subhurd
+      *directly* access all services from the main hurd, except when routed
+      otherwise by the remap translator to pfinet
+    <youpi> by "directly", I mean asking the remap translator, which gives as
+      answer "not me, the root"
+    <braunr> now, what if a translator in the main hurd wants e.g. network
+      stats from pfinet, it will ask the main one, not the one obtained through
+      remap
+    <braunr> yes
+    <youpi> that's completely fine
+    <braunr> ah
+    <braunr> that's fine if the results don't matter
+    <youpi> to get network stats from the user pfinet you'd have to be inside
+      the shell using the remap translator
+    <braunr> otherwise they're inconsistent
+    <braunr> yes
+    <youpi> I don't see why you'd want to get the pfinet stats from outside
+    <youpi> you mean ethernet board usage?
+    <braunr> service interactions
+    <braunr> i can't think of anything relevant with pfinet
+    <braunr> but imagine pflocal and credentials
+    <youpi> I believe that'd still be ok
+    <youpi> i.e. things outside the remap want to know the actual system things
+    <youpi> while things inside want to know the remapped things
+    <youpi> and you need that to avoid getting fooled by the user remapping
+    <braunr> for credentials, i think it works because the client provides
+      rights, so it would provide rights to the remapped translators in this
+      case
+    <braunr> this would need to be generalized
+    <youpi> I believe it's already general
+    <braunr> well no
+    <braunr> procfs for example will always talk to the "true" proc server
+    <youpi> sure
+    <youpi> that's what I want from the outside
+    <youpi> if the user, from the inside, wants another view, he'll have to
+      start another procfs
+    <youpi> his own one
+    <braunr> ok
+    <youpi> attached to the remapping

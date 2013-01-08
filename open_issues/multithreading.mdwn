@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2010, 2011, 2012 Free Software Foundation,
+[[!meta copyright="Copyright © 2010, 2011, 2012, 2013 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -11,7 +11,8 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_hurd]]
 
-Hurd servers / VFS libraries are multithreaded.
+Hurd servers / VFS libraries are multithreaded.  They can even be said to be
+"hyperthreaded".
 
 
 # Implementation
@@ -22,8 +23,70 @@ Hurd servers / VFS libraries are multithreaded.
 
       * [[hurd/libpthread]]
 
+## IRC, freenode, #hurd, 2011-04-20
+
+    <braunr> so basically, a thread should consume only a few kernel resources
+    <braunr> in GNU Mach, it doesn't even consume a kernel stack because only
+      continuations are used
+
+[[microkernel/mach/gnumach/continuation]].
+
+    <braunr> and in userspace, it consumes 2 MiB of virtual memory, a few table
+      entries, and almost no CPU time
+    <svante_> What does "hyperthreaded" mean: Do you have a reference?
+    <braunr> in this context, it just means there are a lot of threads
+    <braunr> even back in the 90s, the expected number of threads could scale
+      up to the thousand
+    <braunr> today, it isn't much impressive any more
+    <braunr> but at the time, most systems didn't have LWPs yet
+    <braunr> and a process was very expensive
+    <svante_> Looks like I have some catching up to do: What is "continuations"
+      and LWP? Maybe I also need a reference to an overview on multi-threading.
+    <ArneBab> Lightweight process?
+      http://en.wikipedia.org/wiki/Light-weight_process
+    <braunr> LWPs are another names for kernel threads usually
+    <braunr> most current kernels support kernel preemption though
+
+[[microkernel/mach/gnumach/preemption]].
+
+    <braunr> which means their state is saved based on scheduler decisions
+    <braunr> unlike continuations where the thread voluntarily saves its state
+    <braunr> if you only have continuations, you can't have kernel preemption,
+      but you end up with one kernel stack per processor
+    <braunr> while the other model allows kernel preemption and requires one
+      kernel stack per thread
+    <svante_> I know resources are limited, but it looks like kernel preemption
+      would be nice to have. Is that too much for a GSoC student?
+    <braunr> it would require a lot of changes in obscure and sensitive parts
+      of the kernel
+    <braunr> and no, kernel preemption is something we don't actually need
+    <braunr> even current debian linux kernels are built without kernel
+      preemption
+    <braunr> and considering mach has hard limitations on its physical memory
+      management, increasing the amount of memory used for kernel stacks would
+      imply less available memory for the rest of the system
+    <svante_> Are these hard limits in mach difficult to change?
+    <braunr> yes
+    <braunr> consider mach difficult to change
+    <braunr> that's actually one of the goals of my stalled project
+    <braunr> which I hope to resume by the end of the year :/
+    <svante_> Reading Wikipedia it looks like LWP are "kernel treads" and other
+      threads are "user threads" at least in IBM/AIX. LWP in Linux is a thread
+      sharing resources and in SunOS they are "user threads". Which is closest
+      for Hurd?
+    <braunr> i told you
+    <braunr> 14:09 < braunr> LWPs are another names for kernel threads usually
+    <svante_> Similar to to the IBM definition then? Sorry for not remembering
+      what I've  been reading.
+
 
 # Design
+
+## Application Programs
+
+### [[glibc/signal/signal_thread]]
+
+## Hurd Servers
 
 See [[hurd/libports]]: roughly using one thread per
 incoming request.  This is not the best approach: it doesn't really make sense
@@ -37,7 +100,7 @@ Control*](http://soft.vub.ac.be/~tvcutsem/talks/presentations/T37_nobackground.p
 Tom Van Cutsem, 2009.
 
 
-## IRC, freenode, #hurd, 2012-07-08
+### IRC, freenode, #hurd, 2012-07-08
 
     <youpi> braunr: about limiting number of threads, IIRC the problem is that
       for some threads, completing their work means triggering some action in
@@ -49,7 +112,7 @@ Tom Van Cutsem, 2009.
     <youpi> right
 
 
-## IRC, freenode, #hurd, 2012-07-16
+### IRC, freenode, #hurd, 2012-07-16
 
     <braunr> hm interesting
     <braunr> when many threads are creating to handle requests, they
@@ -134,7 +197,7 @@ Tom Van Cutsem, 2009.
     <braunr> (i still strongly believe those shouldn't be used at all)
 
 
-## IRC, freenode, #hurd, 2012-08-31
+### IRC, freenode, #hurd, 2012-08-31
 
     <braunr> and the hurd is all but scalable
     <gnu_srs> I thought scalability was built-in already, at least for hurd??
@@ -157,7 +220,7 @@ Tom Van Cutsem, 2009.
     <braunr> a very common mistake of the early 90s
 
 
-## IRC, freenode, #hurd, 2012-09-06
+### IRC, freenode, #hurd, 2012-09-06
 
     <braunr> mel-: the problem with such a true client/server architecture is
       that the scheduling context of clients is not transferred to servers
@@ -203,7 +266,7 @@ Tom Van Cutsem, 2009.
       async by nature, will create messages floods anyway
 
 
-# Alternative approaches:
+## Alternative approaches:
 
   * <http://www.concurrencykit.org/>
 

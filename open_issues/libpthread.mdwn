@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2010, 2011, 2012 Free Software Foundation,
+[[!meta copyright="Copyright © 2010, 2011, 2012, 2013 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -1257,6 +1257,19 @@ There is a [[!FF_project 275]][[!tag bounty]] on this task.
     <braunr> i'll add traces to know which step causes the error
 
 
+### IRC, freenode, #hurd, 2012-12-11
+
+    <youpi> braunr: mktoolnix seems like a reproducer for the libports thread
+      priority issue
+    <youpi> (3 times)
+    <braunr> youpi: thanks
+    <braunr> youpi: where is that tool packaged ?
+    <pinotree> he probably means the mkvtoolnix source
+    <braunr> seems so
+    <braunr> i don't find anything else
+    <youpi> that's it, yes
+
+
 ## IRC, freenode, #hurd, 2012-12-05
 
     <braunr> tschwinge: i'm currently working on a few easy bugs and i have
@@ -1326,3 +1339,123 @@ There is a [[!FF_project 275]][[!tag bounty]] on this task.
     <braunr> i wondered for a long time why the load average was so high on the
       hurd under even "light" loads
     <braunr> now i know :)
+
+
+## IRC, freenode, #hurd, 2012-12-27
+
+    <youpi> btw, good news: the installer works with libpthread
+    <youpi> (well, at least boots, I haven't tested the  installation)
+    <braunr> i can do that if the image is available publically
+    <braunr> youpi: the one thing i suspect won't work right is the hurd
+      console :/
+    <braunr> so we might need to not enable it by default
+    <youpi> braunr: you mean the mode setting?
+    <braunr> youpi: i don't know what's wrong with the hurd console, but it
+      seems to deadlock with pthreads
+    <youpi> ah?
+    <youpi> I don't have such issue
+    <braunr> ah ? i need to retest that then
+
+Same issue as [[term_blocking]] perhaps?
+
+
+## IRC, freenode, #hurd, 2013-01-06
+
+    <youpi> it seems fakeroot has become slow as hell
+    <braunr> fakeroot is the main source of dead name notifications
+    <braunr> well, a very heavy one
+    <braunr> with pthreads hurd servers, their priority is raised, precisely to
+      give them time to handle those dead name notifications
+    <braunr> which slows everything else down, but strongly reduces the rate at
+      which additional threads are created to handle dn notifications
+    <braunr> so this is expected
+    <youpi> ok :/
+    <braunr> which is why i mentioned a rewrite of io_select into a completely
+      synchronous io_poll
+    <braunr> so that the client themselves remove their requests, instead of
+      the servers doing it asynchronously when notified
+    <youpi> by "slows everything else down", you mean, if the servers do take
+      cpu time?
+    <braunr> but considering the amount of messaging it requires, it will be
+      slow on moderate to large fd sets with frequent calls (non blocking or
+      low timeout)
+    <braunr> yes
+    <youpi> well here the problem is not really it gets slowed down
+    <youpi> but that e.g. for gtk+2.0 build, it took 5h cpu time
+    <youpi> (and counting)
+    <braunr> ah, the hurd with pthreads is noticeably slower too
+    <braunr> i'm not sure why, but i suspect the amount of internal function
+      calls could account for some of the overhead
+    <youpi> I mean the fakeroot process
+    <youpi> not the server process
+    <braunr> hum
+    <braunr> that's not normal :)
+    <youpi> that's what I meant
+    <braunr> well, i should try to build gtk+20 some day
+    <braunr> i've been building glibc today and it's going fine for now
+    <youpi> it's the install stage which poses problem
+    <youpi> I've noticed it with the hurd package too
+    <braunr> the hurd is easier to build
+    <braunr> that's a good test case
+    <braunr> there are many times when fakeroot just doesn't use cpu, and it
+      doesn't look like a select timeout issue (it still behaved that way with
+      my fixed branch)
+    <youpi> in general, pfinet is taking really a lot of cpu time
+    <youpi> that's surprising
+    <braunr> why ?
+    <braunr> fakeroot uses it a lot
+    <youpi> I know
+    <youpi> but still
+    <youpi> 40% cpu time is not normal
+    <youpi> I don't see why it would need so much cpu time
+    <braunr> 17:57 < braunr> but considering the amount of messaging it
+      requires, it will be slow on moderate to large fd sets with frequent
+      calls (non blocking or low timeout)
+    <youpi> by "it", what did you mean?
+    <youpi> I thought you meant the synchronous select implementation
+    <braunr> something irrelevant here
+    <braunr> yes
+    <braunr> what matters here is the second part of my sentence, which is what
+      i think happens now
+    <youpi> you mean it's the IPC overhead which is taking so much time?
+    <braunr> i mean, it doesn't matter if io_select synchronously removes
+      requests, or does it by destroying ports and relying on notifications,
+      there are lots of messages in this case anyway
+    <braunr> yes
+    <youpi> why "a lot" ?
+    <youpi> more than one per select call?
+    <braunr> yes
+    <youpi> why ?
+    <braunr> one per fd
+    <braunr> then one to wait
+    <youpi> there are two in faked
+    <braunr> hum :)
+    <braunr> i remember the timeout is low
+    <braunr> but i don't remember its value
+    <youpi> the timeout is NULL in faked
+    <braunr> the client then
+    <youpi> the client doesn't use select
+    <braunr> i must be confused
+    <braunr> i thought it did through the fakeroot library
+    <braunr> but yes, i see the same behaviour, 30 times more cpu for pfinet
+      than faked-tcp
+    <braunr> or let's say between 10 to 30
+    <braunr> and during my tests, these were the moments the kernel would
+      create lots of threads in servers and fail because of lack of memory,
+      either kernel memory, or virtual in the client space (filled with thread
+      stacks)
+    <braunr> it could be due to threads spinning too much
+    <braunr> (inside pfinet)
+    <youpi> attaching a gdb shows it mostly inside __pthread_block
+    <youpi> uh, how awful pfinet's select is
+    <youpi> a big global lock
+    <youpi> whenever something happens all threads get woken up
+    <pinotree> BKL!
+    * pinotree runs
+    <braunr> we have many big hurd locks :p
+    <youpi> it's rather a big translator lock
+    <braunr> more than a global lock it seems, a global condvar too, isn't it ?
+    <youpi> sure
+    <braunr> we have a similar problem with the hurd-specific cancellation
+      code, it's in my todo list with io_select
+    <youpi> ah, no, the condvar is not global
