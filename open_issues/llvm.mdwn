@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2012 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -8,10 +8,155 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
-[[!tag open_issue_llvm open_issue_porting]]
+[[!tag open_issue_llvm]]
 
-[LLVM](http://www.llvm.org/) needs a little bit of porting for being usable on
-GNU/Hurd.
+Here's what's to be done for maintaining [[/LLVM]].
 
-Apparently this has already been done within Debian;
-<http://anonscm.debian.org/viewvc/pkg-llvm/llvm/trunk/debian/patches/>.
+Apart from the target-specific configuration machinery, there shouldn't be any
+major differences within LLVM between the GNU/Hurd and GNU/Linux ports, for
+example.  Especially all the compiler magic is all the same.
+
+[[!toc levels=2]]
+
+
+# [[General information|/llvm]]
+
+
+# [[Sources|source_repositories/llvm]]
+
+
+# Configuration
+
+<!--
+
+For all of llvm, clang, compiler-rt, test-suite:
+
+git checkout reviewed
+git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..upstream/master
+-i
+/^commit |^merge:|^---$|hurd|linux|nacl|nptl|glibc|gs:
+
+-->
+
+Last reviewed up to the [[Git mirror's sources|source_repositories/llvm]]: llvm
+llvmf85ec865f0f803273ab38e3b1a19fe185c7e88ac (2012-12-23), clang
+debc018be39668db5cefb6418cd210aa716d6e7a (2012-12-23), compiler-rt
+cab6133c5d7478e96882cb54467e29b3716c0d89 (2012-12-23), test-suite
+1451ba86fc87d067ed3d244352e4025a8134b0a7 (2012-12-23).
+
+  * Configure fragments that have `*linux*` cases might/should often contain
+    those for us (and GNU/k*BSD) as well.
+
+  * <http://anonscm.debian.org/viewvc/pkg-llvm/llvm/trunk/debian/patches/>.
+
+  * [low] Some `PATH_MAX`/`MAXPATHLEN` things.
+
+  * Review `gs:` usage in `[llvm]/lib/Target/X86/`, `[llvm]/test/CodeGen/X86/`,
+    `[llvm]/test/MC/X86/`.
+./clang/tschwinge/Hank_Mobley/docs/LanguageExtensions.rst:          movl    %gs:(%eax), %eax
+./clang/tschwinge/Hank_Mobley/test/Sema/asm.c:  asm volatile ("movb %%gs:%P2,%b0" : "=q"(b) : "0"(0), "i"(5L));
+
+
+# Build
+
+Here's a log of a LLVM build run; this is from our [[Git repository's
+sources|source_repositories/llvm]], llvm
+llvmf85ec865f0f803273ab38e3b1a19fe185c7e88ac (2012-12-23), clang
+debc018be39668db5cefb6418cd210aa716d6e7a (2012-12-23), compiler-rt
+cab6133c5d7478e96882cb54467e29b3716c0d89 (2012-12-23), test-suite
+1451ba86fc87d067ed3d244352e4025a8134b0a7 (2012-12-23), run on kepler.SCHWINGE
+and coulomb.SCHWINGE.
+
+    $ export LC_ALL=C
+    $ (cd ../Horace_Silver/ && ln -sfn ../../../clang/tschwinge/Hank_Mobley tools/clang)
+    $ (cd ../Horace_Silver/ && ln -sfn ../../../compiler-rt/tschwinge/Doug_Watkins projects/compiler-rt)
+    $ (cd ../Horace_Silver/ && ln -sfn ../../../test-suite/tschwinge/Art_Blakey projects/test-suite)
+    $ ../Horace_Silver/configure --prefix="$PWD".install --enable-optimized SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 2>&1 | tee log_build
+    $ make VERBOSE=1 2>&1 | tee log_build_
+
+Different hosts may default to different shells and compiler versions; thus
+harmonized.
+
+Passing `--enable-debug-symbols`, the GNU/Hurd build terminates with a SIGBUS
+when linking `Release+Debug+Asserts/bin/clang` (which is bigger than 500 MiB
+for the corresponding GNU/Linux build).
+
+This takes up around 3 GiB, and needs roughly 1.75 h on kepler.SCHWINGE and
+4.25 h on coulomb.SCHWINGE.
+
+<!--
+
+    $ (make VERBOSE=1 && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make VERBOSE=1 install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && { make -k VERBOSE=1 LIT_ARGS='-v --threads=1' check-all 2>&1 | tee log_test_check-all; make -k -C projects/test-suite/ 2>&1 | tee log_test_test-suite; }
+
+-->
+
+
+## Analysis
+
+    $ toolchain/logs/process llvm build
+
+        -checking type of operating system we're going to host on... Linux
+        -checking type of operating system we're going to target... Linux
+        +checking type of operating system we're going to host on... GNU
+        +checking type of operating system we're going to target... GNU
+
+        -checking mach/mach.h usability... no
+        -checking mach/mach.h presence... no
+        -checking for mach/mach.h... no
+        +checking mach/mach.h usability... yes
+        +checking mach/mach.h presence... yes
+        +checking for mach/mach.h... yes
+
+        -checking for mmap of files... yes
+        +checking for mmap of files... no
+         checking if /dev/zero is needed for mmap... no
+        +configure: WARNING: mmap() of files required but not found
+
+   Due to [[mmap_write-only]].
+
+        -checking type of operating system we're going to target... Linux
+        +checking type of operating system we're going to target... Unknown
+
+        +In file included from [...]/tschwinge/Horace_Silver/lib/Support/Process.cpp:29:0:
+        +[...]/tschwinge/Horace_Silver/lib/Support/Unix/Process.inc: In function 'unsigned int getColumns(int)':
+        +[...]/tschwinge/Horace_Silver/lib/Support/Unix/Process.inc:220:21: warning: enumeral and non-enumeral type in conditional expression [enabled b
+
+        include/llvm/Config/*
+        Makefile.config
+
+TODO
+
+
+# Install
+
+    $ make VERBOSE=1 install 2>&1 | tee log_install
+
+This takes up around 350 MiB, and needs roughly 1 min on kepler.SCHWINGE and 12
+min on coulomb.SCHWINGE.
+
+
+## Analysis
+
+    $ toolchain/logs/process llvm install
+
+TODO
+
+
+# Testsuite
+
+    $ make -k VERBOSE=1 LIT_ARGS='-v --threads=1' check-all 2>&1 | tee log_test_check-all
+    $ make -k -C projects/test-suite/ 2>&1 | tee log_test_test-suite
+
+`LIT_ARGS=-v` is default for `VERBOSE=1`, but we want only one worker thread,
+for stable order and usable test output log.
+
+This needs roughly 10 min (`check-all`) + 145 min (test-suite) = 155 min on
+kepler.SCHWINGE and 40 min (`check-all`) + 80 min (test-suite) = 120 min on
+coulomb.SCHWINGE.
+
+
+## Analysis
+
+    $ toolchain/logs/process llvm test
+
+TODO
