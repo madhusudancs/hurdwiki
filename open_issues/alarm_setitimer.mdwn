@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2012, 2013 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -29,3 +29,153 @@ for a signal, while on GNU/Hurd it gets a new alarm and exits.
     <braunr> it seems doesn't seem to leave a timer disarmed when the interval
       is set to 0
     <braunr> (which means a one shot timer is actually periodic ..)
+
+
+## IRC, freenode, #hurd, 2012-12-26
+
+    <braunr> youpi: tschwinge: the setitimer issue
+      http://www.gnu.org/software/hurd/open_issues/alarm_setitimer.html) is
+      because of the global preemptor installed by setitimer not being run when
+      sigalrm is catched
+    <braunr> if anyone has a good definition for a preemptor, let us know (mine
+      is currently "something that is scanned on signal delivery and can alter
+      this delivery")
+    <youpi> I don't have any better definition
+    <pinotree> braunr: ah, that explains indeed
+    <pinotree> thanks
+    <braunr> i think i found the problem :)
+    <braunr> seems to be a minor overlook from drepper
+    <braunr> (or the real author if he was only the committer)
+    <braunr> hurd_preempt_signals augments _hurdsig_preempted_set with the
+      signals from the installed preemptor
+    <braunr> but the inline version in setitimer doesn't
+    <braunr> and post_signal actually checks that
+    <braunr> the preemptor itself looks wrong, since its sigcode range is 0, 0
+      whereas SI_TIMER is used when raising SIGALRM ...
+    <braunr> ah but that's a recent change, right
+    <braunr> it came with "implement SA_SIGINFO signal handlers"
+      (e19a2fad70b187e5efe79768f86a1f05cb5e0390, Tue Feb 21 02:41:18 2012)
+    <braunr> yes, fixed :)
+    <braunr> patch committed at
+      http://git.savannah.gnu.org/cgit/hurd/glibc.git/log/?h=rbraun/setitimer_fix
+    <youpi> and pushed to the debian package
+
+
+## IRC, freenode, #hurd, 2012-12-27
+
+    <braunr> do we know any application that was broken because of setitimer ?
+    <pinotree> braunr: bits in the python and perl test suites
+    <braunr> ok
+
+
+## IRC, freenode, #hurd, 2012-12-28
+
+    <pinotree> braunr: ah, also libglib-perl's testsuite is affected by the
+      alarm/setitimer issue
+    <braunr> pinotree: only tests ? :(
+    <pinotree> braunr: yeah
+    <braunr> ok, we don't win that much on this fix, but anyway, still good to
+      have
+    <pinotree> but that source is pretty quick to compile and check
+    <pinotree> braunr: eh, so far that's what i found myself
+
+
+## IRC, freenode, #hurd, 2013-01-04
+
+See also [[select]].
+
+    <youpi> bummer, we have broken ghc completely with the latest glibc patches
+    <pinotree> youpi: what do you mean?
+    <youpi> pinotree: it just hangs on installation
+
+
+## IRC, freenode, #hurd, 2013-01-05
+
+    <youpi> pinotree: it seems ghc was disturbed by the setitimer patch
+    <youpi> pinotree: http://paste.debian.net/221807/
+    <youpi> pinotree: it seems to be simply due to nested locking of
+      _hurd_siglock :/
+    <youpi> pinotree: I wonder whether this code has ever been really tested
+    <youpi> oops
+    <youpi> braunr: my comments above were for you actually :)
+    <youpi> braunr: see the update I've just commited to the debian patch
+    <youpi> I've added a parameter to setitimer_locked, to know whether the
+      lock is already taken or not
+    <youpi> that does fix ghc
+    <youpi> as well as the gdb ntpdate hang, apparently
+    <youpi> I can confirm that the single-select patch breaks ntpdate for some
+      reason
+    <youpi> I wonder whether it could be due to port set behavior being
+      different from single reply port
+    <youpi> I believe I understand what happens
+
+[[select_vs_signals]].
+
+    <youpi> I'll rebuild ntpdate with a 1s timeout
+    <youpi> that'll at least fix that
+    <youpi> rah, no, doesn't work, it insists on getting its alarm
+    <youpi> Mmm, no, the __mach_msg call doesn't even return
+    <youpi> even though MACH_RCV_TIMEOUT is set, and to is 1000
+    <braunr> youpi: i see
+    <braunr> gnu_srs: and you, see how youpi analysed and understood the
+      problem, instead of just guessing :p
+    <braunr> youpi: it doesn't return ?
+    <braunr> iirc, the __mach_msg wrapper deals with the interruptible flag
+    <youpi> braunr: yes, __mach_msg deals with the interruptible flag by
+      looping !
+    <youpi> and the info page says it: if it's interrupted too often, it may
+      just never return
+    <youpi> that's what actually happens here
+    <youpi> (ntpdate sets an itimer more often than every 1s)
+    <braunr> youpi: ew :)
+    <youpi> I'll test a bit more, and submit a patch
+    <pinotree> youpi: otoh a _locker function usually means it expects a locked
+      mutex ;)
+    <pinotree> i also i wondered whether there could be a race in the settimer
+      mini-thread, between its mach_msg and its reading of the interval
+    <youpi> pinotree: right, we could as well just lock anyway
+    <youpi> there could be indeed
+    <pinotree> youpi: i don't know much about the internals of signal
+      dispatching, but could it happen the following:
+    <pinotree> in timer thread, mach_msg expires → sig_post_request → before
+      the main thread receives/processes the signal, the timer thread iterates
+      again on its while(1), using the same interval previously used
+    <pinotree> ?
+    <youpi> did you check the comment above __msg_sig_post_request?
+    <pinotree> ah ok
+    <youpi> I'm not sure how that works, but it's supposed to :)
+    <pinotree> just wonder: wouldn't it be simplier if the logic to change the
+      timeout would be in the timer thread, instead of relying on the main
+      thread adjusting it?
+    <youpi> maybe there are some semantic details that wouldn't be right with
+      such approach
+    <pinotree> i see
+    <pinotree> i guess so if the new interval is 0, the thread can be properly
+      suspened (or killed, if the former fails)
+    <youpi> could be something like this, yes
+    <pinotree> youpi: ah, wrt your comments of tonight: at least with the
+      current setitimer patch (in -38), a simple alarm() test app works, and i
+      saw few python tests can be reenabled now
+    <youpi> ok
+    <pinotree> so even if not totally correct, at least it had some positive
+      effects
+    <pinotree> youpi: wrt the double lock issue of _hurd_siglock, what about
+      using the "crit" parameter of setitimer_locked?
+    <youpi> it may have various values
+    <youpi> depending whether we're already in the critical section etc.
+    <pinotree> restart_itimer does not take that lock, so we could check
+      whether crit is null, and in that case not even bothering to check the
+      signal preemptors, since it was called as a result of own setitimer
+      thread?
+    <youpi> I'd rather avoid binding whether the mutex is held to whether the
+      call is coming from the actual premptor
+    <youpi> again, crit may be null if we're already in the critical section
+      when setitimer is called
+    <braunr> setitimer already does unclean things with preemptors
+    <youpi> not a good thing to add more :)
+    <pinotree> fair enough, so a simple bool should do the job
+    <braunr> i mean, the whole thing is "cheezoid" :)
+    <braunr> it probably needs a rewrite some day
+    <braunr> so "in the meantime" (of years, i know)
+    <pinotree> braunr: and temporary, too
+    <braunr> but a bool is fine too, sure :)

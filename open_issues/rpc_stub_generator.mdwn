@@ -1,0 +1,99 @@
+[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_mig]]
+
+
+# Originally in context of [[user/jkoenig/java]]
+
+  * [[tschwinge]] has to read about RMI and CORBA.
+
+  * MIG
+
+      * Hacking [[microkernel/mach/MIG]] shouldn't be too difficult.
+
+          * (Unless you want to make MIG's own code (that is, not the generated
+            code, but MIG itself) look a bit more nice, too.)  ;-)
+
+      * There are also alternatives to MIG.  If there is interest, the following
+        could be considered:
+
+          * FLICK ([[!GNU_Savannah_task 5723]]).  [[tschwinge]] has no idea yet if
+            there would be any benefits over MIG, like better modularity (for the
+            backends)?  If we feel like it, we could spend a little bit of time on
+            this.
+
+          * For [[microkernel/Viengoos]], Neal has written a RPC stub generator
+            entirely in C Preprocessor macros.  While this is obviously not
+            directly applicable, perhaps we can get some ideas from it.
+
+          * Anything else that would be worth having a look at?  (What are other
+            microkernels using?)
+
+
+# IRC, freenode, #hurd, 2012-12-27
+
+    <braunr> i'll soon have userspace on x15, and begin system calls, and of
+      course IPC
+    <braunr> and, since i personally have a strong disgust for IDLs, i was
+      thinking of manually writing the RPC "stubs", with helper functions and
+      macros
+    <braunr> what do you think of that ?
+    <pinotree> IDLs could have the advantage you can generate any kind of
+      language output out of them
+    <youpi> I'd not recommend that
+    <youpi> as ugly as IDLs are, they are useful
+    <pinotree> maybe pick something with proper per-arch types and
+      structs... :)
+    <braunr> youpi: what feature do you consider that important in an IDL ?
+    <braunr> i mean important enough to want to keep it
+    <youpi> argument matching between client and server code
+    <braunr> well obviously, but system wide protocols such as the hurd's tend
+      not to change much
+    <youpi> we've still seen bugs about that
+    <youpi> even without changing the protocol
+    <braunr> pinotree: i agree about the language thing, but wrapping libraries
+      also do
+    <braunr> what IDL would you then recommend ?
+    <pinotree> corba! :p
+    * pinotree runs
+    <braunr> well don't run
+    <braunr> it's actually at the top of my list :p
+    <braunr> the parser is free, and allows writing custom backends
+    <braunr> and there is already support for many languages
+    * pinotree some time ago fixed omniorb in debian
+    <pinotree> (to compile on hurd, i mean)
+    <braunr> i thought i could delay this problem some more but it's actually
+      coming quite fast :/
+    <braunr> i suppose it would make sense to use an already popular IDL so
+      that support for other languages is readily available
+    <pinotree> and/or people already know it
+    <braunr> hm that's secondary imo
+    <braunr> it's not that hard to learn an idl (providing it's simple,
+      i.e. not mig-like)
+    <braunr> hm how about google protocol buffers ?
+    <pinotree> wow, not bad at a first glance (never seen it)
+    <pinotree> structs, optional fields, builtin strings
+    <braunr> the nice thing about it is that it focuses on serialization most,
+      but has basic rpc support that allows using whatever communication
+      channel you want
+    <braunr> it may still be overkill for a microkernel based system
+    <pinotree> otoh rpc is everything in a microkernel-based os
+    <braunr> when i say overkill, i mean too slow
+    <pinotree> we still have 1024-sized string_t...
+    <braunr> yes, mig is totally hairy ...
+    <braunr> hum, c++ only, no c :/
+    <pinotree> there seems to be a C compiler, install protobuf-c-compiler
+    <braunr> v0.15, doesn't seem widely used
+    <pinotree> even on 0.14 (currently in debian)
+    <braunr> it also seems to rely on contiguous messages, whereas i want
+      scatter-gather to be used with x15
+    <braunr> once more, i fell back on omg idl
+    <braunr> oh, there is also flick that looks interesting

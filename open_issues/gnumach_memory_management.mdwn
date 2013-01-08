@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2011, 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2012, 2013 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -1026,6 +1027,9 @@ There is a [[!FF_project 266]][[!tag bounty]] on this task.
     < braunr> cache for kernel map entries in vm_map ?
     < braunr> the comment for mem_cpu_pool_get doesn't apply in gnumach, as
       there is no kernel preemption
+
+[[microkernel/mach/gnumach/preemption]].
+
     < braunr> "Don't attempt mem GC more frequently than hz/MEM_GC_INTERVAL
       times a second.
     < braunr> "
@@ -2182,3 +2186,44 @@ There is a [[!FF_project 266]][[!tag bounty]] on this task.
     <braunr> also, i wrote the implementation in userspace, without
       functionality pmap provides (although i could have emulated it
       afterwards)
+
+
+# IRC, freenode, #hurd, 2013-01-06
+
+    <youpi> braunr: panic: vm_map: kentry memory exhausted
+    <braunr> youpi: ouch
+    <youpi> that's what I usually get
+    <braunr> ok
+    <braunr> the kentry area is a preallocated memory area that is used to back
+      the vm_map_kentry cache
+    <braunr> objects from this cache are used to describe kernel virtual memory
+    <braunr> so in this case, i simply assume the kentry area must be enlarged
+    <braunr> (currently, both virtual and physical memory is preallocated, an
+      improvement could be what is now done in x15, to preallocate virtual
+      memory only
+    <braunr> )
+    <youpi> Mmm, why do we actually have this limit?
+    <braunr> the kentry area must be described by one entry
+    <youpi> ah, sorry, vm/vm_resident.c:       kentry_data =
+      pmap_steal_memory(kentry_data_size);
+    <braunr> a statically allocated one
+    <youpi> I had missed that one
+    <braunr> previously, the zone allocator would do that
+    <braunr> the kentry area is required to avoid recursion when allocating
+      memory
+    <braunr> another solution would be a custom allocator in vm_map, but i
+      wanted to use a common cache for those objects too
+    <braunr> youpi: you could simply try doubling KENTRY_DATA_SIZE
+    <youpi> already doing that
+    <braunr> we might even consider a much larger size until it's reworked
+    <youpi> well, it's rare enough on buildds already
+    <youpi> doubling should be enough
+    <youpi> or else we have leaks
+    <braunr> right
+    <braunr> it may not be leaks though
+    <braunr> it may be poor map entry merging
+    <braunr> i'd expected the kernel map entries to be easier to merge, but it
+      may simply not be the case
+    <braunr> (i mean, when i made my tests, it looked like there were few
+      kernel map entries, but i may have missed corner cases that could cause
+      more of them to be needed)

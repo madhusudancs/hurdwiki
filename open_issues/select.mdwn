@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2010, 2011, 2012 Free Software Foundation,
+[[!meta copyright="Copyright © 2010, 2011, 2012, 2013 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -1629,6 +1629,412 @@ IRC, unknown channel, unknown date:
     <braunr> gdb can't attach correctly to exim, so it's probably something
       completely different
     <braunr> i'll try the non intrusive mode
+
+
+## IRC, freenode, #hurd, 2012-12-11
+
+    <gnu_srs1> braunr: What is the technical difference of having the delay at
+      io_select compared to mach_msg for one FD?
+    <braunr> gnu_srs1: it's a slight optimization
+    <braunr> instead of doing a send and a receive, the same mach_msg call is
+      used for both
+    <braunr> (for L4 guys it wouldn't be considered a slight optimization :))
+
+
+## IRC, freenode, #hurd, 2012-12-17
+
+    <braunr> tschwinge:
+      http://git.savannah.gnu.org/cgit/hurd/glibc.git/log/?h=rbraun/select_timeout_for_one_fd
+    <braunr> gnu_srs: talking about that, can you explain :
+    <braunr> "- The pure delay case is much faster now, making it necessary to                                                                                                                                                    
+    <braunr> introduce a delay of 1 msec when the timeout parameter is set to
+      zero.                                                                                                                                              
+    <braunr> "
+    <gnu_srs> I meant poll with zero delay needs a delay to make sure the file
+      descriptors are ready. Testing it now.
+    <braunr> for me, the "pure delay" case is the case where there is no file
+      descriptor
+    <braunr> when the timeout is 0 is the non-blocking case
+    <braunr> and yes, you need 1ms for the non-blocking case when there are
+      file descriptors
+    <gnu_srs> sorry bad wording (again)
+    <braunr> (note however that this last "requirement" is very hurd specific,
+      and due to a design issue)
+    <braunr> the work i did six months ago fixes it, but depends on pthreads
+      for correct performances (or rather, a thread library change, but
+      changing cthreads was both difficult and pointless)
+    <braunr> also, i intend to work on io_poll as a replacement for io_select,
+      that fixes the "message storm" (i love these names) caused by dead-name
+      notifications resulting from the way io_select works
+
+
+## IRC, freenode, #hurd, 2012-12-19
+
+    <braunr> tschwinge: i've tested the glibc rbraun/select_timeout_for_one_fd
+      branch for a few days on darnassus now, and nothing wrong to report
+
+
+## IRC, freenode, #hurd, 2012-12-20
+
+    <youpi> braunr: so, shall I commit the single hurd select timeout fix to
+      the debian package?
+    <braunr> youpi: i'd say so yes
+
+
+## IRC, freenode, #hurd, 2013-01-03
+
+    <braunr> gnu_srs: sorry, i don't understand your poll_timeout patch
+    <braunr> it basically reverts mine for poll only
+    <braunr> but why ?
+    <gnu_srs> braunr: It does not revert your select patch, if there is one FD
+      the timeout is at io_select, if not one the timeout is at mach_msg
+    <braunr> but why does it only concern poll ?
+    <braunr> (and why didn't i do it this way in the first place ?)
+    <braunr> (or maybe i did ?)
+    <gnu_srs> there are problems with a timeout of zero for poll, depending on
+      the implementation the FDs can result in not being ready.
+    <braunr> but that's also true with select
+    <gnu_srs> the cases I've tested only have problems for poll, not select
+    <braunr> we'll have to create test cases for both
+    <braunr> but your solution doesn't hold anyway
+    <braunr> our current workaround for this class of problems is to set a
+      lower bound on the timeout to 1
+    <braunr> (which comes from a debian specific patch)
+    <gnu_srs> see the test code i sent,
+      http://lists.gnu.org/archive/html/bug-hurd/2012-12/msg00043.html,
+      test_poll+select.c
+    <braunr> the patch might be incomplete though
+    <braunr> i know, but your solution is still wrong
+    <braunr> see debian/patches/hurd-i386/local-select.diff in the debian
+      eglibc package
+    <gnu_srs> and in that message I have introduced a minimum timeout for poll
+      of 1ms.
+    <braunr> yes but you shouldn't
+    <braunr> this is a *known* bug, and for now we have a distribution-specific
+      patch
+    <braunr> in other words, we can't commit that crap upstream
+    <gnu_srs> well, according to youpi there is a need for a communication to
+      flag when the FDs are ready, not yet implemented.
+    <braunr> i'm not sure what you mean by that
+    <youpi> I don't understand what you refer to
+    <braunr> there is a need for a full round-trip even in the non blocking
+      case
+    <braunr> which is implemented in one of my hurd branches, but awaits
+      pthreads integration for decent scalability
+    <youpi> the only difference between poll and select is that select can stop
+      the loop on error, while poll needs to continue
+    <braunr> youpi: don't you think the glibc select patch is incomplete ?
+    <youpi> incomplete in what direction?
+    <youpi> the minimum 1ms delay is a completely bogus workaround
+    <gnu_srs> youpi:
+      http://lists.gnu.org/archive/html/bug-hurd/2012-11/msg00001.html
+    <youpi> so I wouldn't say it's even completing anything :)
+    <braunr> hm no never mind, it's not
+    <braunr> i thought it missed some cases where the delay made sense, but no
+    <braunr> the timeout can only be 0 if the timeout parameter is non NULL
+    <braunr> gnu_srs: during your tests, do you run with the debian eglibc
+      package (including your changes), or from the git glibc ?
+    <gnu_srs> I run with -37, -38, with my minimum poll changes, my 3 cases,
+      and 3 case-poll updates.
+    <braunr> so you do have the debian patches
+    <braunr> so you normally have this 1ms hack
+    <braunr> which means you shouldn't need to make the poll case special
+    <gnu_srs> A admit the 1ms patch is not possible to submit upstream, but it
+      makes things work (and youpi use it for vim)
+    <braunr> i'll try to reproduce your ntpdate problem with -38 when i have
+      some time
+    <braunr> uh, no, vim actually doesn't use the hack :p
+    <youpi> gnu_srs: it's the contrary: we have to avoid it for vim
+    <gnu_srs>  if (strcmp(program_invocation_short_name, "vi") &&
+      strcmp(program_invocation_short_name, "vim") &&
+      strcmp(program_invocation_short_name, "vimdiff") && !to)
+    <gnu_srs>         to = 1;
+    <youpi> that does what we are saying
+    <braunr> strcmp returns 0 on equality
+    <gnu_srs> aha, OK then
+    <gnu_srs> I don't have that hack in my code. I have tested vim a little,
+      but cannot judge, since I'm not a vi user.
+    <braunr> you don't ?
+    <braunr> you should have it if the package patches were correctly applied
+    <gnu_srs> Maybe somebody else could compile a libc with the 3-split code to
+      test it out?
+    <braunr> that's another issue
+    <gnu_srs> I mean the patch I sent to the list, there the vi{m} hack is not
+      present.
+    <braunr> well obviously
+    <braunr> but i'm asking about the poll_timeout one
+    <gnu_srs> A, OK, it's very easy to test that version too but currently -38
+      maybe has a regression due to some other patch.
+    <braunr> that's another thing we're interested in
+    <gnu_srs> Unfortunately it takes a _long_ time to build a new version of
+      libc (several hours...)
+    <braunr> -38 is already built
+    <gnu_srs> yes, but removing patches one by one and rebuilding.
+    <braunr> but then, the "regression" you mention concerns a package that
+      wasn't really working before
+    <braunr> removing ?
+    <braunr> ah, to identify the trouble carrying one
+    <gnu_srs> ntpdate works with -37, no problem...
+    <gnu_srs> but not with -38
+    <braunr> again, trace it with -38
+    <braunr> to see on what it blocks
+    <gnu_srs> as I wrote yesterday gdb hangs the box hard and rpctrace bugs
+      out, any ideas?
+    <youpi> printf
+    <braunr> gdb from a subhurd
+    <gnu_srs> I'm suspecting the setitimer patch: Without it gdb ntpdate does
+      not freeze hard any longer, bt full: http://paste.debian.net/221491/
+    Program received signal SIGINT, Interrupt.
+    0x010477cc in mach_msg_trap ()
+        at /usr/src/kernels/eglibc/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    2       kernel_trap (__mach_msg_trap,-25,7)
+    (gdb) thread apply all bt full
+    
+    Thread 6 (Thread 3158.6):
+    #0  0x010477cc in mach_msg_trap ()
+        at /usr/src/kernels/eglibc/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    No locals.
+    #1  0x01047fc9 in __mach_msg (msg=0x52fd4, option=1282, send_size=0, 
+        rcv_size=0, rcv_name=132, timeout=100, notify=0) at msg.c:110
+            ret = <optimized out>
+    #2  0x010ec3a8 in timer_thread () at ../sysdeps/mach/hurd/setitimer.c:90
+            err = <optimized out>
+            msg = {header = {msgh_bits = 4608, msgh_size = 32, 
+                msgh_remote_port = 0, msgh_local_port = 132, msgh_seqno = 78, 
+                msgh_id = 23100}, return_code = 17744699}
+    
+    setitimer.c:90
+          err = __mach_msg (&msg.header,
+                            MACH_RCV_MSG|MACH_RCV_TIMEOUT|MACH_RCV_INTERRUPT,
+                            0, 0, _hurd_itimer_port,
+                            _hurd_itimerval.it_value.tv_sec * 1000 +
+                            _hurd_itimerval.it_value.tv_usec / 1000,
+                            MACH_PORT_NULL);
+
+[[alarm_setitimer]].
+
+    <braunr> gdb ?
+    <braunr> i thought ntpdate was the program freezing
+    <gnu_srs> the freeze is due to -38
+    <braunr> yes we know that
+    <braunr> but why do you say "gdb ntpdate" instead of "ntpdate" ?
+    <gnu_srs> yes, ntpdate freezes: without gdb kill -9 is OK, with gdb it
+      freezes hard (with setitimer pacth).
+    <braunr> we don't care much about the kill behaviour
+    <braunr> ntpdate does indeed makes direct calls to setitimer
+    <gnu_srs> without the setitimer patch: without gdb ntpdate freezes (C-c is
+      OK), with gdb C-c gives the paste above
+    <braunr> sorry i don't understand
+    <braunr> *what* is the problem ?
+    <youpi> there are two of them
+    <youpi> ntpdate freezing
+    <youpi> gdb freezing
+    <braunr> ok
+    <youpi> he's saying gdb freezing is due to the setitimer patch
+    <braunr> yes that's what i understand now
+    <braunr> what he said earlier made me think ntpdate was freezing with -38
+    <gnu_srs> better: ntpdate hangs, gdb ntpdate freezes (with the setitimer
+      patch)
+    <braunr> what's the behaviour in -37, and then what is the behaviour with
+      -38 ?
+    <braunr> (of both actions, so your answer should give us four behaviours)
+    <youpi> gnu_srs: what is the difference between "hangs" and "freezes" ?
+    <gnu_srs> -37 no problem, both with and without gdb.
+    <braunr> you mean ntpdate doesn't freeze with -37, and does with -38 ?
+    <gnu_srs> hangs: kill -9 is sufficient, freezes: reboot, checking file
+      system etc
+    <braunr> and i really mean ntpdate, not gdb whatever
+    <gnu_srs> the ntpdate hang (without the setitimer patch) in -38 can be due
+      to the poll stuff: Have to check further with my poll patch...
+
+
+## IRC, freenode, #hurd, 2013-01-04
+
+    <gnu_srs> Summary of the eglibc-2.13-38 issues: without the
+      unsubmitted-setitimer_fix.diff patch and with
+    <gnu_srs> my poll_timeout.patch fix in
+      http://lists.gnu.org/archive/html/bug-hurd/2012-12/msg00042.html
+    <gnu_srs> ntpdate works again :)
+    <gnu_srs> please consider reworking the setitimer patch and add a poll case
+      in hurdselect.c:-D 
+    <gnu_srs> Additional info: vim prefers to use select before poll,. With the
+      proposed changes (small,3-split),
+    <gnu_srs> only poll is affected by the 1ms default timeout, i.e. the
+      current vi hack is no longer needed.
+    <braunr> gnu_srs: the setitimer patch looks fine, and has real grounds
+    <braunr> gnu_srs: your poll_timeout doesn't
+    <braunr> so unless you can explain where the problem comes from, we
+      shouldn't remove the setitimer patch and add yours
+    <braunr> in addition
+    <braunr> 09:30 < gnu_srs> only poll is affected by the 1ms default timeout,
+      i.e. the current vi hack is no longer needed.
+    <braunr> that sentence is complete nonsense
+    <braunr> poll and select are implemented using the same rpc, which means
+      they're both broken
+    <braunr> if the vi hack isn't needed, it means you broke every poll user
+    <braunr> btw, i think your ntpdate issue is very similar to the gitk one
+    <braunr> gitk currently doesn't work because of select/poll
+    <braunr> it does work fine with my hurd select branch though
+    <braunr> which clearly shows a more thorough change is required, and your
+      hacks won't do any good (you may "fix" ntpdate, and break many other
+      things)
+    <gnu_srs> braunr: Why don't you try ntpdate yourself on -38 (none of my
+      patches applied)
+    <braunr> you're missing the point
+    <braunr> the real problem is the way select/poll is implemented, both at
+      client *and* server sides
+    <gnu_srs> 09:30 etc: The current implementation is slower than the 3-way
+      patch. Therefore it in not needed in the current implementation (I didn't
+      propose that either)
+    <braunr> hacks at the client side only are pointless, whatever you do
+    <braunr> slower ?
+    <braunr> it's not about performance but correctness
+    <braunr> your hack *can't* solve the select/poll correctness issue
+    <gnu_srs> yes, slower on my kvm boxes...
+    <braunr> so it's normal that ntpdate and other applications such as gitk
+      are broken
+    <braunr> if you try to fix it by playing with the timeout, you'll just
+      break the applications that were fixed in the past by playing with the
+      timeout another way
+    <braunr> can you understand that ?
+    <gnu_srs> forget the timeout default, it's a side issue.
+    <braunr> the *real* select/poll issue is that non blocking calls
+      (timeout=0) don't have the time to make a full round trip at the server
+    <braunr> no it's not, it's the whole problem
+    <braunr> some applications work with a higher timeout, some like gitk don't
+    <braunr> ntpdate might act just the same
+    <gnu_srs> yes of course, and I have not addressed this problem either, I'm
+      mostly interested in the 3-way split.
+    <braunr> well, it looks like you're trying to ..
+    <gnu_srs> to be able to submit my poll patches (not yet published)
+    <braunr> i suggest you postpone these changes until the underlying
+      implementation works
+    <braunr> i strongly suspect the split to be useless
+    <braunr> we shouldn't need completely different paths just for this
+      conformance issue
+    <braunr> so wait until select/poll is fixed, then test again
+    <gnu_srs> Read the POSIX stuff: poll and select are different.
+    <braunr> i know
+    <braunr> their expected behaviour is
+    <braunr> that's what needs to be addressed
+    <braunr> but you can't do that now, because there are other bugs in the way
+    <braunr> so you'll have a hard time making sure your changes do fix your
+      issues, because the problems might be cause by the other problems
+    <gnu_srs> since you are the one who knows best, why don't you implement
+      everything yourself.
+    <braunr> well, i did
+    <braunr> and i'm just waiting for the pthreads hurd to spread before
+      adapting my select branch
+
+[[libpthread]].
+
+    <braunr> it won't fix the conformance issue, but it will fix the underlying
+      implementation (the rpc)
+    <braunr> and then you'll have reliable results for the tests you're
+      currently doing
+    <gnu_srs> why not even trying out the cases I found to have problems??
+    <braunr> because i now know why you're observing what you're observing
+    <braunr> i don't need my eyes to see it to actually imagine it clerly
+    <braunr> when i start gitk and it's hanging, i'm not thinking 'oh my, i
+      need to hack glibc select/poll !!!'
+    <braunr> because i know the problem
+    <braunr> i know what needs to be done, i know how to do it, it will be done
+      in time
+    <braunr> please try to think the same way ..
+    <braunr> you're fixing problems by pure guessing, without understanding
+      what's really happenning
+    <gnu_srs> (10:59:17 AM) braunr: your hack *can't* solve the select/poll
+      correctness issue: which hack?
+    <braunr> "please consider removing setitimer because it blocks my ntpdate"
+    <braunr> gnu_srs: all your select related patches
+    <braunr> the poll_timeout, the 3-way split, they just can't
+    <braunr> changes need to be made at the server side too
+    <braunr> you *may* have fixed the conformance issue related to what is
+      returned, but since it get mixed with the underlying implementation
+      problems, your tests aren't reliable
+    <gnu_srs> well some of the test code is from gnulib, their code is not
+      reliable?
+    <braunr> their results aren't
+    <braunr> why is that so hard to understand for you ?
+    <gnu_srs> (11:08:05 AM) braunr: "please consider removing setitimer because
+      it blocks my ntpdate": It's not my ntpdate, it's a program that fails to
+      run on -38, but does on -37!
+    <braunr> it doesn't mean glibc -37 is right
+    <braunr> it just means the ntpdate case seems to be handled correctly
+    <braunr> a correct implementation is *ALWAYS* correct
+    <braunr> if there is one wrong case, it's not, and we know our select/poll
+      implementation is wrong
+    <gnu_srs> no of course not, and the ntpdate implementation is not correct?
+      file a bug upstream then.
+    <braunr> you're starting to say stupid things again
+    <braunr> ntpdate and gnulib tests can't be right if they use code that
+      isn't right
+    <braunr> it doesn't mean they'll always fail either, the programs that fail
+      are those for which select/poll behaves wrong
+    <braunr> same thing for setitimer btw
+    <braunr> we know it was wrong, and i think it was never working actually
+    <gnu_srs> where are the missing test cases then? maybe you should publish
+      correct code so we can try it out?
+    <braunr> i have, but there are dependencies that prevent using it right now
+    <braunr> which is why i'm waiting for pthreads hurd to spread
+    <braunr> pthreads provide the necessary requirements for select to be
+      correctly implemented at server side
+    <gnu_srs> well conformance with your code could be tested on Linux,
+      kFreeBSD, etc
+    <braunr> ?
+    <braunr> i'm not writing test units
+    <gnu_srs> /code/test code/
+    <braunr> the problem is *NOT* the test code
+    <braunr> the problem is some of our system calls
+    <braunr> it's the same for ntpdate and gitk and all other users
+    <gnu_srs> then the gnulib, ntpdate, gitk code is _not_ wrong
+    <braunr> no, but their execution is, and thus their results
+    <braunr> which is ok, they're tests
+    <braunr> they're here precisely to tell us if one case works
+    <braunr> they must all pass to hope their subject is right
+    <braunr> so, again, since there are several problems with our low level
+      calls, you may have fixed one, but still suffer from others
+    <braunr> so even if you did fix something, you may not consider the test
+      failure as an indication that your fix is wrong
+    <braunr> but if you try to make your changes fix everything just to have
+      results that look valid, it's certain to fail, since you only fix the
+      client side, and it's *known* the server side must be changed too
+    <gnu_srs> do you consider unsubmitted-single-hurdselect-timeout.diff and
+      local-select.diff a hack or not?
+    <braunr> the first isn't, since it fixes the correctness of the call for
+      one case, at the cost of some performance
+    <braunr> the second clearly is
+    <braunr> which is the difference between unsubmitted-* and local-*
+    <gnu_srs> and my proposal to modify the first is a hack?
+    <braunr> yes
+    <braunr> it reverts a valid change to "make things work" whereas we know
+      the previous behaviour was wrong
+    <braunr> that's close to the definition of a hack
+    <gnu_srs> "make things work" meaning breaking some applications?
+    <braunr> yes
+    <braunr> in this case, those using poll with one file descriptor and
+      expecting a timeout, not twice the timeout
+    <braunr> well, your change isn't really a revert
+    <braunr> hum yes actually it is
+    <gnu_srs> the timeout is correct
+    <braunr> no, it looks correct
+    <braunr> how did you test it ?
+    <braunr> and same question as yesterday: why only poll ?
+    <gnu_srs> see the code I mentioned before
+    <braunr> no i won't look
+    <braunr> it doesn't explain anything
+    <gnu_srs> I have not found any problems with select, only poll (yes, this
+      is a user perspective)
+    <braunr> that's what i call "pure guessing"
+    <braunr> you just can't explain why it fixes things
+    <braunr> because you don't know
+    <braunr> you don't understand what's really happening in the system
+    <braunr> there is a good idea in your change
+    <braunr> but merely for performance, not correctness
+    <braunr> (your change makes it possible to save the mach_msg receive if the
+      io_select blocked, which is good, but not required)
+
+See also [[alarm_setitimer]].
 
 
 # See Also
