@@ -74,6 +74,21 @@ For more reading resources, please see these web pages, for example,
 documents.
 
 
+## Hacking entries
+
+Here is a list of small hacks, which can serve as entries to the Hurd code for
+people who would like to dive into the code.
+
+* Make pfinet OK with the ethernet device going away. This would be a very nice
+feature: being able to just restart the ethernet driver; we've just not taken
+the time to fix it yet, but it shouldn't be very hard. The code begins at `hurd/pfinet/ethernet.c`, `ethernet_open()`, the `device_open` call, which produces `edev->ether_port`. Basically, one needs to catch errors like EIEIO when using it, and in that case re-open the device.
+* Add a futex kernel trap to GNU Mach. This can be useful for nicer locking primitives, including inter-process primitives. `vm_allocate` can be used as an example in the `gnumach` source tree for how to add a kernel trap.
+* Add a `task_set_name` RPC to GNU Mach. Currently the Mach debugger keeps `arg[0]` from the stack with ugly heuristics. It would be far better to let `exec` simply set the name. `thread_create` can be used as an example in the `gnumach` source tree for how to add an RPC. glibc needs to be recompiled against the updated mach.defs to get access to it from userland.
+* Write a partfs translator, to which one gives a disk image, and which exposes the partitions of the disk image, using parted, and the parted-based storeio (`settrans -c foos1 /hurd/storeio -T typed part:1:file:/home/samy/tmp/foo`)
+* Write virtio drivers for KVM. Ideally they would be userland.
+* Port valgrind. There is a
+[[GSoC proposal|community/gsoc/project_ideas/valgrind ]] about this.
+
 <a name="porting"></a>
 ## Porting Packages
 
