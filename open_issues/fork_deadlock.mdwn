@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2012, 2013 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -3405,3 +3405,42 @@ Thread 1 (Thread 9076.1):
 
 
 # [[!message-id "877govry7a.fsf@kepler.schwinge.homeip.net"]]
+
+## 2013-02-08
+
+With Richard's `2.13-39+hurd.rbraun.3` packages (but doesn't seem related to
+the issues he's working on), which includes the hack from the email above,
+during a GDB build's `make install`:
+
+      PID  UID  PPID  PGrp  Sess TH  Vmem   RSS %CPU     User   System Args
+     1988 1000  1986  1715   420  2  146M  204K 97.6  0:01.49  3:19.91 /bin/dash -c catalogs='da.gmo de.gmo es.gmo fi.gmo fr.gmo ga.gmo id.gmo it.gm
+
+    Thread 1 (Thread 1988.1):
+    #0  0x0105b82c in swtch_pri () at /home/rbraun/devel/debian/packages/eglibc/eglibc-2.13/build-tree/hurd-i386-libc/mach/swtch_pri.S:2
+    No locals.
+    #1  0x0105d0b4 in __spin_lock_solid (lock=0x121900c) at spin-solid.c:27
+    No locals.
+    #2  0x01071e73 in __spin_lock (__lock=<optimized out>) at ../mach/lock-intern.h:55
+    No locals.
+    #3  _hurd_sigstate_lock (ss=0x1219008) at hurdsig.c:174
+    No locals.
+    #4  0x0110f59c in _hurd_critical_section_unlock (our_lock=<optimized out>) at ../hurd/hurd/signal.h:235
+    No locals.
+    #5  __fork () at ../sysdeps/mach/hurd/fork.c:716
+            env = {{__jmpbuf = {18698228, 18972616, 0, 16926424, 16926052, 17887119}, __mask_was_saved = 0, __saved_mask = 5}}
+            pid = 0
+            err = <optimized out>
+            __PRETTY_FUNCTION__ = "__fork"
+            ss = 0x1219008
+            threads = 0x0
+            nthreads = 0
+            stopped = 1
+            i = 6
+    #6  0x08051620 in forkshell (jp=jp@entry=0x8064600, n=0x806378c, mode=0) at /home/thomas/tmp/dash/debian/dash-0.5.7/build-tmp/../src/jobs.c:934
+            pid = <optimized out>
+    [...]
+
+This time, it's our own sigstate, not the global one:
+
+    (gdb) print _hurd_global_sigstate
+    $1 = (struct hurd_sigstate *) 0x1219808
