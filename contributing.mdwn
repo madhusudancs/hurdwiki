@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2006, 2007, 2008, 2009, 2010, 2011, 2012 Free
-Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013
+Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -72,6 +72,42 @@ For more reading resources, please see these web pages, for example,
 [[Hurd_documentation|hurd/documentation]] and
 [[Mach_documentation|microkernel/mach/documentation]] for links to a bunch of
 documents.
+
+
+## Small hack entries
+
+Here is a list of small hacks, which can serve as entries into the Hurd code for
+people who would like to dive into the code but just lack a "somewhere to begin
+with".
+
+* Make pfinet OK with the ethernet device going away. This would be a very
+nice feature: being able to just restart the ethernet driver; we've just not
+taken the time to fix it yet, but it shouldn't be very hard. The code begins
+at `hurd/pfinet/ethernet.c`, `ethernet_open()`, the `device_open` call, which
+produces `edev->ether_port`. Basically, one needs to catch errors like EIEIO
+when using it, and in that case re-open the device.
+* Add a futex kernel trap to GNU Mach. This can be useful for nicer locking
+primitives, including inter-process primitives. `vm_allocate` can be used as an
+example in the `gnumach` source tree for how to add a kernel trap. https://savannah.gnu.org/task/index.php?6231
+* Add a `task_set_name` RPC to GNU Mach. Currently the Mach
+debugger keeps `arg[0]` from the stack with ugly heuristics (see
+`gnumach/i386/i386/db_interface.c`, `looks_like_command`...). It would be
+far better to let `exec` simply set the name and record it in `task_t`.
+`thread_create` can be used as an example in the `gnumach` source tree for how
+to add an RPC. glibc needs to be recompiled against the updated mach.defs to get
+access to it from userland. exec would probably call it from `hurd/exec/exec.c`,
+`do_exec()`.
+* Write a partfs translator, to which one gives a disk image, and
+which exposes the partitions of the disk image, using parted, and
+the parted-based storeio (`settrans -c foos1 /hurd/storeio -T typed
+part:1:file:/home/samy/tmp/foo`). This would be libnetfs-based.
+* Write virtio drivers for KVM. Ideally they would be userland.
+* Port valgrind. There is a whole
+[[GSoC proposal|community/gsoc/project_ideas/valgrind ]] about this, but the
+basic port could be small.
+* Add a `-E` option to `rpctrace` to specify environment variables: https://savannah.gnu.org/task/index.php?9331
+* Use libz and libbz2 in exec. See `hurd/exec/unzip.c` etc., they should be replaced by mere calls to libraries, https://savannah.gnu.org/task/index.php?6990
+* Add `/proc/$pid/maps`. `vminfo` already has this kind of information, it's a  matter of making procfs do the same. https://savannah.gnu.org/bugs/?32770
 
 
 <a name="porting"></a>
