@@ -47,9 +47,9 @@ git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C
 -->
 
 Last reviewed up to the [[Git mirror's sources|source_repositories/llvm]]: llvm
-0f58dbae4ab2397dc310e19d171a4bc60fc6c9a7 (2013-02-08), clang
-52635ff9fb530dfdfc6a94e52a2270bf1bb8346b (2013-02-08), compiler-rt
-ed83584256249ee2c474fb18abf7df6aa73019b0 (2013-02-08), test-suite
+e68542e67e5c0f8d4bbdae0dde6ccd24525a18e3 (2013-02-13), clang
+2cbd427ec533f022f612fed0dd93ef5fa214478a (2013-02-12), compiler-rt
+c242446f7a7c6a0c1f1bf9ad403d6dac6f215f1c (2013-02-12), test-suite
 f621d1a62904df136cbaf4e4e63cbf9e9c45fd10 (2013-02-08).
 
   * <http://anonscm.debian.org/viewvc/pkg-llvm/llvm/trunk/debian/patches/>.
@@ -92,10 +92,10 @@ f621d1a62904df136cbaf4e4e63cbf9e9c45fd10 (2013-02-08).
 
 Here's a log of a LLVM build run; this is from our [[Git repository's
 sources|source_repositories/llvm]], llvm
-0a109de14d0ced95d99b9ec60d4ef9479d6404d3 (2013-02-08), clang
-4cdb7414a1862270bbf8ff2c345aea879a64a116 (2013-02-08), compiler-rt
-ed83584256249ee2c474fb18abf7df6aa73019b0 (2013-02-08), test-suite
-d1212efdb685151165a48d0f89cf3d40154468bc (2013-02-08), run on kepler.SCHWINGE
+829831c561ca75cb81cbe217dee25b52dbe0e2f0 (2013-02-13), clang
+6b02a96cdeecb9cc2070a5a5684d62bb32ba40d6 (2013-02-13), compiler-rt
+c242446f7a7c6a0c1f1bf9ad403d6dac6f215f1c (2013-02-12), test-suite
+f8647dbb30c3ee173c038aff10f815b0ba856793 (2013-02-09), run on kepler.SCHWINGE
 and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -139,18 +139,6 @@ probably because of too-big files when linking.  Configuring with
 
     $ toolchain/logs/process llvm build
 
-        -checking type of operating system we're going to host on... Linux
-        -checking type of operating system we're going to target... Linux
-        +checking type of operating system we're going to host on... GNU
-        +checking type of operating system we're going to target... GNU
-
-        -checking mach/mach.h usability... no
-        -checking mach/mach.h presence... no
-        -checking for mach/mach.h... no
-        +checking mach/mach.h usability... yes
-        +checking mach/mach.h presence... yes
-        +checking for mach/mach.h... yes
-
         -checking for mmap of files... yes
         +checking for mmap of files... no
          checking if /dev/zero is needed for mmap... no
@@ -158,12 +146,13 @@ probably because of too-big files when linking.  Configuring with
 
     Due to [[mmap_write-only]].
 
-        -checking type of operating system we're going to target... Linux
-        +checking type of operating system we're going to target... Unknown
+        +In file included from [...]/lib/Support/Process.cpp:85:0:
+        +[...]/lib/Support/Unix/Process.inc: In function 'unsigned int getColumns(int)':
+        +[...]/lib/Support/Unix/Process.inc:227:21: warning: enumeral and non-enumeral type in conditional expression [enabled by default]
 
-        +In file included from [...]/tschwinge/Horace_Silver/lib/Support/Process.cpp:29:0:
-        +[...]/tschwinge/Horace_Silver/lib/Support/Unix/Process.inc: In function 'unsigned int getColumns(int)':
-        +[...]/tschwinge/Horace_Silver/lib/Support/Unix/Process.inc:220:21: warning: enumeral and non-enumeral type in conditional expression [enabled b
+           225    // Try to determine the width of the terminal.
+           226    struct winsize ws;
+           227    if (ioctl(FileID, TIOCGWINSZ, &ws) == 0)
 
         include/llvm/Config/*
         Makefile.config
@@ -203,10 +192,9 @@ coulomb.SCHWINGE.
 
     $ toolchain/logs/process llvm test
 
-  * `LLVM :: CodeGen/X86/mult-alt-generic-i686.ll`, `LLVM ::
-    CodeGen/X86/win_ftol2.ll`
+  * `LLVM :: CodeGen/X86/mult-alt-generic-i686.ll`
 
-    These, as well as a really large set of test from the test-suite fail on
+    This one, as well as a really large set of test from the test-suite fail on
     coulomb.SCHWINGE no matter whether a GNU/Hurd or GNU/Linux system is booted
     -- so all these are specific to the Athlon XP processor, hopefully.
 
@@ -244,11 +232,6 @@ coulomb.SCHWINGE.
     Fails: `fatal error: 'stddef.h' file not found`; succeeds when ran
     manually.
 
-  * About 200 clang tests fail; they all seem similar.  These are especially
-    the `Clang :: Index/*` and `Clang :: Modules/*` tests.  Configuring with
-    `--enable-optimized --enable-expensive-checks --disable-threads
-    --enable-debug-symbols --enable-debug-runtime`, these FAILs go away.
-
   * With `--enable-optimized --enable-expensive-checks --disable-threads
     --enable-debug-symbols --enable-debug-runtime`, there are a few new FAILs
     for both GNU/Linux and GNU/Hurd:
@@ -262,6 +245,27 @@ coulomb.SCHWINGE.
     For all three, the `clang-check` invocation fails.  [[!LLVM_bug 15194]].
 
   * Several tests are not considered on GNU/Hurd.
+
+        -PASS: Clang-Unit :: ASTMatchers/[...]/tschwinge/Horace_Silver.build/tools/clang/unittests/ASTMatchers/Release+Asserts/ASTMatchersTests/HasNameDeathTest.DiesOnEmptyName
+        -PASS: Clang-Unit :: ASTMatchers/[...]/tschwinge/Horace_Silver.build/tools/clang/unittests/ASTMatchers/Release+Asserts/ASTMatchersTests/HasNameDeathTest.DiesOnEmptyPattern
+        -PASS: Clang-Unit :: ASTMatchers/[...]/tschwinge/Horace_Silver.build/tools/clang/unittests/ASTMatchers/Release+Asserts/ASTMatchersTests/IsDerivedFromDeathTest.DiesOnEmptyBaseName
+        -PASS: LLVM-Unit :: ADT/[...]/tschwinge/Horace_Silver.build/unittests/ADT/Release+Asserts/ADTTests/APFloatTest.SemanticsDeath
+        -PASS: LLVM-Unit :: ADT/[...]/tschwinge/Horace_Silver.build/unittests/ADT/Release+Asserts/ADTTests/APFloatTest.StringDecimalDeath
+        -PASS: LLVM-Unit :: ADT/[...]/tschwinge/Horace_Silver.build/unittests/ADT/Release+Asserts/ADTTests/APFloatTest.StringDecimalExponentDeath
+        -PASS: LLVM-Unit :: ADT/[...]/tschwinge/Horace_Silver.build/unittests/ADT/Release+Asserts/ADTTests/APFloatTest.StringDecimalSignificandDeath
+        -PASS: LLVM-Unit :: ADT/[...]/tschwinge/Horace_Silver.build/unittests/ADT/Release+Asserts/ADTTests/APFloatTest.StringHexadecimalDeath
+        -PASS: LLVM-Unit :: ADT/[...]/tschwinge/Horace_Silver.build/unittests/ADT/Release+Asserts/ADTTests/APFloatTest.StringHexadecimalExponentDeath
+        -PASS: LLVM-Unit :: ADT/[...]/tschwinge/Horace_Silver.build/unittests/ADT/Release+Asserts/ADTTests/APFloatTest.StringHexadecimalSignificandDeath
+        -PASS: LLVM-Unit :: ADT/[...]/tschwinge/Horace_Silver.build/unittests/ADT/Release+Asserts/ADTTests/APIntTest.StringDeath
+        -PASS: LLVM-Unit :: Support/[...]/tschwinge/Horace_Silver.build/unittests/Support/Release+Asserts/SupportTests/LeakDetector.Death1
+        -PASS: LLVM-Unit :: Support/[...]/tschwinge/Horace_Silver.build/unittests/Support/Release+Asserts/SupportTests/ValueHandle.AssertingVH_Asserts
+
+        GTEST_HAS_DEATH_TEST utils/unittest/googletest/include/gtest/internal/gtest-port.h
+
+        -PASS: LLVM-Unit :: ADT/[...]/tschwinge/Horace_Silver.build/unittests/ADT/Release+Asserts/ADTTests/PackedVectorTest.SignedValues
+        -PASS: LLVM-Unit :: ADT/[...]/tschwinge/Horace_Silver.build/unittests/ADT/Release+Asserts/ADTTests/PackedVectorTest.UnsignedValues
+
+        EXPECT_DEBUG_DEATH utils/unittest/googletest/include/gtest/gtest-death-test.h
 
   * Differences in test-suite, that are not evidently floating-point issues,
     GNU/Linux vs. GNU/Hurd on coulomb.SCHWINGE:
