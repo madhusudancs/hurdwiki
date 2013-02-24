@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2012, 2013 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -3405,3 +3405,162 @@ Thread 1 (Thread 9076.1):
 
 
 # [[!message-id "877govry7a.fsf@kepler.schwinge.homeip.net"]]
+
+## 2013-02-08
+
+With Richard's `2.13-39+hurd.rbraun.3` packages (but doesn't seem related to
+the issues he's working on), which includes the hack from the email above,
+during a GDB build's `make install`:
+
+      PID  UID  PPID  PGrp  Sess TH  Vmem   RSS %CPU     User   System Args
+     1988 1000  1986  1715   420  2  146M  204K 97.6  0:01.49  3:19.91 /bin/dash -c catalogs='da.gmo de.gmo es.gmo fi.gmo fr.gmo ga.gmo id.gmo it.gm
+
+    Thread 1 (Thread 1988.1):
+    #0  0x0105b82c in swtch_pri () at /home/rbraun/devel/debian/packages/eglibc/eglibc-2.13/build-tree/hurd-i386-libc/mach/swtch_pri.S:2
+    No locals.
+    #1  0x0105d0b4 in __spin_lock_solid (lock=0x121900c) at spin-solid.c:27
+    No locals.
+    #2  0x01071e73 in __spin_lock (__lock=<optimized out>) at ../mach/lock-intern.h:55
+    No locals.
+    #3  _hurd_sigstate_lock (ss=0x1219008) at hurdsig.c:174
+    No locals.
+    #4  0x0110f59c in _hurd_critical_section_unlock (our_lock=<optimized out>) at ../hurd/hurd/signal.h:235
+    No locals.
+    #5  __fork () at ../sysdeps/mach/hurd/fork.c:716
+            env = {{__jmpbuf = {18698228, 18972616, 0, 16926424, 16926052, 17887119}, __mask_was_saved = 0, __saved_mask = 5}}
+            pid = 0
+            err = <optimized out>
+            __PRETTY_FUNCTION__ = "__fork"
+            ss = 0x1219008
+            threads = 0x0
+            nthreads = 0
+            stopped = 1
+            i = 6
+    #6  0x08051620 in forkshell (jp=jp@entry=0x8064600, n=0x806378c, mode=0) at /home/thomas/tmp/dash/debian/dash-0.5.7/build-tmp/../src/jobs.c:934
+            pid = <optimized out>
+    [...]
+
+This time, it's our own sigstate, not the global one:
+
+    (gdb) print _hurd_global_sigstate
+    $1 = (struct hurd_sigstate *) 0x1219808
+
+
+## 2013-02-19
+
+Reproduced the 2013-02-08 findings with Richard's `2.13-39+hurd.rbraun.6`
+packages (but doesn't seem related to the issues he's working on), which
+includes the hack from the email above, after a GCC build's `make` has been
+running for 14.25 h (so very near the end of the build, darn):
+
+      PID  UID  PPID  PGrp  Sess TH  Vmem   RSS %CPU     User   System Args
+     2792 1000  2773  1728   409  2  146M 1.19M  0.0  0:00.20  0:00.80 /bin/dash /home/thomas/tmp/gcc/hurd/master/libatomic/configure --cache-fil
+     3839 1000  2792  1728   409  2  146M  532K  0.0  0:00.00  0:00.00 /bin/dash /home/thomas/tmp/gcc/hurd/master/libatomic/configure --cache-fil
+     3841 1000  3839  1728   409  2  146M  272K 95.4  4:13.12     5hrs /bin/dash /home/thomas/tmp/gcc/hurd/master/libatomic/configure --cache-fil
+
+    #0  0x0105a87c in swtch_pri () at /home/rbraun/devel/debian/packages/eglibc/eglibc-2.13/build-tree/hurd-i386-libc/mach/swtch_pri.S:2
+    No locals.
+    #1  0x0105c104 in __spin_lock_solid (lock=0x121d00c) at spin-solid.c:27
+    No locals.
+    #2  0x01070f43 in __spin_lock (__lock=<optimized out>) at ../mach/lock-intern.h:55
+    No locals.
+    #3  _hurd_sigstate_lock (ss=0x121d008) at hurdsig.c:174
+    No locals.
+    #4  0x0110e66c in _hurd_critical_section_unlock (our_lock=<optimized out>) at ../hurd/hurd/signal.h:235
+    No locals.
+    #5  __fork () at ../sysdeps/mach/hurd/fork.c:716
+            env = {{__jmpbuf = {18694132, 18989000, 134637636, 16926072, 16925700, 17883231}, __mask_was_saved = 0, __saved_mask = 4294967295}}
+            pid = 0
+            err = <optimized out>
+            __PRETTY_FUNCTION__ = "__fork"
+            ss = 0x121d008
+            threads = 0x0
+            nthreads = 0
+            stopped = 1
+            i = 6
+    [...]
+    (gdb) frame 5
+    #5  __fork () at ../sysdeps/mach/hurd/fork.c:716
+    warning: Source file is more recent than executable.
+    716       _hurd_critical_section_unlock (ss);
+    (gdb) list
+    711              ! symbol_set_end_p (_hurd_fork_locks, p);
+    712              ++p)
+    713           __mutex_unlock (*p);
+    714       }
+    715     
+    716       _hurd_critical_section_unlock (ss);
+    717     
+    718       return err ? __hurd_fail (err) : pid;
+    719     }
+    720     libc_hidden_def (__fork)
+    (gdb) frame 4
+    #4  0x0110e66c in _hurd_critical_section_unlock (our_lock=<optimized out>) at ../hurd/hurd/signal.h:235
+    warning: Source file is more recent than executable.
+    235           _hurd_sigstate_lock (ss);
+    (gdb) list
+    230       else
+    231         {
+    232           /* It was us who acquired the critical section lock.  Unlock it.  */
+    233           struct hurd_sigstate *ss = (struct hurd_sigstate *) our_lock;
+    234           sigset_t pending;
+    235           _hurd_sigstate_lock (ss);
+    236           __spin_unlock (&ss->critical_section_lock);
+    237           pending = _hurd_sigstate_pending(ss) & ~ss->blocked;
+    238           _hurd_sigstate_unlock (ss);
+    239           if (! __sigisemptyset (&pending))
+    (gdb) frame 3
+    #3  _hurd_sigstate_lock (ss=0x121d008) at hurdsig.c:174
+    warning: Source file is more recent than executable.
+    174       __spin_lock (&ss->lock);
+    (gdb) list
+    169     void
+    170     _hurd_sigstate_lock (struct hurd_sigstate *ss)
+    171     {
+    172       if (sigstate_is_global_rcv (ss))
+    173         __spin_lock (&_hurd_global_sigstate->lock);
+    174       __spin_lock (&ss->lock);
+    175     }
+    176     void
+    177     _hurd_sigstate_unlock (struct hurd_sigstate *ss)
+    178     {
+    (gdb) print _hurd_global_sigstate
+    $1 = (struct hurd_sigstate *) 0x121d808
+    (gdb) print *_hurd_global_sigstate
+    $2 = {critical_section_lock = 0, lock = 1, thread = 0, next = 0x0, blocked = 4294967295, pending = 0, actions = {{__sigaction_handler = {
+            sa_handler = 0, sa_sigaction = 0}, sa_mask = 0, sa_flags = 2}, {__sigaction_handler = {sa_handler = 0, sa_sigaction = 0}, 
+          sa_mask = 4294967295, sa_flags = 0}, {__sigaction_handler = {sa_handler = 0, sa_sigaction = 0}, sa_mask = 4294967295, sa_flags = 0}, {
+          __sigaction_handler = {sa_handler = 0, sa_sigaction = 0}, sa_mask = 4294967295, sa_flags = 0}, {__sigaction_handler = {sa_handler = 0, 
+            sa_sigaction = 0}, sa_mask = 0, sa_flags = 2}, {__sigaction_handler = {sa_handler = 0, sa_sigaction = 0}, sa_mask = 0, sa_flags = 2}, {
+          __sigaction_handler = {sa_handler = 0, sa_sigaction = 0}, sa_mask = 0, sa_flags = 2}, {__sigaction_handler = {sa_handler = 0, 
+            sa_sigaction = 0}, sa_mask = 0, sa_flags = 2}, {__sigaction_handler = {sa_handler = 0, sa_sigaction = 0}, sa_mask = 0, sa_flags = 2}, {
+          __sigaction_handler = {sa_handler = 0, sa_sigaction = 0}, sa_mask = 0, sa_flags = 2}, {__sigaction_handler = {sa_handler = 0, 
+            sa_sigaction = 0}, sa_mask = 0, sa_flags = 2}, {__sigaction_handler = {sa_handler = 0, sa_sigaction = 0}, sa_mask = 0, sa_flags = 2}, {
+          __sigaction_handler = {sa_handler = 0, sa_sigaction = 0}, sa_mask = 0, sa_flags = 2}, {__sigaction_handler = {sa_handler = 0, 
+            sa_sigaction = 0}, sa_mask = 4294967295, sa_flags = 0}, {__sigaction_handler = {sa_handler = 0, sa_sigaction = 0}, sa_mask = 0, 
+          sa_flags = 2}, {__sigaction_handler = {sa_handler = 0, sa_sigaction = 0}, sa_mask = 4294967295, sa_flags = 0}, {__sigaction_handler = {
+            sa_handler = 0, sa_sigaction = 0}, sa_mask = 0, sa_flags = 2}, {__sigaction_handler = {sa_handler = 0, sa_sigaction = 0}, sa_mask = 0, 
+          sa_flags = 2}, {__sigaction_handler = {sa_handler = 0, sa_sigaction = 0}, sa_mask = 0, sa_flags = 2}, {__sigaction_handler = {
+            sa_handler = 0, sa_sigaction = 0}, sa_mask = 0, sa_flags = 2}, {__sigaction_handler = {sa_handler = 0x80564f0, 
+            sa_sigaction = 0x80564f0}, sa_mask = 4294967295, sa_flags = 0}, {__sigaction_handler = {sa_handler = 0, sa_sigaction = 0}, 
+          sa_mask = 0, sa_flags = 2} <repeats 12 times>}, sigaltstack = {ss_sp = 0x0, ss_size = 0, ss_flags = 0}, preemptors = 0x0, 
+      pending_data = {{exc = 0, exc_code = 0, exc_subcode = 0, code = 0, error = 0} <repeats 33 times>}, suspended = 0, intr_port = 0, 
+      context = 0x0, active_resources = 0x0, cancel = 0, cancel_hook = 0}
+    (gdb) print ss
+    $3 = (struct hurd_sigstate *) 0x121d008
+    (gdb) print *ss
+    $4 = {critical_section_lock = 1, lock = 1, thread = 73, next = 0x1227808, blocked = 0, pending = 0, actions = {{__sigaction_handler = {
+            sa_handler = 0x1, sa_sigaction = 0x1}, sa_mask = 0, sa_flags = 2}, {__sigaction_handler = {sa_handler = 0, sa_sigaction = 0}, 
+          sa_mask = 0, sa_flags = 2} <repeats 32 times>}, sigaltstack = {ss_sp = 0x0, ss_size = 0, ss_flags = 0}, preemptors = 0x0, 
+      pending_data = {{exc = 0, exc_code = 0, exc_subcode = 0, code = 0, error = 0} <repeats 20 times>, {exc = 0, exc_code = 19025712, 
+          exc_subcode = 85056, code = 1, error = 17257936}, {exc = 0, exc_code = 0, exc_subcode = 0, code = 0, error = 0} <repeats 12 times>}, 
+      suspended = 0, intr_port = 0, context = 0x0, active_resources = 0x0, cancel = 0, cancel_hook = 0}
+    (gdb) print ss->next
+    $5 = (struct hurd_sigstate *) 0x1227808
+    (gdb) print *ss->next
+    $6 = {critical_section_lock = 0, lock = 0, thread = 76, next = 0x0, blocked = 0, pending = 0, actions = {{__sigaction_handler = {
+            sa_handler = 0, sa_sigaction = 0}, sa_mask = 0, sa_flags = 2} <repeats 33 times>}, sigaltstack = {ss_sp = 0x0, ss_size = 0, 
+        ss_flags = 0}, preemptors = 0x0, pending_data = {{exc = 0, exc_code = 0, exc_subcode = 0, code = 0, error = 0} <repeats 33 times>}, 
+      suspended = 0, intr_port = 0, context = 0x0, active_resources = 0x0, cancel = 0, cancel_hook = 0}
+
+So again, it's our own sigstate that already is locked, not the global one.
