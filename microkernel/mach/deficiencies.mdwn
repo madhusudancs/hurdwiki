@@ -528,3 +528,90 @@ In context of [[open_issues/multithreading]] and later [[open_issues/select]].
       physical maps (cpu-specific page tables) for user tasks, and stack
       tracing (in addition to symbol resolution when symbols are available)
       were recently added
+
+
+### IRC, freenode, #hurd, 2013-01-15
+
+    <braunr> Anarchos: as a side note, i'm currently working on a hurd clone
+      with a microkernel that takes a lot from mach but also completely changes
+      the ipc interface (making it not mach at all in the end)
+    <braunr> it's something between mach and qnx neutrino
+    <zacts> braunr: do you have a git repo of your new clone?
+    <braunr> http://git.sceen.net/rbraun/x15.git/
+    <zacts> neat
+    <braunr> it's far from complete
+    <braunr> and hasn't reached a status where it can be publically announced
+    <zacts> ok
+    <braunr> but progress has been constant so far, the ideas i'm using have
+      proven applicable on other systems, i don't expect the kind of design
+      issues that blocked HurdNG
+    <braunr> (also, my attempt doesn't aim at the same goals as hurdng did)
+    <braunr> (e.g. denial of service remains completely possible)
+    <zacts> so x15 will use the current hurd translators? you are only
+      replacing gnumach?
+    <braunr> that was the plan some years ago, but now that i know the hurd
+      better, i think the main issues are in the hurd, so there isn't much
+      point rewriting mach
+    <braunr> so, if the hurd needs a revamp, it's better to also make the
+      underlying interface better if possible
+    <braunr> zacts: in other words: it's a completely different beast
+    <zacts> ok
+    <braunr> the main goal is to create a hurd-like system that overcomes the
+      current major defficiencies, most of them being caused by old design
+      decisions
+    <zacts> like async ipc?
+    <braunr> yes
+    <Anarchos> time for a persistent hurd ? :)
+    <braunr> no way
+    <braunr> i don't see a point to persistence for a general purpose system
+    <braunr> and it easily kills performance
+    <braunr> on the other hand, it would be nice to have a truely scalable,
+      performant, and free microkernel based system
+    <braunr> (and posix compatible)
+    <braunr> there is currently none
+    <braunr> zacts: the projects focuses mostly on performance and scalability,
+      while also being very easy to understand and maintain (something i think
+      the current hurd has failed at :/)
+    <braunr> project*
+    <zacts> very cool
+    <braunr> i think so, but we'll have to wait for an end result :)
+    <braunr> what's currently blocking me is the IDL
+    <braunr> earlier research has shown that an idl must be optmized the same
+      way compilers are for the best performances
+    <braunr> i'm not sure i can write something good enough :/
+    <braunr> the first version will probably be very similar to mig, small and
+      unoptimized
+
+
+### IRC, freenode, #hurd, 2013-01-18
+
+    <zacts> braunr: so how exactly do the goals of x15 differ from viengoos?
+    <braunr> zacts: viengoos is much more ambitious about the design
+    <braunr> tbh, i still don't clearly see how its half-sync ipc work
+    <braunr> x15 is much more mach-like, e.g. a hybrid microkernel with
+      scheduling and virtual memory in the kernel
+    <braunr> its goals are close to those of mach, adding increased scalability
+      and performance to the list
+    <zacts> that's neat
+    <braunr> that's different
+    <braunr> in a way, you could consider x15 is to mach what linux is to unix,
+      a clone with a "slightly" different interface
+    <zacts> ah, ok. cool!
+    <braunr> viengoos is rather a research project, with very interesting
+      goals, i think they're both neat :p
+
+
+### IRC, freenode, #hurd, 2013-01-19
+
+    <braunr> for now, it provides kernel memory allocation and basic threading
+    <braunr> it already supports both i386 and amd64 processors (from i586
+      onwards), and basic smp
+    <zacts> oh wow
+    <zacts> how easily can it be ported to other archs?
+    <braunr> the current focus is smp load balancing, so that thread migration
+      is enabled during development
+    <braunr> hard to say
+    <braunr> everything that is arch-specific is cleanly separated, the same
+      way it is in mach and netbsd
+    <braunr> but the arch-specific interfaces aren't well defined yet because
+      there is only one (and incomplete) arch

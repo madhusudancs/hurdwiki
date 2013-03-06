@@ -1170,6 +1170,12 @@ There is a [[!FF_project 275]][[!tag bounty]] on this task.
     <braunr> haven't tested
 
 
+### IRC, freenode, #hurd, 2013-01-26
+
+    <braunr> ah great, one of the recent fixes (probably select-eintr or
+      setitimer) fixed exim4 :)
+
+
 ## IRC, freenode, #hurd, 2012-09-23
 
     <braunr> tschwinge: i committed the last hurd pthread change,
@@ -1268,6 +1274,17 @@ There is a [[!FF_project 275]][[!tag bounty]] on this task.
     <braunr> seems so
     <braunr> i don't find anything else
     <youpi> that's it, yes
+
+
+### IRC, freenode, #hurd, 2013-03-01
+
+    <youpi> braunr: btw, "unable to adjust libports thread priority: (ipc/send)
+      invalid destination port" is actually not a sign of fatality
+    <youpi> bach recovered from it
+    <braunr> youpi: well, it never was a sign of fatality
+    <braunr> but it means that, for some reason, a process looses a right for a
+      very obscure reason :/
+    <braunr> weird sentence, agreed :p
 
 
 ## IRC, freenode, #hurd, 2012-12-05
@@ -1459,3 +1476,332 @@ Same issue as [[term_blocking]] perhaps?
     <braunr> we have a similar problem with the hurd-specific cancellation
       code, it's in my todo list with io_select
     <youpi> ah, no, the condvar is not global
+
+
+## IRC, freenode, #hurd, 2013-01-14
+
+    <braunr> *sigh* thread cancellable is totally broken :(
+    <braunr> cancellation*
+    <braunr> it looks like playing with thread cancellability can make some
+      functions completely restart
+    <braunr> (e.g. one call to printf to write twice its output)
+
+[[git_duplicated_content]], [[git-core-2]].
+
+    * braunr is cooking a patch to fix pthread cancellation in
+        pthread_cond_{,timed}wait, smells good
+    <braunr> youpi: ever heard of something that would make libc functions
+      "restart" ?
+    <youpi> you mean as a feature, or as a bug ?
+    <braunr> when changing the pthread cancellation state of a thread, i
+      sometimes see printf print its output twice
+    <youpi> or perhaps after a signal dispatch?
+    <braunr> i'll post my test code
+    <youpi> that could be a duplicate write
+    <youpi> due to restarting after signal
+    <braunr> http://www.sceen.net/~rbraun/pthreads_test_cancel.c
+    #include <stdio.h>
+    #include <stdarg.h>
+    #include <stdlib.h>
+    #include <pthread.h>
+    #include <unistd.h>
+    
+    static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+    static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+    static int predicate;
+    static int ready;
+    static int cancelled;
+    
+    static void
+    uncancellable_printf(const char *format, ...)
+    {
+        int oldstate;
+        va_list ap;
+    
+        va_start(ap, format);
+        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
+        vprintf(format, ap);
+        pthread_setcancelstate(oldstate, &oldstate);
+        va_end(ap);
+    }
+    
+    static void *
+    run(void *arg)
+    {
+        uncancellable_printf("thread: setting ready\n");
+        ready = 1;
+        uncancellable_printf("thread: spin until cancellation is sent\n");
+    
+        while (!cancelled)
+            sched_yield();
+    
+        uncancellable_printf("thread: locking mutex\n");
+        pthread_mutex_lock(&mutex);
+        uncancellable_printf("thread: waiting for predicate\n");
+    
+        while (!predicate)
+            pthread_cond_wait(&cond, &mutex);
+    
+        uncancellable_printf("thread: unlocking mutex\n");
+        pthread_mutex_unlock(&mutex);
+        uncancellable_printf("thread: exit\n");
+        return NULL;
+    }
+    
+    int
+    main(int argc, char *argv[])
+    {
+        pthread_t thread;
+    
+        uncancellable_printf("main: create thread\n");
+        pthread_create(&thread, NULL, run, NULL);
+        uncancellable_printf("main: spin until thread is ready\n");
+    
+        while (!ready)
+            sched_yield();
+    
+        uncancellable_printf("main: sending cancellation\n");
+        pthread_cancel(thread);
+        uncancellable_printf("main: setting cancelled\n");
+        cancelled = 1;
+        uncancellable_printf("main: joining thread\n");
+        pthread_join(thread, NULL);
+        uncancellable_printf("main: exit\n");
+        return EXIT_SUCCESS;
+    }
+    <braunr> youpi: i'd see two calls to write, the second because of a signal,
+      as normal, as long as the second call resumes, but not restarts after
+      finishing :/
+    <braunr> or restarts because nothing was done (or everything was entirely
+      rolled back)
+    <youpi> well, with an RPC you may not be sure whether it's finished or not
+    <braunr> ah
+    <youpi> we don't really have rollback
+    <braunr> i don't really see the difference with a syscall there
+    <youpi> the kernel controls the interruption in the case of the syscall
+    <braunr> except that write is normally atomic if i'm right
+    <youpi> it can't happen on the way back to userland
+    <braunr> but that could be exactly the same with RPCs
+    <youpi> while perhaps it can happen on the mach_msg back to userland
+    <braunr> back to userland ok, back to the application, no
+    <braunr> anyway, that's a side issue
+    <braunr> i'm fixing a few bugs in libpthread
+    <braunr> and noticed that
+    <braunr> (i should soon have patches to fix - at least partially - thread
+      cancellation and timed blocking)
+    <braunr> i was just wondering how cancellation how handled in glibc wrt
+      libpthread
+    <youpi> I don't know
+    <braunr> (because the non standard hurd cancellation has nothing to do with
+      pthread cancellation)à
+    <braunr> ok
+    <braunr> s/how h/is h/
+
+
+### IRC, freenode, #hurd, 2013-01-15
+
+    <tschwinge> braunr: Re »one call to printf to write twice its output«:
+      sounds familiar:
+      http://www.gnu.org/software/hurd/open_issues/git_duplicated_content.html
+      and http://www.gnu.org/software/hurd/open_issues/git-core-2.html
+    <braunr> tschwinge: what i find strange with the duplicated operations i've
+      seen is that i merely use pthreads and printf, nothing else
+    <braunr> no setitimer, no alarm, no select
+    <braunr> so i wonder how cancellation/syscall restart is actually handled
+      in our glibc
+    <braunr> but i agree with you on the analysis
+
+
+### IRC, freenode, #hurd, 2013-01-16
+
+    <braunr> neal: do you (by any chance) remember if there could possibly be
+      spurious wakeups in your libpthread implementation ?
+    <neal> braunr: There probably are.
+    <neal> but I don't recall
+
+    <braunr> i think the duplicated content issue is due to the libmach/glibc
+      mach_msg wrapper
+    <braunr> which restarts a message send if interrupted
+    <tschwinge> Hrm, depending on which point it has been interrupted you mean?
+    <braunr> yes
+    <braunr> not sure yet and i could be wrong
+    <braunr> but i suspect that if interrupted after send and during receive,
+      the restart might be wrongfully done
+    <braunr> i'm currently reworking the timed* pthreads functions, doing the
+      same kind of changes i did last summer when working on select (since
+      implement the timeout at the server side requires pthread_cond_timedwait)
+    <braunr> and i limit the message queue size of the port used to wake up
+      threads to 1
+    <braunr> and it seems i have the same kind of problems, i.e. blocking
+      because of a second, unexpected send
+    <braunr> i'll try using __mach_msg_trap directly and see how it goes
+    <tschwinge> Hrm, mach/msg.c:__mach_msg does look correct to me, but yeah,
+      won't hurd to confirm this by looking what direct usage of
+      __mach_msg_trap is doing.
+    <braunr> tschwinge: can i ask if you still have a cthreads based hurd
+      around ?
+    <braunr> tschwinge: and if so, to send me libthreads.so.0.3 ... :)
+    <tschwinge> braunr: darnassus:~tschwinge/libthreads.so.0.3
+    <braunr> call   19c0 <mach_msg@plt>
+    <braunr> so, cthreads were also using the glibc wrapper
+    <braunr> and i never had a single MACH_SEND_INTERRUPTED
+    <braunr> or a busy queue :/
+    <braunr> (IOW, no duplicated messages, and the wrapper indeed looks
+      correct, so it's something else)
+    <tschwinge> (Assuming Mach is doing the correct thing re interruptions, of
+      course...)
+    <braunr> mach doesn't implement it
+    <braunr> it's explicitely meant to be done in userspace
+    <braunr> mach merely reports the error
+    <braunr> i checked the osfmach code of libmach, it's almost exactly the
+      same as ours
+    <tschwinge> Yeah, I meant Mach returns the interurption code but anyway
+      completed the RPC.
+    <braunr> ok
+    <braunr> i don't expect mach wouldn't do it right
+    <braunr> the only difference in osf libmach is that, when retrying,
+      MACH_SEND_INTERRUPT|MACH_RCV_INTERRUPT are both masked (for both the
+      send/send+receive and receive cases)
+    <tschwinge> Hrm.
+    <braunr> but they say it's for performance, i.e. mach won't take the slow
+      path because of unexpected bits in the options
+    <braunr> we probably should do the same anyway
+
+
+### IRC, freenode, #hurd, 2013-01-17
+
+    <braunr> tschwinge: i think our duplicated RPCs come from
+      hurd/intr-msg.c:148 (err == MACH_SEND_INTERRUPTED but !(option &
+      MACH_SEND_MSG))
+    <braunr> a thread is interrupted by a signal meant for a different thread
+    <braunr> hum no, still not that ..
+    <braunr> or maybe .. :)
+    <tschwinge> Hrm.  Why would it matter for for the current thread for which
+      reason (different thread) mach_msg_trap returns *_INTERRUPTED?
+    <braunr> mach_msg wouldn't return it, as explained in the comment
+    <braunr> the signal thread would, to indicate the send was completed but
+      the receive must be retried
+    <braunr> however, when retrying, the original user_options are used again,
+      which contain MACH_SEND_MSG
+    <braunr> i'll test with a modified version that masks it
+    <braunr> tschwinge: hm no, doesn't fix anything :(
+
+
+### IRC, freenode, #hurd, 2013-01-18
+
+    <braunr> the duplicated rpc calls is one i find very very frustrating :/
+    <youpi> you mean the dup writes we've seen lately?
+    <braunr> yes
+    <youpi> k
+
+
+### IRC, freenode, #hurd, 2013-01-19
+
+    <braunr> all right, i think the duplicated message sends are due to thread
+      creation
+    <braunr> the duplicated message seems to be sent by the newly created
+      thread
+    <braunr> arg no, misread
+
+
+### IRC, freenode, #hurd, 2013-01-20
+
+    <braunr> tschwinge: youpi: about the diplucated messages issue, it seems to
+      be caused by two threads (with pthreads) doing an rpc concurrently
+    <braunr> duplicated*
+
+
+### IRC, freenode, #hurd, 2013-01-21
+
+    <braunr> ah, found something interesting
+    <braunr> tschwinge: there seems to be a race on our file descriptors
+    <braunr> the content written by one thread seems to be retained somewhere
+      and another thread writing data to the file descriptor will resend what
+      the first already did
+    <braunr> it could be a FILE race instead of fd one though
+    <braunr> yes, it's not at the fd level, it's above
+    <braunr> so good news, seems like the low level message/signalling code
+      isn't faulty here
+    <braunr> all right, simple explanation: our IO_lockfile functions are
+      no-ops
+    <pinotree> braunr: i found that out days ago, and samuel said they were
+      okay
+
+[[glibc]], `flockfile`/`ftrylockfile`/`funlockfile`.
+
+
+## IRC, freenode, #hurd, 2013-01-15
+
+    <braunr> hmm, looks like subhurds have been broken by the pthreads patch :/
+    <braunr> arg, we really do have broken subhurds :((
+    <braunr> time for an immersion in the early hurd bootstrapping stuff
+    <tschwinge> Hrm.  Narrowed down to cthreads -> pthread you say.
+    <braunr> i think so
+    <braunr> but i think the problem is only exposed
+    <braunr> it was already present before
+    <braunr> even for the main hurd, i sometimes have systems blocking on exec
+    <braunr> there must be a race there that showed far less frequently with
+      cthreads
+    <braunr> youpi: we broke subhurds :/
+    <youpi> ?
+    <braunr> i can't start one
+    <braunr> exec seems to die and prevent the root file system from
+      progressing
+    <braunr> there must be a race, exposed by the switch to pthreads
+    <braunr> arg, looks like exec doesn't even reach main :(
+    <braunr> now, i'm wondering if it could be the tls support that stops exec
+    <braunr> although i wonder why exec would start correctly on a main hurd,
+      and not on a subhurd :(
+    <braunr> i even wonder how much progress ld.so.1 is able to make, and don't
+      have much idea on how to debug that
+
+
+### IRC, freenode, #hurd, 2013-01-22
+
+    <braunr> hm, subhurds seem to be broken because of select
+    <braunr> damn select !
+    <braunr> hm i see, we can't boot a subhurd that still uses libthreads from
+      a main hurd that doesn't
+    <braunr> the linker can't find it and doesn't start exec
+    <braunr> pinotree: do you understand what the fmh function does in
+      sysdeps/mach/hurd/dl-sysdep.c ?
+    <braunr> i think we broke subhurds by fixing vm_map with size 0
+    <pinotree> braunr: no idea, but i remember thomas talking about this code
+
+[[vm_map_kernel_bug]]
+
+    <braunr> it checks for KERN_INVALID_ADDRESS and KERN_NO_SPACE
+    <braunr> and calls assert_perror(err); to make sure it's one of them
+    <braunr> but now, KERN_INVALID_ARGUMENT can be returned
+    <braunr> ok i understand what it does
+    <braunr> and youpi has changed the code, so he does too
+    <braunr> (now i'm wondering why he didn't think of it when we fixed vm_map
+      size with 0 but his head must already be filled with other things so ..)
+    <braunr> anyway, once this is dealt with, we get subhurds back :)
+    <braunr> yes, with a slight change, my subhurd starts again \o/
+    <braunr> youpi: i found the bug that prevents subhurds from booting
+    <braunr> it's caused by our fixing of vm_map with size 0
+    <braunr> when ld.so.1 starts exec, the code in
+      sysdeps/mach/hurd/dl-sysdep.c fails because it doesn't expect the new
+      error code we introduced
+    <braunr> (the fmh functions)
+    <youpi> ah :)
+    <youpi> good :)
+    <braunr> adding KERN_INVALID_ARGUMENT to the list should do the job, but if
+      i understand the code correctly, checking if fmhs isn't 0 before calling
+      vm_map should do the work too
+    <braunr> s/do the work/work/
+    <braunr> i'm not sure which is the preferred way
+    <youpi> otherwise I believe fmh could be just fixed to avoid calling vm_map
+      in the !fmhs case
+    <braunr> yes that's what i currently do
+    <braunr> at the start of the loop, just after computing it
+    <braunr> seems to work so far
+
+
+## IRC, freenode, #hurd, 2013-01-22
+
+    <braunr> i have almost completed fixing both cancellation and timeout
+      handling, but there are still a few bugs remaining
+    <braunr> fyi, the related discussion was
+      https://lists.gnu.org/archive/html/bug-hurd/2012-08/msg00057.html

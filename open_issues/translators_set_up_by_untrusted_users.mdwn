@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2013 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -350,3 +350,230 @@ IRC, freenode, #hurd, 2011-09-14:
     <antrik> cjuner: either glibc or the parent translators
 
 Continued discussion about [[resource_management_problems/pagers]].
+
+
+# IRC, freenode, #hurd, 2013-02-24
+
+    <braunr> on a more general topic, i've been thinking about client and
+      server trust
+    <braunr> there have been many talkbs about it regarding l4/coyotos/hurdng
+    <youpi> I generally think the client can trust the server
+    <braunr> and passing the select timeout to servers corroborates this
+    <youpi> because it's either root, or it's the same user
+    <braunr> hum yes, but that's not exactly my question, you'll see
+    <braunr> there is one feature the hurd has, and i'm not sure we should have
+      it considering what it requires
+    <braunr> the feature is that clients can, at any time, "break" from a
+      server
+    <youpi> "break" ?
+    <braunr> the current implementation is to cancel the current RPC after 3
+      seconds without a reply when the user sends SIGINT
+    <braunr> the problem is that, moving to a complete migrating thread model
+      would make that impossible (or very complicated to do right)
+
+[[mach_migrating_threads]].
+
+    <braunr> would it be ok to remove this feature ?
+    <youpi> well, we need to have SIGINT working, don't we?
+    <braunr> obviously
+    <braunr> but that's not what the feature is meant to do
+    <braunr> it allows clients to recover from a server that misbehaves and
+      doesn't return
+    <youpi> then I don't understand in enough details what you mean :)
+    <braunr> imagine a buggy driver in linux that gets into an uninterruptible
+      sleep
+    <braunr> you can't even kill your process
+    <braunr> that's what the feature is meant to solve
+    <youpi> that's a quite useful thing
+    <youpi> e.g. stuck nfs etc., it's useful to be able to recover from that
+    <braunr> forbidding uninterruptible sleeps would also be a solution, but
+      then it means relying on servers acting right
+    <braunr> which is why i mention we usually trust servers
+    <youpi> well, there is "trust" and "trust" :)
+    <youpi> i.e. security-wise and robustness-wise
+    <youpi> I meant clients can usually trust servers security-wise
+    <braunr> my current idea for x15 is to forbid this kind of breaking, but
+      also forbid uninterruptible sleeps
+    <youpi> robustness-wise, I'd say no
+    <braunr> this way, sending a signal directly reaches the server, which is
+      trusted to return right away (well, conforming to the handling behaviour)
+    <braunr> so yes, buggy servers would prevent that, but on the other hand,
+      stuck nfs wouldn't
+    <youpi> provided the nfs implementation is not bogus
+    <braunr> yes
+    <youpi> I'd tend to agree, but would rather see this discussed on the list
+    <braunr> yes
+    <braunr> actually, it wouldn't be that hard to keep the current behaviour,
+      since i won't implement true migrating threads
+    <braunr> but it means retaining some issues we have (most importantely,
+      denial of service)
+    <braunr> -e
+    <braunr> what i want to avoid is
+      http://www.gnu.org/software/hurd/hurd/ng/cancellationforwarding.html
+    <youpi> for non-trusted servers, we could have a safety wrapper
+    <youpi> which we trust and does things carefully when talking with the
+      non-trusted server
+    <braunr> what would a non trusted server be ?
+    <youpi> whatever is neither root nor me
+    <youpi> e.g. nobody-provided /ftp:, or $HOME of another user, etc.
+    <braunr> i'd argue we don't talk to non trusted servers at all, period
+    <youpi> users won't like it :)
+    <braunr> and i'd extend root to a system provided list
+    <youpi> actually the nobody /ftp: case is important
+    <braunr> users should be able to create their own list of trusted users
+    <youpi> it's also the nobody /dev/null case
+    <youpi> atm it's root
+    <braunr> yes
+    <braunr> i see the point
+    <braunr> i'm just saying the idea of "using non-trusted server" doesn't
+      make sense
+    <youpi> actually running /ftp: under nobody is dangerous
+    <youpi> since if you're running as nobody (because you broke into the
+      system or whatever), then you can poke with nobody-provided servers
+    <braunr> yes
+    <youpi> so we'd rather have really-nobody processes
+    <braunr> taht's an already existing problem
+    <youpi> which can't be poked into
+    <youpi> (and thus can't poke into each other)
+    <braunr> or a separate user for each
+    <youpi> that'd be difficult
+    <braunr> or separate tokens, it's not important
+    <youpi> for /ftp:/ftp.debian.org used by someone, and /ftp:/ftp.foo.org
+      used by someone else
+    <braunr> what i mean is that, by talking to a server, a client implicitely
+      trusts it
+    <braunr> youpi: wouldn't that just be the same "ftp" user ?
+    <youpi> ideally, a carefully-crafted client could avoid having to trust it
+    <braunr> really ?
+    <youpi> braunr: that's the problem: then each ftpfs can poke on each other
+    <braunr> well, each global one
+    <youpi> there's the daemon-sharing issue too, yes
+    <braunr> i wasn't thinking about ftpfs, but rather the "system" pfinet for
+      example
+    <youpi> like /dev/null is shared
+    <braunr> when you say root or me, it's "system" or me
+    <braunr> by default, users trust their system
+    <braunr> they don't trust other users
+    <youpi> avoid having to trust it: yes, by using timeouts etc.
+    <braunr> that's clearly not enough
+    <youpi> why?
+    <braunr> shapiro described this in a mail but i can't find it right now
+    <youpi> I wouldn't like to have to trust ftpfs
+    <braunr> well time is one thing, data provided for example is another
+    <braunr> well, you do
+    <youpi> who knows what bug ftpfs has
+    <youpi> ideally I would be able not to have to
+    <youpi> braunr: you can check data
+    <braunr> i don't think that ideal is possible
+    <braunr> it you set a ftp translator with a user account, you give it the
+      password
+    <youpi> which password?
+    <braunr> the account password
+    <youpi> which account?
+    <braunr> "a user account"
+    <braunr> i.e. not anonymoius
+    <youpi> ah
+    <youpi> well, sure, you have to give that to ftpfs
+    <youpi> I mean the ftp server might be malicious or whatever
+    <youpi> and trigger a bug in ftpfs
+    <braunr> yes
+    <youpi> so I don't want to have to trust ftpfs
+    <braunr> what would that mean in practice ?
+    <youpi> have a trusted translation layer which papers over it, checking
+      timeouts & data
+    <braunr> how do you check data ?
+    <youpi> by knowing the protocol
+    <braunr> ?
+    <braunr> can you give a quick example ?
+    <youpi> well, which data check do you need?
+    <youpi> (it's you who mentioned data issues :) )
+    <braunr> i don't know what you mean by that so, choose as you see fit
+    <braunr> well the password one for example
+    <braunr> i was merely saying that, buy using an application, be it a
+      regular one or a translator, you automatically trust it
+    <youpi> you mean the ftp user password ?
+    <braunr> it becomes part of your tcb
+    <youpi> of course you have to provide it to ftpfs
+    <youpi> that's not a problem
+    <youpi> yes, but it's not because you connect to an http website that you
+      trust the webserver on the other end
+    <youpi> your web browser does checking for you
+    <braunr> when the protocol allows it
+    <braunr> (in this case, i'm thinking assymmetrical cryptography)
+    <youpi> in which case example doesn't it ?
+    <youpi> it seems we're not talking about the same kind of issue, thus not
+      understanding each other
+    <braunr> indeed
+    <youpi> by "trusting", I don't mean "be sure that it's the right server at
+      the other end"
+    <braunr> my point is that not trusting a server is impossible
+    <youpi> I mean "it behaves correectly"
+    <braunr> yes
+    <braunr> it may not behave correctly, and we might not know it
+    <youpi> as long as it doesn't make the program crash, that's fine
+    <youpi> that's what I mean
+    <braunr> that's where the difference is
+    <youpi> but giving the password is not my concern here
+    <youpi> and giving the password is a matter of cryptography, etc.  yes, but
+      that's completely not my point
+    <braunr> i'm concerned about absolute correct behaviour 
+    <braunr> hm
+    <braunr> no actually i was
+    <braunr> but not any more, the discussion has shifted back to the timeout
+      issue
+    <braunr> ah no, i remember
+    <braunr> we talked about which servers to trust
+    <braunr> and how to alter communication accordingly
+    <braunr> and my point was that altering communication shouldn't be done, we
+      either trust the server, and talk to it, or we don't, and we stay away
+    <braunr> the wrapper would help for this specific blocking issue, yes
+    <youpi> I don't agree on this
+    <youpi> let me take a way more simple example
+    <youpi> a server that provides data through io_read
+    <youpi> I don't want to trust it because it's provided by some joe user
+    <youpi> but I still want to have a look at the data that it produces
+    <youpi> I'm fine that the data may be completely non-sense, that's not a
+      problem
+    <youpi> what is a problem, however, is if the hexdump program I've run over
+      it can't be ^C-ed
+    <braunr> yes, that's the specific issue i mentioned
+    <youpi> and for that, a mere trusted intermediate could be enough
+    <braunr> iirc, there is a firmlink-related issue 
+    <youpi> ?
+    <braunr>
+      http://www.gnu.org/software/hurd/open_issues/translators_set_up_by_untrusted_users.html
+    <youpi> I'm not able to guess what conclusion you are drawing here :)
+    <braunr> don't talk to untrusted servers
+    <youpi> or be careful
+    <youpi> the rm -fr /tmp being aabout being careful actually
+    <braunr> right
+    <braunr> i have a very unix-centric view for my system actually
+    <braunr> i think posix compatibility is very important for me
+    <braunr> more than it seems to have been in the past when the hurd was
+      designed
+    <braunr> to* me
+    <braunr> so i don't trust tools to be careful
+    <youpi> that's why a wrapping translator could make it back to posix
+      compatibility
+    <braunr> but i see what you mean
+    <youpi> being careful for the tools
+    <braunr> hum, a wrapping _translator_ ?
+    <youpi> yes, similar to remap and fakeroot
+    <braunr> ok
+    <youpi> you'd tell it "for this path, please be careful for my tools"
+    <braunr> ok so
+    <braunr> it would basically still end up trusting system or me
+    <braunr> but you'd add this wrapper to the system
+    <youpi> "it" ?
+    <braunr> the situation
+    <braunr> i don't know :)
+    <braunr> the implementation, whatever
+    <youpi> the shell I'm running, you mean
+    <braunr> and it would be the job of this translator to shield the user
+    <youpi> yes
+    <braunr> that's a good idea, yes
+    <youpi> it could reduce the allowed RPC set to what it knows to check
+    <braunr> how would the shell use it ?
+    <braunr> would it "shadow" / ?
+    <youpi> yes
+    <braunr> ok

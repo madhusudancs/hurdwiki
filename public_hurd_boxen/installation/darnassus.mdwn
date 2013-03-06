@@ -1,0 +1,170 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+
+# IRC, freenode, #hurd, 2013-02-09
+
+    <tschwinge> We need an httpd (Apache used to work), and ikiwiki and some
+      such stuff.
+    <tschwinge> This has its own git repository.
+    <tschwinge> This was on a separate virtual machine.
+    <tschwinge> Then there was the Git repository on flubber used for people to
+      push to.
+    <tschwinge> Ho -- let me actually try to remember the setup.  Has been some
+      years...
+    <braunr> what machine currently hosts the wiki ?
+    <tschwinge> Anyway, there is no requirement for the web server to be on a
+      separate machine; your decision.
+    <tschwinge> braunr: http://www.gnu.org/software/hurd/public_hurd_boxen.html
+    <tschwinge> snubber
+    <tschwinge> That was the web server.
+    <braunr> isn't it gnu.org ?
+    <tschwinge> And flubber had the repository for developers to push to.
+    <tschwinge> No, gnu.org is updated manually (by me).
+    <braunr> ah
+    <tschwinge> It'S a snapshot of the wiki so to say.
+    <braunr> ok so, is this wiki really meant to be modifiable from a browser ?
+    <tschwinge>
+      http://www.gnu.org/software/hurd/contributing/web_pages.html#index5h2
+    <tschwinge> Yes.
+    <braunr> i see
+    <tschwinge> I should still be able to access the data from Barry's zenhost
+      (including all the VMs it hosted), so I should be able to replicate that
+      quite easily.
+    <braunr> do you think it could be hosted on darnassus, or would you like a
+      separate vm ?
+    <tschwinge> The repository for people to push to and pull from (used to be
+      on flubber) would be on darnassus now.
+    <tschwinge> About the web server, hmm.
+    <tschwinge> It's basically a security concern.
+    <tschwinge> And it might get hammered by bots from time to time.
+    <braunr> it won't need much resources i suppose
+    <tschwinge> No.  The web server (snubber) was running with 242 MiB of RAM,
+      and had uptimes of several weeks typically.
+    <braunr> tschwinge: otherwise, could it use the web server running on the
+      host ?
+    <tschwinge> The host being darnassus?
+    <braunr> no
+    <braunr> shattrath, the linux system
+    <tschwinge> Ah.
+    <tschwinge> Sure.
+    <tschwinge> There is no requirement this to be a Hurd system -- was just
+      nice to show to people.
+    <braunr> i think it is too
+    <braunr> what's the problem with darnassus ?
+    <braunr> yçou mentioned security
+    <tschwinge> The web server being a public-facing component which might be
+      broken into.
+    <braunr> how ?
+    <braunr> it's so much easier to just ask for an account .. :)
+    <tschwinge> Web server bugs, CGI script bugs, etc.
+    <tschwinge> Sure.
+    <tschwinge> I just wanted to make you aware of it.  :-)
+    <braunr> oh don't worry
+    <braunr> ok so darnassus it is
+    <pinotree> was it running apache? maybe, if other (lighter?) web servers
+      are tested to work on hurd, they could be used
+    <tschwinge> pinotree: Yes, and yes.
+    <braunr> doesn't ikiwiki need php ?
+    <tschwinge> Only requirement (I think) is abaility to run CGI scripts.
+    <tschwinge> braunr: No.  It's written in perl.
+    <braunr> ok
+    <braunr> i still think i'll use apache
+    <braunr> it's really not that heavy
+    <braunr> lighter servers matter when the number of concurrent clients get
+      very high
+    <tschwinge> Then I'll figure out how exactly the setup was between flubber
+      and snubber.
+    <braunr> ok
+    <braunr> it's good to finally get that going :)
+    <tschwinge> braunr: Of course ;-) -- I had some parts of the process
+      documented:
+      http://www.gnu.org/software/hurd/public_hurd_boxen/installation/snubber.html
+    <tschwinge> If both Git repositories are to be on the same machine
+      (darnassus) we might not actually need inetutils-inetd and netcat.
+    <tschwinge> Still trying to figure out what I had done there...  ;-)
+    <tschwinge> OK, I again understand the setup.  Last been touched in the
+      2008/2009 timeframe.  ;-)
+    <braunr> :)
+    <tschwinge> braunr: Please use the following ikiwiki packages: dpkg -i
+      ~tschwinge/tmp/ikiwiki_3.20110608_all.deb
+    <braunr> what makes this package special ?
+    <tschwinge> Some patch that I added to get rendering of our news pages
+      correct.
+    <braunr> ok
+    <tschwinge> I have not updated it ever since (and the patch was not yet in
+      a suitable form for upstream).
+    <tschwinge> Nothing major.
+    <braunr> tschwinge: why is the ikiwiki package status hi ?
+    <tschwinge> braunr: I set it to hold.
+    <braunr> ah ok
+    <braunr> so you finished your pat i suppose
+    <braunr> i'll install apache
+    <braunr> part*
+    <tschwinge> I'll add a hurd-web user.
+    <tschwinge> So...  I actually have to locate a backup of the files from
+      flubber related to the wiki,
+    * tschwinge goes searching his backup devices.
+    <braunr> i added userdirs on darnassus' apache
+    <tschwinge> braunr: I just noticed when I wanted to add it myself.  ;-)
+    <tschwinge> braunr: Do you know about CGI scripts?
+    <braunr> yes
+    <tschwinge> braunr: snubber had these in /var/www/cgi-bin/; darnassus now
+      in /usr/lib/cgi-bin/.
+    <tschwinge> ikiwiki needs to install one CGI script.
+    <braunr> ok
+    <tschwinge> Does this go into /usr/lib/cgi-bin/ then?  Or into ~hurd-web/
+      and a symlink somewhere?
+    <braunr> ikiwiki should have installed it where it's appropriate
+    <braunr> normally in /usr/lib/cgi-bin/
+    <tschwinge> It's a CGI script that is generated per ikiwiki instance, so
+      specific to hurd-web.
+    <braunr> where does it install it by default ?
+    <tschwinge> $PWD ;-)
+    <braunr> ah
+    <braunr> it seems a bit silly to me to generate cgi scripts :/
+    <braunr> i don't care much actually, we won't have virtual servers
+    <braunr> so anywhere is fine
+    <tschwinge> What does the +SymLinksIfOwnerMatch Apache option mean?
+    <braunr> apache will normally not follow symlink
+    <braunr> unless the owner of the symlink is the same as the target's
+    <braunr> (with this option)
+    <tschwinge> That's enabled for CGI scripts.  So would it work to have a
+      symlink /usr/lib/cgi-bin/hurd-web.cgi -> ~hurd-web/hurd-web.cgi?
+    <braunr> the traditional way to access cgi scripts is to explicitely refer
+      to them as http://server/cgi-bin/script
+    <braunr> using *.cgi may allow too open access to cgis
+    <braunr> (although normally, the userdir conf should disable them)
+    <braunr> hm not sure it does
+    <braunr> so put it in /usr/lib/cgi-bin/
+    <tschwinge> So the hurd-web ikiwiki instance just needs to be configured
+      accordingly with the URL where the CGI script will be found, and then it
+      will render the pages accordingly.
+    <tschwinge> OK.
+    <braunr> and just named hurd-web
+
+
+## IRC, freenode, #hurd, 2013-02-10
+
+    <tschwinge> http://darnassus.sceen.net/~hurd-web/
+    <tschwinge> Have at it!
+    <tschwinge> braunr: ^
+    <braunr> :)
+    <braunr> great
+    <tschwinge> And push to/pull from darnassus:~hurd-web/hurd-web.git for Git
+      access.
+    <tschwinge> Will update the web pages tomorrow, and all that.
+    <tschwinge> braunr: And also install gitweb on darnassus, so one can view
+      diffs of the wiki pages, etc.  OK?
+    <braunr> tschwinge: there are still links towards bddebian
+    <braunr> history for example
+    <braunr> just fyi, we can look at this tomorrow
+    <tschwinge> braunr: Yes, that'S what I need gitweb for.
+    <tschwinge> braunr: gitweb installed, hurd-web URLs fixed (s%bddebian%darnassus), also some more ikiwiki-related Perl pacakges installed (openID login, for example).
