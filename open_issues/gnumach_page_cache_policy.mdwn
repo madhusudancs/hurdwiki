@@ -771,12 +771,12 @@ License|/fdl]]."]]"""]]
     <tschwinge> And set precedence.
 
 
-## IRC, freenode, #hurd, 2012-07-26
+# IRC, freenode, #hurd, 2012-07-26
 
     <braunr> hm i killed darnassus, probably the page cache patch again
 
 
-## IRC, freenode, #hurd, 2012-09-19
+# IRC, freenode, #hurd, 2012-09-19
 
     <youpi> I was wondering about the page cache information structure
     <youpi> I guess the idea is that if we need to add a field, we'll just
@@ -786,3 +786,28 @@ License|/fdl]]."]]"""]]
     <braunr> youpi: have a look at the rbraun/page_cache gnumach branch
     <youpi> that's what I was referring to
     <braunr> ok
+
+
+# IRC, freenode, #hurd, 2013-01-15
+
+    <braunr> hm, no wonder the page cache patch reduced performance so much
+    <braunr> the page cache when building even moderately large packages is
+      about a few dozens MiB (around 50)
+    <braunr> the patch enlarged it to several hundreds :/
+    <ArneBab> braunr: so the big page cache essentially killed memory locality?
+    <braunr> ArneBab: no, it made ext2fs crazy (disk translators - used as
+      pagers - scan their cached pages every 5 seconds to flush the dirty ones)
+    <braunr> you can imagine what happens if scanning and flushing a lot of
+      pages takes more than 5 seconds
+    <ArneBab> ouch… that’s heavy, yes
+    <ArneBab> I already see it pile up in my mindb 
+    <braunr> and it's completely linear, using a lock to protect the whole list
+    <braunr> darnassus is currently showing such a behaviour, because tschwinge
+      is linking huge files (one object with lots of pages)
+    <braunr> 446 MB of swap used, between 200 and 1850 MiB of RAM used, and i
+      can still use vim and build stuff without being too disturbed
+    <braunr> the system does feel laggy, but there has been great stability
+      improvements
+    <braunr> have*
+    <braunr> and even if laggy, it doesn't feel much more than the usual lag of
+      a network (ssh) based session

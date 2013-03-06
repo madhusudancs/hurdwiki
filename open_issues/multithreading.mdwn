@@ -266,6 +266,94 @@ Tom Van Cutsem, 2009.
       async by nature, will create messages floods anyway
 
 
+### IRC, freenode, #hurd, 2013-02-23
+
+    <braunr> hmm let's try something
+    <braunr> iirc, we cannot limit the max number of threads in libports
+    <braunr> but did someone try limiting the number of threads used by
+      libpager ?
+    <braunr> (the only source of system stability problems i currently have are
+      the unthrottled writeback requests)
+    <youpi> braunr: perhaps we can limit the amount of requests batched by the
+      ext2fs sync?
+    <braunr> youpi: that's another approach, yes
+    <youpi> (I'm not sure to understand what threads libpager create)
+    <braunr> youpi: one for each writeback request
+    <youpi> ew
+    <braunr> but it makes its own call to
+      ports_manage_port_operations_multithread
+    <braunr> i'll write a new ports_manage_port_operations_multithread_n
+      function that takes a mx threads parameter
+    <braunr> and see if it helps
+    <braunr> i thought replacing spin locks with mutexes would help, but it's
+      not enough, the true problem is simply far too much contention
+    <braunr> youpi: i still think we should increase the page dirty timeout to
+      30 seconds
+    <youpi> wouldn't that actually increase the amount of request done in one
+      go?
+    <braunr> it would
+    <braunr> but other systems (including linux) do that
+    <youpi> but they group requests
+    <braunr> what linux does is scan pages every 5 seconds, and writeback those
+      who have been dirty for more than 30 secs
+    <braunr> hum yes but that's just a performance issue
+    <braunr> i mean, a separate one
+    <braunr> a great source of fs performance degradation is due to this
+      regular scan happenning at the same time regular I/O calls are made
+    <braunr> e.G. aptitude update
+    <braunr> so, as a first step, until the sync scan is truley optimized, we
+      could increase that interval
+    <youpi> I'm afraid of the resulting stability regression
+    <youpi> having 6 times as much writebacks to do
+    <braunr> i see
+    <braunr> my current patch seems to work fine for now
+    <braunr> i'll stress it some more
+    <braunr> (it limits the number of paging threads to 10 currently)
+    <braunr> but iirc, you fixed a deadlock with a debian patch there
+    <braunr> i think the case was a pager thread sending a request to the
+      kernel, and waiting for the kernel to call another RPC that would unblock
+      the pager thread
+    <braunr> ah yes it was merged upstream
+    <braunr> which means a thread calling memory_object_lock_request with sync
+      == 1 must wait for a memory_object_lock_completed
+    <braunr> so it can deadlock, whatever the number of threads
+    <braunr> i'll try creating two separate pools with a limited number of
+      threads then
+    <braunr> we probably have the same deadlock issue in
+      pager_change_attributes btw
+    <braunr> hm no, i can still bring a hurd down easily with a large i/o
+      request :(
+    <braunr> and now it just recovered after 20 seconds without any visible cpu
+      or i/o usage ..
+    <braunr> i'm giving up on this libpager issue
+    <braunr> it simply requires a redesign
+
+
+### IRC, freenode, #hurd, 2013-02-28
+
+    <smindinvern> so what causes the stability issues?  or is that not really
+      known yet?
+    <braunr> the basic idea is that the kernel handles the page cache
+    <braunr> and writebacks aren't correctly throttled
+    <braunr> so a huge number of threads (several hundreds, sometimes
+      thousands) are created
+    <braunr> when this pathological state is reached, it's very hard to recover
+      because of the various sources of (low) I/O in the system
+    <braunr> a simple line sent to syslog increases the load average
+    <braunr> the solution requires reworking the libpager library, and probably
+      the libdiskfs one too, perhaps others, certainly also the pagers
+    <braunr> maybe the kernel too, i'm not sure
+    <braunr> i'd say so because it manages a big part of the paging policy
+
+
+### IRC, freenode, #hurd, 2013-03-02
+
+    <braunr> i think i have a simple-enough solution for the writeback
+      instability
+
+[[hurd/libpager]].
+
+
 ## Alternative approaches:
 
   * <http://www.concurrencykit.org/>
@@ -273,7 +361,7 @@ Tom Van Cutsem, 2009.
   * Continuation-passing style
 
       * [[microkernel/Mach]] internally [[uses
-        continuations|microkernel/mach/continuation]], too.
+        continuations|microkernel/mach/gnumach/continuation]], too.
 
   * [[Erlang-style_parallelism]]
 

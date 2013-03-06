@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2011, 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2012, 2013 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -2556,3 +2557,429 @@ License|/fdl]]."]]"""]]
     <braunr> you're asking if you can include the large store patch in your
       work, and by extension, in the main branch
     <braunr> i would say yes, but this must be discussed with others
+
+
+## IRC, freenode, #hurd, 2013-02-18
+
+    <braunr> mcsim: so, currently reviewing gnumach
+    <mcsim> braunr: hello
+    <braunr> mcsim: the review branch, right ?
+    <mcsim> braunr: yes
+    <mcsim> braunr: What do you start with?
+    <braunr> memory refreshing
+    <braunr> i see you added the advice twice, to vm_object and vm_map_entry
+    <braunr> iirc, we agreed to only add it to map entries
+    <braunr> am i wrong ?
+    <mcsim> let me see
+    <braunr> the real question being: what do you use the object advice for ?
+    <mcsim> >iirc, we agreed to only add it to map entries
+    <mcsim> braunr: TBH, do not remember that. At some point we came to
+      conclusion that there should be only one advice. But I'm not sure if it
+      was final point.
+    <braunr> maybe it wasn't, yes
+    <braunr> that's why i've just reformulated the question
+    <mcsim>         if (map_entry && (map_entry->advice != VM_ADVICE_DEFAULT))
+    <mcsim>                 advice = map_entry->advice;
+    <mcsim>         else
+    <mcsim>                 advice = object->advice;
+    <braunr> ok
+    <mcsim> It just participates in determining actual advice 
+    <braunr> ok that's not a bad thing
+    <braunr> let's keep it
+    <braunr> please document VM_ADVICE_KEEP
+    <braunr> and rephrase "How to handle page faults" in vm_object.h to
+      something like 'How to tune page fault handling"
+    <braunr> mcsim: what's the point of VM_ADVICE_KEEP btw ?
+    <mcsim> braunr: Probably it is better to remove it?
+    <braunr> well if it doesn't do anything, probably
+    <mcsim> braunr: advising was part of mo_set_attributes before
+    <mcsim> no it is redudant
+    <braunr> i see
+    <braunr> so yes, remove it
+    <mcsim> s/no/now
+    <braunr> (don't waste time on a gcs-like changelog format for now)
+    <braunr> i also suggest creating _vX branches
+    <braunr> so we can compare the changes between each of your review branches
+    <braunr> hm, minor coding style issues like switch(...) instead of switch
+      (...)
+    <braunr> why does syscall_vm_advise return MACH_SEND_INTERRUPTED if the
+      target map is NULL ?
+    <braunr> is it modelled after an existing behaviour ?
+    <braunr> ah, it's the syscall version
+    <mcsim> braunr: every syscall does so
+    <braunr> and the error is supposed to be used by user stubs to switch to
+      the rpc version
+    <braunr> ok
+    <braunr> hm
+    <braunr> you've replaced obsolete port_set_select and port_set_backup calls
+      with your own
+    <braunr> don't do that
+    <braunr> instead, add your calls to the new gnumach interface
+    <braunr> mcsim: out of curiosity, have you actually tried the syscall
+      version ?
+    <mcsim> braunr: Isn't it called by default?
+    <braunr> i don't think so, no
+    <mcsim> than no
+    <braunr> ok
+    <braunr> you could name vm_get_advice_info vm_advice_info
+    <mcsim> regarding obsolete calls, did you say that only in regard of
+      port_set_* or all other calls too?
+    <braunr> all of the
+    <braunr> m
+    <braunr> i missed one, yes
+    <braunr> the idea is: don't change the existing interface
+    <mcsim> >you could name vm_get_advice_info vm_advice_info
+    <mcsim> could or should? i.e. rename?
+    <braunr> i'd say should, to remain consistent with the existing similar
+      calls
+    <mcsim> ok
+    <braunr> can you explain KERN_NO_DATA a bit more ?
+    <braunr> i suppose it's what servers should answer for neighbour pages that
+      don't exist in the backend, right ?
+    <mcsim> kernel can ask server for some data to read them beforehand, but
+      server can be in situation when it does not know what data should be
+      prefetched
+    <mcsim> yes
+    <braunr> ok
+    <mcsim> it is used by ext2 server
+    <mcsim> with large store patch
+    <braunr> so its purpose is to allow the kernel to free the preallocated
+      pages that won't be used
+    <braunr> do i get it right ?
+    <mcsim> no.
+    <mcsim> ext2 server has a buffer for pages and when kernel asks to read
+      pages ahead it specifies region of that buffer 
+    <braunr> ah ok
+    <mcsim> but consecutive pages in buffer does not correspond to consecutive
+      pages on disk
+    <braunr> so, the kernel can only prefetch pages that were already read by
+      the server ?
+    <mcsim> no, it can ask a server to prefetch pages that were not read by
+      server
+    <braunr> hum
+    <braunr> ok
+    <mcsim> but in case with buffer, if buffer page is empty, server does not
+      know what to prefetch
+    <braunr> i'm not sure i'm following
+    <braunr> well, i'm sure i'm not following
+    <braunr> what happens when the kernel requests data from a server, right
+      after a page fault ?
+    <braunr> what does the message afk for ?
+    <mcsim> kernel is unaware regarding actual size of file where was page
+      fault because of buffer indirection, right?
+    <braunr> i don't know what "buffer" refers to here
+    <mcsim> this is buffer in memory where ext2 server reads pages
+    <mcsim> with large store patch ext2 server does not map the whole disk, but
+      some of its pages
+    <mcsim> and it maps these pages in special buffer
+    <mcsim> that means that constructiveness of pages in memory does not mean
+      that they are consecutive on disk or logically (belong to the same file)
+    <braunr> ok so it's a page pool
+    <braunr> with unordered pages
+    <braunr> but what do you mean when you say "server does not know what to
+      prefetch"
+    <braunr> it normally has everything to determine that
+    <mcsim> For instance, page fault occurs that leads to reading of
+      4k-file. But kernel does not know actual size of file and asks to
+      prefetch 16K bytes
+    <braunr> yes
+    <mcsim> There is no sense to prefetch something that does not belong to
+      this file
+    <braunr> yes but the server *knows* that
+    <mcsim> and server answers with KERN_NO_DATA
+    <mcsim> server should always say something about every page that was asked 
+    <braunr> then, again, isn't the purpose of KERN_NO_DATA to notify the
+      kernel it can release the preallocated pages meant for the non existing
+      data ?
+    <braunr> (non existing or more generally non prefetchable)
+    <mcsim> yes
+    <braunr> then
+    <braunr> why did you answer no to
+    <braunr> 15:46 < braunr> so its purpose is to allow the kernel to free the
+      preallocated pages that won't be used
+    <braunr> is there something missing ?
+    <braunr> (well obviously, notify the kernel it can go on with page fault
+      handling)
+    <mcsim> braunr: sorry, misunderstoo/misread 
+    <braunr> ok
+    <braunr> so good, i got this right :)
+    <braunr> i wonder if KERN_NO_DATA may be a bit too vague
+    <braunr> people might confuse it with ENODATA
+    <mcsim> Actually, this is transformation of ENODATA
+    <mcsim> I was looking among POSIX error codes and thought that this is the
+      most appropriate
+    <braunr> i'm not sure it is
+    <braunr> first, it's about STREAMS, a commonly unused feature
+    <braunr> and second, the code is obsolete
+    <mcsim> braunr: AFAIR purpose of KERN_NO_DATA is not only free
+      pages. Without this call something should hang
+    <braunr> 15:59 < braunr> (well obviously, notify the kernel it can go on
+      with page fault handling)
+    <mcsim> yes
+    <braunr> hm
+    <mcsim> sorry again
+    <braunr> i don't see anything better for the error name for now
+    <braunr> and it's really minor so let's keep it as it is
+    <braunr> actually, ENODATA being obsolete helps here
+    <braunr> ok, done for now, work calling
+    <braunr> we'll continue later or tomorrow
+    <mcsim> braunr: ok
+    <braunr> other than that, this looks ok on the kernel side for now
+    <braunr> the next change is a bit larger so i'd like to take the time to
+      read it
+    <mcsim> braunr: ok
+    <mcsim> regarding moving calls in mach.defs, can I put them elsewhere?
+    <braunr> gnumach.defs
+    <braunr> you'll probably need to rebase your changes to get it
+    <mcsim> braunr: I'll rebase this later, when we finish with review
+    <braunr> ok
+    <braunr> keep the comments in a list then, not to forget
+    <braunr> (logging irc is also useful)
+
+
+## IRC, freenode, #hurd, 2013-02-20
+
+    <braunr> mcsim: why does VM_ADVICE_DEFAULT have its own entry ?
+    <mcsim> braunr:  this kind of fallback mode 
+    <mcsim> i suppose that even random strategy could even read several pages
+      at once
+    <braunr> yes
+    <braunr> but then, why did you name it "default" ?
+    <mcsim> because it is assigned by default
+    <braunr> ah
+    <braunr> so you expect pagers to set something else
+    <braunr> for all objects they create
+    <mcsim> yes
+    <braunr> ok
+    <braunr> why not, but add a comment please
+    <mcsim> at least until all pagers will support clustered reading
+    <mcsim> ok
+    <braunr> even after that, it's ok
+    <braunr> just say it's there to keep the previous behaviour by default
+    <braunr> so people don't get the idea of changing it too easily
+    <mcsim> comment in vm_advice.h?
+    <braunr> no, in vm_fault.C
+    <braunr> right above the array
+    <braunr> why does vm_calculate_clusters return two ranges ?
+    <braunr> also, "Function PAGE_IS_NOT_ELIGIBLE is used to determine if",
+      PAGE_IS_NOT_ELIGIBLE doesn't look like a function
+    <mcsim> I thought make it possible not only prefetch range, but also free
+      some memory that is not used already
+    <mcsim> braunr: ^
+    <mcsim> but didn't implement it :/
+    <braunr> don't overengineer it
+    <braunr> reduce to what's needed
+    <mcsim> braunr: ok
+    <mcsim> braunr: do you think it's worth to implement?
+    <braunr> no
+    <mcsim> braunr: it could be useful for sequential policy
+    <braunr> describe what you have in mind a bit more please, i think i don't
+      have the complete picture
+    <mcsim> with sequential policy user supposed to read strictly in sequential
+      order, so pages that user is not supposed to read could be put in unused
+      list 
+    <braunr> what pages the user isn't supposed to read ?
+    <mcsim> if user read pages in increasing order than it is not supposed to
+      read pages that are right before the page where page fault occured
+    <braunr> right ?
+    <braunr> do you mean higher ?
+    <mcsim> that are before
+    <braunr> before would be lower then
+    <braunr> oh
+    <braunr> "right before"
+    <mcsim> yes :)
+    <braunr> why not ?
+    <braunr> the initial assumption, that MADV_SEQUENTIAL expects *strict*
+      sequential access, looks wrong
+    <braunr> remember it's just a hint
+    <braunr> a user could just acces pages that are closer to one another and
+      still use MADV_SEQUENTIAL, expecting a speedup because pages are close
+    <braunr> well ok, this wouldn't be wise
+    <braunr> MADV_SEQUENTIAL should be optimized for true sequential access,
+      agreed
+    <braunr> but i'm not sure i'm following you
+    <mcsim> but I'm not going to  page these pages out. Just put in unused
+      list, and if they will be used later they will be move to active list
+    <braunr> your optimization seem to be about freeing pages that were
+      prefetched and not actually accessed
+    <braunr> what's the unused list ?
+    <mcsim> inactive list
+    <braunr> ok
+    <braunr> so that they're freed sooner
+    <mcsim> yes
+    <braunr> well, i guess all neighbour pages should first be put in the
+      inactive list
+    <braunr> iirc, pages in the inactive list aren't mapped
+    <braunr> this would force another page fault, with a quick resolution, to
+      tell the vm system the page was actually used, and must become active,
+      and paged out later than other inactive pages
+    <braunr> but i really think it's not worth doing it now
+    <braunr> clustered pagins is about improving I/O
+    <braunr> page faults without I/O are orders of magnitude faster than I/O
+    <braunr> it wouldn't bring much right now
+    <mcsim> ok, I remove this, but put in TODO
+    <mcsim> I'm not sure that right list is inactive list, but the list that is
+      scanned to pageout pages to swap partition. There should be such list
+    <braunr> both the active and inactive are
+    <braunr> the active one is scanned when the inactive isn't large enough
+    <braunr> (the current ratio of active pages is limited to 1/3)
+    <braunr> (btw, we could try increasing it to 1/2)
+    <braunr> iirc, linux uses 1/2
+    <braunr> your comment about unlock_request isn't obvious, i'll have to
+      reread again
+    <braunr> i mean, the problem isn't obvious
+    <braunr> ew, functions with so many indentation levels :/
+    <braunr> i forgot how ugly some parts of the mach vm were
+    <braunr> mcsim: basically it's ok, i'll wait for the simplified version for
+      another pass
+    <mcsim> simplified?
+    <braunr> 22:11 < braunr> reduce to what's needed
+    <mcsim> ok
+    <mcsim> and what comment?
+    <braunr> your XXX in vm_fault.c
+    <braunr> when calling vm_calculate_clusters
+    <mcsim> is m->unlock_request the same for all cluster or I should
+      recalculate it for every page?
+    <mcsim> s/all/whole
+    <braunr> that's what i say, i'll have to come back to that later
+    <braunr> after i have reviewed the userspace code i think
+    <braunr> so i understand the interactions better
+    <mcsim> braunr: pushed v1 branch
+    <mcsim> braunr: "Move new calls to gnumach.defs file" and "Implement
+      putting pages in inactive list with sequential policy" are in my TODO
+    <braunr> mcsim: ok
+
+
+## IRC, freenode, #hurd, 2013-02-24
+
+    <braunr> mcsim: where does the commit from neal (reworking libpager) come
+      from ?
+    <braunr> (ok the question looks a little weird semantically but i think you
+      get my point)
+    <mcsim> braunr: you want me to give you a link to mail with this commit?
+    <braunr> why not, yes
+    <mcsim> http://permalink.gmane.org/gmane.os.hurd.bugs/446
+    <braunr> ok so
+      http://lists.gnu.org/archive/html/bug-hurd/2012-06/msg00001.html
+    <braunr> ok so, we actually have three things to review here
+    <braunr> that libpager patch, the ext2fs large store one, and your work
+    <braunr> mcsim: i suppose something in your work depends on neal's patch,
+      right ?
+    <braunr> i mean, why did you work on top of it ?
+    <mcsim> Yes
+    <mcsim> All user level code
+    <braunr> i see it adds some notifications
+    <mcsim> no
+    <mcsim> notifacations are for large store
+    <braunr> ok
+    <mcsim> but the rest is for my work
+    <braunr> but what does it do that you require ?
+    <mcsim> braunr: this patch adds support for multipage work. There were just
+      stubs that returned errors for chunks longer than one page before.
+    <braunr> ok
+    <braunr> for now, i'll just consider that it's ok, as well as the large
+      store patch
+    <braunr> ok i've skipped all patches up to "Make mach-defpager process
+      multipage requests in m_o_data_request." since they're obvious
+    <braunr> but this one isn't
+    <braunr> mcsim: why is the offset member a vm_size_t in struct block ?
+    <braunr> (these things matter for large file support on 32-bit systems)
+    <mcsim> braunr: It should be vm_offset_t, right?
+    <braunr> yes
+    <braunr> well
+    <braunr> it seems so but
+    <braunr> im not sure what offset is here
+    <braunr> vm_offset is normally the offset inside a vm_object
+    <braunr> and if we want large file support, it could become a 64-bit
+      integer
+    <braunr> while vm_size_t is a size inside an address space, so it's either
+      32 or 64-bit, depending on the address space size
+    <braunr> but here, if offset is an offset inside an address space,
+      vm_size_t is fine
+    <braunr> same question for send_range_parameters
+    <mcsim> braunr: TBH, I do not differ vm_size_t and vm_offset_t well
+    <braunr> they can be easily confused yes
+    <braunr> they're both offsets and sizes actually
+    <braunr> they're integers
+    <mcsim> so here I used vm_offset_t because field name is offset
+    <braunr> but vm_size_t is an offset/size inside an address space (a
+      vm_map), while vm_offset_t is an offset/size inside an object
+    <mcsim> braunr: I didn't know that
+    <braunr> it's not clear at all
+    <braunr> and it may not have been that clear in mach either
+    <braunr> but i think it's best to consider them this way from now on
+    <braunr> well, it's not that important anyway since we don't have large
+      file support, but we should some day :/
+    <braunr> i'm afraid we'll have it as a side effect of the 64-bit port
+    <braunr> mcsim: just name them vm_offset_t when they're offsets for
+      consistency
+    <mcsim> but seems that I guessed, because I use vm_offset_t variables in
+      mo_ functions
+    <braunr> well ok, but my question was about struct block
+    <braunr> where you use vm_size_t
+    <mcsim> braunr: I consider this like a mistake
+    <braunr> ok
+    <braunr> moving on
+    <braunr> in upload_range, there are two XXX comments
+    <braunr> i'm not sure to understand
+    <mcsim> Second XXX I put because at the moment when I wrote this not all
+      hurd libraries and servers supported size different from vm_page_size 
+    <mcsim> But then I fixed this and replaced vm_page_size with size in
+      page_read_file_direct
+    <braunr> ok then update the comment accordingly
+    <mcsim> When I was adding third XXX, I tried to check everything. But I
+      still had felling that I forgot something.
+    <mcsim> No it is better to remove second and third XXX, since I didn't find
+      what I missed
+    <braunr> well, that's what i mean by "update" :)
+    <mcsim> ok
+    <mcsim> and first XXX just an optimisation. Its idea is that there is no
+      case when the whole structure is used in one function.
+    <braunr> ok
+    <mcsim> But I was not sure if was worth to do, because if there will appear
+      some bug in future it could be hard to find it. 
+    <mcsim> I mean that maintainability decreases because of using union
+    <mcsim> So, I'd rather keep it like it is
+    <braunr> how is struct send_range_parameters used ?
+    <braunr> it doesn't looked to be something stored long
+    <braunr> also, you're allowed to use GNU extensions
+    <mcsim> It is used to pass parameters from one function to another
+    <mcsim> which of them?
+    <braunr> see
+      http://gcc.gnu.org/onlinedocs/gcc-4.4.7/gcc/Unnamed-Fields.html#Unnamed-Fields
+    <braunr> mcsim: if it's used to pass parameters, it's likely always on the
+      stack
+    <mcsim> braunr: I use it when necessary
+    <braunr> we really don't care much about a few extra words on the stack
+    <braunr> the difference in size would 
+    <mcsim> agree
+    <braunr> matter
+    <braunr> oops
+    <braunr> the difference in size would matter if a lot of those were stored
+      in memory for long durations
+    <braunr> that's not the case, so the size isn't a problem, and you should
+      remove the comment
+    <mcsim> ok
+    <braunr> mcsim: if i get it right, the libpager rework patch changes some
+      parameters from byte offset to page frame numbers
+    <mcsim> braunr: yes
+    <braunr> why don't you check errors in send_range ?
+    <mcsim> braunr: it was absent in original code, but you're right, I should
+      do this
+    <braunr> i'm not sure how to handle any error there, but at least an assert
+    <mcsim> I found a place where pager just panics
+    <braunr> for now it's ok
+    <braunr> your work isn't about avoiding panics, but there must be a check,
+      so if we can debug it and reach that point, we'll know what went wrong
+    <braunr> i don't understand the prototype change of default_read :/
+    <braunr> it looks like it doesn't return anything any more
+    <braunr> has it become asynchronous ?
+    <mcsim> It was returning some status before, but now it handles this status
+      on its own
+    <braunr> hum
+    <braunr> how ?
+    <braunr> how do you deal with errors ?
+    <mcsim> in old code default_read returned kr and this kr was used to
+      determine what m_o_ function will be used
+    <mcsim> now default_read calls m_o_ on its own
+    <braunr> ok

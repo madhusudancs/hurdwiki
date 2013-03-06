@@ -375,6 +375,51 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
 
       * `getconf` things (see below the results of `tst-getconf.out`)
 
+      * `getsockopt`, `setsockopt`
+
+        IRC, freenode, #hurd, 2013-02-14
+
+            <gnu_srs> Hi, {get,set}sockopt is not supported on Hurd. This shows
+              e.g. in the gnulib's test-{poll,select} code.
+            <gnu_srs> Reading
+              http://hea-www.harvard.edu/~fine/Tech/addrinuse.html there might
+              be reasons _not_ to implement them, comments?
+            <pinotree> uh? they are supported on hurd
+            <gnu_srs> not  SO_REUSEPORT for setsockopt()
+            <pinotree> that isn't the same as claiming "get/setsockopt is not
+              supported on hurd"
+            <pinotree> most probably that option is not implemented by the
+              socket family you are using
+            <gnu_srs> OK, some options like  SO_REUSEPORT then, more info in
+              the link.
+            <pinotree> note also SO_REUSEPORT is not posix
+            <pinotree> and i don't see SO_REUSEPORT mentioned in the page you
+              linked
+            <gnu_srs> No, but SO_REUSEADDR
+
+        IRC, freenode, #hurd, 2013-02-23
+
+            <gnu_srs> as an example, the poll test code from gnulib fails due
+              to that problem (and I've told you before)
+            <pinotree> gnu_srs: what's the actual failure?
+            <pinotree> can you provide a minimal test case showing the issue?
+            <gnu_srs> pinotree: A smaller test program:
+              http://paste.debian.net/237495/
+            <pinotree> gnu_srs: setting SO_REUSEADDR before binding the socket
+              works...
+            <pinotree> and it seems it was a bug in the gnulib tests, see
+              http://git.savannah.gnu.org/gitweb/?p=gnulib.git;a=commit;h=6ed6dffbe79bcf95e2ed5593eee94ab32fcde3f4
+            <gnu_srs> pinotree: You are right, still the code I pasted pass on
+              Linux, not on Hurd.
+            <pinotree> so?
+            <pinotree> the code is wrong
+            <pinotree> you cannot change what bind does after you have called
+              it
+            * pinotree → out
+            <gnu_srs> so linux is buggy?
+            <braunr> no, linux is more permissive
+            <braunr> (at least, on this matter)
+
     For specific packages:
 
       * [[octave]]
@@ -659,6 +704,198 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
 
     [[!message-id "201211172058.21035.toscano.pino@tiscali.it"]].
 
+    In context of [[libpthread]].
+
+    IRC, freenode, #hurd, 2013-01-21
+
+        <braunr> ah, found something interesting
+        <braunr> tschwinge: there seems to be a race on our file descriptors
+        <braunr> the content written by one thread seems to be retained
+          somewhere and another thread writing data to the file descriptor will
+          resend what the first already did
+        <braunr> it could be a FILE race instead of fd one though
+        <braunr> yes, it's not at the fd level, it's above
+        <braunr> so good news, seems like the low level message/signalling code
+          isn't faulty here
+        <braunr> all right, simple explanation: our IO_lockfile functions are
+          no-ops
+        <pinotree> braunr: i found that out days ago, and samuel said they were
+          okay
+        <braunr> well, they're not no-ops in libpthreads
+        <braunr> so i suppose they replace the default libc stubs, yes
+        <pinotree> so the issue happens in cthreads-using apps?
+        <braunr> no
+        <braunr> we don't have cthreads apps any more
+        <braunr> and aiui, libpthreads provides cthreads compatibility calls to
+          libc, so everything is actually using pthreads
+        <braunr> more buffer management debugging needed :/
+        <pinotree> hm, so how can it be that there's a multithread app with no
+          libpthread-provided file locking?
+        <braunr> ?
+        <braunr> file locking looks fine
+        <braunr> hm, the recursive locking might be wrong though
+        <braunr> ./sysdeps/mach/hurd/bits/libc-lock.h:#define
+          __libc_lock_owner_self() ((void *) __hurd_threadvar_location (0))
+        <braunr> nop, looks fine too
+        <braunr> indeed, without stream buffering, the problem seems to go away
+        <braunr> pinotree: it really looks like the stub IO_flockfile is used
+        <braunr> i'll try to make sure it's the root of the problem
+        <pinotree> braunr: you earlier said that there's some race with
+          different threads, no?
+        <braunr> yes
+        <braunr> either a race or an error in the iostream management code
+        <braunr> but i highly doubt the latter
+        <pinotree> if the stub locks are used, then libpthread is not
+          loaded... so which different threads are running?
+        <braunr> that's the thing
+        <braunr> the libpthread versions should be used
+        <pinotree> so the application is linked to pthread?
+        <braunr> yes
+        <pinotree> i see, that was the detail i was missing earlier
+        <braunr> the common code looks fine, but i can see wrong values even
+          there
+        <braunr> e.g. when vfprintf calls write, the buffer is already wrong
+        <braunr> i've made similar tests on linux sid, and it behaves as it
+          should
+        <pinotree> hm
+        <braunr> i even used load to "slow down" my test program so that
+          preemption is much more likely to happen
+        <pinotree> note we have slightly different behaviour in glibc's libio,
+          ie different memory allocation ways (mmap on linux, malloc for us)
+        <braunr> the problem gets systematic on the hurd while it never occurs
+          on linux
+        <braunr> that shouldn't matter either
+        <pinotree> ok
+        <braunr> but i'll make sure it doesn't anyway
+        <braunr> this mach_print system call is proving very handy :)
+        <braunr> and also, with load, unbuffered output is always correct too
+        <pinotree> braunr: you could try the following hack
+          http://paste.debian.net/227106/
+        <braunr> what does it do ?
+        <pinotree> (yes, ugly as f**k)
+        <braunr> does it force libio to use mmap ?
+        <braunr> or rather, enable ?
+        <pinotree> provides a EXEC_PAGESIZE define in libio, so it makes it use
+          mmap (like on linux) instead of malloc
+
+    `t/pagesize`.
+
+        <braunr> yes, the stub is used instead of the libpthreads code
+        <braunr> tschwinge: ^
+        <braunr> i'll override those to check that it fixes the problem
+        <braunr> hm, not that easy actually
+        <pinotree> copy their files from libpthreads to sysdeps/mach/hurd
+        <pinotree> hm right, in libpthread they are not that split as in glibc
+        <braunr> let's check symbol declaration to understand why the stubs
+          aren't overriden by ld
+        <braunr> _IO_vfprintf correctly calls @plt versions
+        <braunr> i don't know enough about dynamic linking to see what causes
+          the problem :/
+        <braunr> youpi: it seems our stdio functions use the stub IO_flockfile
+          functions
+        <youpi> really? I thought we were going through cthreads-compat.c
+        <braunr> yes really
+        <braunr> i don't know why, but that's the origin of the "duplicated"
+          messages issue
+        <braunr> messages aren't duplicated, there is a race that makes on
+          thread reuse the content of the stream buffer
+        <braunr> one*
+        <youpi> k, quite bad
+        <braunr> at least we know where the problem comes from now
+        <braunr> youpi: what would be the most likely reason why weak symbols
+          in libc wouldn't be overriden by global ones from libpthread ?
+        <youpi> being loaded after libc
+        <braunr> i tried preloading it
+        <braunr> i'll compare with what is done on wheezy
+        <youpi> you have the local-dl-dynamic-weak.diff patch, right?
+        <braunr> (on squeeze, the _IO_flockfile function in libc seems to do
+          real work unlike our noop stub)
+        <braunr> it's the debian package, i have all patches provided there
+        <braunr> indeed, on linux, libc provides valid IO_flock functions
+        <braunr> ./sysdeps/pthread/flockfile.c:strong_alias (__flockfile,
+          _IO_flockfile)
+        <braunr> that's how ntpl exports it
+        <braunr> nptl*
+        <pinotree> imho we should restructure libpthread to be more close to
+          nptl
+        <braunr> i wish i knew what it involves
+        <pinotree> file structing for sources and tests, for example
+        <braunr> well yes obviously :)
+        <braunr> i've just found a patch that does exactly that for linuxthreads
+        <pinotree> that = fix the file locking?
+        <braunr> in addition to linuxthreads/lockfile.c (which we also
+          equivalently provide), there is
+          linuxthreads/sysdeps/pthread/flockfile.c
+        <braunr> no, restructiring
+        <braunr> restructuring*
+        <braunr> i still have only a very limited idea of how the glibc sources
+          are organized
+        <pinotree> the latter is used as source file when compiling flockfile.c
+          in stdio-common
+        <braunr> shouldn't we provide one too ?
+        <pinotree> that would mean it would be compiled as part of libc proper,
+          not libpthread
+        <braunr> yes
+        <braunr> that's what both linuxthreads and nptl seem to do
+        <braunr> and the code is strictly the same, i.e. a call to the internal
+          _IO_lock_xxx functions
+        <youpi> I guess that's for the hot-dlopen case
+        <youpi> you need to have locks properly taken at dlopen time
+        <braunr> youpi: do you mean adding an flockfile.c file to our sysdeps
+          will only solve the problem by side effect ?
+        <braunr> and that the real problem is that the libpthread versions
+          aren't used ?
+        <youpi>  yes
+        <braunr> ok
+        <braunr> youpi: could it simply be a versioning issue ?
+        <youpi> could be
+        <braunr> it seems so
+        <braunr> i've rebuilt with the flockfile functions versioned to 2.2.6
+          (same as in libc) and the cthreads_compat functions are now used
+        <braunr> and the problem doesn't occur any more with my test code
+        <braunr> :)
+        <youpi> could you post a patch?
+        <braunr> i need a few info before
+        <youpi> it'd be good to check which such functions are hooked
+        <braunr> i suppose the version for functions declared in libpthreads
+          shouldn't change, right ?
+        <youpi> yes
+        <braunr> ok
+        <youpi> they didn't have a vresion before
+        <braunr> shall i commit directly ?
+        <youpi> so it should be fine
+        <braunr> well, they did
+        <braunr> 2.12
+        <youpi> yes, but please tell me when it's done
+        <braunr> sure
+        <youpi> so I can commit that to debian's eglibc
+        <youpi> I mean, before we integrated libpthread build into glibc
+        <youpi> so they never had any version before 2.12
+        <braunr> ok
+        <youpi> basically we need to check the symbols which are both in
+          libpthread and referenced in libc
+        <youpi> to make sure they have the same version in the reference
+        <braunr> ok
+        <youpi> only weak references need to be checked, others would have
+          produced a runtime error
+        <braunr> youpi: done
+        <braunr> arg, the version i mention in the comment is wrong
+        <braunr> i suppose people understand nonetheless
+        <youpi> probably, yes
+        <braunr> ah, i can now appreciate the headache this bug hunting gave me
+          these last days :)
+
+    IRC, freenode, #hurd, 2013-01-22
+
+        <youpi> braunr: commited to debian glibc
+        <youpi> btw, it's normal that the program doesn't terminate, right?
+        <youpi> (i.e. it's the original bug you were chasing)
+        <braunr> youpi: about your earlier question (yesterday) about my test
+          code, it's expected to block, which is the problem i was initially
+          working on
+        <youpi> ok, so all god
+        <youpi> +o
+
   * `t/pagesize`
 
     IRC, freenode, #hurd, 2012-11-16
@@ -668,6 +905,37 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
           switches the allocation modes from mmap to malloc
 
     [[!message-id "87mxd9hl2n.fsf@kepler.schwinge.homeip.net"]].
+
+    IRC, freenode, #hurd, 2013-01-21
+
+        <braunr> why is it a hack ?
+        <pinotree> because most probably glibc shouldn't rely on EXEC_PAGESIZE
+          like that
+        <braunr> ah
+        <pinotree> there's a mail from roland, replying to thomas about this
+          issue, that this use of EXEC_PAGESIZE to enable mmap or not is just
+          wrong
+        <braunr> ok
+        <pinotree> (the above is
+          http://thread.gmane.org/87mxd9hl2n.fsf@kepler.schwinge.homeip.net )
+        <braunr> thanks
+        <pinotree> (just added the reference to that in the wiki)
+        <braunr> pinotree: btw, what's wrong with using malloc instead of mmap
+          in libio ?
+        <pinotree> braunr: i'm still not totally sure, most probably it should
+          be slightly slower currently
+        <braunr> locking contention ?
+        <braunr> pinotree:
+          http://www.sourceware.org/ml/libc-alpha/2006-11/msg00061.html
+        <braunr> pinotree: it looks to me there is now no valid reason not to
+          use malloc
+        <braunr> the best argument for mmap is that libio requires zeroed
+          memory, but as the OP says, zeroing a page is usually more expensive
+          than a small calloc (even on kernel that keep a list of zeroed pages
+          for quick allocations, frequent mmaps() often make this list empty)
+        <pinotree> braunr: mmap allocations in libio are rounded to the page
+          size
+        <braunr> well they have to
 
   * `LD_DEBUG`
 

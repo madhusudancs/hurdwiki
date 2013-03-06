@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2013 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -23,7 +23,8 @@ applications assume that it is.
 
 What about adding a nanosecond-precision clock, too?  --[[tschwinge]]
 
-IRC, freenode, #hurd, 2011-08-26:
+
+# IRC, freenode, #hurd, 2011-08-26
 
     < pinotree> youpi: thing is: apparently i found a simple way to have a
       monotonic clock as mmap-able device inside gnumach
@@ -40,7 +41,8 @@ IRC, freenode, #hurd, 2011-08-26:
     < braunr> sure
     < youpi> and that's the way I was considering implementing it
 
-IRC, freenode, #hurd, 2011-09-06:
+
+# IRC, freenode, #hurd, 2011-09-06
 
     <pinotree> yeah, i had a draft of improved idea for also handling
       nanoseconds
@@ -69,3 +71,116 @@ IRC, freenode, #hurd, 2011-09-06:
     <youpi> yes
     <tschwinge> And it will forever be a witness of the evolving of this
       map_time interface.  :-)
+
+
+# IRC, freenode, #hurd, 2013-02-11
+
+In context of [[select]].
+
+    <pinotree> braunr: would you send for review (and inclusion) your
+      time_data_t addition?
+    <pinotree> this way we could add nanosecs-based utime rpc (and then their
+      implementation in libc)
+    <braunr> pinotree: it's part of the hurd branch
+    <braunr> do you want it sent separately ?
+    <pinotree> yeah
+    <braunr> ok
+    <braunr> let me get it right first :)
+    <pinotree> sure :)
+
+
+## IRC, freenode, #hurd, 2013-02-12
+
+    <braunr> pinotree:
+      http://git.savannah.gnu.org/cgit/hurd/hurd.git/commit/?h=rbraun/select_timeout_pthread_v2&id=6ec50e62d9792c803d00cbff1cab2c0b3675690a
+    <pinotree> uh nice
+    <pinotree> will need two small inline functions to convert time_data_t <->
+      timespec, but that's it
+    <braunr> hm right
+    <braunr> i could have thought about it
+    <braunr> but i'll leave it for another patch :p
+    <pinotree> oh sure, no hurry
+
+
+## IRC, freenode, #hurd, 2013-02-19
+
+    <youpi> braunr: about time_data_t, I get it's needed that it be an array
+    <youpi> so it can be passed by reference, not by value?
+    <braunr> by address, yes
+    <braunr> that's the difference between array and struct
+
+
+## IRC, freenode, #hurd, 2013-02-25
+
+    <youpi> braunr: why did you want to see time_data passed as pointer, not as
+      struct?
+    <braunr> to microoptimize
+    <braunr> the struct is 2 64-bit integers
+    <youpi> well, we already pass structs along in a few cases,
+      e.g. io_statbuf_t, rusage_t, etc.
+    <youpi> be it written t[0].sec or t->sec, it seems odd
+    <youpi> copying 2 64bit integers is not much compared to the potential for
+      bugs here
+    <braunr> bugs ?
+    <youpi> yes, as in trying to access t[1], passing a wrong pointer, etc.
+    <youpi> or the reader frowning on "why is this case different than the
+      others?"
+    <braunr> well, i'm already usually frowning when i see what mig does ..
+    <youpi> right
+    <youpi> on the plus side, it's only the client side, i.e. mostly glibc,
+      which sees the t[0]
+    <braunr> and the practice established by my patch is to convert to struct
+      timespec as soon as possible
+    <braunr> the direct use of this type is therefore limited
+    <youpi> could we define time_data_t as a struct time_data * instead of
+      struct time_data[1] ?
+    <youpi> (in the.h)
+    <youpi> that would make more sense to define a struct time_data, and pass a
+      pointer to it
+    <braunr> i'm not sure
+    <braunr> the mach server writing guide was very clear about array implying
+      a C array too
+    <braunr> and i remember having compilation problems before doing that
+    <braunr> but i don't remember their nature exactly 
+    <youpi> I'm not sure to understand what you said about converting to struct
+      timespec
+    <youpi> what makes it not possible now?
+    <youpi> and what is the relation with being an array or a pointer?
+    <braunr> concerning struct timespec, what i mean is that the functions
+      called by the mig stub code directly convert time_data_t to a struct
+      timespec (which is the real type used throughout the hurd code)
+    <braunr> about the rest, i'm not sure, i'd have to try again
+    <braunr> mig just assumes it's an array
+    <youpi> and why not just using struct timespec?
+    <youpi> (for the mig type too)
+    <braunr> my brain can't correctly compute variable sized types in mig
+      definition files
+    <braunr> i wanted something that would remain correct for the 64-bit port
+    <youpi> ah, you mean because tv_nsec is a long, which will not be the same
+      type?
+    <braunr> and tv_sec being a time_t (thus a long too)
+    <youpi> but we have the same issue e.g. for the rusage structure, don't we?
+    <braunr> yes
+    <youpi> so we'll have to fix things for that too anyway
+    <braunr> sure
+    <youpi> making a special case will not necessarily help
+    <braunr> but it doesn't mean new interfaces have to be buggy too
+    <youpi> well, using the proper type in the server itself is nicer
+    <youpi> instead of having to convert
+    <braunr> yes
+    <braunr> i'm not exactly sure where to declare struct timespec then
+    <braunr> should it be declared in hurd_types.h, and simply reused by the
+      libc headers ?
+    <youpi> ? AIUI, it's the converse, hurd_types.h uses the struct timespec
+      from libc headers, and defines timespec_t
+    <braunr> ok
+    <youpi> timespec_t being the internal type whose definition gets done right
+      for mig to do the right thing
+    <braunr> yes
+    <braunr> i see
+    <braunr> so, you'd like a struct of integer_t instead of an array of
+      signed64
+    <youpi> for our current 32bit userland yes
+    <braunr> do you want to make the changes yourself or should i add a new
+      branch ?
+    <youpi> and we'll make that a 64bit struct when we have a64bit userland
