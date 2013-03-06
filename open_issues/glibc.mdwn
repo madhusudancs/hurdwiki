@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012 Free Software
+[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012, 2013 Free Software
 Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -51,6 +51,10 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
     "20120525202732.GA31088@intel.com"]], commit
     918b56067a444572f1c71b02f18255ae4540b043.  [[!GCC_PR 53183]], GCC commit
     c05436a7e361b8040ee899266e15bea817212c37.
+
+  * `t/pie-sbrk`
+
+    [[gcc/PIE]].
 
   * `t/sysvshm`
 
@@ -367,23 +371,9 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
             <pinotree> like posix/tst-waitid.c, you mean?
             <youpi> yes
 
-      * `getconf` things
+        See `posix/tst-waitid.out` failure below.
 
-        IRC, freenode, #hurd, 2012-10-03
-
-            <pinotree> getconf -a | grep CACHE
-            <Tekk_> pinotree: I hate spoiling data, but 0 :P
-            <pinotree> had that feeling, but wanted to be sure -- thanks!
-            <Tekk_> http://dpaste.com/809519/
-            <Tekk_> except for uhh
-            <Tekk_> L4 linesize
-            <Tekk_> that didn't have any number associated
-            <pinotree> weird
-            <Tekk_> I actually didn't even know that there was L4 cache
-            <pinotree> what do you get if you run `getconf
-              LEVEL4_CACHE_LINESIZE`?
-            <Tekk_> pinotree: undefined
-            <pinotree> expected, given the output above
+      * `getconf` things (see below the results of `tst-getconf.out`)
 
     For specific packages:
 
@@ -677,6 +667,8 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
           the fact that EXEC_PAGESIZE is not defined on hurd, libio/libioP.h
           switches the allocation modes from mmap to malloc
 
+    [[!message-id "87mxd9hl2n.fsf@kepler.schwinge.homeip.net"]].
+
   * `LD_DEBUG`
 
     IRC, freenode, #hurd, 2012-11-22
@@ -888,39 +880,29 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-28b74f8dbc3eb639d35fc0f93021ac5eb1fde9a4 (2012-11-03;
+60f4d2f33666d77ac018cb9956675dcad04bb996 (2013-02-12;
 fbeafedeea37e0af1984a6511018d159f5ceed6a (2012-11-03))
 sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
     $ export LC_ALL=C
-    $ ../Roger_Whittaker/configure AUTOCONF=: --prefix=/usr --disable-profile --disable-multi-arch --build=i486-gnu --host=i486-gnu CC=gcc-4.6 CXX=g++-4.6 2>&1 | tee log_build
+    $ ../Roger_Whittaker/configure AUTOCONF=: --prefix=/usr --disable-profile --disable-multi-arch --build=i486-gnu --host=i486-gnu CC=gcc-4.7 CXX=g++-4.7 2>&1 | tee log_build
     [...]
     $ make install_root=/INVALID 2>&1 | tee log_build_
     [...]
 
-This takes up around 500 MiB, and needs roughly X min on kepler.SCHWINGE and
+This takes up around 550 MiB, and needs roughly X min on kepler.SCHWINGE and
 100 min on coulomb.SCHWINGE.
 
 <!--
 
-    $ (make install_root=/INVALID && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install_root="$PWD".install install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && ln -s /usr/lib/i386-*gnu/libstdc++.so.6 /lib/i386-*gnu/libpthread-stubs.so.0 /lib/i386-*gnu/libgcc_s.so.1 mach/libmachuser.so.1 hurd/libhurduser.so.0.3 ./ && make -k install_root=/INVALID check fast-check=yes 2>&1 | tee log_test
-
-Mask out gcc-4.X (with possibly a backslash before the dot), GCC 4.5's column
-output for (warning, error) messages, GCC 4.6's `[-Wsomething]` or `[enabled by
-default]` identifiers which warning flag triggered.
-
-    $ for f in log_*; do sed -e 's%gcc-4\\\?.[456]%[GCC]%g' -e 's%g++-4\\\?.[456]%[G++]%g' -e 's%\(:[0-9]\+:\)[0-9]\+:%\1%' -e 's% \[\(-W[a-z-]\+\|enabled by default\)\]$%%' < "$f" > "$f".nv; done
-
-    $ find ./ -name \*.o -o -name \*.os -o -name \*.oS | while read f; do ~/tmp/gcc/git/contrib/compare-debug --preserve ../Roger_Whittaker.build-gcc-4.4-486.O/"$f" "$f"; done 2>&1 | less 
-    $ while read f; do (readelf -a "$f" && objdump -xDrtw "$f") > N && (cd ../Roger_Whittaker.build-gcc-4.4-486.O/ && readelf -a "$f" && objdump -xDrtw "$f") > O && diff -u O N | less; done
-    $ find ./ -name \*.o -o -name \*.os -o -name \*.oS | while read f; do readelf -h "$f" | grep OS/ABI | (read a b && [ x"$b" != x'UNIX - System V' ] && echo "### $f: $b"); done
+    $ (make install_root=/INVALID && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install_root="$PWD".install install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && ln -s /usr/lib/i386-*gnu/libstdc++.so.6 /lib/i386-*gnu/libgcc_s.so.1 mach/libmachuser.so.1 hurd/libhurduser.so.0.3 ./ && make -k install_root=/INVALID check fast-check=yes 2>&1 | tee log_test
 
 -->
 
 
 ## Analysis
 
-    $ toolchain/logs/process gcc build fetch coulomb.SCHWINGE
+    $ toolchain/logs/process glibc build fetch coulomb.SCHWINGE
 
 TODO.
 
@@ -1026,18 +1008,9 @@ min on coulomb.SCHWINGE.
 
 ## Analysis
 
-    $ toolchain/logs/process gcc install fetch coulomb.SCHWINGE
+    $ toolchain/logs/process glibc install fetch coulomb.SCHWINGE
 
 TODO.
-
-<!--
-    $ diff -wu <(ssh kepler.SCHWINGE 'cd tmp/source/gdb/ && cat hurd/master.build/log_install | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' | sed -f open_issues/gdb/log_install-linux.sed) <(ssh coulomb.SCHWINGE 'cd tmp/gdb/ && cat hurd/master.build/log_install | sed "s%\(/media/erich\)\?${PWD}%[...]%g"' | sed -f open_issues/gdb/log_install-hurd.sed) > open_issues/gdb/log_install.diff
-
-[[log_install.diff]].
-
-  * `libtool: finish`: `ldconfig` is not run for the Hurd.
-
--->
 
 
 # Testsuite
@@ -1051,37 +1024,31 @@ Specifying `fast-check=yes` disables the `conformtest` which takes 1.75 h (out
 of 2.75 h total) on coulomb.SCHWINGE, doesn't pass anyway, and clearly isn't
 our most critical issue to solve.
 
-<!--
-    $ ssh kepler.SCHWINGE 'cd tmp/source/gdb/ && sed < hurd/master.build/gdb/testsuite/gdb.sum -e "s%\(/media/data\)\?${PWD}%[...]%g"' > open_issues/gdb/sum_linux
-    $ ssh coulomb.SCHWINGE 'cd tmp/gdb/ && sed < hurd/master.build/gdb/testsuite/gdb.sum -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > open_issues/gdb/sum_hurd
-
-Comparing the results files, [[sum_linux]] to [[sum_hurd]]:
-
-    $ diff -u -F ^Running open_issues/gdb/sum_linux open_issues/gdb/sum_hurd > open_issues/gdb/sum.diff
-
-[[open_issues/gdb/sum.diff]].
--->
-
 
 ## Analysis
 
-    $ toolchain/logs/process gcc test fetch coulomb.SCHWINGE
+    $ toolchain/logs/process glibc test fetch coulomb.SCHWINGE
 
-There is quite a baseline of failures.
+Failures, mostly in order of appearance:
 
-  * `annexc.out`
+  * `check-abi`, `check-abi-libmachuser`, `check-abi-libhurduser`,
+    `check-abi-libBrokenLocale`, `check-abi-libm`, `check-abi-libdl`,
+    `check-abi-libcrypt`, `check-abi-libresolv`, `check-abi-librt`,
+    `check-abi-libnsl`, `check-abi-libutil`, `check-abi-libc`, `check-abi-ld`,
+    `c++-types.data`
 
-    TODO
+    Reference files are missing.
 
-  * `bug22.out`
+  * `math/test-float.out`, `math/test-double.out`
 
-    TODO
+    A handful of ULP failures.
 
-  * `bug-atexit3.out`
+  * `math/test-ldouble`, `math/test-ildoubl`, `math/test-ifloat`,
+    `math/test-idouble`
 
-    TODO
+    SIGSEGV.  Or SIGILL.
 
-  * `bug-getcontext.out`
+  * `stdlib/bug-getcontext.out`
 
         getcontext failed, errno: 1073741902.
 
@@ -1090,203 +1057,105 @@ There is quite a baseline of failures.
     for FP exceptions.*, in cba1c83ad62a11347684a9daf349e659237a1741 testing,
     it's back to the previous failure.
 
-  * `bug-regex31-mem`, `tst-error1-mem`, `tst-fnmatch-mem`,
-    `tst-fopenloc.check`
+  * `stdlib/tst-secure-getenv.out`
 
-    *output* files: some memory not freed.
+        open (/proc/self/exe): No such file or directory
 
-    Caused by different memory allocation way in libio, see also
-    [[!message-id "87mxd9hl2n.fsf@kepler.schwinge.homeip.net"]]
+    Needs [[`/proc/self/exe`|hurd/translator/procfs/jkoenig/discussion]].
 
-  * `bug-ulimit1.out`
+  * `stdlib/tst-strtod-round.out`
 
-    Buggy sysdeps/unix/bsd/ulimit.c return values.
+        strtold (-0x0.7p-16445) returned -0x0.0000000000008p-16385 not -0x0.000000000000001p-16385 (FE_DOWNWARD)
+        strtold (-0x0.7p-16494) returned -0x0.0000000000008p-16385 not -0x0.000000000000001p-16385 (FE_DOWNWARD)
 
-    [[!message-id "201211182342.51619.toscano.pino@tiscali.it"]]
+  * `stdio-common/bug22.out`
 
-  * `check-execstack.out`
+        Timed out: killed the child process
 
-        $BUILDDIR/libc.so.phdr: *** executable stack signaled
+    Known problem.
 
-  * `check-local-headers.out`
+  * `libio/tst-atime.out`, `dirent/tst-fdopendir.out`
 
-    Most of the external headers used are:
+    `libio/tst-atime.out`:
 
-       * `/usr/include/device/bpf.h`
+        atime has not changed
 
-       * `/usr/include/device/device_types.h`
+    Due to `ext2fs --no-atime`.
 
-       * `/usr/include/device/net_status.h`
-
-       * `/usr/include/cthreads.h`
-
-       * `/usr/include/hurd/hurd_types.h`
-
-       * `/usr/include/hurd/ioctls.defs`
-
-       * `/usr/include/hurd/ioctl_types.h`
-
-       * `/usr/include/hurd/paths.h`
-
-  * `check-localplt.out`
-
-    Around 500 or so `Extra PLT reference`.
-
-  * `check-textrel.out`
-
-        $BUILDDIR/libc.so.dyn: *** text relocations used
-
-  * `opendir-tst1.out`, `tst-fdopendir2.out`
-
-    `opendir` and `fdopendir` do not return `ENOTDIR` if `fd` is not a directory.
-
-  * `test-assert-perr.out`
-
-    TODO
-
-  * `math/test-idouble`, `math/test-ifloat`, `math/test-ildoubl`,
-    `math/test-ldouble`
-
-    SIGSEGV.
-
-  * `test-float.out`
-
-    TODO
-
-  * `test-lfs.out`
-
-    TODO
-
-  * `test-multiarch.out`
-
-    Needs [[`/proc/cpuinfo`|hurd/translator/procfs/jkoenig/discussion]]
-    providing the `flags` line.
-
-  * `tst-aio2`, `tst-aio3`,
-    `tst-mqueue3`, `tst-mqueue6`,
-    `tst-mqueue8`, `tst-thrlock`, `tst-timer3`,
-    `libnss_test1.so`
-
-    Compilation: missing `pthread_attr_init`, `pthread_barrier_init`,
-    `pthread_create`, etc.
-
-  * `tst-aio8.out`, `tst-aio9.out`, `tst-aio10`
-
-    Compilation: missing `pthread_attr_init`, `pthread_barrier_init`,
-    `pthread_create`, etc.
-
-    Most will compile and work (except `tst-aio`, `tst-aio9`, `tst-aio10`) with
-    [[!message-id "201209302353.51055.toscano.pino@tiscali.it"]] in libpthread.
-
-  * `tst-array*`
-
-        gcc-4.6 tst-array1.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/
-        gcc-4.6 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1  -Wl,-dynamic-linker=/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
-        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/ld.so.1 --library-path [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/math:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf:[
-        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1.out tst-array1.exp > /dev/null
-        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1.out] Error 1
-        gcc-4.6 tst-array2.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/
-        gcc-4.6 tst-array2dep.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes   -fPIC       -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc
-        gcc-4.6   -shared -static-libgcc  -Wl,-dynamic-linker=/lib/ld.so.1 -Wl,-z,defs -B[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/csu/  -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both  -L[...]/tschwinge/Roger_Whittaker.build-gcc-4.6
-        gcc-4.6 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array2  -Wl,-dynamic-linker=/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
-        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/ld.so.1 --library-path [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/math:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf:[
-        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array2.out tst-array2.exp > /dev/null
-        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array2.out] Error 1
-        gcc-4.6 tst-array3.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/
-        gcc-4.6 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array3  -Wl,-dynamic-linker=/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
-        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/ld.so.1 --library-path [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/math:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf:[
-        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array3.out tst-array1.exp > /dev/null
-        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array3.out] Error 1
-        gcc-4.6 tst-array4.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/
-        gcc-4.6 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array4  -Wl,-dynamic-linker=/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
-        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/ld.so.1 --library-path [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/math:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf:[
-        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array4.out tst-array4.exp > /dev/null
-        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array4.out] Error 1
-
-    `tst-array5` passes.
-
-        gcc-4.6 tst-array1-static.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4
-        gcc-4.6 -nostdlib -nostartfiles -static -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static    [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/csu/crt0.o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/csu/crti
-        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static > [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static.out
-        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static.out tst-array1.exp > /dev/null
-        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static.out] Error 1
-
-    `tst-array5-static` passes.
-
-    IRC, freenode, #glibc, 2012-11-01:
-
-        <jsm28> tschwinge: I saw the array tests fail, built a new binutils and
-          a new compiler configured with new binutils and the failures went
-          away.
-        <jsm28> So they may depend on having new-enough GCC configured with
-          new-enough binutils, or something like that.
-        <tuliom> jsm28: Did you use gcc 4.7 or trunk?
-        <jsm28> tuliom: 4.7.
-
-    [[!message-id "50950082.1070906@df1tl.local.here"]].
-
-  * `tst-audit1.out`, `tst-audit2.out`
-
-    SIGKILL.
-
-  * `tst-chk1.out`
-
-    TODO
-
-  * `tst-chk2.out`
-
-    TODO
-
-  * `tst-chk3.out`
-
-    TODO
-
-  * `tst-chk4.out`
-
-    TODO
-
-  * `tst-chk5.out`
-
-    TODO
-
-  * `tst-chk6.out`
-
-    TODO
-
-  * `tst-cputimer1.o`, `tst-cputimer2.o`, `tst-cputimer3.o`,
-    `tst-timer4.o`, `tst-timer5.o`
-
-    Missing `SIGRTMIN`.
-
-    All these tests #include `tst-timer4.c`.
-
-  * `tst-timer5.o`
-
-    TODO
-
-  * `tst-dlmopen1.out`
-
-    TODO
-
-  * `tst-ether_line.o`
-
-        tst-ether_line.c:19: error: 'ETH_ALEN' undeclared (first use in this function)
-
-    Will either need a `hurd/netinet/if_ether.h` that includes
-    `<net/if_ether.h>`, or can do that in the generic `netinet/if_ether.h`?
-    See also [[!sourceware_PR 11142]].
-
-  * `tst-fdopendir.out`
+    `dirent/tst-fdopendir.out`:
 
         directory atime changed
 
-    TODO
+    Due to `ext2fs --atime` (default).
 
-  * `tst-futimesat.out`
+  * `libio/tst-fopenloc.check`, `posix/bug-regex31-mem`,
+    `posix/tst-fnmatch-mem`, `misc/tst-error1-mem`
 
-    `futimesat` is a stub.
+        Memory not freed:
+        -----------------
+           Address     Size     Caller
+        0x0807e268   0x8000  at 0x10c71c4
 
-  * `tst-getconf.out`
+    Caused by different memory allocation way in libio, see
+    [[!message-id "87mxd9hl2n.fsf@kepler.schwinge.homeip.net"]]
+
+  * `dlfcn/bug-atexit3.out`
+
+    Originally:
+
+        dlopen failed: libstdc++.so.6: cannot open shared object file: No such file or directory
+
+    See [[!message-id "20090420002344.11798.qmail@s461.sureserver.com"]].
+    Hacked around with `ln -s /usr/lib/i386-*gnu/libstdc++.so.6
+    /lib/i386-*gnu/libpthread-stubs.so.0 /lib/i386-*gnu/libgcc_s.so.1 ./`.
+    This is a bug in the glibc test harness.  Should probably use some
+    `configure` magic akin to the `fixincludes` stuff (`gcc-4.4
+    -print-file-name=libstdc++.so.6`, etc.).
+
+    Even if that that is being worked around, the tests nowadays
+    ([[packaging_libpthread]]) fail with:
+
+        dlopen failed: [...]/libc.so.0.3: version `GLIBC_2.13_DEBIAN_31' not found (required by [...]/libstdc++.so.6)
+
+  * `dlfcn/tststatic.out`, `dlfcn/tststatic2.out`
+
+    SIGSEGV.
+
+    `LD_LIBRARY_PATH` doesn't contain the `mach` and `hurd` directories; yet
+    the test shouldn't just SIGSEGV.
+
+  * `dirent/opendir-tst1.out`, `dirent/tst-fdopendir2.out`
+
+    `dirent/opendir-tst1.out`:
+
+        `opendir' succeeded on a FIFO???
+
+    `dirent/tst-fdopendir2.out`:
+
+        fdopendir with normal file descriptor did not fail
+
+    `opendir` and `fdopendir` do not return `ENOTDIR` if `fd` is not a
+    directory.
+
+  * `posix/tst-waitid.out`
+
+    Intermittent.
+
+        SIGCHLD for stopped status 0
+        SIGCHLD for stopped pid -1
+        SIGCHLD for killed code 1
+        SIGCHLD for killed status 0
+        SIGCHLD for killed pid -1
+
+  * `posix/bug-glob2.out`
+
+        Timed out: killed the child process
+
+  * `posix/annexc.out`
+
+    Failure ignored by the glibc testsuite.
+
+  * `posix/tst-getconf.out`
 
     Ends with:
 
@@ -1296,102 +1165,10 @@ There is quite a baseline of failures.
     `_PC_REC_INCR_XFER_SIZE`, `_PC_REC_MAX_XFER_SIZE`, `_PC_REC_MIN_XFER_SIZE`,
     `_PC_REC_XFER_ALIGN`, `_PC_SYMLINK_MAX`, `_PC_2_SYMLINKS`.
 
-    `_CS_GNU_LIBPTHREAD_VERSION` will be cleanly solved with
-    [[!message-id "201209302353.51055.toscano.pino@tiscali.it"]] and libpthread
-    compiled as add-on.
+    `_CS_GNU_LIBPTHREAD_VERSION` is provided by libpthread when compiled as
+    add-on.
 
-  * `tst-grantpt.out`
-
-        posix_openpt(O_RDWR) failed
-        errno 1073741902 (Function not implemented)
-
-    `posix_openpt` is a stub.
-
-        grantpt(): expected: return = -1, errno = 1073741846
-                   got: return = -1, errno = -303
-
-    `grantpt` (actually `ptsname_r`), does not fail with `ENOTTY` when the `fd`
-    does not refer to a PTY master.
-
-  * `tst-lfschk2.out`
-
-    TODO
-
-  * `tst-lfschk3.out`
-
-    TODO
-
-  * `tst-lfschk4.out`
-
-    TODO
-
-  * `tst-lfschk5.out`
-
-    TODO
-
-  * `tst-lfschk6.out`
-
-    TODO
-
-  * `tst-longjmp_chk2.out`
-
-    TODO
-
-  * `tst-mqueue5.o`
-
-    Missing `SIGRTMIN`.
-
-  * `tst-pselect.o`
-
-    Missing `SA_NOCLDWAIT`.
-
-  * `tst-secure-getenv.out`
-
-    Needs [[`/proc/self/exe`|hurd/translator/procfs/jkoenig/discussion]].
-
-  * `tst-sprofil.out`
-
-        Floating point exception
-
-  * `tst-stackguard1.out`
-
-    TODO
-
-  * `tst-stackguard1-static.out`
-
-    TODO
-
-  * `tststatic2.out`
-
-    TODO
-
-  * `tststatic.out`
-
-    TODO
-
-  * `tst-strtod-round.out`
-
-    TODO
-
-  * `tst-timer2.o`
-
-    Missing `SIGRTMIN`.
-
-  * `tst-timer.out`
-
-    TODO
-
-  * `tst-tls9-static.out`
-
-    TODO
-
-  * `tst-unique3lib.so`, `tst-unique3lib2.so`, `tst-unique4lib.so`
-
-    Only with GCC 4.4; no longer with 4.5 or 4.6:
-
-        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486/elf/tst-unique3lib.os:(.data.DW.ref.__gxx_personality_v0[DW.ref.__gxx_personality_v0]+0x0): undefined reference to `__gxx_personality_v0'
-
-  * `tst-vfork3-mem`
+  * `posix/tst-vfork3-mem`
 
         + 0x0804cee0 Alloc 10 duplicate: 0x1095389 $BUILDDIR/libc.so.0.3:[0x1095389]
         + 0x0804cf90 Alloc 11 duplicate: 0x1156963 $BUILDDIR/libc.so.0.3:(tsearch+0xe3)[0x1156963]
@@ -1441,41 +1218,198 @@ There is quite a baseline of failures.
         0x0804cfa8     0x73  at 0x10df0c8
         0x00000008        0  at 0x10df0c8
 
-    TODO
+    Perhps because we implement `vfork` in terms of `fork` (`posix/vfork.c`)?
 
-  * `tst-waitid.out`
+  * `io/test-lfs.out`
 
-    Fails sometimes (is listed in Debian eglibc-2.13-21's
-    `expected-results-i486-gnu-libc`).
+        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build/io/test-lfs: cannot write test string to large file: Invalid argument
 
+  * `io/tst-futimesat.out`
 
-### Additional Failures Compared to Debian (OLD)
+        file created
+        futimesat failed
 
-    $ bash ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/convertlog.sh log_test  > log_test.filtered
-    $ bash ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/compare.sh ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/expected-results-i486-gnu-libc log_test.filtered
+    `futimesat` is a stub.
 
-  * `bug-atexit3.out`, `debug/tst-chk4`, `debug/tst-chk5`, `debug/tst-chk6`,
-    `debug/tst-lfschk4`, `debug/tst-lfschk5`, `debug/tst-lfschk6`
+  * `resource/bug-ulimit1.out`
 
-        dlopen failed: libstdc++.so.6: cannot open shared object file: No such file or directory
+        Result of ulimit (UL_SETFSIZE, 10000): 0
+        Result of ulimit(UL_GETFSIZE): 10000
 
-    See [[!message-id "20090420002344.11798.qmail@s461.sureserver.com"]].
-    Hacked around with `ln -s /usr/lib/i386-*gnu/libstdc++.so.6
-    /lib/i386-*gnu/libpthread-stubs.so.0 /lib/i386-*gnu/libgcc_s.so.1 ./`.
-    This is a bug in the glibc test harness.  Should probably use some
-    `configure` magic akin to the `fixincludes` stuff (`gcc-4.4
-    -print-file-name=libstdc++.so.6`, etc.).
+    Buggy sysdeps/unix/bsd/ulimit.c return values.
 
-    Even if that that is being worked around, the tests fail with:
+    [[!message-id "201211182342.51619.toscano.pino@tiscali.it"]]
 
-        dlopen failed: [...]/libc.so.0.3: version `GLIBC_2.13_DEBIAN_31' not found (required by [...]/libstdc++.so.6)
-        dlopen failed: [...]/libc.so.0.3: version `GLIBC_2.13_DEBIAN_31' not found (required by [...]/libgcc_s.so.1)
+    Fixed in glibc >= 2.18.
 
-    [[packaging_libpthread]].
+  * `misc/tst-pselect.o`
+
+        tst-pselect.c: In function 'do_test':
+        tst-pselect.c:33:17: error: 'SA_NOCLDWAIT' undeclared (first use in this function)
+
+  * `gmon/tst-sprofil.out`
+
+        Floating point exception
+
+  * `nss//libnss_test1.so`
+
+        [...]/nss/nss_test1.os: In function `_nss_test1_getpwent_r':
+        [...]/nss/nss_test1.c:60: undefined reference to `pthread_mutex_lock'
+        [...]/nss/nss_test1.c:85: undefined reference to `pthread_mutex_unlock'
+
+  * `rt/tst-timer.out`
+
+    No message.
+
+  * `rt/tst-timer2.o`
+
+        tst-timer2.c: In function 'do_test':
+        tst-timer2.c:33:23: error: 'SIGRTMIN' undeclared (first use in this function)
+
+  * `rt/tst-aio2`, `rt/tst-aio3`, `rt/tst-aio9`, `rt/tst-aio10`,
+    `rt/tst-mqueue3`, `rt/tst-mqueue5.o`, `rt/tst-mqueue6`, `rt/tst-mqueue8`,
+    `rt/tst-timer3`, `rt/tst-timer4.o`, `rt/tst-timer5.o`,
+    `rt/tst-cputimer1.o`, `rt/tst-cputimer2.o`, `rt/tst-cputimer3.o`,
+    `elf/tst-thrlock`
+
+        [...]/rt/tst-aio2.o: In function `do_test':
+        [...]/rt/tst-aio2.c:62: undefined reference to `pthread_barrier_init'
+        [...]/rt/tst-aio2.c:94: undefined reference to `pthread_barrier_wait'
+        [...]/rt/tst-aio2.o: In function `thrfct':
+        [...]/rt/tst-aio2.c:35: undefined reference to `pthread_barrier_wait'
+
+        tst-mqueue5.c: In function 'rtmin_handler':
+        tst-mqueue5.c:50:14: error: 'SIGRTMIN' undeclared (first use in this function)
+
+        [...]/rt/tst-mqueue6.o: In function `do_test':
+        [...]/rt/tst-mqueue6.c:127: undefined reference to `pthread_attr_init'
+        [...]/rt/tst-mqueue6.c:149: undefined reference to `pthread_attr_setguardsize'
+        [...]/rt/tst-mqueue6.c:211: undefined reference to `pthread_attr_setguardsize'
+        [...]/rt/tst-mqueue6.c:262: undefined reference to `pthread_attr_destroy'
+        [...]/rt/tst-mqueue6.c:128: undefined reference to `pthread_attr_setguardsize'
+        [...]/rt/tst-mqueue6.o: In function `fct':
+        [...]/rt/tst-mqueue6.c:79: undefined reference to `pthread_self'
+        [...]/rt/tst-mqueue6.c:79: undefined reference to `pthread_getattr_np'
+        [...]/rt/tst-mqueue6.c:88: undefined reference to `pthread_attr_getguardsize'
+        [...]/rt/tst-mqueue6.c:95: undefined reference to `pthread_attr_destroy'
+        [...]/rt/tst-mqueue6.c:95: undefined reference to `pthread_attr_destroy'
+
+        [...]/elf/tst-thrlock.o: In function `do_test':
+        [...]/elf/tst-thrlock.c:38: undefined reference to `pthread_create'
+        [...]/elf/tst-thrlock.c:48: undefined reference to `pthread_join'
+
+  * `rt/tst-aio8.out`
+
+        r = -1, e = 1073741902 (Function not implemented)
+
+    Should work with [[!message-id
+    "201209302353.51055.toscano.pino@tiscali.it"]] in libpthread.
+
+  * `debug/tst-chk1.out`
+
+    Intermittent.  Timeout.  Unknown.
+
+  * `debug/tst-chk2.out`, `debug/tst-chk3.out`, `debug/tst-lfschk2.out`,
+    `debug/tst-lfschk3.out`
+
+    Unknown.
+
+  * `debug/tst-chk4.out`, `debug/tst-chk5.out`, `debug/tst-chk6.out`,
+    `debug/tst-lfschk4.out`, `debug/tst-lfschk5.out`, `debug/tst-lfschk6.out`
+
+        [...]/debug/tst-chk4: [...]/libc.so.0.3: version `GLIBC_2.13_DEBIAN_31' not found (required by [...]/libstdc++.so.6)
+        [...]/debug/tst-chk4: [...]/libc.so.0.3: version `GLIBC_2.13_DEBIAN_31' not found (required by [...]/libgcc_s.so.1)
+
+  * `debug/tst-longjmp_chk2.out`
+
+    SIGSEGV.
+
+        not on alternate stack
+         in signal handler
+         on alternate stack
+         out of signal handler
+         on alternate stack
+
+    It says *alternate stack*.
+
+  * `inet/tst-ether_line.o`
+
+        tst-ether_line.c: In function 'do_test':
+        tst-ether_line.c:19:19: error: 'ETH_ALEN' undeclared (first use in this function)
+
+    Will either need a `hurd/netinet/if_ether.h` that includes
+    `<net/if_ether.h>`, or can do that in the generic `netinet/if_ether.h`?
+    See also [[!sourceware_PR 11142]].
+
+  * `login/tst-grantpt.out`
+
+        posix_openpt(O_RDWR) failed
+        errno 1073741902 (Function not implemented)
+
+    `posix_openpt` is a stub.
+
+        grantpt(): expected: return = -1, errno = 1073741846
+                   got: return = -1, errno = -303
+
+    `grantpt` (actually `ptsname_r`), does not fail with `ENOTTY` when the `fd`
+    does not refer to a PTY master.
+
+  * `elf/tst-stackguard1-static.out`, `elf/tst-stackguard1.out`
+
+        differences 0 defaults 0
+        stack guard canaries are not randomized enough
+        nor equal to the default canary value
+
+    Sometimes times out.
+
+  * `elf/tst-tls9-static.out`
+
+    SIGSEGV.
+
+  * `elf/tst-dlmopen1.out`
+
+    SIGSEGV.
+
+  * `elf/tst-audit1.out`, `elf/tst-audit2.out`
+
+    SIGKILL.
+
+  * `elf/check-textrel.out`
+
+        $BUILDDIR/libc.so.dyn: *** text relocations used
+
+  * `elf/check-execstack.out`
+
+        $BUILDDIR/libc.so.phdr: *** executable stack signaled
+
+  * `elf/check-localplt.out`
+
+    Around 500 or so `Extra PLT reference`.
+
+  * `check-local-headers.out`
+
+    A lot.  Including `/usr/include/device/*.h`, `/usr/include/mach/*.h`,
+    `/usr/include/hurd/*.h`.
+
+Earlier failures; no longer seen:
+
+  * `test-assert-perr.out`
+
+    Fails intermittently.  Unknown.
+
+  * `test-multiarch.out`
+
+    Needs [[`/proc/cpuinfo`|hurd/translator/procfs/jkoenig/discussion]]
+    providing the `flags` line.
+
+  * `elf/tst-array*`
+
+    No longer fail with GCC 4.7.
+    [[!message-id "50950082.1070906@df1tl.local.here"]].
 
   * `io/ftwtest`, `posix/globtest`, `iconvdata/iconv-test`, `intl/tst-gettext`,
     `malloc/tst-mtrace`, `elf/tst-pathopt`, `iconvdata/tst-tables`,
-    `grp/tst_fgetgrent`, `dlfcn/tststatic`, `dlfcn/tststatic2`,
+    `grp/tst_fgetgrent`,
     `posix/wordexp-tst`, `localedata/bug-setlocale1.out`, `posix/tst-getconf`
 
         /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/io/ftwtest: error while loading shared libraries: libmachuser.so.1: cannot open shared object file: No such file or directory
@@ -1486,90 +1420,9 @@ There is quite a baseline of failures.
     the glibc test harness.  Hacked around by `ln -s mach/libmachuser.so.1
     hurd/libhurduser.so.0.3 ./`.  Hopefully the other instances are similar.
 
-  * `posix/tst-getconf`
-
-    It fails because of unimplemented pathconf cases: `_PC_ALLOC_SIZE_MIN`,
-    `_PC_REC_INCR_XFER_SIZE`, `_PC_REC_MAX_XFER_SIZE`, `_PC_REC_MIN_XFER_SIZE`,
-    `_PC_REC_XFER_ALIGN`, `_PC_SYMLINK_MAX`, `_PC_2_SYMLINKS`.
-
-    `_CS_GNU_LIBPTHREAD_VERSION` will be cleanly solved with
-    [[!message-id "201209302353.51055.toscano.pino@tiscali.it"]] and libpthread
-    compiled as add-on.
-
-    Ends with:
-
-        getconf POSIX_ALLOC_SIZE_MIN /: /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486/posix/getconf: pathconf: /: Invalid argument
-
-  * `dlfcn/tststatic`, `dlfcn/tststatic2`
-
-    No output, SEGFAULT.
-
-  * `math/test-idouble`, `math/test-ifloat`, `math/test-ildoubl`,
-    `math/test-ldouble`
-
-    SIGSEGV.
-
-  * `rt-tst-aio2`, `rt-tst-aio3`, `rt/tst-aio10`, `rt/tst-aio9`
-
-        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/rt/tst-aio10.o: In function `do_test':
-        tst-aio10.c:(.text+0x1b): undefined reference to `pthread_self'
-        tst-aio10.c:(.text+0x78): undefined reference to `pthread_barrier_init'
-        tst-aio10.c:(.text+0xf7): undefined reference to `pthread_create'
-        tst-aio10.c:(.text+0x10b): undefined reference to `pthread_barrier_wait'
-        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/rt/tst-aio10.o: In function `tf':
-        tst-aio10.c:(.text+0x5ae): undefined reference to `pthread_barrier_wait'
-        tst-aio10.c:(.text+0x5ef): undefined reference to `pthread_kill'
-        collect2: ld returned 1 exit status
-        make[2]: *** [/home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486.O/rt/tst-aio10] Error 1
-
-  * `rt/tst-mqueue3`, `rt/tst-mqueue6`,
-    `rt/tst-mqueue8`, `elf/tst-thrlock`, `rt/tst-timer3`,
-    `nss//libnss_test1.so`
-
-    Compilation: missing `pthread_attr_init`, `pthread_barrier_init`,
-    `pthread_create`, etc.
-
-  * `elf/tst-audit1`, `elf/tst-audit2`
-
-    SIGKILL.
-
-  * `inet/tst-ether_line`
-
-        tst-ether_line.c:19: error: 'ETH_ALEN' undeclared (first use in this function)
-
-    Will either need a `hurd/netinet/if_ether.h` that includes
-    `<net/if_ether.h>`, or can do that in the generic `netinet/if_ether.h`?
-    See also [[!sourceware_PR 11142]].
-
-  * `gmon/tst-sprofil`
-
-        Floating point exception
-
-  * `posix/bug-regex31-mem`, `posix/tst-fnmatch-mem`, `misc/tst-error1-mem`,
-    `libio/tst-fopenloc.check`
-
-    *output* files: some memory not freed.
-
-    [[!message-id "87mxd9hl2n.fsf@kepler.schwinge.homeip.net"]]
-
   * `assert/test-assert.out`
 
     Fails sometimes...
-
-  * `stdlib/bug-getcontext.out`
-
-        getcontext failed, errno: 1073741902.
-
-    Is not implemented; see above.  In 8958805c11c741d9211e20612c86271d906c9a0b
-    testing, `stdlib/bug-getcontext.out` now says: *Skipping test; no support
-    for FP exceptions.*, in cba1c83ad62a11347684a9daf349e659237a1741 testing,
-    it's back to the previous failure.
-
-  * `elf/tst-unique3lib.so`, `elf/tst-unique3lib2.so`, `elf/tst-unique4lib.so`
-
-    Only with GCC 4.4; no longer with 4.5 or 4.6:
-
-        /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build-gcc-4.4-486/elf/tst-unique3lib.os:(.data.DW.ref.__gxx_personality_v0[DW.ref.__gxx_personality_v0]+0x0): undefined reference to `__gxx_personality_v0'
 
   * `math/test-fenv.out`
 
@@ -1578,11 +1431,6 @@ There is quite a baseline of failures.
     22bcba37dd3b782b1a1ec7bf51da468e48f4d2eb and
     005b7594ffe209639dd1ef2b9ed9a4c22307dec1 causes it to passe -- very likely
     Jérémie's signaling work.
-
-  * `posix/tst-waitid.out`
-
-    Fails sometimes (is listed in Debian eglibc-2.13-21's
-    `expected-results-i486-gnu-libc`).
 
   * `elf/tst-unused-dep.out` (1f393a11f65dcaa1952bdcaf0317a65a5f8aff9d,
     [[!sourceware_PR 13706]], [[!message-id "4F4210C1.1090704@redhat.com"]])
@@ -1593,113 +1441,7 @@ There is quite a baseline of failures.
     As of 8958805c11c741d9211e20612c86271d906c9a0b, this test now passes --
     correct?
 
-  * `stdlib/tst-secure-getenv.out`
+Compared to Debian:
 
-    Needs [[`/proc/self/exe`|hurd/translator/procfs/jkoenig/discussion]].
-
-  * `elf/tst-array*`
-
-    Failures also seen on GNU/Linux; [[!message-id
-    "50950082.1070906@df1tl.local.here"]].
-
-        gcc-4.6 tst-array1.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/
-        gcc-4.6 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1  -Wl,-dynamic-linker=/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
-        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/ld.so.1 --library-path [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/math:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf:[
-        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1.out tst-array1.exp > /dev/null
-        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1.out] Error 1
-        gcc-4.6 tst-array2.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/
-        gcc-4.6 tst-array2dep.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes   -fPIC       -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc
-        gcc-4.6   -shared -static-libgcc  -Wl,-dynamic-linker=/lib/ld.so.1 -Wl,-z,defs -B[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/csu/  -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both  -L[...]/tschwinge/Roger_Whittaker.build-gcc-4.6
-        gcc-4.6 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array2  -Wl,-dynamic-linker=/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
-        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/ld.so.1 --library-path [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/math:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf:[
-        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array2.out tst-array2.exp > /dev/null
-        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array2.out] Error 1
-        gcc-4.6 tst-array3.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/
-        gcc-4.6 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array3  -Wl,-dynamic-linker=/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
-        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/ld.so.1 --library-path [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/math:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf:[
-        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array3.out tst-array1.exp > /dev/null
-        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array3.out] Error 1
-        gcc-4.6 tst-array4.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/
-        gcc-4.6 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array4  -Wl,-dynamic-linker=/lib/ld.so.1   -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486
-        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/ld.so.1 --library-path [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/math:[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf:[
-        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array4.out tst-array4.exp > /dev/null
-        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array4.out] Error 1
-
-    `tst-array5` passes.
-
-        gcc-4.6 tst-array1-static.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parentheses -Wstrict-prototypes         -I../include -I[...]/tschwinge/Roger_Whittaker.build-gcc-4
-        gcc-4.6 -nostdlib -nostartfiles -static -o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static    [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/csu/crt0.o [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/csu/crti
-        [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static > [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static.out
-        cmp [...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static.out tst-array1.exp > /dev/null
-        make[2]: *** [[...]/tschwinge/Roger_Whittaker.build-gcc-4.6-486/elf/tst-array1-static.out] Error 1
-
-    `tst-array5-static` passes.
-
-
-## OLD
-
-`configure --without-cvs --prefix= --disable-profile --build=i486-gnu
---host=i486-gnu`
-
-`make -k check` changes from 538603af899057a9ef9583cc447804ec602a45e5 to
-c9fd33ef070def49c078c94f8d9bc9f8a8e267f7.
-
-Configured with `--prefix=/usr` instead of `--prefix=`.
-
-Resolved failures:
-
-  * localedata/tst_mblen.out
-  * localedata/tst_mbrlen.out
-  * localedata/tst_mbrtowc.out
-  * localedata/tst_mbsrtowcs.out
-  * localedata/tst_mbstowcs.out
-  * localedata/tst_mbtowc.out
-  * localedata/tst_swscanf.out
-  * localedata/tst_wcrtomb.out
-  * localedata/tst_wcsrtombs.out
-  * localedata/tst_wcstombs.out
-  * localedata/tst_wctob.out
-  * localedata/tst_wctomb.out
-  * localedata/bug-iconv-trans.out
-  * localedata/tst-wctype.out
-  * math/test-float.out
-  * math/test-double.out
-  * posix/tst-vfork3-mem
-  * io/tst-mkdirat.out
-
-New:
-
-  * A lot of `error while loading shared libraries: libmachuser.so.1: cannot
-    open shared object file: No such file or directory`.  Is it perhaps picking
-    that library up from `$prefix/lib/`?
-
-    New failures; likely due to that:
-
-      * iconvdata/iconv-test.out
-      * iconvdata/tst-tables.out
-      * malloc/tst-mtrace.out
-      * grp/tst_fgetgrent.out
-      * posix/globtest.out
-      * posix/wordexp-tst.out
-      * io/ftwtest.out
-      * elf/tst-pathopt.out
-
-    Changed failures; likely due to that:
-
-      * debug/tst-chk4.out / debug/tst-chk5.out
-
-            -error while loading shared libraries: libstdc++.so.6: cannot open shared object file: No such file or directory
-            +error while loading shared libraries: libpthread-stubs.so.0: cannot open shared object file: No such file or directory
-
----
-
-Changes to b367d4f996512af6841c3cefdb943cb0a826a6a1: nothing interesting.
-
----
-
-Changes to b85c54a1f7e5241c1ef99dfeaecbd1bf4117564f: nothing interesting.
-
-New failures:
-
-  * posix/bug-glob3.out (SEGFAULT; but also on Linux)
-  * wctype/bug-wctypeh.o (compile error; but also on Linux)
+    $ bash ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/convertlog.sh log_test  > log_test.filtered
+    $ bash ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/compare.sh ~/tmp/glibc/debian/eglibc-2.13/debian/testsuite-checking/expected-results-i486-gnu-libc log_test.filtered

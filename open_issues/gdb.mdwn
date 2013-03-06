@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012 Free Software
+[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012, 2013 Free Software
 Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -33,8 +33,8 @@ git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C
 
 -->
 
-Last reviewed up to the [[Git mirror's ded7dfe6274b281d92a6ed76cedf29d06c918dec
-(2012-12-10) sources|source_repositories/gdb]].
+Last reviewed up to the [[Git mirror's 00e1c4298d2b6fe040a9a970e98349602b12ddbf
+(2013-02-06) sources|source_repositories/gdb]].
 
   * Globally
 
@@ -71,11 +71,11 @@ Last reviewed up to the [[Git mirror's ded7dfe6274b281d92a6ed76cedf29d06c918dec
 
 Here's a log of a GDB build run; this is from our [[Git
 repository|source_repositories/gdb]]'s `tschwinge/Ferry_Tagscherer` branch,
-commit ded7dfe6274b281d92a6ed76cedf29d06c918dec (2012-12-10), run on
+commit 00e1c4298d2b6fe040a9a970e98349602b12ddbf (2013-02-06), run on
 kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
-    $ ../Ferry_Tagscherer/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.6 CXX=g++-4.6 --disable-werror 2>&1 | tee log_build
+    $ ../Ferry_Tagscherer/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.7 CXX=g++-4.7 --disable-werror 2>&1 | tee log_build
     [...]
     $ make 2>&1 | tee log_build_
     [...]
@@ -87,7 +87,7 @@ There are several occurences of *error: dereferencing type-punned pointer will
 break strict-aliasing rules* in the MIG-generated stub files; thus no `-Werror`
 until that is resolved ([[strict_aliasing]]).
 
-This takes up around 200 MiB and needs roughly 7 min on kepler.SCHWINGE and 23
+This takes up around 210 MiB and needs roughly 7 min on kepler.SCHWINGE and 23
 min on coulomb.SCHWINGE.
 
 <!--
@@ -204,10 +204,10 @@ min on coulomb.SCHWINGE.
 
 # Testsuite
 
-    $ make -k check
+    $ make -k check 2>&1 | tee log_test
     [...]
 
-This needs roughly 14 min on kepler.SCHWINGE and 110 min on coulomb.SCHWINGE.
+This needs roughly 14 min on kepler.SCHWINGE and 120 min on coulomb.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
 the `tee` process does not terminate if there are still stray leftover
@@ -221,6 +221,10 @@ GNU/Hurd, these generally are `gdb.multi/watchpoint-multi`, and an unknown
 ## Analysis
 
     $ toolchain/logs/process gdb test
+
+  * `gdb.base/attach-pie-misread.exp`
+
+    Is only run for GNU/Linux; needs [[prelink]].
 
   * Disabled
 
@@ -276,9 +280,17 @@ GNU/Hurd, these generally are `gdb.multi/watchpoint-multi`, and an unknown
         At this point, the system hangs; no new processes can be spawned, so
         perhaps an issue with the exec server.
 
-  * `UNSUPPORTED: gdb.threads/ia64-sigill.exp: Couldn't compile ../../../master/gdb/testsuite/gdb.threads/ia64-sigill.c: unrecognized error`
+  * Linux syscall usage, `<asm/unistd.h>`
 
-        ../../../master/gdb/testsuite/gdb.threads/ia64-sigill.c:29:24: fatal error: asm/unistd.h: No such file or directory
+      * `UNSUPPORTED: gdb.threads/ia64-sigill.exp: Couldn't compile ../../../master/gdb/testsuite/gdb.threads/ia64-sigill.c: unrecognized error`
+
+      * `UNSUPPORTED: gdb.threads/siginfo-threads.exp: Couldn't compile ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/siginfo-threads.c: unrecognized error`
+
+      * `gdb.threads/sigstep-threads.c`
+
+        Also uses `tgkill`.
+
+      * `UNSUPPORTED: gdb.threads/watchpoint-fork.exp: parent: multithreaded: Couldn't compile ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/watchpoint-fork-mt.c ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/watchpoint-fork-parent.c: unrecognized error`
 
   * `UNSUPPORTED: gdb.threads/multi-create.exp: Couldn't compile ../../../master/gdb/testsuite/gdb.threads/multi-create.c: unrecognized error`
         ../../../master/gdb/testsuite/gdb.threads/multi-create.c: In function 'create_function':
@@ -293,23 +305,53 @@ GNU/Hurd, these generally are `gdb.multi/watchpoint-multi`, and an unknown
         ../../../master/gdb/testsuite/gdb.threads/staticthreads.c:52:37: error: 'PTHREAD_STACK_MIN' undeclared (first use in this function)
         ../../../master/gdb/testsuite/gdb.threads/staticthreads.c:52:37: note: each undeclared identifier is reported only once for each function it appears in
 
-  * `UNSUPPORTED: gdb.threads/watchpoint-fork.exp: parent: multithreaded: Couldn't compile ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/watchpoint-fork-mt.c ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/watchpoint-fork-parent.c: unrecognized error`
-
-        ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/watchpoint-fork-mt.c:29:24: fatal error: asm/unistd.h: No such file or directory
-
   * `UNSUPPORTED: gdb.threads/create-fail.exp: Couldn't compile ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/create-fail.c: unrecognized error`
 
         [...]/gdb.threads/create-fail.c:77: undefined reference to `pthread_attr_setaffinity_np'
         [...]/gdb.threads/create-fail.c:83: undefined reference to `pthread_create'
-
-  * `UNSUPPORTED: gdb.threads/siginfo-threads.exp: Couldn't compile ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/siginfo-threads.c: unrecognized error`
-
-        ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/sigstep-threads.c:22:24: fatal error: asm/unistd.h: No such file or directory
 
   * `UNTESTED: gdb.base/longest-types.exp: longest-types.exp`
 
         ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/longest-types.c:20:8: error: size of array 'buf' is too large
 
     Also on GNU/Linux.
+
+  * `FAIL: gdb.base/jit.exp: PIE: one_jit_test-1: Can't run to main`
+
+        (gdb) break main
+        Breakpoint 1 at 0xb84: file ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/jit-main.c, line 128.
+        (gdb) run 
+        Starting program: /media/erich/home/thomas/tmp/gdb/tschwinge/Ferry_Tagscherer.build/gdb/testsuite/gdb.base/jit-main 
+        Cannot access memory at address 0x393
+        Cannot access memory at address 0x38f
+        (gdb) FAIL: gdb.base/jit.exp: PIE: one_jit_test-1: Can't run to main
+
+    [[GCC/PIE]].
+
+    Is the following supposed to terminate in this way?
+
+        (gdb) break main
+        Breakpoint 1 at 0x675: file ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/attach-pie-noexec.c, line 23.
+        (gdb) run 
+        Starting program: /media/erich/home/thomas/tmp/gdb/tschwinge/Ferry_Tagscherer.build/gdb/testsuite/gdb.base/attach-pie-noexec 
+        Cannot access memory at address 0x6c626172
+        Cannot access memory at address 0x6c62616e
+        (gdb) testcase ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/attach-pie-noexec.exp completed in 3 seconds
+
+  * `solib-event stop`
+
+        Running ../../../Ferry_Tagscherer/gdb/testsuite/gdb.mi/mi-catch-load.exp ...
+        PASS: gdb.mi/mi-catch-load.exp: breakpoint at main
+        PASS: gdb.mi/mi-catch-load.exp: mi runto main
+        PASS: gdb.mi/mi-catch-load.exp: catch-load: auto-solib-add on
+        PASS: gdb.mi/mi-catch-load.exp: catch-load: catch load
+        FAIL: gdb.mi/mi-catch-load.exp: catch-load: solib-event stop
+        PASS: gdb.mi/mi-catch-load.exp: breakpoint at main
+        PASS: gdb.mi/mi-catch-load.exp: mi runto main
+        PASS: gdb.mi/mi-catch-load.exp: catch-unload: auto-solib-add on
+        PASS: gdb.mi/mi-catch-load.exp: catch-unload: catch unload
+        FAIL: gdb.mi/mi-catch-load.exp: catch-unload: solib-event stop
+
+        *stopped,reason="signal-received",signal-name="SIGSEGV",signal-meaning="Segmentation fault",frame={addr="0x00014add",func="??",args=[],from="/lib/ld.so"},thread-id="4",stopped-threads="all"
 
 TODO.
