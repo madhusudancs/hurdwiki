@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2009, 2010 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2009, 2010, 2013 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -8,14 +9,38 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
-IRC, #hurd, 2009-08-25
+[[!tag open_issue_glibc open_issue_hurd]]
 
-    <cfhammar> also I fixed (what I think is) a bug in hurd_file_name_lookup_retry when opening FDs with FS_RETRY_MAGIC
-    <cfhammar> it didn't actually reopen the FD, rather it just (effectively) duped it
-    <scolobb> cfhammar: That's great!  I think I had some problems because of not being able to truly reopen a port to a file.
-    <antrik> cfhammar: what is the difference, and why do you consider it a bug?...
-    <cfhammar> antrik: for one thing you can't change open modes, and it doesn't reset the file cursor
+
+# IRC, freenode, #hurd, 2009-08-25
+
+    <cfhammar> also I fixed (what I think is) a bug in
+      hurd_file_name_lookup_retry when opening FDs with FS_RETRY_MAGIC
+    <cfhammar> it didn't actually reopen the FD, rather it just (effectively)
+      duped it
+    <scolobb> cfhammar: That's great!  I think I had some problems because of
+      not being able to truly reopen a port to a file.
+    <antrik> cfhammar: what is the difference, and why do you consider it a
+      bug?...
+    <cfhammar> antrik: for one thing you can't change open modes, and it
+      doesn't reset the file cursor
     <cfhammar> (which I actually needed, though I could have done it manually)
     <cfhammar> antrik: and also it isn't consistant with linux
-    <cfhammar> you can trigger the bug from the shell: cat /dev/fd/3 3>> /tmp/foo
-    <antrik> cfhammar: I can't say that I understand the test case... but I can at least confirm that it behaves differently on Hurd and on Linux :-)
+    <cfhammar> you can trigger the bug from the shell: cat /dev/fd/3 3>>
+      /tmp/foo
+    <antrik> cfhammar: I can't say that I understand the test case... but I can
+      at least confirm that it behaves differently on Hurd and on Linux :-)
+
+
+## 2013-02-17
+
+GNU/Linux:
+
+    $ cat /dev/fd/3 3>> /tmp/foo
+    $ ls -l /tmp/foo 
+    -rw-rw-r-- 1 thomas thomas 0 Feb 17 12:01 /tmp/foo
+
+GNU/Hurd:
+
+    $ cat /dev/fd/3 3>> /tmp/foo
+    cat: /dev/fd/3: Bad file descriptor
