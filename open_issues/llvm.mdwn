@@ -47,10 +47,10 @@ git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C
 -->
 
 Last reviewed up to the [[Git mirror's sources|source_repositories/llvm]]: llvm
-e68542e67e5c0f8d4bbdae0dde6ccd24525a18e3 (2013-02-13), clang
-2cbd427ec533f022f612fed0dd93ef5fa214478a (2013-02-12), compiler-rt
-c242446f7a7c6a0c1f1bf9ad403d6dac6f215f1c (2013-02-12), test-suite
-f621d1a62904df136cbaf4e4e63cbf9e9c45fd10 (2013-02-08).
+760fa5dc8022dcf6982969c26ef566dfbeea979c (2013-03-10), clang
+3521c49fc4867ff9ac78d4ad6a9e3e5566ba8b83 (2013-03-10), compiler-rt
+07020829d181dcd352ff6f01eab4d353c37a19b6 (2013-03-09), test-suite
+3135166052dac85b312a98bafbc59a59511546d5 (2013-03-06).
 
   * <http://anonscm.debian.org/viewvc/pkg-llvm/llvm/trunk/debian/patches/>.
 
@@ -75,6 +75,14 @@ f621d1a62904df136cbaf4e4e63cbf9e9c45fd10 (2013-02-08).
           * In clang's `test/Driver/` a lot of testing can be generalized from
             *Linux* to *GNU environment*, adding GNU/Hurd testing, too.
 
+      * LLVM commit 98fbe27ac8f0766ea94b89b8c03418131b72bea4 `Support for
+        HiPE-compatible code emission`
+
+        Only relevant for `CallingConv::HiPE`.
+
+            +  assert(ST->isTargetLinux() &&
+            +         "HiPE prologue is only supported on Linux operating systems.");
+
       * `compiler-rt` and `test-suite` not yet examined.
 
   * `/proc` usage
@@ -92,11 +100,11 @@ f621d1a62904df136cbaf4e4e63cbf9e9c45fd10 (2013-02-08).
 
 Here's a log of a LLVM build run; this is from our [[Git repository's
 sources|source_repositories/llvm]], llvm
-829831c561ca75cb81cbe217dee25b52dbe0e2f0 (2013-02-13), clang
-6b02a96cdeecb9cc2070a5a5684d62bb32ba40d6 (2013-02-13), compiler-rt
-c242446f7a7c6a0c1f1bf9ad403d6dac6f215f1c (2013-02-12), test-suite
-f8647dbb30c3ee173c038aff10f815b0ba856793 (2013-02-09), run on kepler.SCHWINGE
-and coulomb.SCHWINGE.
+a276c9d4e58db920ed984a349b03cb6ef505bd00 (2013-03-10), clang
+29f4b2545b11bff73a934e9f6138476a15ec8655 (2013-03-10), compiler-rt
+07020829d181dcd352ff6f01eab4d353c37a19b6 (2013-03-09), test-suite
+c1298f8eb55a6840bd4f438f71cfa3bda1fd30d8 (2013-03-10; 2013-03-06), run on
+kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
     $ (cd ../Horace_Silver/ && ln -sfn ../../../clang/tschwinge/Hank_Mobley tools/clang)
@@ -119,7 +127,7 @@ the corresponding GNU/Linux build).  Also there is a separate
 `--enable-debug-runtime`.
 
 This takes up around 3 GiB, and needs roughly 1.25 h on kepler.SCHWINGE and
-4.25 h on coulomb.SCHWINGE.
+5.25 h on coulomb.SCHWINGE.
 
 Configuring without `--enable-optimized` even crashes mighty darnassus,
 probably because of too-big files when linking.  Configuring with
@@ -164,7 +172,7 @@ TODO
 
     $ make VERBOSE=1 install 2>&1 | tee log_install
 
-This takes up around 350 MiB, and needs roughly 1 min on kepler.SCHWINGE and 12
+This takes up around 400 MiB, and needs roughly 1 min on kepler.SCHWINGE and 12
 min on coulomb.SCHWINGE.
 
 
@@ -183,8 +191,8 @@ TODO
 `LIT_ARGS=-v` is default for `VERBOSE=1`, but we want only one worker thread,
 for stable order and usable test output log.
 
-This needs roughly 10 min (`check-all`) + 145 min (test-suite) = 155 min on
-kepler.SCHWINGE and 40 min (`check-all`) + 80 min (test-suite) = 120 min on
+This needs roughly 10 min (`check-all`) + 150 min (test-suite) = 160 min on
+kepler.SCHWINGE and 45 min (`check-all`) + 165 min (test-suite) = 210 min on
 coulomb.SCHWINGE.
 
 
@@ -226,6 +234,59 @@ coulomb.SCHWINGE.
         $ gcc -x c /dev/fd/0 -E < [...]/test/Misc/dev-fd-fs.c
         [...]
         int x;
+
+        #include <stdio.h>
+        #include <unistd.h>
+        
+        int main(int argc, char *argv[])
+        {   
+          while (argc > 0)
+            {
+              int err;
+              char *f = argv[argc -1];
+        
+              err = access(f, F_OK);
+              if (err < 0)
+                printf("%s: %m\n", f);
+        
+              argc--;
+            }
+        
+          return 0;
+        }
+
+        $ ./a.out /dev/fd/0 < /dev/null
+        $ cat < /dev/null | ./a.out /dev/fd/0
+        /dev/fd/0: (ipc/mig) bad request message ID
+
+    `file_check_access` fails with `MIG_BAD_ID`, meaning this RPC is not
+    implemented.
+
+    The difference is that the former directly refers to the `/dev/null`
+    instance, whereas the latter goes through an intermediate pflocal instance.
+
+    Similarly:
+
+        $ stat /dev/fd/0 < /dev/null
+          File: `/dev/fd/0'
+          Size: 0               Blocks: 0          IO Block: 1048576 character special file
+        Device: 17h/23d Inode: 342820      Links: 1     Device type: 0,0
+        Access: (0666/crw-rw-rw-)  Uid: (    0/    root)   Gid: (    0/    root)
+        Access: 2012-11-27 16:03:19.000000000 +0100
+        Modify: 2012-11-27 16:03:19.000000000 +0100
+        Change: 2012-11-27 16:03:19.000000000 +0100
+         Birth: -
+        $ cat < /dev/null | stat /dev/fd/0
+          File: `/dev/fd/0'
+          Size: 0               Blocks: 0          IO Block: 65536  fifo
+        Device: 9h/9d   Inode: 0           Links: 0
+        Access: (0000/p---------)  Uid: (    0/    root)   Gid: (    0/    root)
+        Access: 1970-01-01 01:00:00.000000000 +0100
+        Modify: 1970-01-01 01:00:00.000000000 +0100
+        Change: 1970-01-01 01:00:00.000000000 +0100
+         Birth: -
+
+    `io_stat_request` fills in these values.    
 
   * `Clang :: Tooling/clang-check-builtin-headers.cpp`
 
