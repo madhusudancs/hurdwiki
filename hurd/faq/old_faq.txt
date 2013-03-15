@@ -76,23 +76,23 @@ is similar to Linux except, there is no `s'.  For instance, `hda1' would
 become `hd0s1'.
 
 GRUB, the boot loader, uses a completely different nomenclature: it
-probes the BIOS and appends each disk in turn to an array.  Both disks
-and partitions are enumerated using zero based arrays.  The format is:
-`hd (<disk>, <partition>)'.  Thus, `hd (0, 1)' refers to the second
-partition on the first drive detected by the BIOS.  As Grub now has tab
+probes the BIOS and appends each disk in turn to an array.  Disks are enumerated
+using zero based arrays. GRUB 2 enumerates partitions from one, while GRUB 1
+used to enumerate them from zero.
+The format is:
+`hd (<disk>, <partition>)'.  Thus, in GRUB 2 `hd (0, 1)' refers to the first
+partition on the first drive detected by the BIOS (or the second partition with
+GRUB 1).  As Grub now has tab
 completion, there is not a lot of guess work.
 
 ??	Can I use partitions larger than 2GB?
 
-{MB} No, not currently.  The filesystem servers need to be changed to
-not map the whole store into memory, which is not too difficult.  For
-large files, some interfaces need to be changed, which is a bit harder
-but still doable.
+{ST} Yes. Disk drivers however currently do not support more than 2^32 sectors, i.e.
+2TiB.
 
 ??	How much swap do I need?
 
-{NHW} Generally, a lot; once you run out, Mach panics.  I have at least
-128MB of ram and 256MB of swap on all of machines running GNU/Hurd.
+{ST} The usual rule of thumb applies: the same amount as RAM, for instance.
 
 ??	Can I share swap space between GNU/Linux and GNU/Hurd?
 
@@ -216,18 +216,8 @@ prompt.
 
 ??	How do I use non-US keyboard bindings?
 
-{NHW,FH} Take a look at:
-
-	http://www.xs4all.nl/~mgerards/xkb8.tar.gz
-
-If you want a Debian package, you can add to your
-'etc/apt/sources.list'
-
-	deb http://debian.duckcorp.org/unstable/binary-hurd-i386/ ./
-
-and then run
-
-    	 apt-get install console-driver-xkb.
+{ST} On Debian Hurd, you can configure the console layout from
+`/etc/default/hurd-console`.
 
 ??	How do I enable color on the console?
 
@@ -237,6 +227,9 @@ terminal to `mach-color'.  For instance:
 	# export TERM=mach-color
 
 ??	How can I enable virtual consoles?
+
+{ST} On Debian Hurd, it is already enabled by default, and configured from
+`/etc/default/hurd-console`.
 
 {AMS} This can be done by running the following command:
 
@@ -252,18 +245,12 @@ XFree86 4.0.2 is available, as are some of the v3 servers.  Instructions
 on how to use the packages are in the mailing list archive (link follow
 later).
 
-??	Why does X not work?
+??	What are these strange pids `0`, `2', `3', `4`, and `5`?
 
-{MB} Try `export LD_LIBRARY_PATH=/usr/X11R6/lib'.  This is a linker
-issue.  GNU/Hurd expects that `RPATH' is used, however, Debian takes
-certain measures to avoid this.  Note that this does not cut it for suid
-binaries because of security implications.  We expect to rectify this
-by using `RUNPATH', which is specified in the new ELF standard.
-
-??	What are these strange pids `2' and `3'?
-
-{MB} Two is the kernel, three is the default pager and four is the root
-filesystem.
+{MB,ST} Zero is the `proc` processus server (and thus does not really have a pid
+:) ) Two is the kernel, three is the root filesystem server, four is the `exec`
+server (which handles starting programs), five is the `auth` server (which
+handles user authentication).
 
 ??	Why does `ps aux' give me strange output?
 
@@ -284,22 +271,7 @@ that would require use of the message port.
 
 ??	Where are ...
 
-{MB} `fdisk' and `dmesg' are not yet ported.
-
-Instead of `free', use `vmstat' and `vminfo'.
-
-For kernel messages, read `/dev/klog' directly.  Note, once you read
-this, it is gone forever.
-
-
-??	Is there a `/proc' filesystem?
-
-{MB} No.  Maybe there will be an emulation filesystem someday for
-programs that rely it.  If you are wondering about the empty `/proc'
-directory, this is a relict from a Debian GNU/Linux package
-(specifically, `base-files').
-
-You can probe for existing hardware devices with the devprobe utility.
+{MB} `dmesg' is not available. You can read `/var/log/dmesg` instead.
 
 ??	Why does the command `df' not work?
 
@@ -412,24 +384,22 @@ author that allocates memory dynamically.
 
 ??	How can I help?
 
-{NHW} A effort to compile all of the Debian packages is underway by Jeff
-Bailey.  Take a look at: 
-
-	http://people.debian.org/~jbailey/oasis/group/Debian/index.html
-
-to see what has been done and how you can help.
+{ST} Please see the contributing page:
+http://www.gnu.org/software/hurd/contributing.html
 
 ? Compiling
 
 ??	Where can I get the source?
 
 {AMS} Instructions on how to download the CVS tree from Savanah are
-avaiable at https://savannah.gnu.org/cvs/?group=hurd
+available at https://savannah.gnu.org/cvs/?group=hurd
 
 {NHW} To get the source to the latest debian package, look on any
 debian mirror.
 
 ??	Can I cross compile?
+
+{ST} To REDO.
 
 {NHW} Yes.  If you are running Debian GNU/Linux on IA32, this is quite
 easy as there is a cheap cross compiler available; all that is required
@@ -560,3 +530,4 @@ Answers were given by (in chronological order):
 * {OK} Ognyan Kulev	 <ogi@fmi.uni-sofia.bg>
 * {FH} Frédéric Henry	 <neryel@reveries.info>
 * {MM} Manuel Menal	 <mmenal@hurdfr.org>
+* {ST} Samuel Thibault	 <samuel.thibault@gnu.org>
