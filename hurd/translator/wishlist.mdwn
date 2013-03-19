@@ -1,0 +1,316 @@
+[[!meta copyright="Copyright © 2007, 2008, 2009, 2013 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+## Introduction
+
+The idea behind file system translators is a powerful concept which hasn't recieved much attention in the mainstream computing world. So here is a list of interesting translators people dream up. We are sure there are many more ideas floating around out there, so add them to the list!
+
+The [ferris project](http://witme.sourceforge.net/libferris.web/features.html) has some great ideas and code in the area of userspace dynamic filesystems, as has the [FUSE project](http://fuse.sourceforge.net/).
+
+## File Finder (uses find, grep, a combination or a custom command (htdig, mp3 info)
+   * Files found will be available under one directory and then can be used like a normal directory
+   * usefull to generate Albums, Share only resulting files over the et, etc..
+   * The filefinder can be scheduled or can be connected over some ipc like dbus to the VFS system if any to keep a watch for new files.
+
+## GNOKII, BitPim and openobex as translators
+   * grep through your SMSs!
+   * share your addressbook!
+   * "Attach" that funny SMS/MMS to your email.
+   * "svn commit" your joke collection :-D
+
+## Real Language Translator [[br]]
+
+    $ cat /usr/translator/de-en/usr/share/doc/something.txt
+
+this should take `/usr/share/doc/something.txt`, submit it to google's website and bring back results.
+
+## Mozilla Bookmarks = del.ici.ous
+
+Need more explanation? ;-)
+
+## <http://hnb.sf.net>
+   * having a directory structure for a file can allow to "svn commit"  the hnb document in a more "node-safe" manner, thus allowing multiple people to work on the same hnb document.
+   * This must be fairly easy as HNB can already export to XML and XMLfs already exists.
+
+## DavFS
+
+Just setup a 'WebDav share' as a directory. The implementation of the protocol is already available in nautilus and konqueror.
+
+## Compiled form of your project
+   *  you have your project in /somedir/project with source in /somedir/project/src .. /somedir/project/bin should always have the compiled version.. is it possible?
+   * The source has to have a MakeFile.
+   * creating /somedir/project/bin-somearch should aotomatically crosscompile
+   * Seems feasible for a small project.
+
+## Report generation FrameWork - an idea to be hugged by app developers..not kernel developers.
+   * You have financial data in some Spreadsheet like format in /yourFinance directory
+   * You add report templates to /yourFinance/repTemplates
+   * Once you save data in /yourFinance the next cat /yourFinance/reports/areportname will give you an uptodate report.
+   * This will be usefull for any purpose including serving by static page web servers, sharing over samba/nfs/ftp etc.!
+   * The advantage is any save to the spreadsheet will update the report.. not just from one software.
+
+## SVN (Subversion)
+   * like [[cvsfs]]. /svndir/version/version-no should automatically have subversion  
+   * I think it is nice to write a generalised version control system framework library which will help in writing version control translators and other tools easily.
+
+## Flexi-acls
+   * First of all - Can this be done? : A translator bound to a directory must be able to access the contents of the directory which would have been accessible in the absence of the translator.. 
+   * This will enable to write translators that can implement custom "Access Control Lists". Just imagine having advanced ACLs even if underlying FileSystem is dumb!  Imagine changing the type of ACLs implemented with Just two commands - one to unattach previous translator and the next to attach a different ACL translator! The ACLs themselves may be stored in a different directory
+
+## The translator manager!
+   * Some translators will need to be inserted automatically - like for eg: hardware drivers ..
+   * Each hardware translator will pubish its capabilities.
+   * The "top" translator will query the capabilities of different hardware and match capabilities with the "slave" translators. That is it's only Job.
+   * The control is then handed over to the slave translator.
+   * The ranking not only looks who can handle the "most" capabilites of the hardware. If it finds that multiple translators can handle the same hardware, It will use other parameters to choose between them.. like may be the size in memory? The revision date? Stability (inferred from version number)? And to go to the extreme, the profiling data of the driver ;-P
+   * Advantage : The best driver wins!
+
+### An example -- skip it if you understood the above :-)
+   * You have a driver that can handle VGA + SVGA + Super3d acceleration + Particle graphics + Works for nvidea card.      
+   * You have a driver that can handle SVGA + VGA .
+   * You have a driver that can handle VGA.
+   * Case 1: Your card: A VGA card with some extra fonts.. 
+      * First the VGA driver will be quireied .. ok can handle essential capability. 
+      * Next SVGA driver:  can handle but has extra module.. unnecassary weight .
+      * The Nvidia driver:  can handle , but again unnecassary weight : ruled out.
+      * Winner : VGA driver:
+    * Case 2: Your card An SVGA card: 
+       * First the VGA driver will be quireied .. ok can handle one essential capability. 
+       * Next SVGA driver:  can handle essential and one extra capability no extra weight..
+       * The Nvidia driver:  can handle , but  unnecassary weight : ruled out.
+       * Winner : SVGA driver..
+    * Case 3 : You have an VGA  .. but  no VGA driver .. then the SVGA driver would win.
+
+## Sound Server
+   * /ahsa   - stands for Advanced HURD sound architecture :-) Just a temporary name ..  for fun.
+   * /ahsa/out   - directory wich will hold "plug"s where apllications come and join the server .. see below.
+   * /ahsa/out/mixer  - main mixer 
+   * /ahsa/out/nextfree  - the file when "cat"ed gives the number of the next free plug
+   * /ahsa/plugins/ - info about available plugins
+   * /ahsa/out/[1..n]/  - dynamically generated directories for applications to plug on..
+   * /ahsa/out/[1..n]/data this is where you should do a "cat somerawsoundfile>/ahsa/out/`cat /ahsa/nextfree`/data"
+   * /ahsa/out/[1..n]/plugins  -  the plugin stack .. volume is also a plugin..
+   * /ahsa/out/[1..n]/plugins/[1..m]/    - echo "plugin param1 param2 param3" > /ahsa/out/[1..n]/plugins/`cat /ahsa/out/[1..n]/plugins/nextfree`/add
+   * /ahsa/out/[1..n]/plugins/[1..m]/params/{param1.. paramn}
+   * /ahsa/out/[1..n]/data.out - can be catted to get data processed through the server
+   * /ahsa/in - similar to /ahsa/out .. with except for an extra file to choose input devices.
+   * /ahsa/devs/{1..n} - devices detected .. can be dynamic .. there are usb soundcards and and midi devices.   
+   * /ahsa/out/[1..n]/plugins/[1..m]/0/params/dev
+   * Dont get tempted for :/ahsa/out/[1..n]/params/{rate, channels, and other stuff}
+   * that goes into /ahsa/out/[1..n]/plugins/0/params if /ahsa/out/[1..n]/plugins/0/detected == "headerless audio"
+   * There are a lot more things I can continue about the "sound server" .. The Ideas simply dont seem to exhaust..
+   * Some features/advantages 
+   * set output's translator plugin as ordinary text -- have text to speech conversion done by sound server! 
+   * Create and apply plugin presets by simply copying directories!
+   * Me getting dizzy thinking of the zillion more advantages. 
+   * If you are really doing some ordinary output , all you need to do is "cat" data into next free "plug" and everything will be autodetected including the format of the data and sent to the final sound "merge"r
+   * Dizzy ...
+
+## /usr/share/menu !!!! extension for package management idea
+   * cat mymenuitem.menu >> /usr/share/menu/menu
+   * cat /usr/share/menu/debian/kde ... :-)
+
+## Spam/Malware Control
+   * `/usr/antimalware/` - put your mail here.. it will automatically be scanned. when finished it will vanish from here ...
+   * `/usr/antimalware/clean` - ... and pop out from here
+   * `/usr/antimalware/malware` - ... or here.
+
+## NetDevice
+   * !JustImagine(tm)... settrans -ac /netdevices /hurd/netdevfs - [ host  | net ] 
+   * One can access device files remotely
+   * This could be acheived by allowing translators talk to one another over a network
+   * This will need translators to catch and handle ioctls (if there is such a thing in HURD).
+   * The device server which will listen to requests from the translators can be run even on a Linux machine!!!
+   * !JustImagine(tm)... accessing the crwriter/webcam on that GNU/Linux machine on the network using cdrecord of your local hurd machine!      
+   * !JustImagine(tm)... running GNU/HURD on a minimalistic GNU/Linux(but with all the drivers) through a specially modified and optimised Qemu. The device server runs on the host machine, and the client translators access  over the virtual network created by Qemu. You got most of the drivers for free!
+
+## Emacs File VFS
+   * I came to know from my Emacs loving friend that there are lots of VFS handlers in Emacs.. I was wondering if there can be translator which can tap into these Emacs VFS handlers. 
+
+## Audiocdfs
+
+A translator which produces a directory of \*.wav or \*.ogg files when you have an audio CD in the drive.
+
+## CDDB
+
+Of course it would be a lot nicer if the above translator didn't name its files something worthless like track001.ogg. So we would want a translator which would hook up with a database on the web and produce meaningful file names.
+
+## Crypto
+
+A cryptographic/steganographic seem like a nice match with the concept of user-land file systems. I like the idea of something like `settrans -a /secure stegfs --mpeg file001.mpg`
+
+## Revision control
+
+All of the empty space on your drive is now being wasted. Why not have a revision control translator which tracks changes to your documents? See also [this guy](http://www.linuxjournal.com/article.php?sid=5976). And then you'd do something like `cd /time-machine/2003/sept/14/` to see what your system looked like on the 14th of septempber 2003.
+
+## ROM
+
+How about a translator which makes it look like you can write to read only media (like CDs), or change files which I don't have permission to change. This translator would make it seem like you could copy files to places where you normally couldn't. Think about combining this translator with the ftp translator and the tar and gzip translators. (`cd /ftp/gnu.org/gnome.tar.gz/writes\_allowed; make install`). It could be that [[unionfs]] does this very thing.
+
+## Super\_FIFO
+
+It's like a named pipe which is smart enough to start a process everytime something new tries to read from it. For example, let's say I have a script that reads in a JPEG image and spits out a smaller thumbnail \*.jpg to STDOUT. With a standard fifo (`mknod -p fifo`) this would almost works (`script big.jpg > fifo`). But what if there are two processes trying to read the fifo at once? Ick. And of course the standard way only works once without rerunning the command. I'm not quite sure what the syntax should look like, but I'm sure someone out there has a great idea waiting to happen.
+
+## Perl
+
+Perl is a wonderful language for hacking together something useful in a short amount of time. No concept is complete without being able to use it in a perl one-liner. And that goes for Hurd translators too. Right?
+
+    #!/usr/bin/perl
+    use Hurd::translator;
+
+    #file named "two" can produce an endless supply of twos, etc. (a la /dev/zero)
+    my $i=0;
+    for $filename ([zero one two three four])
+    {
+       $libtrivfsread_codehash{$filename}=
+                sub{ $num_bytes=shift; my $data=$i; return chr($data) x $num_bytes; };
+       #that's a hash of references to closures
+       $i++;
+    }
+    translator_startup();
+
+A Perl translator has been started by [John Edwin Tobey](http://john-edwin-tobey.org/Hurd/) (pith).
+
+## Source code
+
+Here's a crazy thought. How about a translator for source code. You have a C source file like `hello.c` which is your normal everyday file. But there's a translator sitting underneath, so when you `cd hello.c` you get a directory with files like `main()` which represent the subroutines in `hello.c`. And of course you should be able to edit/remove those and have it modify the original source.
+
+## Libraries
+
+Here's an [idea](http://www.circlemud.org/~jelson/software/fusd/docs/node13.html) from the people making [userspace drivers in Linux](http://www.circlemud.org/~jelson/software/fusd/):
+
+* "One particularly interesting application of FUSD that we've found very useful is as a way to let regular user-space libraries export device file APIs. For example, imagine you had a library which factored large composite numbers. Typically, it might have a C interface--say, a function called `int *factorize(int bignum)`. With FUSD, it's possible to create a device file interface--say, a device called `/dev/factorize` to which clients can `write(2)` a big number, then `read(2)` back its factors.
+
+* This may sound strange, but device file APIs have at least three advantages
+  over a typical library API. First, it becomes much more language
+  independent--any language that can make [[system call]]s can access the
+  factorization library. Second, the factorization code is running in a
+  different address space; if it crashes, it won't crash or corrupt the
+  caller. Third, and most interestingly, it is possible to use `select(2)` to
+  wait for the factorization to complete. `select(2)` would make it easy for a
+  client to factor a large number while remaining responsive to other events
+  that might happen in the meantime. In other words, FUSD allows normal
+  user-space libraries to integrate seamlessly with UNIX's existing,
+  POSIX-standard event notification interface: `select(2)`."
+
+## Mail
+
+Am I off my rocker, or does an IMAP/POP translator sound like a good idea? It would make your remote mail servers look like local ones. Or what about a translator that makes a mbox format mail spool look like a directory. Can anyone think of a good use for an SMTP translator?
+
+*Definitely: Copy my email in there to send it.* -- [[ArneBab|community/weblogs/ArneBab]]
+
+## UUEncode
+
+How about a UUEncode translator for those places you can only store ASCII. Combine this with a NNTP translator and store your data in someone's Usenet archive. Or since, (as far as I know), there are no size limitations on file names in the Hurd, why not have a filesystem translator whose underlying store is a file name. (Now ls becomes cat).
+
+## Computation
+
+This is from the revenge of the command-line department. Make a directory translator whose contents are a result of the computation specified in the directory name. Here's an example...
+
+    $ settrans -a /comp /hurd/computationfs
+    $ cd "/comp/3+4"
+    $ ls -l
+    total 0
+    -rw-r--r--    1 nobody     users           0 Oct 16 11:41 7
+    $
+    $ cd "/comp/sqrt(2)"
+    $ ls -l
+    total 0
+    -rw-r--r--    1 nobody     users           0 Oct 16 11:42 1.4142135623731
+    $
+
+...etc. Now think about your favorite GUI HTML editor and using File-&gt;Open on the following directory name, ``"/comp/for i in $( find / -name *.html ); do ln -s $i `basename $i`;done"`` Which would produce a directory listing with soft links to all of the \*.html files on your system. You could have all of the comforts of the shell from within that little File-&gt;Open dialog box.
+
+## Other
+
+Just found Wolfgang J�hrling's translator [wishlist](http://www.8ung.at/shell/trans.html).
+
+## Bochs
+
+A translator which works with [Bochs](http://bochs.sourceforge.net/) disk images would be nice.
+
+## Rollover
+
+A translator that uses a circular buffer to store log files. The translated node only contains the last N (mega,kilo)bytes.
+
+## Birthday
+
+A translator that provides an interface into the birthday program.
+
+You can cat your calendar, eg. bd/calendar/today bd/calendar/this-week or bd/calendar/this-month.
+
+And you could write new events into files located in bd/events/DATE/event-name.
+
+DATE is of the format the birthday expects DD/MM/YYYY.
+
+The contents of the file are any or none of the following birthday options: ann (An anniversary), bd (A birthday), ev (Some other event), wN (Warn N days in advance of date), toDATE (Event lasts until this DATE), forDAYS (Event runs for DAYS).
+
+You can optionally just edit the bd/birthdays file if you want to edit the configuration file by hand. It might make sense to write changes from bd/birthdays into ~/.birthdays.
+
+    $ settrans -c bd /hurd/birthday -f ~/.birthdays
+    $ ls bd/
+    birthdays  calendar  events
+    $ find bd -print
+    bd
+    bd/calendar
+    bd/calendar/daily
+    bd/calendar/this-week
+    bd/calendar/this-month
+    bd/events
+    bd/birthdays
+    $
+
+## LVM
+
+A translator to access block devices from Linux's [Logical Volume Management](http://www.tldp.org/HOWTO/LVM-HOWTO/) would be an useful addition.
+
+    # settrans -cap /dev/VolumeGroup0 /hurd/lvm /dev/PhysicalVolume0 /dev/PhysicalVolume1 ...
+    # ls /dev/VolumeGroup0/
+    home
+    var
+    # settrans -cap /home /hurd/ext2fs /dev/VolumeGroup0/home
+    # settrans -cap /var /hurd/ext2fs /dev/VolumeGroup0/var
+
+Probably both [LVM2](http://sourceware.org/lvm2/) and the [Device-mapper](http://sourceware.org/dm/) need to be ported.
+
+## bridging translator
+
+A [bridging](http://bridge.sourceforge.net/faq.html) translator could improve the Hurd's networking facilities.
+
+    # settrans -cap /dev/br0 /hurd/bridge -i eth0 -i eth1 ...
+    # settrans -cap /servers/socket/2 /hurd/pfinet -i /dev/br0 -a ... -g ... -m ...
+
+Perhaps Linux's bridging code and [utilities](http://bridge.sourceforge.net/) can be ported (or glued in) or code from one of the BSDs.
+
+## SSH translator
+
+Presenting remote file systems through SSH similar to what gnome-vfs does.
+
+## Crontab translator
+
+Presenting a user's crontab in a filesystem where cron entries are files.
+
+## globlink
+
+Firmlink to a file according to a filename matching pattern. When a file goes away, the next file that is matched is automatically linked to.
+
+    $ settrans -ac libfoo.so /hurd/globlink '/lib/libfoo*'
+
+## alphabetfs
+
+Organize a large group of files by their first letter. Present one subdirectory for each letter in the alphabet.
+
+## fsysoptsctl
+
+Send an fsysopts command to a set of translators. When you have a directory full of translators and you want to send each of them the same runtime option, this translator can do it for you.
+
+    $ settrans -ac all /hurd/fsysoptsctl '/tmp/mystuff/*'
+    $ fsysopts all --update
