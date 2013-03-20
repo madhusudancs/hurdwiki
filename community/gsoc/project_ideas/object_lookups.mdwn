@@ -1,0 +1,42 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="Improved system object lookups"]]
+
+The Hurd currently uses its ihash library ([[hurd/libihash]]) as a generic
+container for various objects. While it does its job, it has been reported
+to suffer from high collision rates. In addition, the "one size fits all"
+approach contributes to slow things down. One particular use case is looking
+up an object from a Mach port name, which basically translates to getting the
+file or socket associated with a file descriptor in traditional Unix systems.
+It's particular because there are actually two lookups for each object, the
+first being finding the Mach port from a client port name, which is done in
+the GNU Mach kernel, and the second being finding the server object from a
+server port name. The best strategy would probably be to directly associate
+the address of an object to the receive right of its port, eliminating the
+need to look up again, but this is quite an intrusive change in the code base.
+For the time being, optimizing lookups would already be an improvement.
+
+The goal of this project is to increase system performance by speeding up
+object lookups, with a particular focus on name-to-object lookups. Note that
+there is little room for improvement in the kernel name-to-port lookups because
+of the various optimizations IPC has received in the past. Looking up server
+objects from port names could use an algorithm highly tuned for this task,
+perhaps with better locking (shared/exclusive instead of always mutually
+exclusive for example). Then, the libihash algorithm could be replaced with a
+better one, not necessarily a hash based one, to improve all the other users.
+
+This task requires proper knowledge of data structure algorithms, taking into
+account machine properties such as processor caches, as well as the appropriate
+skills in C and assembly to check the generated code. Being able to perform
+accurate measurements in a system that lacks modern profiling tools would also
+be helpful.
+
+Possible mentors: Richard Braun
