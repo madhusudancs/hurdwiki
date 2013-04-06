@@ -1,0 +1,48 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_glibc open_issue_gnumach open_issue_hurd]]
+
+Evaluate whether or not usage of vDSOs (virtual dynamically linked shared
+objects; [[!wikipedia vDSO]]) can be useful in a GNU Hurd system.
+
+Explanation and example for the Linux kernel: [Creating a vDSO: the Colonel's
+Other
+Chicken](http://www.linuxjournal.com/content/creating-vdso-colonels-other-chicken),
+Matt Davis, 2012-02-06.  The *Resources* given are also worth reading.
+Basically, this is useful for exporting data from the kernel (generally, or
+given a process context ([[Unix]]), or task/thread context, and so on).
+
+On a GNU Hurd system, parts of the data that makes up a process context doesn't
+actually live inside the kernel, but instead is directly held in glibc.  For
+example `sysdeps/mach/hurd/getpid.c:__getpid` does a mere `return _hurd_pid`.
+For this reason, vDSOs might not be as useful on GNU Hurd as they are with the
+Linux kernel.  Or, put another way, as GNU Hurd system doesn't have many
+[[system_call]]s, also there aren't many that could be replaced.
+
+Generally only *real* [[system_call]]s should be candidates for implementation
+with vDSO code, because otherwise that'd break the ([[RPC]]) system's inherent
+[[/virtualization]] capabilities.
+
+Having vDSO code might be useful for:
+
+  * `mach_*_self`: `mach_host_self`, `mach_task_self`, `mach_thread_self`?
+
+  * [[mapped-time_interface|master/microkernel/mach/gnumach/interface/device/time]]
+
+    Every application can then use that via the regular
+    `gettimeofday`/`clock_gettime` and similar calls instead of using the
+    special [[hurd/libshouldbeinlibc]]'s `<maptime.h>` interface.
+
+    Can implement [[`clock_gettime` stuff|clock_gettime]] more easily that way,
+    for example for nanosecond precision?
+
+    Now, the [[mapped-time_interface]] is virtualizable -- the question is
+    whether there is a way so that we can make a compromise here?
