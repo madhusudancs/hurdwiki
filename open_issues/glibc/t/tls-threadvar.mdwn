@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2011, 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2012, 2013 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -14,7 +15,10 @@ This basically means to get rid of `sysdeps/mach/hurd/bits/libc-tsd.h` (and
 thus the `_HURD_THREADVAR_*`/`_hurd_threadvar_location` interface), and
 directly use `__thread` instead.
 
-IRC, freenode, #hurd, 2011-10-23:
+[[!toc]]
+
+
+# IRC, freenode, #hurd, 2011-10-23
 
     <tschwinge> youpi: If we want to replace threadvars with TLS, there is one
       problem: the threadvars interface is publically exported:
@@ -58,3 +62,61 @@ dropped altogether, and `__thread` directly be used in glibc.
       email -- rmcgrath wanted to find some time this week to comment/help, and
       I take it you don't have any immediate comments to that issue?
     <youpi> I saw the mails, but didn't investigate at all
+
+[[!message-id "878vdyqht3.fsf@kepler.schwinge.homeip.net"]].
+
+
+# `getcontext`/`setcontext`
+
+Needed for [[gccgo]].
+
+Instead of adding support for `getcontext`/`setcontext` within the Hurd
+threadvar context, which might become a bit ugly, the idea is to get rid of
+Hurd threadvars and replace them with TLS (as we want to, anyway).
+
+
+## IRC, freenode, #hurd, 2012-04-19
+
+    <gnu_srs> How much work/knowledge is needed to implement
+      getcontext/setcontext?
+    <gnu_srs> Any already implemented alternatives available?
+    <youpi> x86 registers knowledge, as well as unix signal masks
+    <youpi> there's the linux implementation that can be taken as an
+      exxample, but the signal part has to be rewritten
+    <gnu_srs> Well, it's a pity they are not implemented. That's the
+      remaining hurdle to get gccgo working :-( 
+    <youpi> uh :/
+    <gnu_srs> Everything builds, but the testsuite fails due to these
+      missing functions.
+    <gnu_srs> Regarding getcontext/setcontext they seem to be written
+      in assembly for linux but the code is not very long. 
+    <gnu_srs> How much effort would it be to write something similar
+      for Hurd? Anybody fluent in asm?
+    <gnu_srs> And registers and signals.
+    <tschwinge> gnu_srs: Signals is the key thing -- everything else we
+      can probably just copy.  I have never/not yet looked at it,
+      though.
+    <gnu_srs> For kfreebsd it is written in C: kern_context.c, 3/4 in
+      one file: getcontext, setcontext,  swapcontext, not makecontext.
+    <gnu_srs> Dunno how much assembly calls used though.
+    <gnu_srs> Hi, any preferences about implementing get/setcontext in
+      C or Asm?
+    <tschwinge> gnu_srs: I think these will have to be implemented in
+      assembly.  Based on the Linux x86 variants.
+
+
+### IRC, freenode, #hurd, 2012-04-20
+
+    <tschwinge> youpi: Your understanding of that is better than mine
+      -- the *context stuff can't be very useful at the moment, because
+      when the user changes uc_stack.ss_sp (which the glibc tests are
+      doing), we're losing access to the _hurd_threadvars.  Correct?
+    <tschwinge> At least the getcontext test works, the other get a
+      SIGILL.
+    <tschwinge> others
+    <tschwinge> _hurd_threadvars issue is just guessing.
+    <youpi> tschwinge: yes, threadvars are on the stack
+    <youpi> threadvars is not much code, it should just work, but care
+      has to be taken on the libpthread/libthread side, which does some
+      initialization
+    <tschwinge> OK, that at least matches my understanding.

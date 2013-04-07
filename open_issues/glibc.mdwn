@@ -259,54 +259,7 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
             <youpi> so I'd say ignore the error for now, we'll add the
               declaration
 
-      * `getcontext`/`setcontext`
-
-        Needed for [[gccgo]].
-
-        IRC, freenode, #hurd, 2012-04-19:
-
-            <gnu_srs> How much work/knowledge is needed to implement
-              getcontext/setcontext?
-            <gnu_srs> Any already implemented alternatives available?
-            <youpi> x86 registers knowledge, as well as unix signal masks
-            <youpi> there's the linux implementation that can be taken as an
-              exxample, but the signal part has to be rewritten
-            <gnu_srs> Well, it's a pity they are not implemented. That's the
-              remaining hurdle to get gccgo working :-( 
-            <youpi> uh :/
-            <gnu_srs> Everything builds, but the testsuite fails due to these
-              missing functions.
-            <gnu_srs> Regarding getcontext/setcontext they seem to be written
-              in assembly for linux but the code is not very long. 
-            <gnu_srs> How much effort would it be to write something similar
-              for Hurd? Anybody fluent in asm?
-            <gnu_srs> And registers and signals.
-            <tschwinge> gnu_srs: Signals is the key thing -- everything else we
-              can probably just copy.  I have never/not yet looked at it,
-              though.
-            <gnu_srs> For kfreebsd it is written in C: kern_context.c, 3/4 in
-              one file: getcontext, setcontext,  swapcontext, not makecontext.
-            <gnu_srs> Dunno how much assembly calls used though.
-            <gnu_srs> Hi, any preferences about implementing get/setcontext in
-              C or Asm?
-            <tschwinge> gnu_srs: I think these will have to be implemented in
-              assembly.  Based on the Linux x86 variants.
-
-        IRC, freenode, #hurd, 2012-04-20:
-
-            <tschwinge> youpi: Your understanding of that is better than mine
-              -- the *context stuff can't be very useful at the moment, because
-              when the user changes uc_stack.ss_sp (which the glibc tests are
-              doing), we're losing access to the _hurd_threadvars.  Correct?
-            <tschwinge> At least the getcontext test works, the other get a
-              SIGILL.
-            <tschwinge> others
-            <tschwinge> _hurd_threadvars issue is just guessing.
-            <youpi> tschwinge: yes, threadvars are on the stack
-            <youpi> threadvars is not much code, it should just work, but care
-              has to be taken on the libpthread/libthread side, which does some
-              initialization
-            <tschwinge> OK, that at least matches my understanding.
+      * [[`getcontext`/`setcontext`|t/tls-threadvar]]
 
       * `futimesat`
 
@@ -1321,7 +1274,8 @@ Failures, mostly in order of appearance:
 
         getcontext failed, errno: 1073741902.
 
-    Is not implemented; see above.  In 8958805c11c741d9211e20612c86271d906c9a0b
+    [[Not implemented|t/tls-threadvar]].
+    In 8958805c11c741d9211e20612c86271d906c9a0b
     testing, `stdlib/bug-getcontext.out` now says: *Skipping test; no support
     for FP exceptions.*, in cba1c83ad62a11347684a9daf349e659237a1741 testing,
     it's back to the previous failure.
