@@ -1,0 +1,72 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_gnumach]]
+
+
+# IRC, freenode, #hurd, 2013-04-02
+
+    <psockali> hi again, maybe someone has some metrics 
+    <psockali> is mprotect / munprotect faster in hurd then in linux ?
+    <pinotree> ?
+    <psockali> can i protected a memory page against write access in hurd 
+    <psockali> and if so, is it a fast operation ?
+    <youpi> you can, I never measured, but it's probably the same cost as in
+      linux
+    <youpi> I don't see why it would be different, as it boils down to the same
+      x86 trick
+    <psockali> but i suppose it is part of the mach kernel doing the protection
+      and not part of the unix layer ?
+    <youpi> it is
+    <youpi> the unix layer doesn't have mm control
+    <youpi> it has to ask the kernel
+    <braunr> it's slower on mach, as it's less optimized because of historical
+      reasons
+    <braunr> but that's about it
+    <youpi> less optimized, how so?
+    <braunr> well, more entry fragmentation
+    <youpi> in the end you mark the page table and flush the tlb
+    <braunr> yes
+    <braunr> the high level virtual memory layer is a bit slower
+    <youpi> but fragmentation doesn't come into play it you just have one
+      memory object, does it?
+    <braunr> it does, as it's about memory areas, not objects
+    <braunr> the object is merely a backing store
+    <braunr> protection, inheritance, copy on write are all area (vm_map_entry)
+      attributes
+    <braunr> also, some operations affect all the address spaces where a
+      physical page is mapped
+    <braunr> although i think linux does the same thing as mach/bsd now
+    <youpi> but mprotect/munprotect doesn't, does it?
+    <braunr> no
+    <braunr> or perhaps by side effect, in some situations, i'm not sure
+    <braunr> i think it depends if the memory is shared between processes, but
+      i don't remember the details and can't think of a proper example right
+      now
+    <braunr> but anyway, "slower" here is negligible unless address spaces are
+      really huge and filled with lots of map entries
+    <braunr> psockali: why do you ask ?
+    <psockali> can i post a link here ?
+    <braunr> about what ?
+    <psockali> it's regarding azul / managed runtime initiative 
+    <psockali> a GC for java
+    <braunr> why not
+    <braunr> although i don't see the point for now :)
+    <psockali> they have a custom MM management module for their GC as linux
+      kernel modul
+    <psockali> and i was wondering if mach would be any faster then linux in
+      that aspect
+    <psockali>
+      http://stackoverflow.com/questions/3358545/whats-actually-in-the-managed-runtime-initiatives-kernel-patches-and-jvm
+    <braunr> psockali: generally speaking, mach is slower than linux because of
+      its age and the fact it didn't receive as much attention and
+      microoptimization as linux did
+    <braunr> psockali: about this article, there is no reason mach would be
+      faster

@@ -615,3 +615,139 @@ In context of [[open_issues/multithreading]] and later [[open_issues/select]].
       way it is in mach and netbsd
     <braunr> but the arch-specific interfaces aren't well defined yet because
       there is only one (and incomplete) arch
+
+
+### IRC, freenode, #hurd, 2013-03-08
+
+    <antrik> BTW, what is your current direction? did you follow through with
+      abandonning Mach resemblance?...
+    <braunr> no
+    <braunr> it's very similar to mach in many ways
+    <braunr> unless mach is defined by its ipc in which case it's not mach at
+      all
+    <braunr> the ipc interface will be similar to the qnx one
+    <antrik> well, Mach is pretty much defined by it's IPC and VM interface...
+    <braunr> the vm interface remains
+    <antrik> its
+    <braunr> although vm maps will be first class objects
+    <braunr> so that it will be possible to move parts of the vm server outside
+      the kernel some day if it feels like a good thing to do
+    <braunr> i.e. vm maps won't be inferred from tasks
+    <braunr> not implicitely
+    <braunr> the kernel will be restricted to scheduling, memory management,
+      and ipc, much as mach is (notwithstanding drivers)
+    <antrik> hm... going with QNX IPC still seems risky to me... it's designed
+      for simple embedded environments, not for general-purpose operating
+      systems in my understanding
+    <braunr> no, the qnx ipc interface is very generic
+    <braunr> they can already call remote services
+    <braunr> the system can scale well on multiprocessor machines
+    <braunr> that's not risky at all, on the contrary
+    <antrik> yeah, I'm sure it's generic... but I don't think anybody tried to
+      build a Hurd-like system on top of it; so it's not at all clear whether
+      it will work out at all...
+    <auronandace> clueless question: does x15 have any inspiration from
+      helenos?
+    <braunr> absolutely none
+    <braunr> i'd say x15 is almost an opposite to helenos
+    <braunr> it's meant as a foundation for unix systems, like mach
+    <braunr> some unix interfaces considered insane by helenos people (such as
+      fork and signals) will be implemented (although not completely in the
+      kernel)
+    <braunr> ipc will be mostly synchronous
+    <braunr> they're very different
+    <braunr> well, helenos is very different
+    <auronandace> cool
+    <braunr> x15 and actually propel (the current name i have for the final
+      system), are meant to create a hurd clone
+    <auronandace> another clueless question: any similarities of x15 to minix?
+    <braunr> and since we're few, implementing posix efficiently is a priority
+      goal for me
+    <braunr> again, absolutely none
+    <braunr> for the same reasons
+    <braunr> minix targets resilience in embedded environments
+    <braunr> propel is a hurd clone
+    <braunr> propel aims at being a very scalable and performant hurd clone
+    <braunr> that's all
+    <auronandace> neato
+    <braunr> unfortunately, i couldn't find a name retaining all the cool
+      properties of the hurd
+    <braunr> feel free to suggest ideas :)
+    <auronandace> propel? as in to launch forward?
+    <braunr> push forward, yes
+    <auronandace> that's very likely a better name than anything i could
+      conjure up
+    <braunr> x15 is named after mach (the first aircraft to break mach 4,
+      reaching a bit less than mach 7)
+    <braunr> servers will be engines, and together to push the system forward
+      ..... :)
+    <auronandace> nice
+    <auronandace> thrust might be a bit too generic i guess
+    <braunr> oh i'm looking for something like "hurd"
+    <braunr> doubly recursive acronym, related to gnu
+    <braunr> and short, so it can be used as a c namespace
+    <braunr> antrik: i've thought about it a lot, and i'm convinced this kind
+      of interface is fine for a hurd like system
+    <braunr> the various discussions i found about the hurd requirements
+      (remember roland talking about notifications) all went in this direction
+    <braunr> note however the interface isn't completely synchronous
+    <braunr> and that's very important
+    <antrik> well, I'm certainly curious. but if you are serious about this,
+      you'd better start building a prototype as soon as possible, rather than
+      perfecting SMP ;-)
+    <braunr> i'm not perfecting smp
+    <braunr> but i consider it very important to have migrations and preemption
+      actually working before starting the prototype
+    <braunr> so that tricky mistakes about concurrency can be catched early
+    <antrik> my current hunch is that you are trying to do too much at the same
+      time... improving both the implementation details and redoing the system
+      design
+    <braunr> so, for example, there is (or will be soon, actually) thread
+      migratio, but the scheduler doesn't take processor topology into account
+    <braunr> that's why i'm starting from scratch
+    <braunr> i don't delve too deep into the details
+    <braunr> just the ones i consider very important
+    <antrik> what do you mean by thread migration here? didn't you say you
+      don't even have IPC?...
+    <braunr> i mean migration between cpus
+    <antrik> OK
+    <braunr> the other is too confusing
+    <braunr> and far too unused and unknown to be used
+    <braunr> and i won't actually implement it the way it was done in mach
+    <braunr> again, it will be similar to qnx
+    <antrik> oh? now that's news for me :-)
+    <antrik> you seemed pretty hooked on thread migration when we talked about
+      these things last time...
+    <braunr> i still am
+    <braunr> i'm just saying it won't be implemented the same way
+    <braunr> instead of upcalls from the kernel into userspace, i'll "simply"
+      make server threads inherit from the caller's scheduling context
+    <braunr> the ideas i had about stack management are impossible to apply in
+      practice
+    <braunr> which make the benefit i imagined unrealistic
+    <braunr> and the whole idea was very confusing when compared and integrated
+      into a unix like view
+    <braunr> so stack usage will be increased
+    <braunr> that's ok
+    <antrik> but thread migration is more or less equivalent with first-class
+      RPCs AIUI. does that work with the QNX IPC model?...
+    <braunr> the very important property that threads don't block and wake a
+      server when sending, and the server again blocks and wake the client on
+      reply, is preserved
+    <antrik> (in fact I find the term "first-class RPC" much clearer...)
+    <braunr> i dont
+    <braunr> there are two benefits in practice: since the scheduling context
+      is inherited, the client is charged for the cpu time consumed
+    <braunr> and since there are no wakeups and blockings, but a direct hand
+      off in the scheduler, the cost of crossing task space is closer to the
+      system call
+    <antrik> which can be problematic too... but still it's the solution chosen
+      by EROS for example AIUI
+    <antrik> (inheriting scheduling contexts I mean)
+    <braunr> by practically all modern microkernel based systems actually, as
+      noted by shapiro
+    <antrik> braunr: well, both benefits can be achieved by other means as
+      well... scheduler activations like in Viengoos should handle the hand-off
+      part AIUI, and scheduling contexts can be inherited explicitly too, like
+      in EROS (and in a way in Viengoos)
+    <braunr> i don't understand viengoos well enough to do it that way

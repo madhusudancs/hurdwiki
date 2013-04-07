@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2009, 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2009, 2011, 2013 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -67,3 +68,75 @@ While testing some [[performance/IPC_virtual_copy]] performance issues:
 
     <tschwinge> And I can confirm that with dd if=/dev/zero of=/dev/null bs=4k
       running, a parallel sleep 10 takes about 20 s (on strauss).
+
+
+# IRC, OFTC, #debian-hurd, 2013-03-30
+
+    <clopez>  /usr/bin/time seems broken on hurd. It reports weird things.  Ex:
+    <clopez> # /usr/bin/time sleep 1
+    <clopez> 0.00user 0.00system 4:37:46elapsed 0%CPU (0avgtext+0avgdata
+      0maxresident)k
+    <clopez> 0inputs+0outputs (0major+0minor)pagefaults 0swaps
+    <pinotree> o_O
+    <pinotree> indeed, let's see what that time does
+    <pinotree> seems like only the elapsed time, %E
+    <clopez> not only the time, but also the other variables (pagefaults, cpu
+      used, etc) are wrong. For example compare the output of
+    <clopez>  /usr/bin/time openssl speed ecdhp521
+    <clopez> on linux and hurd
+    <pinotree> most probably they are not implemented yet
+    <pinotree> they are all 0
+    <clopez> yes
+    <clopez> should i report a bug to pkg time?
+    <pinotree> not sure
+    <pinotree> at least, there's this difference between eg amd64 and hurd-i386
+      in configure's output:
+    <pinotree> -checking for wait3 that fills in rusage... yes
+    <pinotree> +checking for wait3 that fills in rusage... no
+    <clopez> found this:
+      https://www.gnu.org/software/hurd/open_issues/time.html
+    <pinotree> seems related, yes
+    <pinotree> clopez: apparently all the ways to get the HZ define, either
+      directly or with CLOCKS_PER_SEC or CLK_TCK, so it gets defined as HZ
+    <pinotree> ... as 60, i mean (instead of 1000000)
+    <pinotree> $ ./time sleep 1
+    <pinotree> 0.00user 0.00system 0:01.01elapsed 0PU (0avgtext+0avgdata
+      0maxresident)k
+    <pinotree> :)
+    <clopez> what it was?
+    <pinotree> i added the check for time.h, and included in the no-wait3 case
+      in resuse.c
+    <pinotree> (omg, the last release of gnu time was in 1997)
+    <clopez> lol
+    <pinotree> hm not yet fixed
+    <pinotree> oh minor typo
+    <pinotree> clopez: http://paste.debian.net/246004/
+    <pinotree> i will update the wiki page (on the hurd site) and send the
+      patch tomorrow
+    <clopez> nice
+    <pinotree> yw, thanks again
+    <clopez> i dropped the patch on debian/patches of pkg time.. rebuilt it
+      both on linux and hurd
+    <clopez> and works as expected in both cases
+    <clopez> i think you should forward the patch to the mantainer of pkg time
+    <pinotree> is there anyone maintaining gnu time?
+    <clopez> http://packages.qa.debian.org/t/time.html
+    <clopez> Maintainers for time are Bob Proulx <bob@proulx.com>.
+    <pinotree> that's the debian maintainer, yes, which is what i implied
+      earlier with "send the patch"
+    <clopez> i guess that filling a bug against time with this patch attached
+      should be enough
+    <pinotree> yeah
+    <clopez> wow... not only you fixed the elapsed time but also the other
+      variables :)
+    <clopez>  /usr/bin/time openssl speed ecdhp521
+    <clopez> now it reports cpu used and pagefaults :)
+    <pinotree> does it?
+    <clopez> 10.00user 0.01system 0:10.11elapsed 99%CPU (0avgtext+0avgdata
+      0maxresident)k
+    <clopez> 0inputs+0outputs (67major+656minor)pagefaults 0swaps
+
+
+# IRC, OFTC, #debian-hurd, 2013-03-31
+
+    <pinotree> clopez: #704283
