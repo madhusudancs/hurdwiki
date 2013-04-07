@@ -15,3 +15,105 @@ License|/fdl]]."]]"""]]
 
     <braunr> now that there is a pthread_hurd_cond_timedwait_np function
       available, we could replace the ulgy timers in pfinet
+
+
+# IRC, freenode, #hurd, 2013-04-02
+
+    <braunr> youpi: also, i think i know why fakeroot is slow on the hurd
+    <braunr> well, pfinet actually
+    <youpi> tcp flow control?
+    <braunr> i think it's because of our timer resolution
+    <youpi> ah
+    <braunr> and i think i spotted a small mistake in the timer emulation code
+      btw
+    <braunr> it's so obvious i even doubt it's actually true :)
+    <braunr> see timer_emul.c:timer_function
+    <braunr> the code checks for timers->expires < jiffies
+    <braunr> shouldn't it be "<="
+    <braunr> ?
+    <youpi> well it'd be equivalent
+    <youpi> if ==, then wait becomes 0 in the else
+    <braunr> see the second scheck
+    <braunr> the one performed right before running the callback
+    <youpi> ah, the while?
+    <braunr> yes
+    <youpi> I'd say <= could do it yes
+    <braunr> ok
+    <braunr> i have hurd packages ready to be tested
+    <youpi> although I'm unsure it'd make a difference
+    <youpi> do you notice some?
+    <braunr> just waiting for my current glibc to finish building
+    <braunr> and i'll test right after
+    <braunr> i think it would actually
+    <youpi> in which case?
+    <braunr> the timer resolution is 10ms
+    <braunr> it's huge
+    <braunr> well, i hope it fixes fakeroot slowness :)
+    <youpi> so timers below that would trigger immediately?
+    <braunr> or equal
+    <braunr> taht's the problem
+    <braunr> for 10ms, timers that have expired must wait for the next tick to
+      fire
+    <youpi> I include "equal" in below
+    <youpi> actually :)
+    <braunr> then yes :)
+    <braunr> soryy i never know when equal is implicit
+    <youpi> because they boil down to expires = jiffies
+    <youpi> in french it's implicit
+    <youpi> but anyway here equal is not really important
+    <braunr> right
+    <braunr> why ?
+    <youpi> it's the fact that 1ms would be rounded up to 10ms, not down to 0ms
+    <braunr> well, doing that seems reasonable
+    <youpi> or rather, rounded down to 0ms, but waited for 10ms because of the
+      <
+    <braunr> we do want timers not to fire before the time event
+    <youpi> I'm however wondering which part of the code would have timer below
+      10ms
+    <braunr> well, a select with low timeout from a client perhaps ?
+    <youpi> but then we have to round up
+    <youpi> as you say we don't want to fire before some time
+    <braunr> well yes
+    <braunr> that's fine
+    <youpi> all that being said, linux has been having 10ms clock for a long
+      time
+    <braunr> but when the timer fires, i.e. when expires == jiffie, we do want
+      it to fire
+    <youpi> highres timers are only relativeley recent
+    <braunr> not at jiffie + 1
+    <youpi> braunr: ah, right, so we don't wait for 20ms instead of 10ms
+    <braunr> yes
+    <youpi> ok, so it's not a miracle fix, but could bring 2times fix
+    <braunr> well, pfinet eats 40% of my processor when this problem occurs
+    <braunr> which i'm seeing right now
+    <youpi> yes, I've seen that too
+    <braunr> so it may be a visible win
+    <braunr> build finished :) let's see
+    <youpi> Mmm, thinking again
+    <youpi> indeed
+    <youpi> when expires become jiffies
+    <youpi> we mach_msg (0)
+    <youpi> but don't do anything
+    <youpi> and then restart
+    <youpi> so just eaten cpu for nothing
+    <braunr> is there a small package that builds fast and uses fakeroot a lot
+      ?
+    <youpi> something like a package which has a lot of data to install at make
+      install
+    <braunr> or i can rebuild glibc with -nc
+    <youpi> ok, I've checked in linux
+    <pinotree> libarchive's testsuite used to intermittently failing under
+      fakeroot
+    <youpi> it's definitely <= which is meant
+    <braunr> it looks better
+    <braunr> but still not 100% cpu
+    <youpi> at any rate, as long as it doesn't seem to break anything, please
+      push the fix
+    <youpi> it definitely makes sense
+    <youpi> (and I don't see why it could break anything)
+    <braunr> ok
+    <braunr> i'll look into this timer problem a bit more, there may be other
+      code involved
+    <braunr> yes, schedule_timeout could need a review
+    <braunr> actually, fakeroot rm -rf * is a good test
+    <braunr> and it's still damn slow

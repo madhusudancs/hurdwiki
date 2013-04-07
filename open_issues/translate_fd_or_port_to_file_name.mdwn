@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2011, 2013 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -15,14 +16,17 @@ License|/fdl]]."]]"""]]
 
 # IRC, freenode, #hurd, June (?) 2010
 
-    <pochu> is there a way (POSIX or Hurdish) to get the corresponding file name for a fd or a hurd port?
+    <pochu> is there a way (POSIX or Hurdish) to get the corresponding file
+      name for a fd or a hurd port?
     <marcusb> there is a way
     <pochu> marcusb: which one would that be?
     <marcusb> I forgot
     <marcusb> there is an implementation in libc
     <marcusb> realpath has a similar job
     <marcusb> but that's not what I mean
-    <marcusb> pochu: maybe I am misremembering.  But it was something where you keep looking up .. and list that directory, looking for the node with the ID of the node you had .. for
+    <marcusb> pochu: maybe I am misremembering.  But it was something where you
+      keep looking up .. and list that directory, looking for the node with the
+      ID of the node you had .. for
     <marcusb> maybe it works only for directories
     <marcusb> yeah
     <marcusb> pochu: check the getcwd() implementation of libc
@@ -30,20 +34,25 @@ License|/fdl]]."]]"""]]
     <marcusb> _hurd_canonicalize_directory_name_internal 
     * pochu looks
     <pochu> marcusb: interesting
-    <pochu> though that is for dirs, and doesn't seem to be extensible to files, as you cannot lookup for ".." under a file
+    <pochu> though that is for dirs, and doesn't seem to be extensible to
+      files, as you cannot lookup for ".." under a file
     <marcusb> right
     <pochu> oh you already said that :)
     <marcusb> actually, I am not sure that's correct
-    <marcusb> it's probably correct, but there is no reason why looking .. up on a file couldn't return the directory it's contianed in
-    <pochu> I don't know the interfaces or the Hurd internals very well yet, but it would look strange to me if you could do that
+    <marcusb> it's probably correct, but there is no reason why looking .. up
+      on a file couldn't return the directory it's contianed in
+    <pochu> I don't know the interfaces or the Hurd internals very well yet,
+      but it would look strange to me if you could do that
     <marcusb> the hurd is strange
-    <pochu> it sounds like if you could `ls getcwd.c/..` to get sysdeps/mach/hurd/ :-)
+    <pochu> it sounds like if you could `ls getcwd.c/..` to get
+      sysdeps/mach/hurd/ :-)
     <marcusb> yep
     <pochu> ok. interesting
     <marcusb> you wouldn't find "ls foo.zip/.." very strange, wouldn't you?
     <pochu> I guess not if `ls foo.zip` listed the contents of foo.zip
     <marcusb> there you go
-    <marcusb> or the other way round: would you be surprised if "cat somedir" would work?
+    <marcusb> or the other way round: would you be surprised if "cat somedir"
+      would work?
     <pochu> I think so. if it did, what would it do?
     <marcusb> originally, cat dir would list the directory content!
     <marcusb> in the old unix times
@@ -51,10 +60,49 @@ License|/fdl]]."]]"""]]
     <marcusb> and some early BSDs 
     * pochu feels young :-)
     <marcusb> he don't worry, I didn't see those times either
-    <marcusb> technically, files and directories are implemented in the same way in the hurd, they both are objects implementing the fs.defs interface
+    <marcusb> technically, files and directories are implemented in the same
+      way in the hurd, they both are objects implementing the fs.defs interface
     <marcusb> which combines file and directory operations
-    <marcusb> of course, files and directories implement those functions differently
-    <antrik> marcusb: do you know why this behavior (cat on directories) was changed?
+    <marcusb> of course, files and directories implement those functions
+      differently
+    <antrik> marcusb: do you know why this behavior (cat on directories) was
+      changed?
+
+
+## IRC, freenode, #hurd, 2013-03-07
+
+    * pinotree ponders about sending as RFC his patch for /proc/$pid/maps
+    <tschwinge> Including a scheme for providing the names of mapped files?
+      ;-D
+    <braunr> that would be really great indeed
+    <tschwinge> I have not yet researched how Linux does this.  Perhaps store
+      the filename used for first opening a file as a string somewhere?
+    <pinotree> tschwinge: eh, indeed that's lacking in my patch
+    <braunr> i'm not sure we should aim at doing it the same way
+    <youpi> I was wondering about having interfaces for naming tasks, threads,
+      objects
+    <youpi> that'd be useful for debugging in general
+    <braunr> yes
+    <braunr> i don't think we need to take namespaces into account
+    <braunr> a simple name or path should be quite enough
+    <tschwinge> Agreed.  "Just something!"
+    <tschwinge> So, a Java toString() method for ports.
+    <tschwinge> ;-)
+    <braunr> yes
+    <tschwinge> Oh, and could this also work recursively?  The ext2fs instance
+      on /home asks its parent fs about its own path -- can it do that?  (And
+      then cache that, most likely?)  Would one get rooted filesnames that way?
+    <braunr> i really don't think we should link it to the VFS
+    <braunr> it should merely be a name for debugging
+    <youpi> yep, same for me
+    <youpi> I'd say it's the linker's task of just setting a sane name
+    <braunr> first, keeping it isolated prevents increasing complexity
+    <braunr> next, it doesn't reduce performance
+    <tschwinge> youpi: Linker?
+    <tschwinge> braunr: Ack.
+    <braunr> yes, ld is the one creating the mappings
+    <youpi> tschwinge: the one that loads libraries
+    <tschwinge> Ah, for /proc/*/maps, right.  I've been thinking more globally.
 
 
 # IRC, freenode, #hurd, 2011-07-13

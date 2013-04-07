@@ -1,0 +1,115 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_glibc]]
+
+Issues with the current 2.17 version of glibc/EGLIBC in Debian experimental.
+
+
+# IRC, OFTC, #debian-hurd, 2013-03-14
+
+    <markus_w1nner> I have a strange tcp via localhost question:
+    <markus_wanner> The other side closes the connection, but I haven't read
+      all data, yet. I should still be able to read the pending data, no?
+    <markus_wanner> At least it seems to work that way on Linux, but not on
+      Hurd.
+    <markus_wanner> Got a simple repro with nc, if you're interested...
+    <youpi> markus_wanner: yes, we're interested
+    <markus_wanner> youpi: okay, here we go:
+    <markus_wanner> session 1: nc -l -p 7777 localhost
+    <markus_wanner> session 2: nc 127.0.0.1 7777
+    <markus_wanner> session 2: a <RET> b <RET> c <RET>
+    <markus_wanner> session 1: [ pause with Ctrl-Z ]
+    <markus_wanner> session 2: [ send more data ] d <RET> e <RET> f <RET>
+    <markus_wanner> session 2: [ quit with Ctrl-C ]
+    <markus_wanner> session 1: [ resume with 'fg' ]
+    <markus_wanner> The server on session 1 doesn't get the data sent after it
+      paused and before the client closed the connection.
+    <markus_wanner> I'm not sure if that's a valid TCP thing. However, on
+      Linux, the server still gets the data. On hurd it doesn't.
+    <markus_wanner> I'm working on a C-code test case, ATM.
+    <youpi> markus_wanner: on which box are you seeing this behavior?
+    <youpi> exodar does not have it
+    <youpi> i.e. I do get the d e f
+    <markus_wanner> a private VM (I'm not a DD)
+    <markus_wanner> ..updated to latest experimental stuff.
+    <markus_wanner> GNU lematur 0.3 GNU-Mach 1.3.99-486/Hurd-0.3 i686-AT386 GNU
+    <youpi> ok, I can't reproduce it on my vm either
+    <youpi> maybe the C program will help
+    <markus_wanner> Hm.. cannot corrently reproduce that in C. (Netcat still
+      shows the issue, though).
+    <markus_wanner> I'll try to strace netcat...
+    <markus_wanner> ..Meh. strace not available on Hurd?
+    <pinotree> no, but there is rpctrace to show the various rpc
+    <markus_wanner> Cool, looks helpful.
+    <markus_wanner> Thx
+    <markus_wanner> Uh.. that introduces another error:
+    <markus_wanner> rpctrace: ../../utils/rpctrace.c:1287: trace_and_forward:
+      Assertion `reply_type == 18' failed.
+
+[[hurd/debugging/rpctrace]].
+
+    <youpi> I'm checking on a box without ipv6 configuration
+    <youpi> maybe that's the difference between you and me
+    <youpi> I guess your /etc/alternatives/nc is /bin/nc.traditional ?
+    <markus_wanner> Yup, nc.traditional.
+    <markus_wanner> Looks like that box only has IPv4 configured.
+    <markus_wanner> Something very strange is going on here. No matter how hard
+      I try, I cannot reproduce this with netcat, anymore.
+    <pinotree> not even after a reboot?
+    <markus_wanner> Woo.. here, it happened, again! This is driving me crazy!
+    <markus_wanner> Now, nc seemingly connects, but is unable to send data
+      between the two. Netcat would somehow complain, if it failed to connect,
+      no?
+    <markus_wanner> No it worked.
+    <markus_wanner> So this seems to be an intermittent issue. So far, I could
+      only ever repro it as a normal user, not as root. May be coincidental,
+      though.
+    <markus_wanner> Now, 'a' and 'b' made it through, but not the 'c' sent
+      manually just after that. Something with that TCP/IP stack is definitely
+      fishy.
+    <markus_wanner> Anything I can try to investigate? Or shall I simply
+      restart and see if the problem persists?
+    <youpi> maybe restart, yes
+    <youpi> did you restart since the upgrade ?
+    <markus_wanner> Yes, I restarted after that.
+    <markus_wanner> Hm.. okay, restarted. Some problem persists.
+    <markus_wanner> I currently have two netcat processes connected, the
+      listening one got some first two messages and seems stuck now.
+    <markus_wanner> With the client, I tried to send more data, but the server
+      doesn't get it, anymore.
+    <markus_wanner> Any idea on what I can do to analyze the situation?
+    <youpi> for the netcat issue, I haven't experienced this
+    <youpi> are you running in kvm or virtualbox or something else?
+    <markus_wanner> I'm currently puzzled about what "experimental" actually
+      ships.
+    <markus_wanner> On kvm.
+    <markus_wanner> My libc0.3 used to be 2.13-39+hurd.3.
+    <markus_wanner> But packages.d.o already shows 2.17.0experimental2.
+    <youpi> experimental ships experimental versions, which you aren't supposed
+      to use
+    <youpi> unless you know what you are doing
+    <youpi> iirc 2.17 is known to be quite broken for now
+    <markus_wanner> Okay. So I guess I'll try to "downgrade" to unstable, then.
+    <markus_wanner> Phew, okay, successfully downgraded to unstable.
+    <markus_wanner> Hopefully monotone's test suite runs through fine, now.
+    <markus_wanner> Yup, WORKING! Looks like some experimental packages caused
+      the problem. The netcat test as well as that one failing monotone test
+      work fine, now.
+
+
+## IRC, OFTC, #debian-hurd, 2013-03-19
+
+    <tschwinge> pinotree, youpi: Is there anything from that markus_wanner
+      discussion about pfinet/netcat/signals that needs to be filed?  I guess
+      we don't know what exactly he changed so that everything workedd fine
+      eventually?  (Some experimental package(s), but which?)
+    <youpi> that was libc0.3 packages
+    <youpi> which are indeed known to break the network
