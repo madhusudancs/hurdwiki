@@ -1,0 +1,41 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!meta title="cancellation points are not cancelling threads"]]
+
+[[!tag open_issue_libpthread]]
+
+    #include <pthread.h>
+    #include <stdio.h>
+    #include <sys/select.h>
+    #include <unistd.h>
+    
+    void *f (void*foo)
+    {
+        char buf[128];
+	//pthread_setcanceltype (PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+	while (1) {
+	    read (0, buf, sizeof(buf));
+	}
+    }
+    int main (void) {
+        pthread_t t;
+	pthread_create (&t, NULL, f, NULL);
+	sleep (1);
+	pthread_cancel (t);
+	pthread_join (t, NULL);
+	exit(0);
+    }
+
+read() is not behaving as a cancellation point, only setting the cancel
+type to asynchronous permits this testcase to terminate. We do have the
+pthread_setcanceltype glibc/libpthread hook in the forward structure, but we are
+not using it: the LIBC_CANCEL_ASYNC macros are void, and we're not using them in
+the mig msg call either.
