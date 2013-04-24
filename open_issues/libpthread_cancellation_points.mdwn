@@ -39,3 +39,101 @@ type to asynchronous permits this testcase to terminate. We do have the
 pthread_setcanceltype glibc/libpthread hook in the forward structure, but we are
 not using it: the LIBC_CANCEL_ASYNC macros are void, and we're not using them in
 the mig msg call either.
+
+
+# Provenance
+
+## IRC, OFTC, #debian-hurd, 2013-04-15
+
+    <paravoid> so, let me say a few things about the bug in the first place
+    <paravoid> the package builds and runs a test suite
+    <paravoid> the second test in the test suite blocks forever
+    <paravoid> a blocked pthread_join is what I see
+    <paravoid> I'm unsure why
+    <paravoid> have you seen anything like it before?
+    <youpi> whenever the thread doesn't actually terminate, sure
+    <youpi> what is the thread usually blocked on when you cancel it?
+    <paravoid> this is a hurd-specific issue
+    <paravoid> works on all other arches
+    <youpi> could be just that all other archs have more relaxed behavior
+    <youpi> thus the question of what exactly is supposed to be happening
+    <youpi> apparently it is inside a select?
+    <youpi> it seems select is not cancellable here
+    <pinotree> wasn't the patch you sent?
+    <youpi> no, my patch was about signals
+    <youpi> not cancellation
+    <pinotree> k
+    <youpi> (even if that could be related, of course)
+    <paravoid> how did you see that?
+    <paravoid> what's the equivalent of strace?
+    <youpi> thread 3 is inside _hurd_select
+    <paravoid> thread 1 is blocked on join
+    <paravoid> but the code is
+    <paravoid>     if(gdmaps->reload_thread_spawned) {
+    <paravoid>         pthread_cancel(gdmaps->reload_tid);
+    <paravoid>         pthread_join(gdmaps->reload_tid, NULL);
+    <paravoid>     }
+    <paravoid> so cancel should have killed the thread
+    <youpi> cancelling a thread is a complex matter
+    <youpi> there are cancellation points
+    <youpi> e.g. a thread performing while(1); can't be cancelled
+    <paravoid> thread 3 is just a libev event loop
+    <youpi> yes, "just" calling poll, the most complex system call of unix :)
+    <youpi> paravoid: anyway, don't look for a bug in your program, it's most
+      likely a bug in glibc, thanks for the report
+    <paravoid> I think it all boils down to a problem cancelling a thread in
+      poll()
+    <youpi> yes
+    <youpi> paravoid: ok, actually with the latest libc it does work
+    <paravoid> oh?
+    <youpi> where latest = not uploaded yet :/
+    <paravoid> did you test this on exodar?
+    <youpi> pinotree: that's the libpthread_cancellation.diff I guess
+    <paravoid> because I commented out the join :)
+    <youpi> paravoid:  in the root, yes
+    <youpi> well, I tried my own program
+    <paravoid> oh, okay
+    <youpi> which is indeed hanging inside select (or just read) in the chroot
+    <youpi> but not in the root
+    <pinotree> ah, richard's patch
+    <paravoid> url?
+    <youpi> I've installed the build-dep in the root, if you want to try
+    <paravoid> strange that root is newer than the chroot :)
+    <youpi> paravoid: it's the usual eglibc debian source
+    <paravoid> tried in root, still fails
+    <youpi> could you keep the process running?
+    <paravoid> done
+    <youpi> Mmm, but the thread running gdmaps_reload_thread never set the
+      cancel type to async?
+    <youpi> that said I guess read and select are supposed to be cancellation
+      points
+    <youpi> thus cancel_deferred should be working, but they are not
+    <youpi> it seems it's cancellation points which have just not been
+      implemented
+    <youpi> (they happen to be one of the most obscure things in posix)
+
+
+## IRC, freenode, #hurd, 2013-04-15
+
+    <youpi> but yes, there is still an issue, with PTHREAD_CANCEL_DEFERRED
+    <youpi> how calls like read() or select() are supposed to test
+      cancellation?
+    <pinotree> iirc there are the LIBC_CANCEL_* macros in glibc
+    <pinotree> eg sysdeps/unix/sysv/linux/pread.c
+    <youpi> yes
+    <youpi> but in our libpthredaD?
+    <pinotree> could it be we lack the libpthread → glibc bridge of
+      cancellation stuff?
+    <youpi> we do have pthread_setcancelstate/type forwards
+    <youpi> but it seems the default LIBC_CANCEL_ASYNC is void
+    <pinotree> i mean, so when you cancel a thread, you can get that cancel
+      status in libc proper, just like it seems done with LIBC_CANCEL_* macros
+      and nptl
+    <youpi> as I said, the bridge is there
+    <youpi> we're just not using it in glibc
+    <youpi> I'm writing an open_issues page
+
+
+### IRC, freenode, #hurd, 2013-04-16
+
+    <braunr> youpi: yes, we said some time ago that it was lacking
