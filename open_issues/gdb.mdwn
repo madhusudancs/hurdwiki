@@ -27,14 +27,14 @@ Here's what's to be done for maintaining GNU GDB.
 <!--
 
 git checkout reviewed
-git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..sourceware/master
+git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefix=./ --find-renames --ignore-space-change ..sourceware/master | awk '/^diff/ { c = $0; } /^@@/ { print c; } { print; }' | less
 -i
-/^commit |^merge:|^---$|hurd|linux|nacl|nptl|glibc|gs:|gnu-nat|i386gnu
+/^---.*/([^.]*|.*\.texi.*|[^/]*gnu[^/]*)$|hurd|linux|nacl|nptl|glibc|gs:
 
 -->
 
-Last reviewed up to the [[Git mirror's 6b25dae901ddedb3f330803542d3eac73cdcae4b
-(2013-03-13) sources|source_repositories/gdb]].
+Last reviewed up to the [[Git mirror's 6330ab576e18fb97912839fc116c7babb5fd8c70
+(2013-04-28) sources|source_repositories/gdb]].
 
   * Globally
 
@@ -71,7 +71,7 @@ Last reviewed up to the [[Git mirror's 6b25dae901ddedb3f330803542d3eac73cdcae4b
 
 Here's a log of a GDB build run; this is from our [[Git
 repository|source_repositories/gdb]]'s `tschwinge/Ferry_Tagscherer` branch,
-commit 6b25dae901ddedb3f330803542d3eac73cdcae4b (2013-03-13), run on
+commit 6330ab576e18fb97912839fc116c7babb5fd8c70 (2013-04-28), run on
 kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -193,6 +193,12 @@ formats and more emulation vectors.
         +                 from ../../Ferry_Tagscherer/gdb/inferior.h:37,
         +                 from ../../Ferry_Tagscherer/gdb/gnu-nat.c:56:
         +../../Ferry_Tagscherer/gdb/value.h:729:22: note: expected 'const char **' but argument is of type 'char **'
+
+  * 6b25dae901ddedb3f330803542d3eac73cdcae4b..6330ab576e18fb97912839fc116c7babb5fd8c70:
+
+         gcc-4.7 -c -DHAVE_CONFIG_H -g -O2  -I. -I../../Ferry_Tagscherer/libiberty/../include  -W -Wall -Wwrite-strings -Wc++-compat -Wstrict-prototypes -pedantic  ../../Ferry_Tagscherer/libiberty/hashtab.c -o hashtab.o
+        +../../Ferry_Tagscherer/libiberty/hashtab.c: In function 'hash_pointer':
+        +../../Ferry_Tagscherer/libiberty/hashtab.c:1001:7: warning: right shift count >= width of type [enabled by default]
 
 
 # Install
@@ -362,5 +368,16 @@ GNU/Hurd, these generally are `gdb.multi/watchpoint-multi`, and an unknown
         FAIL: gdb.mi/mi-catch-load.exp: catch-unload: solib-event stop
 
         *stopped,reason="signal-received",signal-name="SIGSEGV",signal-meaning="Segmentation fault",frame={addr="0x00014add",func="??",args=[],from="/lib/ld.so"},thread-id="4",stopped-threads="all"
+
+  * `gdb.arch/i386-float.exp: info float`
+
+        Running ../../../Ferry_Tagscherer/gdb/testsuite/gdb.arch/i386-float.exp ...
+        PASS: gdb.arch/i386-float.exp: first stepi
+        FAIL: gdb.arch/i386-float.exp: info float
+        PASS: gdb.arch/i386-float.exp: second stepi
+        PASS: gdb.arch/i386-float.exp: info float
+
+    Only fails for GNU/Hurd: the floating point stack initially is not
+    all-zeroes, which is expected, and which it is on GNU/Linux.
 
 TODO.
