@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2013 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -13,7 +13,8 @@ failed"]]
 
 [[!tag open_issue_libpthread]]
 
-IRC, OFTC, #debian-hurd, 2011-10-21:
+
+# IRC, OFTC, #debian-hurd, 2011-10-21
 
     [Python testsuite]
     <pinotree> [169/340/1] test_logging
@@ -22,7 +23,8 @@ IRC, OFTC, #debian-hurd, 2011-10-21:
       __pthread_enqueue: Assertion `thread->prevp == 0' failed.
     <pinotree> sigh
 
-IRC, freenode, #hurd, 2011-10-21:
+
+## IRC, freenode, #hurd, 2011-10-21
 
     <pinotree> am i missing anything, or in libpthread the __pthread_threads
       list does not ever has elements removed from it?
@@ -33,7 +35,8 @@ IRC, freenode, #hurd, 2011-10-21:
     <pinotree> maybe reusing the same next+prevp pointers in the __pthread
       struct for more than one list at the same time isn't a good idea...
 
-2011-10-23:
+
+## IRC, freenode, #hurd, 2011-10-23
 
     <youpi> pinotree: I don't understand the relation between thread->prevp !=
       0 and the __pthread_threads list
@@ -50,3 +53,37 @@ IRC, freenode, #hurd, 2011-10-21:
     <pinotree> yeah
     <pinotree> apparently prevp/next are used for lists of held
       waitcond/mutex/rwlock and free threads
+
+
+# IRC, freenode, #hurd, 2013-03-20
+
+    <braunr> aw
+    <braunr> i hit the ext2fs.static: ./pthread/pt-internal.h:122:
+      __pthread_enqueue: Assertion `thread->prevp == 0' failed.
+    <braunr> assertion
+    <braunr> looks like there is a deadlock on assert
+    <braunr> which might explain why i never saw progress when i tested that in
+      the past
+
+
+## IRC, freenode, #hurd, 2013-04-21
+
+    <braunr> damn, there still bugs in libpthread
+    <braunr> (about prevp not being null when it should i mean)
+    <pinotree> braunr: found another trigger for that?
+    <braunr> no
+    <braunr> it's so random i wonder if it's not a completely unrelated
+      corruption
+    <braunr> pinotree: also, i'm having more of these issues with my custom
+      hurd packages that let threads exit after some time from managing ports
+    <braunr> (i removed the libports_stability patch)
+    <braunr> i once had this : http://www.sceen.net/~rbraun/darnassus_crash.png
+
+[The assertion failure.]
+
+
+## IRC, freenode, #hurd, 2013-04-23
+
+    <braunr> removing the libports_stability patch exposed bugs in libpthread,
+      triggering assertions when queueing/dequeue threads from a queue (but i
+      don't know which one / in which function)
