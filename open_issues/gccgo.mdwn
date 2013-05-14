@@ -38,6 +38,61 @@ been working on this, has some (unpublished) patches, and this is currently
 blocked on [[`getcontext`/`setcontext`|open_issues/glibc/t/tls-threadvar]].
 
 
+## `getcontext`/`makecontext`/`setcontext`/`swapcontext` usage analysis
+
+In context of [[glibc/t/tls-threadvar]].  Looking at GCC trunk commit
+f6568ea476aa52a6e23c6db43b3e240cde55783a (2013-04-26).
+
+The check in `libgo/configure.ac` *whether setcontext clobbers TLS variables*
+is invalid on GNU Hurd.
+
+The `*context` functions are used in `libgo/runtime/go-signal.c` and
+`libgo/runtime/proc.c`.
+
+`__splitstack_getcontext`, `__splitstack_setcontext`,
+`__splitstack_makecontext`, `__splitstack_resetcontext`,
+`__splitstack_block_signals_context` are to be provided by libgcc.  However, in
+said libgo runtime files, they're used only `#ifdef USING_SPLIT_STACK`.
+[[I|ŧschwinge]] would assume that before we can enable split stacks, first
+[[open_issues/glibc/t/tls-threadvar]] needs to be fixed.
+
+In `libgo/runtime/proc.c`:`runtime_gogo`, `setcontext` is used to *switch
+context to a different goroutine*.  TODO.
+
+In `libgo/runtime/proc.c`:`runtime_mcall`, which *save[s] context and call[s]
+fn passing g as a parameter*, `getcontext` and `setcontext` are used; this is
+only called from `libgo/runtime/proc.c`:`runtime_gosched`.  TODO.
+
+In `libgo/runtime/proc.c`:`runtime_tracebackothers`, `getcontext` is used to
+*switch context to the goroutine*.  TODO.
+
+In `libgo/runtime/proc.c`:`runtime_mstart`, which is *called to start an M*,
+`getcontext` is used.  TODO.
+
+In `libgo/runtime/proc.c`:`runtime_entersyscall`, which is called when *the
+goroutine g is about to enter a system call*, `getcontext` is used to *save the
+registers in the g structure so that any pointers held in registers will be
+seen by the garbage collector*.  Should be fine.
+
+In `libgo/runtime/proc.c`:`__go_go`, `getcontext` and `makecontext` are used.
+TODO.
+
+In `libgo/runtime/thread.c`:`runtime_minit`, which is *[c]alled to initialize a
+new m (including the bootstrap m)*, `ss.ss_sp` is set to a new stack retrieved
+via `libgo/runtime/proc.c:runtime_malg`, which *allocate[s] a new g, with a
+stack [...]*, and then `sigaltstack` is called.  TODO.
+
+    libgo/runtime/go-signal.c:  /* We are now running on the stack registered via sigaltstack.
+    libgo/runtime/go-signal.c:     and sigaltstack when the program starts.)  */
+    
+    libgo/runtime/proc.c:         vnewg->context.uc_stack.ss_sp = vsp;
+    libgo/runtime/proc.c:         vnewg->context.uc_stack.ss_sp += vspsize;
+    libgo/runtime/proc.c:         vnewg->context.uc_stack.ss_size = vspsize;
+
+Also, in `libgo/runtime/proc.c`:`runtime_newm`, `pthread_attr_setstacksize` is
+used, which we also can't support yet, for the same reason.
+
+
 ---
 
 
