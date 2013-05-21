@@ -30,14 +30,14 @@ Here's what's to be done for maintaining glibc.
 <!--
 
 git checkout reviewed
-git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..sourceware/master
+git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..sourceware/master
 -i
-/^commit |^Merge:|^---$|hurd|linux|gs:|__ASSUME
+/^commit |^merge:|^---$|mach[^i]|hurd|linux|gs:|__assume
 
 -->
 
-Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
-(2012-11-03) sources|source_repositories/glibc]].
+Last reviewed up to the [[Git mirror's 542f94662e8235d9917b0783df70bcdf9d729503
+(2013-02-02) sources|source_repositories/glibc]].
 
   * `t/hurdsig-fixes`
 
@@ -221,9 +221,9 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
     b1b2aaf8eb9eed301ea8f65b96844568ca017f8b),
     `RLIMIT_RTTIME`, `SEEK_DATA` (`unistd.h`), `SEEK_HOLE` (`unistd.h`)
     `clock_adjtime`, `fallocate`, `fallocate64`, `name_to_handle_at`,
-    `open_by_handle_at`, `process_vm_readv`, `process_vm_writev`, `sendmmsg`,
+    `open_by_handle_at`, `process_vm_readv`, `process_vm_writev`,
     `setns`, `sync_file_range`, [[`mremap`|mremap]] and [[several
-    `MAP_*`|glibc/mmap]]
+    `MAP_*`|glibc/mmap]], `PTR_MANGLE`/`PTR_DEMANGLE` (`t/ptrmangle`)
 
     Check also the content of `gnu/stubs.h`, which lists all the functions
     marked as stub which only return `ENOSYS`.
@@ -388,6 +388,17 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
         chromium-browser, gtk-vnc, guile-1.8, iceape, icedove, iceweasel,
         libgc, libsigsegv, luatex, mono, nspr, pth, ruby1.8, texlive-bin, uim,
         and more.
+
+      * `recvmmsg`/`sendmmsg` (`t/sendmmsg`)
+
+        From [[!message-id "20120625233206.C000A2C06F@topped-with-meat.com"]],
+        Roland McGrath: *They are generally useful interfaces and there is
+        nothing intrinsically Linuxoid about them.  At least when not given a
+        timeout, they could be implemented in terms of sendmsg/recvmsg.  So
+        perhaps we ought to have a sysdeps/posix implementation that the Hurd
+        would use instead of stubs (and folks can consider adding new RPCs).
+        Then perhaps the Linux fallback case should be that instead of stubs,
+        too.*
 
     For specific packages:
 
@@ -1118,8 +1129,8 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-bab06390aca40703514099a7022dac4ae4aac76b (2013-05-20;
-fbeafedeea37e0af1984a6511018d159f5ceed6a (2012-11-03))
+93236ed3b6207dc9544dda6615c94c938d29ae6b (2013-05-21;
+542f94662e8235d9917b0783df70bcdf9d729503 (2013-02-02))
 sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -1240,7 +1251,7 @@ TODO.
     $ make install_root="$PWD".install install 2>&1 | tee log_install
     [...]
 
-This takes up around 100 MiB, and needs roughly X min on kepler.SCHWINGE and 16
+This takes up around 100 MiB, and needs roughly X min on kepler.SCHWINGE and 14
 min on coulomb.SCHWINGE.
 
 
@@ -1256,11 +1267,12 @@ TODO.
     $ make -k install_root=/INVALID check fast-check=yes 2>&1 | tee log_test
     [...]
 
-This needs roughly X min on kepler.SCHWINGE and 60 min on coulomb.SCHWINGE.
+This needs roughly X min on kepler.SCHWINGE and 145 min on coulomb.SCHWINGE.
 
 Specifying `fast-check=yes` disables the `conformtest` which takes 1.75 h (out
 of 2.75 h total) on coulomb.SCHWINGE, doesn't pass anyway, and clearly isn't
 our most critical issue to solve.
+`elf/tst-xmmymm.out` is another candidate to disable: needs 90 min to run.
 
 
 ## Analysis
@@ -1378,6 +1390,8 @@ Failures, mostly in order of appearance:
 
   * `posix/bug-glob2.out`
 
+    Intermittent.
+
         Timed out: killed the child process
 
   * `posix/annexc.out`
@@ -1459,17 +1473,6 @@ Failures, mostly in order of appearance:
         futimesat failed
 
     `futimesat` is a stub.
-
-  * `resource/bug-ulimit1.out`
-
-        Result of ulimit (UL_SETFSIZE, 10000): 0
-        Result of ulimit(UL_GETFSIZE): 10000
-
-    Buggy sysdeps/unix/bsd/ulimit.c return values.
-
-    [[!message-id "201211182342.51619.toscano.pino@tiscali.it"]]
-
-    Fixed in glibc >= 2.18.
 
   * `misc/tst-pselect.o`
 
@@ -1599,7 +1602,7 @@ Failures, mostly in order of appearance:
 
     SIGSEGV.
 
-  * `elf/tst-audit1.out`, `elf/tst-audit2.out`
+  * `elf/tst-audit1.out`, `elf/tst-audit2.out`, `elf/tst-audit8.out`
 
     SIGKILL.
 
@@ -1619,6 +1622,11 @@ Failures, mostly in order of appearance:
 
     A lot.  Including `/usr/include/device/*.h`, `/usr/include/mach/*.h`,
     `/usr/include/hurd/*.h`.
+
+  * `debug/tst-longjmp_chk2.out`, `debug/tst-longjmp_chk3.out`,
+    `debug/tst-longjmp_chk4.out`, `debug/tst-longjmp_chk5.out`
+
+    All say: `Obtained backtrace with 0 functions`.
 
 Earlier failures; no longer seen:
 
@@ -1675,6 +1683,15 @@ Earlier failures; no longer seen:
         getcontext failed, errno: 1073741902.
 
     Fixed, implemented in `t/context_functions`.
+
+  * `resource/bug-ulimit1.out`
+
+        Result of ulimit (UL_SETFSIZE, 10000): 0
+        Result of ulimit(UL_GETFSIZE): 10000
+
+    Buggy `sysdeps/unix/bsd/ulimit.c` return values.
+
+    Fixed, [[!message-id "201211182342.51619.toscano.pino@tiscali.it"]].
 
 Compared to Debian:
 
