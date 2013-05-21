@@ -259,7 +259,7 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
             <youpi> so I'd say ignore the error for now, we'll add the
               declaration
 
-      * [[`getcontext`/`setcontext`|t/tls-threadvar]]
+      * [[t/tls-threadvar]]
 
       * `futimesat`
 
@@ -372,6 +372,22 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
             <gnu_srs> so linux is buggy?
             <braunr> no, linux is more permissive
             <braunr> (at least, on this matter)
+
+      * `getcontext`/`makecontext`/`setcontext`/`swapcontext`
+
+        Support for these functions within the Hurd threadvar environment has
+        been added, but for multi-threaded applications ([[libpthread]]), it is
+        a bit clunky: as a practical requirement, a thread's stack size always
+        has to be equal to `PTHREAD_STACK_DEFAULT`, 2 MiB, and also has to be
+        naturally aligned.  The idea is still to [[get rid of Hurd threadvars
+        and replace them with TLS|t/tls-threadvar]].
+
+        Aside from [[gccgo]], the following packages might make use of these
+        functions, searching on <http://codesearch.debian.net/> for
+        `\b(get|set|make|swap)context\s*\(` on 2013-05-18: boost1.49,
+        chromium-browser, gtk-vnc, guile-1.8, iceape, icedove, iceweasel,
+        libgc, libsigsegv, luatex, mono, nspr, pth, ruby1.8, texlive-bin, uim,
+        and more.
 
     For specific packages:
 
@@ -1102,7 +1118,7 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-60f4d2f33666d77ac018cb9956675dcad04bb996 (2013-02-12;
+bab06390aca40703514099a7022dac4ae4aac76b (2013-05-20;
 fbeafedeea37e0af1984a6511018d159f5ceed6a (2012-11-03))
 sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
@@ -1269,16 +1285,6 @@ Failures, mostly in order of appearance:
     `math/test-idouble`
 
     SIGSEGV.  Or SIGILL.
-
-  * `stdlib/bug-getcontext.out`
-
-        getcontext failed, errno: 1073741902.
-
-    [[Not implemented|t/tls-threadvar]].
-    In 8958805c11c741d9211e20612c86271d906c9a0b
-    testing, `stdlib/bug-getcontext.out` now says: *Skipping test; no support
-    for FP exceptions.*, in cba1c83ad62a11347684a9daf349e659237a1741 testing,
-    it's back to the previous failure.
 
   * `stdlib/tst-secure-getenv.out`
 
@@ -1663,6 +1669,12 @@ Earlier failures; no longer seen:
 
     As of 8958805c11c741d9211e20612c86271d906c9a0b, this test now passes --
     correct?
+
+  * `stdlib/bug-getcontext.out`
+
+        getcontext failed, errno: 1073741902.
+
+    Fixed, implemented in `t/context_functions`.
 
 Compared to Debian:
 
