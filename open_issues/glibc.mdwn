@@ -30,14 +30,14 @@ Here's what's to be done for maintaining glibc.
 <!--
 
 git checkout reviewed
-git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..sourceware/master
+git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..sourceware/master
 -i
-/^commit |^Merge:|^---$|hurd|linux|gs:|__ASSUME
+/^commit |^merge:|^---$|mach[^i]|hurd|linux|gs:|__assume
 
 -->
 
-Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
-(2012-11-03) sources|source_repositories/glibc]].
+Last reviewed up to the [[Git mirror's af15c191766fd413ef6fedc9d54b87962332ca71
+(2013-03-28) sources|source_repositories/glibc]].
 
   * `t/hurdsig-fixes`
 
@@ -221,9 +221,9 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
     b1b2aaf8eb9eed301ea8f65b96844568ca017f8b),
     `RLIMIT_RTTIME`, `SEEK_DATA` (`unistd.h`), `SEEK_HOLE` (`unistd.h`)
     `clock_adjtime`, `fallocate`, `fallocate64`, `name_to_handle_at`,
-    `open_by_handle_at`, `process_vm_readv`, `process_vm_writev`, `sendmmsg`,
+    `open_by_handle_at`, `process_vm_readv`, `process_vm_writev`,
     `setns`, `sync_file_range`, [[`mremap`|mremap]] and [[several
-    `MAP_*`|glibc/mmap]]
+    `MAP_*`|glibc/mmap]], `PTR_MANGLE`/`PTR_DEMANGLE` (`t/ptrmangle`)
 
     Check also the content of `gnu/stubs.h`, which lists all the functions
     marked as stub which only return `ENOSYS`.
@@ -259,7 +259,7 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
             <youpi> so I'd say ignore the error for now, we'll add the
               declaration
 
-      * [[`getcontext`/`setcontext`|t/tls-threadvar]]
+      * [[t/tls-threadvar]]
 
       * `futimesat`
 
@@ -372,6 +372,33 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
             <gnu_srs> so linux is buggy?
             <braunr> no, linux is more permissive
             <braunr> (at least, on this matter)
+
+      * `getcontext`/`makecontext`/`setcontext`/`swapcontext`
+
+        Support for these functions within the Hurd threadvar environment has
+        been added, but for multi-threaded applications ([[libpthread]]), it is
+        a bit clunky: as a practical requirement, a thread's stack size always
+        has to be equal to `PTHREAD_STACK_DEFAULT`, 2 MiB, and also has to be
+        naturally aligned.  The idea is still to [[get rid of Hurd threadvars
+        and replace them with TLS|t/tls-threadvar]].
+
+        Aside from [[gccgo]], the following packages might make use of these
+        functions, searching on <http://codesearch.debian.net/> for
+        `\b(get|set|make|swap)context\s*\(` on 2013-05-18: boost1.49,
+        chromium-browser, gtk-vnc, guile-1.8, iceape, icedove, iceweasel,
+        libgc, libsigsegv, luatex, mono, nspr, pth, ruby1.8, texlive-bin, uim,
+        and more.
+
+      * `recvmmsg`/`sendmmsg` (`t/sendmmsg`)
+
+        From [[!message-id "20120625233206.C000A2C06F@topped-with-meat.com"]],
+        Roland McGrath: *They are generally useful interfaces and there is
+        nothing intrinsically Linuxoid about them.  At least when not given a
+        timeout, they could be implemented in terms of sendmsg/recvmsg.  So
+        perhaps we ought to have a sysdeps/posix implementation that the Hurd
+        would use instead of stubs (and folks can consider adding new RPCs).
+        Then perhaps the Linux fallback case should be that instead of stubs,
+        too.*
 
     For specific packages:
 
@@ -1090,6 +1117,58 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
         ea4d37b3169908615b7c17c9c506c6a6c16b3a26, especially since mach's
         sleep.c is buggy (not considers interruption, extra time() (= RPC)
         call)«.
+      * ba384f6ed9275f3966505f2375b56d169e3dc588,
+        0409959c86f6840510851a851a1588677a2e537b `C++11 thread_local
+        destructors support`.  Anything needed to be done in our [[libpthread]]
+        and configured for us in [[GCC]]?  Probably need to replicate the
+        `nptl/pthread_create.c` change, and fix
+        `stdlib/Makefile`:`LDFLAGS-tst-tls-atexit`.
+
+            +++ include/link.h
+            @@ -302,6 +302,9 @@ struct link_map
+            +    /* Number of thread_local objects constructed by this DSO.  */
+            +    size_t l_tls_dtor_count;
+            
+            +++ include/stdlib.h
+            @@ -100,6 +100,11 @@ extern int __cxa_atexit (void (*func) (void *), void *arg, void *d);
+            +extern int __cxa_thread_atexit_impl (void (*func) (void *), void *arg,
+            +                                    void *d);
+            +extern void __call_tls_dtors (void);
+            +libc_hidden_proto (__call_tls_dtors);
+            
+            +++ nptl/pthread_create.c
+            @@ -311,6 +311,9 @@ start_thread (void *arg)
+             [after the thread function returns]
+            +  /* Call destructors for the thread_local TLS variables.  */
+            +  __call_tls_dtors ();
+            
+            +++ stdlib/Makefile
+            +LDFLAGS-tst-tls-atexit = $(common-objpfx)nptl/libpthread.so \
+            +                        $(common-objpfx)dlfcn/libdl.so
+            
+            +++ stdlib/cxa_thread_atexit_impl.c
+            
+            +++ stdlib/exit.c
+             __run_exit_handlers (int status, struct exit_function_list **listp,
+                                 bool run_list_atexit)
+             {
+            +  /* First, call the TLS destructors.  */
+            +  __call_tls_dtors ();
+
+            +gcc-4.7 tst-tls-atexit.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parenth
+            +gcc-4.7 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build/stdlib/tst-tls-atexit   [...]/tschwinge/Roger_Whittaker.build/nptl/lib
+            +gcc-4.7: error: [...]/tschwinge/Roger_Whittaker.build/nptl/libpthread.so: No such file or directory
+            +make[2]: *** [[...]/tschwinge/Roger_Whittaker.build/stdlib/tst-tls-atexit] Error 1
+            +gcc-4.7 tst-tls-atexit-lib.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-par
+            +tst-tls-atexit-lib.c: In function 'do_foo':
+            +tst-tls-atexit-lib.c:35:3: warning: implicit declaration of function '__cxa_thread_atexit_impl' [-Wimplicit-function-declaration]
+
+      * bc16e260d0e74b36e48d30edc6ea4f1152700c09 `Move _dl_non_dynamic_init,
+        _dl_aux_init declarations.` -- can remove
+        `sysdeps/mach/hurd/i386/init-first.c`:`_dl_non_dynamic_init`
+        declaration?
+      * a600e5cef53e10147932d910cdb2fdfc62afae4e `Consolidate Linux and POSIX
+        libc_fatal code.` -- is `backtrace_and_maps` specific to Linux?
 
 
 ## Update
@@ -1102,8 +1181,8 @@ Last reviewed up to the [[Git mirror's d3bd58cf0a027016544949ffd27300ac5fb01bb8
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-60f4d2f33666d77ac018cb9956675dcad04bb996 (2013-02-12;
-fbeafedeea37e0af1984a6511018d159f5ceed6a (2012-11-03))
+3e1dec8e8cf102ed1e9b8ddf2e8fa40fc259ab00 (2013-05-23;
+af15c191766fd413ef6fedc9d54b87962332ca71 (2013-03-28))
 sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -1224,7 +1303,7 @@ TODO.
     $ make install_root="$PWD".install install 2>&1 | tee log_install
     [...]
 
-This takes up around 100 MiB, and needs roughly X min on kepler.SCHWINGE and 16
+This takes up around 100 MiB, and needs roughly X min on kepler.SCHWINGE and 14
 min on coulomb.SCHWINGE.
 
 
@@ -1240,11 +1319,12 @@ TODO.
     $ make -k install_root=/INVALID check fast-check=yes 2>&1 | tee log_test
     [...]
 
-This needs roughly X min on kepler.SCHWINGE and 60 min on coulomb.SCHWINGE.
+This needs roughly X min on kepler.SCHWINGE and 145 min on coulomb.SCHWINGE.
 
 Specifying `fast-check=yes` disables the `conformtest` which takes 1.75 h (out
 of 2.75 h total) on coulomb.SCHWINGE, doesn't pass anyway, and clearly isn't
 our most critical issue to solve.
+`elf/tst-xmmymm.out` is another candidate to disable: needs 90 min to run.
 
 
 ## Analysis
@@ -1269,16 +1349,6 @@ Failures, mostly in order of appearance:
     `math/test-idouble`
 
     SIGSEGV.  Or SIGILL.
-
-  * `stdlib/bug-getcontext.out`
-
-        getcontext failed, errno: 1073741902.
-
-    [[Not implemented|t/tls-threadvar]].
-    In 8958805c11c741d9211e20612c86271d906c9a0b
-    testing, `stdlib/bug-getcontext.out` now says: *Skipping test; no support
-    for FP exceptions.*, in cba1c83ad62a11347684a9daf349e659237a1741 testing,
-    it's back to the previous failure.
 
   * `stdlib/tst-secure-getenv.out`
 
@@ -1372,6 +1442,8 @@ Failures, mostly in order of appearance:
 
   * `posix/bug-glob2.out`
 
+    Intermittent.
+
         Timed out: killed the child process
 
   * `posix/annexc.out`
@@ -1443,6 +1515,10 @@ Failures, mostly in order of appearance:
 
     Perhps because we implement `vfork` in terms of `fork` (`posix/vfork.c`)?
 
+  * `posix/tst-pathconf.out`
+
+        pathconf on directory failed: (os/kern) successful
+
   * `io/test-lfs.out`
 
         /home/thomas/tmp/glibc/tschwinge/Roger_Whittaker.build/io/test-lfs: cannot write test string to large file: Invalid argument
@@ -1453,17 +1529,6 @@ Failures, mostly in order of appearance:
         futimesat failed
 
     `futimesat` is a stub.
-
-  * `resource/bug-ulimit1.out`
-
-        Result of ulimit (UL_SETFSIZE, 10000): 0
-        Result of ulimit(UL_GETFSIZE): 10000
-
-    Buggy sysdeps/unix/bsd/ulimit.c return values.
-
-    [[!message-id "201211182342.51619.toscano.pino@tiscali.it"]]
-
-    Fixed in glibc >= 2.18.
 
   * `misc/tst-pselect.o`
 
@@ -1593,7 +1658,7 @@ Failures, mostly in order of appearance:
 
     SIGSEGV.
 
-  * `elf/tst-audit1.out`, `elf/tst-audit2.out`
+  * `elf/tst-audit1.out`, `elf/tst-audit2.out`, `elf/tst-audit8.out`
 
     SIGKILL.
 
@@ -1613,6 +1678,11 @@ Failures, mostly in order of appearance:
 
     A lot.  Including `/usr/include/device/*.h`, `/usr/include/mach/*.h`,
     `/usr/include/hurd/*.h`.
+
+  * `debug/tst-longjmp_chk2.out`, `debug/tst-longjmp_chk3.out`,
+    `debug/tst-longjmp_chk4.out`, `debug/tst-longjmp_chk5.out`
+
+    All say: `Obtained backtrace with 0 functions`.
 
 Earlier failures; no longer seen:
 
@@ -1663,6 +1733,21 @@ Earlier failures; no longer seen:
 
     As of 8958805c11c741d9211e20612c86271d906c9a0b, this test now passes --
     correct?
+
+  * `stdlib/bug-getcontext.out`
+
+        getcontext failed, errno: 1073741902.
+
+    Fixed, implemented in `t/context_functions`.
+
+  * `resource/bug-ulimit1.out`
+
+        Result of ulimit (UL_SETFSIZE, 10000): 0
+        Result of ulimit(UL_GETFSIZE): 10000
+
+    Buggy `sysdeps/unix/bsd/ulimit.c` return values.
+
+    Fixed, [[!message-id "201211182342.51619.toscano.pino@tiscali.it"]].
 
 Compared to Debian:
 
