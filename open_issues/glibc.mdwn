@@ -36,8 +36,8 @@ git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C
 
 -->
 
-Last reviewed up to the [[Git mirror's 542f94662e8235d9917b0783df70bcdf9d729503
-(2013-02-02) sources|source_repositories/glibc]].
+Last reviewed up to the [[Git mirror's af15c191766fd413ef6fedc9d54b87962332ca71
+(2013-03-28) sources|source_repositories/glibc]].
 
   * `t/hurdsig-fixes`
 
@@ -1117,6 +1117,58 @@ Last reviewed up to the [[Git mirror's 542f94662e8235d9917b0783df70bcdf9d729503
         ea4d37b3169908615b7c17c9c506c6a6c16b3a26, especially since mach's
         sleep.c is buggy (not considers interruption, extra time() (= RPC)
         call)«.
+      * ba384f6ed9275f3966505f2375b56d169e3dc588,
+        0409959c86f6840510851a851a1588677a2e537b `C++11 thread_local
+        destructors support`.  Anything needed to be done in our [[libpthread]]
+        and configured for us in [[GCC]]?  Probably need to replicate the
+        `nptl/pthread_create.c` change, and fix
+        `stdlib/Makefile`:`LDFLAGS-tst-tls-atexit`.
+
+            +++ include/link.h
+            @@ -302,6 +302,9 @@ struct link_map
+            +    /* Number of thread_local objects constructed by this DSO.  */
+            +    size_t l_tls_dtor_count;
+            
+            +++ include/stdlib.h
+            @@ -100,6 +100,11 @@ extern int __cxa_atexit (void (*func) (void *), void *arg, void *d);
+            +extern int __cxa_thread_atexit_impl (void (*func) (void *), void *arg,
+            +                                    void *d);
+            +extern void __call_tls_dtors (void);
+            +libc_hidden_proto (__call_tls_dtors);
+            
+            +++ nptl/pthread_create.c
+            @@ -311,6 +311,9 @@ start_thread (void *arg)
+             [after the thread function returns]
+            +  /* Call destructors for the thread_local TLS variables.  */
+            +  __call_tls_dtors ();
+            
+            +++ stdlib/Makefile
+            +LDFLAGS-tst-tls-atexit = $(common-objpfx)nptl/libpthread.so \
+            +                        $(common-objpfx)dlfcn/libdl.so
+            
+            +++ stdlib/cxa_thread_atexit_impl.c
+            
+            +++ stdlib/exit.c
+             __run_exit_handlers (int status, struct exit_function_list **listp,
+                                 bool run_list_atexit)
+             {
+            +  /* First, call the TLS destructors.  */
+            +  __call_tls_dtors ();
+
+            +gcc-4.7 tst-tls-atexit.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-parenth
+            +gcc-4.7 -nostdlib -nostartfiles -o [...]/tschwinge/Roger_Whittaker.build/stdlib/tst-tls-atexit   [...]/tschwinge/Roger_Whittaker.build/nptl/lib
+            +gcc-4.7: error: [...]/tschwinge/Roger_Whittaker.build/nptl/libpthread.so: No such file or directory
+            +make[2]: *** [[...]/tschwinge/Roger_Whittaker.build/stdlib/tst-tls-atexit] Error 1
+            +gcc-4.7 tst-tls-atexit-lib.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-par
+            +tst-tls-atexit-lib.c: In function 'do_foo':
+            +tst-tls-atexit-lib.c:35:3: warning: implicit declaration of function '__cxa_thread_atexit_impl' [-Wimplicit-function-declaration]
+
+      * bc16e260d0e74b36e48d30edc6ea4f1152700c09 `Move _dl_non_dynamic_init,
+        _dl_aux_init declarations.` -- can remove
+        `sysdeps/mach/hurd/i386/init-first.c`:`_dl_non_dynamic_init`
+        declaration?
+      * a600e5cef53e10147932d910cdb2fdfc62afae4e `Consolidate Linux and POSIX
+        libc_fatal code.` -- is `backtrace_and_maps` specific to Linux?
 
 
 ## Update
@@ -1129,8 +1181,8 @@ Last reviewed up to the [[Git mirror's 542f94662e8235d9917b0783df70bcdf9d729503
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-93236ed3b6207dc9544dda6615c94c938d29ae6b (2013-05-21;
-542f94662e8235d9917b0783df70bcdf9d729503 (2013-02-02))
+3e1dec8e8cf102ed1e9b8ddf2e8fa40fc259ab00 (2013-05-23;
+af15c191766fd413ef6fedc9d54b87962332ca71 (2013-03-28))
 sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -1462,6 +1514,10 @@ Failures, mostly in order of appearance:
         0x00000008        0  at 0x10df0c8
 
     Perhps because we implement `vfork` in terms of `fork` (`posix/vfork.c`)?
+
+  * `posix/tst-pathconf.out`
+
+        pathconf on directory failed: (os/kern) successful
 
   * `io/test-lfs.out`
 
