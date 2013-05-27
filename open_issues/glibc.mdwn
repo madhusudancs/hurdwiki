@@ -36,8 +36,8 @@ git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C
 
 -->
 
-Last reviewed up to the [[Git mirror's af15c191766fd413ef6fedc9d54b87962332ca71
-(2013-03-28) sources|source_repositories/glibc]].
+Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
+(2013-05-24) sources|source_repositories/glibc]].
 
   * `t/hurdsig-fixes`
 
@@ -297,7 +297,8 @@ Last reviewed up to the [[Git mirror's af15c191766fd413ef6fedc9d54b87962332ca71
 
       * `sys/timerfd.h`
 
-      * `timespec_get` (74033a2507841cf077e31221de2481ff30b43d51)
+      * `timespec_get` (74033a2507841cf077e31221de2481ff30b43d51,
+        87f51853ce3671f4ba9a9953de1fff952c5f7e52)
 
       * `waitflags.h` (`WEXITED`, `WNOWAIT`, `WSTOPPED`, `WCONTINUED`)
 
@@ -1118,7 +1119,8 @@ Last reviewed up to the [[Git mirror's af15c191766fd413ef6fedc9d54b87962332ca71
         sleep.c is buggy (not considers interruption, extra time() (= RPC)
         call)«.
       * ba384f6ed9275f3966505f2375b56d169e3dc588,
-        0409959c86f6840510851a851a1588677a2e537b `C++11 thread_local
+        0409959c86f6840510851a851a1588677a2e537b,
+        e57b0c6100e63bfd816ae59339452eafc81f1d3a `C++11 thread_local
         destructors support`.  Anything needed to be done in our [[libpthread]]
         and configured for us in [[GCC]]?  Probably need to replicate the
         `nptl/pthread_create.c` change, and fix
@@ -1163,12 +1165,16 @@ Last reviewed up to the [[Git mirror's af15c191766fd413ef6fedc9d54b87962332ca71
             +tst-tls-atexit-lib.c: In function 'do_foo':
             +tst-tls-atexit-lib.c:35:3: warning: implicit declaration of function '__cxa_thread_atexit_impl' [-Wimplicit-function-declaration]
 
-      * bc16e260d0e74b36e48d30edc6ea4f1152700c09 `Move _dl_non_dynamic_init,
-        _dl_aux_init declarations.` -- can remove
-        `sysdeps/mach/hurd/i386/init-first.c`:`_dl_non_dynamic_init`
-        declaration?
       * a600e5cef53e10147932d910cdb2fdfc62afae4e `Consolidate Linux and POSIX
         libc_fatal code.` -- is `backtrace_and_maps` specific to Linux?
+      * 288f7d79fe2dcc8e62c539f57b25d7662a2cd5ff `Use __ehdr_start, if
+        available, as fallback for AT_PHDR.` -- once we require Binutils 2.23,
+        can we simplify [[glibc's process startup|glibc/process]]
+        (initialization of `_dl_phdr` and `_dl_phnum`)?  As these are only used
+        for `[!SHARED]`, can we completely remove them (that is, the `phdr` and
+        `phdrsz` members) from `hurd_startup_data`, and simplify
+        [[hurd/interface/exec_startup_get_info]], or do we still require these
+        for the `[SHARED]` case?
 
 
 ## Update
@@ -1181,8 +1187,14 @@ Last reviewed up to the [[Git mirror's af15c191766fd413ef6fedc9d54b87962332ca71
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-3e1dec8e8cf102ed1e9b8ddf2e8fa40fc259ab00 (2013-05-23;
-af15c191766fd413ef6fedc9d54b87962332ca71 (2013-03-28))
+83fed41a9ed81db6ca517185aefb296f74868c2f (2013-05-26;
+0323d08657f111267efa47bd448fbf6cd76befe8 (2013-05-24))
+plus 2b66ef5d55325b2957d6c62908ca065228e56814,
+ec9dd97cecafba5ddf5c3ec683db7ad5b4421923,
+07b4c13d0be4814ef10bbfbfd68db604978aa0e5,
+528c24058fb100fb27fe5c211b92be84c67a6659, `t/elfosabi_gnu` reverted,
+ec9dd97cecafba5ddf5c3ec683db7ad5b4421923 (again...),
+`id:"87bo7xo1ay.fsf@kepler.schwinge.homeip.net"`
 sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -1368,6 +1380,8 @@ Failures, mostly in order of appearance:
     Known problem.
 
   * `libio/tst-atime.out`, `dirent/tst-fdopendir.out`
+
+    [[!message-id "201305102256.56636.toscano.pino@tiscali.it"]].
 
     `libio/tst-atime.out`:
 

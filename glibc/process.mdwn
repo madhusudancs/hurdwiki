@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2009, 2010 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2009, 2010, 2013 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -13,6 +14,37 @@ The GNU Hurd uses a similar concept to [[UNIX processes|unix/process]].
 As a [[Mach task|microkernel/mach/task]] only implements a part of a UNIX
 process, there is additional work to be done, for example for [[signal]]s,
 [[environment_variable]]s, [[file_descriptor]]s.
+
+
+# Startup
+
+[[!taglink open_issue_glibc open_issue_hurd]]: Enumerate all the different
+cases.  Add tests to [[glibc]] to make sure all these work.
+
+
+## `hurd/hurdstartup.h`:`hurd_startup_data`
+
+Lives on the stack after arguments and environment.
+
+The `phdr` and `phdrsz` members are only used in
+`sysdeps/mach/hurd/dl-sysdep.c`:`_dl_sysdep_start` (for `[SHARED]`) and
+`sysdeps/mach/hurd/i386/init-first.c`:`init1` (for `[!SHARED]`).  See comments
+in [[open_issues/glibc]] for commit 288f7d79fe2dcc8e62c539f57b25d7662a2cd5ff.
+
+
+## `hurd/hurdstartup.c`:`_hurd_startup (void **argptr, void (*main) (intptr_t
+   *data))`
+
+  * Initialize `hurd_startup_data` based on
+    [[hurd/interface/exec_startup_get_info]] if we have a bootstrap port, or
+    else manually.
+
+  * Call `main`, which is either
+    `sysdeps/mach/hurd/dl-sysdep.c`:`_dl_sysdep_start`:`go` if called from
+    `sysdeps/mach/hurd/dl-sysdep.c`:`_dl_sysdep_start` (for `[SHARED]` only),
+    or `sysdeps/mach/hurd/i386/init-first.c`:`_hurd_stack_setup`:`doinit` if
+    called from `sysdeps/mach/hurd/i386/init-first.c`:`_hurd_stack_setup` (for
+    `[!SHARED]` only).
 
 
 # Controlling TTY
