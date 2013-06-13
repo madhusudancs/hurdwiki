@@ -33,8 +33,8 @@ git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefi
 
 -->
 
-Last reviewed up to the [[Git mirror's 3eb2a51c46804f0be530893e94af559abee8b4f8
-(2013-05-27) sources|source_repositories/gdb]].
+Last reviewed up to the [[Git mirror's 9799ab54486adf49a50e5aadd9f5e6bc03db6123
+(2013-06-13) sources|source_repositories/gdb]].
 
   * Globally
 
@@ -71,7 +71,7 @@ Last reviewed up to the [[Git mirror's 3eb2a51c46804f0be530893e94af559abee8b4f8
 
 Here's a log of a GDB build run; this is from our [[Git
 repository|source_repositories/gdb]]'s `tschwinge/Ferry_Tagscherer` branch,
-commit 3eb2a51c46804f0be530893e94af559abee8b4f8 (2013-05-27), run on
+commit 9799ab54486adf49a50e5aadd9f5e6bc03db6123 (2013-06-13), run on
 kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -87,7 +87,7 @@ There are several occurences of *error: dereferencing type-punned pointer will
 break strict-aliasing rules* in the MIG-generated stub files; thus no `-Werror`
 until that is resolved ([[strict_aliasing]]).
 
-This takes up around 220 MiB and needs roughly 8 min on kepler.SCHWINGE and 25
+This takes up around 230 MiB and needs roughly 8 min on kepler.SCHWINGE and 25
 min on coulomb.SCHWINGE.
 
 <!--
@@ -289,6 +289,15 @@ GNU/Hurd, these generally are `gdb.multi/watchpoint-multi`, and an unknown
         At this point, the system hangs; no new processes can be spawned, so
         perhaps an issue with the exec server.
 
+      * `gdb.threads/manythreads.exp`
+
+        [[!taglink open_issue_libpthread]].  Perhaps fails due to pthread
+        attributes usage?  Doesn't execute properly:
+
+            $ gdb/testsuite/gdb.threads/manythreads
+            manythreads: ../libpthread/sysdeps/mach/pt-thread-halt.c:51: __pthread_thread_halt: Unexpected error: (ipc/rcv) invalid name.
+            Killed
+
   * Linux syscall usage, `<asm/unistd.h>`
 
       * `UNSUPPORTED: gdb.threads/ia64-sigill.exp: Couldn't compile ../../../master/gdb/testsuite/gdb.threads/ia64-sigill.c: unrecognized error`
@@ -363,15 +372,158 @@ GNU/Hurd, these generally are `gdb.multi/watchpoint-multi`, and an unknown
 
         *stopped,reason="signal-received",signal-name="SIGSEGV",signal-meaning="Segmentation fault",frame={addr="0x00014add",func="??",args=[],from="/lib/ld.so"},thread-id="4",stopped-threads="all"
 
-  * `gdb.arch/i386-float.exp: info float`
+  * `gdb.base/call-signal-resume.exp`
 
-        Running ../../../Ferry_Tagscherer/gdb/testsuite/gdb.arch/i386-float.exp ...
-        PASS: gdb.arch/i386-float.exp: first stepi
-        FAIL: gdb.arch/i386-float.exp: info float
-        PASS: gdb.arch/i386-float.exp: second stepi
-        PASS: gdb.arch/i386-float.exp: info float
+        $ gdb -q gdb/testsuite/gdb.base/call-signals
+        (gdb) break stop_one
+        (gdb) r
+        (gdb) call gen_signal()
+        (gdb) bt
+        (gdb) frame [<function called from gdb>]
+        (gdb) return
+        (gdb) break handle_signal
+        (gdb) c
+        (gdb) c
 
-    Only fails for GNU/Hurd: the floating point stack initially is not
-    all-zeroes, which is expected, and which it is on GNU/Linux.
+    kepler.SCHWINGE:
+
+        Breakpoint 2, handle_signal (sig=6) at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/call-signals.c:28
+        28      }
+        (gdb) bt
+        #0  handle_signal (sig=6) at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/call-signals.c:28
+        #1  <signal handler called>
+        #2  0xb7fde416 in __kernel_vsyscall ()
+        #3  0xb7dffd96 in kill () at ../sysdeps/unix/syscall-template.S:81
+        #4  0x0804859c in gen_signal () at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/call-signals.c:35
+        #5  0x08048610 in main () at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/call-signals.c:81
+
+    coulomb.SCHWINGE:
+
+        Breakpoint 2, handle_signal (sig=6) at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/call-signals.c:28
+        28      }
+        (gdb) bt
+        #0  handle_signal (sig=6) at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/call-signals.c:28
+        #1  0x010baac2 in trampoline () from /lib/i386-gnu/libc.so.0.3
+        #2  0x00000006 in ?? ()
+        #3  0x00000000 in ?? ()
+
+    kepler.SCHWINGE:
+
+        (gdb) c
+        Continuing.
+        no signal
+        [Inferior 1 (process 10401) exited normally]
+
+    coulomb.SCHWINGE:
+
+        (gdb) c
+        Continuing.
+        no signal
+        
+        Program received signal SIGSEGV, Segmentation fault.
+        0x00000000 in ?? ()
+        (gdb) bt
+        #0  0x00000000 in ?? ()
+        #1  0x01116c28 in _IO_acquire_lock_fct (p=<synthetic pointer>) at libioP.h:905
+        #2  _IO_puts (str=0x80487e0 "no signal") at ioputs.c:45
+        #3  0x080486d8 in gen_signal () at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/call-signals.c:38
+        #4  0x0804873d in main () at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/call-signals.c:81
+
+    This is apparently new with the glibc 2.17 upgrade.  If not doing the
+    manual `gen_signal` call, it works fine.  TODO.
+
+  * `gdb.base/relativedebug.exp`
+
+        (gdb) PASS: gdb.base/relativedebug.exp: continue
+        bt
+        #0  0x010a1afc in ?? () from /lib/i386-gnu/libc.so.0.3
+        #1  0x010a23be in mach_msg () from /lib/i386-gnu/libc.so.0.3
+        #2  0x0126cd98 in msg_sig_post () from /lib/i386-gnu/libhurduser.so.0.3
+        #3  0x010e2141 in ?? () from /lib/i386-gnu/libc.so.0.3
+        #4  0x010e23ed in kill () from /lib/i386-gnu/libc.so.0.3
+        #5  0x010e17f4 in raise () from /lib/i386-gnu/libc.so.0.3
+        #6  0x010e5b7c in abort () from /lib/i386-gnu/libc.so.0.3
+        #7  0x08048607 in handler (signo=14) at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/relativedebug.c:25
+        #8  0x010bdac2 in ?? () from /lib/i386-gnu/libc.so.0.3
+        Backtrace stopped: previous frame inner to this frame (corrupt stack?)
+        (gdb) FAIL: gdb.base/relativedebug.exp: pause found in backtrace
+
+    This is apparently new with the glibc 2.17 upgrade.  Previously it said:
+
+        (gdb) PASS: gdb.base/relativedebug.exp: continue
+        bt
+        #0  0x0107c85c in ?? () from /lib/i386-gnu/libc.so.0.3
+        #1  0x0107d069 in mach_msg () from /lib/i386-gnu/libc.so.0.3
+        #2  0x01220d4f in msg_sig_post () from /lib/i386-gnu/libhurduser.so.0.3
+        #3  0x010bb683 in ?? () from /lib/i386-gnu/libc.so.0.3
+        #4  0x010bb8f6 in kill () from /lib/i386-gnu/libc.so.0.3
+        #5  0x010bad76 in raise () from /lib/i386-gnu/libc.so.0.3
+        #6  0x010bf029 in abort () from /lib/i386-gnu/libc.so.0.3
+        #7  0x08048597 in handler (signo=14) at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/relativedebug.c:25
+        #8  0x01098282 in ?? () from /lib/i386-gnu/libc.so.0.3
+        #9  0x010bbe5a in sigsuspend () from /lib/i386-gnu/libc.so.0.3
+        #10 0x0112fee1 in pause () from /lib/i386-gnu/libc.so.0.3
+        #11 0x080485c5 in main () at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/relativedebug.c:32
+        (gdb) PASS: gdb.base/relativedebug.exp: pause found in backtrace
+
+    TODO.
+
+  * `gdb.gdb/selftest.exp`
+
+        (gdb) PASS: gdb.gdb/selftest.exp: send SIGINT signal to child process
+        backtrace
+        #0  0x0146fafc in ?? () from /lib/i386-gnu/libc.so.0.3
+        #1  0x014703be in mach_msg () from /lib/i386-gnu/libc.so.0.3
+        #2  0x0163bd98 in msg_sig_post () from /lib/i386-gnu/libhurduser.so.0.3
+        #3  0x014b0141 in ?? () from /lib/i386-gnu/libc.so.0.3
+        #4  0x014b03ed in kill () from /lib/i386-gnu/libc.so.0.3
+        #5  0x082cf471 in _rl_handle_signal (sig=2) at ../../Ferry_Tagscherer/readline/signals.c:221
+        #6  0x0148bac2 in ?? () from /lib/i386-gnu/libc.so.0.3
+        Backtrace stopped: previous frame inner to this frame (corrupt stack?)
+        (gdb) FAIL: gdb.gdb/selftest.exp: backtrace through signal handler
+
+    This is apparently new with the glibc 2.17 upgrade.  Previously it said:
+
+        (gdb) PASS: gdb.gdb/selftest.exp: send SIGINT signal to child process
+        backtrace
+        #0  0x0144885c in ?? () from /lib/i386-gnu/libc.so.0.3
+        #1  0x01449069 in mach_msg () from /lib/i386-gnu/libc.so.0.3
+        #2  0x015ecd4f in msg_sig_post () from /lib/i386-gnu/libhurduser.so.0.3
+        #3  0x01487683 in ?? () from /lib/i386-gnu/libc.so.0.3
+        #4  0x014878f6 in kill () from /lib/i386-gnu/libc.so.0.3
+        #5  0x082cf401 in _rl_handle_signal (sig=2) at ../../Ferry_Tagscherer/readline/signals.c:221
+        #6  0x01464282 in ?? () from /lib/i386-gnu/libc.so.0.3
+        #7  0x0144fce3 in ?? () from /lib/i386-gnu/libc.so.0.3
+        #8  0x0153975b in poll () from /lib/i386-gnu/libc.so.0.3
+        #9  0x081c91c2 in gdb_wait_for_event (block=1) at ../../Ferry_Tagscherer/gdb/event-loop.c:804
+        #10 0x081c998f in gdb_do_one_event () at ../../Ferry_Tagscherer/gdb/event-loop.c:402
+        #11 0x081c9b07 in start_event_loop () at ../../Ferry_Tagscherer/gdb/event-loop.c:431
+        #12 0x081c2f42 in captured_command_loop (data=data@entry=0x0) at ../../Ferry_Tagscherer/gdb/main.c:260
+        #13 0x081c0e57 in catch_errors (func=func@entry=0x81c2f30 <captured_command_loop>, func_args=func_args@entry=0x0, errstring=errstring@entry=0x83
+        5b81b "", mask=mask@entry=6) at ../../Ferry_Tagscherer/gdb/exceptions.c:546
+        #14 0x081c388c in captured_main (data=data@entry=0x19ff150) at ../../Ferry_Tagscherer/gdb/main.c:1055
+        #15 0x081c0e57 in catch_errors (func=func@entry=0x81c3130 <captured_main>, func_args=func_args@entry=0x19ff150, errstring=errstring@entry=0x835b
+        81b "", mask=mask@entry=6) at ../../Ferry_Tagscherer/gdb/exceptions.c:546
+        #16 0x081c43c0 in gdb_main (args=0x19ff150) at ../../Ferry_Tagscherer/gdb/main.c:1064
+        #17 0x08099533 in main (argc=5, argv=0x19ff1e8) at ../../Ferry_Tagscherer/gdb/gdb.c:34
+        (gdb) PASS: gdb.gdb/selftest.exp: backtrace through signal handler
+
+    TODO.
+
+  * `gdb.python/python.exp`
+
+        >PASS: gdb.python/python.exp: post event insertion - gdb.post_event(Foo())
+        end
+        ERROR: Process no longer exists
+        UNRESOLVED: gdb.python/python.exp: post event insertion - end
+
+    This is apparently new with the glibc 2.17 upgrade.  Previously it said:
+
+        >PASS: gdb.python/python.exp: post event insertion - gdb.post_event(Foo())
+        end
+        (gdb) PASS: gdb.python/python.exp: post event insertion - end
+        [More PASSes.]
+
+    TODO.
 
 TODO.
