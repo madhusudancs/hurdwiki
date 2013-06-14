@@ -75,7 +75,7 @@ commit 9799ab54486adf49a50e5aadd9f5e6bc03db6123 (2013-06-13), run on
 kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
-    $ ../Ferry_Tagscherer/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.7 CXX=g++-4.7 --disable-werror 2>&1 | tee log_build
+    $ ../Ferry_Tagscherer/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.8 CXX=g++-4.8 --disable-werror 2>&1 | tee log_build
     [...]
     $ make 2>&1 | tee log_build_
     [...]
@@ -87,7 +87,7 @@ There are several occurences of *error: dereferencing type-punned pointer will
 break strict-aliasing rules* in the MIG-generated stub files; thus no `-Werror`
 until that is resolved ([[strict_aliasing]]).
 
-This takes up around 230 MiB and needs roughly 8 min on kepler.SCHWINGE and 25
+This takes up around 230 MiB and needs roughly 8 min on kepler.SCHWINGE and 28
 min on coulomb.SCHWINGE.
 
 <!--
@@ -168,11 +168,6 @@ formats and more emulation vectors.
         exc_request_S.c:157:24: warning: no previous prototype for 'exc_server' []
         exc_request_S.c:193:28: warning: no previous prototype for 'exc_server_routine' []
 
-  * `dlopen`/`-ldl`
-
-        -checking for library containing dlopen... none required
-        +checking for library containing dlopen... -ldl
-
   * `O_NOFOLLOW`
 
     First seen in
@@ -182,8 +177,6 @@ formats and more emulation vectors.
         +checking for working fcntl.h... no (bad O_NOFOLLOW)
 
     [[!taglink open_issue_glibc]]?
-
-  * Why does GNU/Linux have an additional `-ldl -rdynamic` when linking `gdb`?
 
   * 00e1c4298d2b6fe040a9a970e98349602b12ddbf..6b25dae901ddedb3f330803542d3eac73cdcae4b:
 
@@ -228,6 +221,12 @@ GNU/Hurd, these generally are `gdb.multi/watchpoint-multi`, and an unknown
 
 
 ## Analysis
+
+The testsuite uses the system's default `gcc` (and similar) compilers, not
+those specified on the `configure` line ([[!taglink open_issue_gdb]]?), see
+`find_gcc` (and similar) usage in the testsuite and DejaGnu.  Maybe something
+like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
+`CC_FOR_TARGET` (and similar) per `gdb/testsuite/lib/future.exp`?
 
     $ toolchain/logs/process gdb test
 
@@ -525,5 +524,19 @@ GNU/Hurd, these generally are `gdb.multi/watchpoint-multi`, and an unknown
         [More PASSes.]
 
     TODO.
+
+  * `gdb.base/restore.exp`, `gdb.base/store.exp`
+
+    Several FAILs, starting with GCC 4.8 usage:
+
+        (gdb) PASS: gdb.base/restore.exp: caller3 calls callee1; return callee now
+        print l1
+        $16 = <optimized out>
+        (gdb) FAIL: gdb.base/restore.exp: caller3 calls callee1; return restored l1 to 32492
+
+    [[!GCC_PR 55056]], [[!message-id
+    "20130126202645.GA4888@host2.jankratochvil.net"]], and maybe [[!message-id
+    "CAO2gOZXvCLdaKE2=ZKpjGVGq8A0wQ94-AUo7eKvvWHWncrU_yg@mail.gmail.com"]] look
+    related.
 
 TODO.
