@@ -9,9 +9,13 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
+[[!meta title="Profiling, Tracing"]]
+
 *Profiling* ([[!wikipedia Profiling_(computer_programming) desc="Wikipedia
 article"]]) is a tool for tracing where CPU time is spent.  This is usually
 done for [[performance analysis|performance]] reasons.
+
+  * [[hurd/debugging/rpctrace]]
 
   * [[gprof]]
 
@@ -33,3 +37,104 @@ done for [[performance analysis|performance]] reasons.
   * [[SystemTap]]
 
   * ... or some other Linux thing.
+
+
+# IRC, freenode, #hurd, 2013-06-17
+
+    <congzhang> is that possible we develop rpc msg analyse tool? make it clear
+      view system at different level?
+    <congzhang> hurd was dynamic system, how can we just read log line by line
+    <kilobug> congzhang: well, you can use rpctrace and then analyze the logs,
+      but rpctrace is quite intrusive and will slow down things (like strace or
+      similar)
+    <kilobug> congzhang: I don't know if a low-overhead solution could be made
+      or not
+    <congzhang> that's the problem
+    <congzhang> when real system run, the msg cross different server, and then
+      the debug action should not intrusive the process itself
+    <congzhang> we observe the system and analyse os
+    <congzhang> when rms choose microkernel, it's expect to accelerate the
+      progress, but not
+    <congzhang> microkernel make debug a litter hard
+    <kilobug> well, it's not limited to microkernels, debugging/tracing is
+      intrusive and slow things down, it's an universal law of compsci
+    <kilobug> no, it makes debugging easier
+    <congzhang> I don't think so
+    <kilobug> you can gdb the various services (like ext2fs or pfinet) more
+      easily
+    <kilobug> and rpctrace isn't any worse than strace
+    <congzhang> how easy when debug lpc
+    <kilobug> lpc ?
+    <congzhang> because cross context
+    <congzhang> classic function call
+    <congzhang> when find the bug source, I don't care performance, I wan't to
+      know it's right or wrong by design, If it work as I expect 
+    <congzhang> I optimize it latter
+    <congzhang> I have an idea, but don't know weather it's usefull or not
+    <braunr> rpctrace is a lot less instrusive than ptrace based tools
+    <braunr> congzhang: debugging is not made hard by the design choice, but by
+      implementation details
+    <braunr> as a simple counter example, someone often cited usb development
+      on l3 being made a lot easier than on a monolithic kernel
+    <congzhang> Collect the trace information first, and then layout the msg by
+      graph, when something wrong, I focus the trouble rpc, and found what
+      happen around
+    <braunr> "by graph" ?
+    <congzhang> yes
+    <congzhang> braunr: directed graph or something similar
+    <braunr> and not caring about performance when debugging is actually stupid
+    <braunr> i've seen it on many occasions, people not being able to use
+      debugging tools because they were far too inefficient and slow
+    <braunr> why a graph ?
+    <braunr> what you want is the complete trace, taking into account cross
+      address space boundaries
+    <congzhang> yes
+    <braunr> well it's linear
+    <braunr> switching server
+    <congzhang> by independent process view it's linear
+    <congzhang> it's linear on cpu's view too
+    <congzhang> yes, I need complete trace, and dynamic control at microkernel
+      level
+    <congzhang> os, if server crash, and then I know what's other doing, from
+      the graph
+    <congzhang> graph needn't to be one, if the are not connect together, time
+      sort them
+    <congzhang> when hurd was complete ok, some tools may be help too
+    <braunr> i don't get what you want on that graph
+    <congzhang> sorry, I need a context
+    <congzhang> like uml sequence diagram, I need what happen one by one
+    <congzhang> from server's view and from the function's view
+    <braunr> that's still linear
+    <braunr> so please stop using the word graph
+    <braunr> you want a trace
+    <braunr> a simple call trace
+    <congzhang> yes, and a tool
+    <braunr> with some work gdb could do it
+    <congzhang> you mean under  some microkernel infrastructure help 
+    <congzhang> ?
+    <braunr> if needed
+    <congzhang> braunr: will that be easy?
+    <braunr> not too hard
+    <braunr> i've had this idea for a long time actually
+    <braunr> another reason i insist on migrating threads (or rather, binding
+      server and client threads)
+    <congzhang> braunr: that's  great
+    <braunr> the current problem we have when using gdb is that we don't know
+      which server thread is handling the request of which client
+    <braunr> we can guess it
+    <braunr> but it's not always obvious
+    <congzhang> I read the talk, know some of your idea
+    <congzhang> make things happen like classic kernel, just from function
+      ,sure:)
+    <braunr> that's it
+    <congzhang> I think you and other do a lot of work to improve the mach and
+      hurd, buT we lack the design document and the diagram, one diagram was
+      great than one thousand words
+    <braunr> diagrams are made after the prototypes that prove they're doable
+    <braunr> i'm not a researcher
+    <braunr> and we have little time
+    <braunr> the prototype is the true spec
+    <congzhang> that's why i wan't cllector the trace info and show, you can
+      know what happen and how happen, maybe just suitable for newbie, hope
+      more young hack like it
+    <braunr> once it's done, everything else is just sugar candy around it

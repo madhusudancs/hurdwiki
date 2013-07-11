@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2012, 2013 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -58,6 +59,46 @@ never happens, but it doesn't grow without bounds; it just stays at the maximum
 even if the current number of threads is lower.
 
 The same issue exists in [[hurd/libthreads]].
+
+
+### IRC, freenode, #hurd, 2013-05-09
+
+    <bddebian> braunr: Speaking of which, didn't you say you had another "easy"
+      task?
+    <braunr> bddebian: make a system call that both terminates a thread and
+      releases memory
+    <braunr> (the memory released being the thread stack)
+    <braunr> this way, a thread can completely terminates itself without the
+      assistance of a managing thread or deferring work
+    <bddebian> braunr: That's "easy" ? :)
+    <braunr> bddebian: since it's just a thread_terminate+vm_deallocate, it is
+    <braunr> something like thread_terminate_self
+    <bddebian> But a syscall not an RPC right?
+    <braunr> in hurd terminology, we don't make the distinction
+    <braunr> the only real syscalls are mach_msg (obviously) and some to get
+      well known port rights
+    <braunr> e.g. mach_task_self
+    <braunr> everything else should be an RPC but could be a system call for
+      performance
+    <braunr> since mach was designed to support clusters, it was necessary that
+      anything not strictly machine-local was an RPC
+    <braunr> and it also helps emulation a lot
+    <braunr> so keep doing RPCs :p
+
+
+#### IRC, freenode, #hurd, 2013-05-10
+
+    <braunr> i'm not sure it should only apply to self though
+    <braunr> youpi: can we get a quick opinion on this please ?
+    <braunr> i've suggested bddebian to work on a new RPC that both terminates
+      a thread and releases its stack to help fix libpthread
+    <braunr> and initially, i thought of it as operating only on the calling
+      thread
+    <braunr> do you see any reason to make it work on any thread ?
+    <braunr> (e.g. a real thread_terminate + vm_deallocate)
+    <braunr> (or any reason not to)
+    <youpi> thread stack deallocation is always a burden indeed
+    <youpi> I'd tend to think it'd be useful, but perhaps ask the list
 
 
 # Open Issues

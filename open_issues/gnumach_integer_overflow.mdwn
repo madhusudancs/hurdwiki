@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2012, 2013 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -15,3 +15,36 @@ License|/fdl]]."]]"""]]
 
     <braunr> yes, we have integer overflows on resident_page_count, but
       luckily, the member is rarely used
+
+See also [[gnumach_vm_object_resident_page_count]].
+
+
+## IRC, freenode, #hurd, 2013-06-04
+
+    <elmig> this is declared as int on vm_object.h
+    <elmig> and as it as counter it's always positive
+    <braunr> yes it should be unsigned
+    <elmig> ok
+    <braunr> but leave it as it is for consistency with the rest
+    <elmig> i send patch :)
+    <braunr> please no
+    <braunr> unless you've fully determined the side effects
+    <elmig> i've grepped the vars and saw only comparisons > and = 0
+    <elmig> never less than 0
+    <braunr> > 0 is the same
+    <braunr> well
+    <braunr> > not, but >= would be a problem
+    <elmig> http://paste.debian.net/plain/8527
+    <elmig> asctually no >=0
+    <braunr> still, i don't want to change that unless it's strictly necessary
+    <braunr> hum, you're grepping ref_count, not resident_page_count
+    <elmig> i did both
+    <elmig> on resident_page_count theres resident_page_count >= 0
+    <elmig> = 0, == 0
+    <braunr> this isn't the only possible issue
+    <braunr> anyway
+    <braunr> for now there is no reason to change anything unless you do a full
+      review
+    <elmig> only place i see resdent_page_count and page_count being decreased
+      it's on vm/vm_resident.c
+    <elmig> vm_page_remove() and vm_page_replace()
