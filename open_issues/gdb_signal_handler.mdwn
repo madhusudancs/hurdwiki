@@ -1,0 +1,403 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_gdb open_issue_glibc]]
+
+
+# IRC, freenode, #hurd, 2013-07-07
+
+    <zyg> Hi, I'm in GDB inside a handler for SIGHUP, after stepping out, gdb
+      will hang on instruction: <_hurd_sigstate_lock+88>:  xchg
+      %edx,0x4(%eax)
+    <zyg> here is my signal test pasted: http://pastebin.com/U72qw3FC
+        #include <stdio.h>
+        #include <stdlib.h>
+        #include <signal.h>
+         
+        void *
+        my_handler(int signal, void *info, void *context)
+        {
+          printf("got SIGHUP\n");
+          return NULL;
+        }
+         
+        void
+        install_handler (int signal)
+        {
+          struct sigaction sa;
+          sa.sa_sigaction = my_handler;
+          sa.sa_flags = SA_SIGINFO;
+          sigemptyset(&sa.sa_mask);
+          sigaction(signal, &sa, NULL);
+        }
+         
+        void test_sighup(void)
+        {
+          raise(SIGHUP);
+        }
+         
+        int main(int argc, char **argv){
+          install_handler(SIGHUP);
+          test_sighup();
+          exit(1);
+        }
+    <braunr> zyg: thanks
+    <braunr> zyg: what is the problem exactly ?
+    <braunr> zyg: i mean, does it hand before attaching with gdb ?
+    <zyg> braunr: it doesn't hang if runned without gdb. I've pasted here when
+      I step out of the handler, and get to the hanging instruction:
+      http://pastebin.com/nUyCx6Wj
+        $ gdb --args a.out
+        GNU gdb (GDB) 7.6-debian
+        Copyright (C) 2013 Free Software Foundation, Inc.
+        License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+        This is free software: you are free to change and redistribute it.
+        There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+        and "show warranty" for details.
+        This GDB was configured as "i486-gnu".
+        For bug reporting instructions, please see:
+        <http://www.gnu.org/software/gdb/bugs/>...
+        Reading symbols from /home/shrek/a.out...(no debugging symbols found)...done.
+        (gdb)
+         
+        (gdb) display/i $pc
+        (gdb) handle SIGHUP pass stop print
+        Signal        Stop      Print   Pass to program Description
+        SIGHUP        Yes       Yes     Yes             Hangup
+        (gdb)
+         
+        (gdb) run
+        Starting program: /home/shrek/a.out
+        [New Thread 3571.5]
+         
+        Program received signal SIGHUP, Hangup.
+        0x010548ec in mach_msg_trap ()
+            at /build/buildd-eglibc_2.17-6-hurd-i386-g946kE/eglibc-2.17/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+        2       /build/buildd-eglibc_2.17-6-hurd-i386-g946kE/eglibc-2.17/build-tree/hurd-i386-libc/mach/mach_msg_trap.S: No such file or directory.
+        1: x/i $pc
+        => 0x10548ec <mach_msg_trap+12>:        ret
+        (gdb)
+         
+        (gdb) si
+        0x0804862d in my_handler ()
+        1: x/i $pc
+        => 0x804862d <my_handler>:      push   %ebp
+        (gdb) x/20xi 0x804862d
+        => 0x804862d <my_handler>:      push   %ebp
+           0x804862e <my_handler+1>:    mov    %esp,%ebp
+           0x8048630 <my_handler+3>:    sub    $0x18,%esp
+           0x8048633 <my_handler+6>:    movl   $0x8048750,(%esp)
+           0x804863a <my_handler+13>:   call   0x8048500 <puts@plt>
+           0x804863f <my_handler+18>:   mov    $0x0,%eax
+           0x8048644 <my_handler+23>:   leave
+           0x8048645 <my_handler+24>:   ret
+           0x8048646 <install_handler>: push   %ebp
+           0x8048647 <install_handler+1>:       mov    %esp,%ebp
+           0x8048649 <install_handler+3>:       sub    $0x28,%esp
+           0x804864c <install_handler+6>:       movl   $0x804862d,-0x14(%ebp)
+           0x8048653 <install_handler+13>:      movl   $0x40,-0xc(%ebp)
+           0x804865a <install_handler+20>:      lea    -0x14(%ebp),%eax
+           0x804865d <install_handler+23>:      add    $0x4,%eax
+           0x8048660 <install_handler+26>:      mov    %eax,(%esp)
+           0x8048663 <install_handler+29>:      call   0x80484d0 <sigemptyset@plt>
+           0x8048668 <install_handler+34>:      movl   $0x0,0x8(%esp)
+           0x8048670 <install_handler+42>:      lea    -0x14(%ebp),%eax
+           0x8048673 <install_handler+45>:      mov    %eax,0x4(%esp)
+        (gdb)
+         
+        (gdb) break *0x804863f
+        Breakpoint 1 at 0x804863f
+        (gdb) c
+        Continuing.
+        got SIGHUP
+         
+        Breakpoint 1, 0x0804863f in my_handler ()
+        1: x/i $pc
+        => 0x804863f <my_handler+18>:   mov    $0x0,%eax
+        (gdb)
+         
+        (gdb) si
+        0x08048644 in my_handler ()
+        1: x/i $pc
+        => 0x8048644 <my_handler+23>:   leave
+        (gdb)
+        0x08048645 in my_handler ()
+        1: x/i $pc
+        => 0x8048645 <my_handler+24>:   ret
+        (gdb)
+        0x010708b2 in trampoline () from /lib/i386-gnu/libc.so.0.3
+        1: x/i $pc
+        => 0x10708b2 <trampoline+2>:    add    $0xc,%esp
+        (gdb)
+        0x010708b5 in trampoline () from /lib/i386-gnu/libc.so.0.3
+        1: x/i $pc
+        => 0x10708b5 <trampoline+5>:    ret
+        (gdb)
+        __sigreturn (scp=0x102988c) at ../sysdeps/mach/hurd/i386/sigreturn.c:30
+        30      ../sysdeps/mach/hurd/i386/sigreturn.c: No such file or directory.
+        1: x/i $pc
+        => 0x1096340 <__sigreturn>:     push   %ebp
+        (gdb)
+        0x01096341      30      in ../sysdeps/mach/hurd/i386/sigreturn.c
+        1: x/i $pc
+        => 0x1096341 <__sigreturn+1>:   push   %edi
+        (gdb)
+        0x01096342      30      in ../sysdeps/mach/hurd/i386/sigreturn.c
+        1: x/i $pc
+        => 0x1096342 <__sigreturn+2>:   push   %esi
+        (gdb)
+        0x01096343      30      in ../sysdeps/mach/hurd/i386/sigreturn.c
+        1: x/i $pc
+        => 0x1096343 <__sigreturn+3>:   push   %ebx
+        (gdb)
+        0x01096344      30      in ../sysdeps/mach/hurd/i386/sigreturn.c
+        1: x/i $pc
+        => 0x1096344 <__sigreturn+4>:   sub    $0x2c,%esp
+        (gdb)
+        0x01096347      30      in ../sysdeps/mach/hurd/i386/sigreturn.c
+        1: x/i $pc
+        => 0x1096347 <__sigreturn+7>:   mov    0x40(%esp),%esi
+        (gdb)
+        0x0109634b      30      in ../sysdeps/mach/hurd/i386/sigreturn.c
+        1: x/i $pc
+        => 0x109634b <__sigreturn+11>:  call   0x11a0609 <__x86.get_pc_thunk.bx>
+        (gdb)
+        0x011a0609 in __x86.get_pc_thunk.bx () from /lib/i386-gnu/libc.so.0.3
+        1: x/i $pc
+        => 0x11a0609 <__x86.get_pc_thunk.bx>:   mov    (%esp),%ebx
+        (gdb)
+        0x011a060c in __x86.get_pc_thunk.bx () from /lib/i386-gnu/libc.so.0.3
+        1: x/i $pc
+        => 0x11a060c <__x86.get_pc_thunk.bx+3>: ret
+        (gdb)
+        0x01096350 in __sigreturn (scp=0x102988c) at ../sysdeps/mach/hurd/i386/sigreturn.c:30
+        30      in ../sysdeps/mach/hurd/i386/sigreturn.c
+        1: x/i $pc
+        => 0x1096350 <__sigreturn+16>:  add    $0x15ccb0,%ebx
+        (gdb)
+        35      in ../sysdeps/mach/hurd/i386/sigreturn.c
+        1: x/i $pc
+        => 0x1096356 <__sigreturn+22>:  test   %esi,%esi
+        (gdb)
+        0x01096358      35      in ../sysdeps/mach/hurd/i386/sigreturn.c
+        1: x/i $pc
+        => 0x1096358 <__sigreturn+24>:  je     0x10964f0 <__sigreturn+432>
+        (gdb)
+        0x0109635e      35      in ../sysdeps/mach/hurd/i386/sigreturn.c
+        1: x/i $pc
+        => 0x109635e <__sigreturn+30>:  testl  $0x10100,0x4(%esi)
+        (gdb)
+        0x01096365      35      in ../sysdeps/mach/hurd/i386/sigreturn.c
+        1: x/i $pc
+        => 0x1096365 <__sigreturn+37>:  jne    0x10964f0 <__sigreturn+432>
+        (gdb)
+        __hurd_threadvar_location_from_sp (__sp=<optimized out>, __index=<optimized out>) at ../hurd/hurd/threadvar.h:94
+        94      ../hurd/hurd/threadvar.h: No such file or directory.
+        1: x/i $pc
+        => 0x109636b <__sigreturn+43>:  mov    -0x38(%ebx),%ebp
+        (gdb)
+        __hurd_threadvar_location (__index=_HURD_THREADVAR_SIGSTATE) at ../hurd/hurd/threadvar.h:116
+        116     in ../hurd/hurd/threadvar.h
+        1: x/i $pc
+        => 0x1096371 <__sigreturn+49>:  mov    %esp,%edx
+        (gdb)
+        __hurd_threadvar_location_from_sp (__sp=0x1029848, __index=_HURD_THREADVAR_SIGSTATE) at ../hurd/hurd/threadvar.h:94
+        94      in ../hurd/hurd/threadvar.h
+        1: x/i $pc
+        => 0x1096373 <__sigreturn+51>:  cmp    0x0(%ebp),%esp
+        (gdb)
+        0x01096376      94      in ../hurd/hurd/threadvar.h
+        1: x/i $pc
+        => 0x1096376 <__sigreturn+54>:  jae    0x10964d0 <__sigreturn+400>
+        (gdb)
+        0x0109637c      94      in ../hurd/hurd/threadvar.h
+        1: x/i $pc
+        => 0x109637c <__sigreturn+60>:  mov    -0x15c(%ebx),%eax
+        (gdb)
+        0x01096382      94      in ../hurd/hurd/threadvar.h
+        1: x/i $pc
+        => 0x1096382 <__sigreturn+66>:  and    (%eax),%edx
+        (gdb)
+        0x01096384      94      in ../hurd/hurd/threadvar.h
+        1: x/i $pc
+        => 0x1096384 <__sigreturn+68>:  mov    -0x90(%ebx),%eax
+        (gdb)
+        0x0109638a      94      in ../hurd/hurd/threadvar.h
+        1: x/i $pc
+        => 0x109638a <__sigreturn+74>:  add    (%eax),%edx
+        (gdb)
+        _hurd_self_sigstate () at ../hurd/hurd/signal.h:165
+        165     ../hurd/hurd/signal.h: No such file or directory.
+        1: x/i $pc
+        => 0x109638c <__sigreturn+76>:  mov    0x8(%edx),%edi
+        (gdb)
+        0x0109638f      165     in ../hurd/hurd/signal.h
+        1: x/i $pc
+        => 0x109638f <__sigreturn+79>:  test   %edi,%edi
+        (gdb)
+        0x01096391      165     in ../hurd/hurd/signal.h
+        1: x/i $pc
+        => 0x1096391 <__sigreturn+81>:  je     0x1096598 <__sigreturn+600>
+        (gdb)
+        __sigreturn (scp=0x102988c) at ../sysdeps/mach/hurd/i386/sigreturn.c:42
+        42      ../sysdeps/mach/hurd/i386/sigreturn.c: No such file or directory.
+        1: x/i $pc
+        => 0x1096397 <__sigreturn+87>:  mov    %edi,(%esp)
+        (gdb)
+        0x0109639a      42      in ../sysdeps/mach/hurd/i386/sigreturn.c
+        1: x/i $pc
+        => 0x109639a <__sigreturn+90>:  call   0x1051d70 <_hurd_sigstate_lock@plt>
+        (gdb)
+        0x01051d70 in _hurd_sigstate_lock@plt () from /lib/i386-gnu/libc.so.0.3
+        1: x/i $pc
+        => 0x1051d70 <_hurd_sigstate_lock@plt>: jmp    *0x864(%ebx)
+        (gdb)
+        _hurd_sigstate_lock (ss=ss@entry=0x1244008) at hurdsig.c:170
+        170     hurdsig.c: No such file or directory.
+        1: x/i $pc
+        => 0x106bb90 <_hurd_sigstate_lock>:     sub    $0x1c,%esp
+        (gdb)
+        0x0106bb93      170     in hurdsig.c
+        1: x/i $pc
+        => 0x106bb93 <_hurd_sigstate_lock+3>:   mov    %ebx,0x14(%esp)
+        (gdb)
+        0x0106bb97      170     in hurdsig.c
+        1: x/i $pc
+        => 0x106bb97 <_hurd_sigstate_lock+7>:   call   0x11a0609 <__x86.get_pc_thunk.bx>
+        (gdb)
+        0x011a0609 in __x86.get_pc_thunk.bx () from /lib/i386-gnu/libc.so.0.3
+        1: x/i $pc
+        => 0x11a0609 <__x86.get_pc_thunk.bx>:   mov    (%esp),%ebx
+        (gdb)
+        0x011a060c in __x86.get_pc_thunk.bx () from /lib/i386-gnu/libc.so.0.3
+        1: x/i $pc
+        => 0x11a060c <__x86.get_pc_thunk.bx+3>: ret
+        (gdb)
+        0x0106bb9c in _hurd_sigstate_lock (ss=ss@entry=0x1244008) at hurdsig.c:170
+        170     in hurdsig.c
+        1: x/i $pc
+        => 0x106bb9c <_hurd_sigstate_lock+12>:  add    $0x187464,%ebx
+        (gdb)
+        0x0106bba2      170     in hurdsig.c
+        1: x/i $pc
+        => 0x106bba2 <_hurd_sigstate_lock+18>:  mov    %esi,0x18(%esp)
+        (gdb)
+        170     in hurdsig.c
+        1: x/i $pc
+        => 0x106bba6 <_hurd_sigstate_lock+22>:  mov    0x20(%esp),%esi
+        (gdb)
+        sigstate_is_global_rcv (ss=0x1244008) at hurdsig.c:162
+        162     in hurdsig.c
+        1: x/i $pc
+        => 0x106bbaa <_hurd_sigstate_lock+26>:  lea    0x57c0(%ebx),%eax
+        (gdb)
+        0x0106bbb0      162     in hurdsig.c
+        1: x/i $pc
+        => 0x106bbb0 <_hurd_sigstate_lock+32>:  mov    (%eax),%eax
+        (gdb)
+        163     in hurdsig.c
+        1: x/i $pc
+        => 0x106bbb2 <_hurd_sigstate_lock+34>:  test   %eax,%eax
+        (gdb)
+        0x0106bbb4      163     in hurdsig.c
+        1: x/i $pc
+        => 0x106bbb4 <_hurd_sigstate_lock+36>:  je     0x106bbbc <_hurd_sigstate_lock+44>
+        (gdb)
+        0x0106bbb6      163     in hurdsig.c
+        1: x/i $pc
+        => 0x106bbb6 <_hurd_sigstate_lock+38>:  cmpl   $0x1,0x18(%esi)
+        (gdb)
+        0x0106bbba      163     in hurdsig.c
+        1: x/i $pc
+        => 0x106bbba <_hurd_sigstate_lock+42>:  je     0x106bbe0 <_hurd_sigstate_lock+80>
+        (gdb)
+        _hurd_sigstate_lock (ss=ss@entry=0x1244008) at hurdsig.c:172
+        172     in hurdsig.c
+        1: x/i $pc
+        => 0x106bbe0 <_hurd_sigstate_lock+80>:  lea    0x4(%eax),%ecx
+        (gdb)
+        __spin_try_lock (__lock=0x124480c) at ../sysdeps/mach/i386/machine-lock.h:59
+        59      ../sysdeps/mach/i386/machine-lock.h: No such file or directory.
+        1: x/i $pc
+        => 0x106bbe3 <_hurd_sigstate_lock+83>:  mov    $0x1,%edx
+        (gdb)
+        0x0106bbe8      59      in ../sysdeps/mach/i386/machine-lock.h
+        1: x/i $pc
+        => 0x106bbe8 <_hurd_sigstate_lock+88>:  xchg   %edx,0x4(%eax)
+        (gdb)
+    <braunr> zyg: i don't get what you mean
+    <braunr> are you starting it with gdb ?
+    <zyg> braunr: yes: "gdb --args a.out"
+    <braunr> ok
+    <braunr> can't reproduce it
+    <braunr> i get "Program received signal SIGHUP, Hangup.
+    <braunr> "
+    <braunr> then continue, then the program has exited
+    <zyg> braunr: do you run it in gdb or without?
+    <zyg> braunr: Ah "Program received signal SIGHUP, Hangup." is from
+      gdb.. try issue continue, not sure why gdb stops at SIGHUP (default?).
+    <braunr> 10:34 < braunr> then continue, then the program has exited
+    <braunr> gdb stops at signals
+    <zyg> braunr: yes, try repeating that, but instead of continue, just issue
+      "si"
+    <zyg> braunr: sorry.. you would need to remove that printf/fprintf, else it
+      gets too long. That's why I put a breakpoint.
+    <braunr> a breakpoint ?
+    <braunr> on the signal handler ?
+    <zyg> braunr: yes, put a break after having entered the handler. Or edit
+      the pasted C code an remove that printf("got SIGHUP\n");
+    <braunr> i'm not sure that's correctly supported
+    <braunr> and i can see why glibc would deadlock on the sigstate lock
+    <braunr> don't do that :p
+    <zyg> braunr: why does it deadlock?
+    <braunr> because both the signal handler and messages from gdb will cause
+      common code paths to be taken
+    <zyg> braunr: oh.. when I step instruction I'm inside an SIGTRAP handler
+      probably?
+    <braunr> possible
+    <braunr> i don't know the details but that's the kind of things i expect
+    <braunr> and signals on the hurd are definitely buggy
+    <braunr> i don't know if we support nesting them
+    <braunr> i'd say we don't
+    <zyg> braunr: I'll try to put a break beyond that xchg and continue
+    <braunr> xhcg is probably the sigstate spinlock
+    <braunr> xchg*
+    <braunr> you'd need to reach the unlock instruction, which is probably
+      executed once the handler has finished running
+    <zyg> braunr: yes :) ... one instruction beyond didn't help
+    <zyg> braunr: thanks alot, putting a break in __sigreturn, after that
+      function has called _hurd_sigstate_unlock@plt works!
+    <braunr> works ?
+    <braunr> what did you want to do ?
+    <zyg> braunr: I want to trace user code inside the signal handler, also how
+      we enter and how we leave.
+    <braunr> well you can't do that inside, so no it doesn't work for you :/
+    <braunr> but that's a start i guess
+    <zyg> braunr: I seem to do most normal things inside the handler,
+      step-instruction and put breaks.
+    <braunr> ?
+    <braunr> i thought that's what made the program deadlock
+    <zyg> braunr: as you said earlier, the deadlock came when i "step
+      instruction" into the area between _hurd_sigstate_lock and
+      _hurd_sigstate_unlock. Otherwise I havn't had any issues.
+    <braunr> but isn't the sigstate locked during the handler execution ?
+    <zyg> braunr: no it locks and unlocks in __sigreturn which is done when
+      leaving the handler.
+    <braunr> than how could it deadlock on handler entry ?
+    <braunr> or perhaps the fact your handler was empty made the entry point
+      directly reach __sigreturn
+    <braunr> hm no i don't buy it
+    <braunr> the sigstate must also be locked on entry
+    <zyg> braunr: there was never any problem with entering
+    <braunr> then describe the problem with more details please
+    <braunr> ah sorry
+    <zyg> braunr: are you sure? there is minimal user-code run before the
+      signal is going into the handler.
+    <braunr> you "step out of the handler"

@@ -1,0 +1,62 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+# IRC, freenode, #hurd, 2013-06-27
+
+    <teythoon> the arg parsing in libdiskfs and libnetfs differ :/
+    <teythoon> afaics libdiskfs gets it right, libnetfs does not
+    <pinotree> what do you mean?
+    <teythoon> wrt to *_std_{runtime,startup}_argp
+    <teythoon> see eg netfs.h
+    <teythoon> libdiskfs/opts-std-runtime.c:const struct argp
+      diskfs_std_runtime_argp =
+    <teythoon> libdiskfs/opts-std-runtime.c-{
+    <teythoon> libdiskfs/opts-std-runtime.c-  std_runtime_options, parse_opt,
+      0, 0, children
+    <teythoon> libdiskfs/opts-std-runtime.c-};
+    <teythoon> but
+    <teythoon> libnetfs/std-runtime-argp.c:const struct argp
+      netfs_std_runtime_argp = { 0 };
+    <pinotree> well there are no common startup/runtime options provided by
+      netfs
+    <pinotree> usually netfs-based translators put netfs_std_startup_argp as
+      child as their options, so if netfs starts providing options they would
+      work
+    <teythoon> ah
+    <pinotree> if you have a test showing issues, we can certainly look it :)
+    <teythoon> ok, m/b I was confused...
+    <pinotree> no worries, feel free to ask anytime
+    <teythoon> I thought about providing --update as common runtime flag, like
+      diskfs does, you think it's the right thing to do?
+    <pinotree> what would it do?
+    <teythoon> or should it be left for each translator to implement?
+    <teythoon> nothing by default I guess
+    <pinotree> options provided in libdiskfs are implemented and handled mostly
+      in libdiskfs itself
+    <pinotree> so imho a new option for libnetfs would be there because its
+      behaviour is implemented mostly within libnetfs itself
+    <teythoon> libdiskfs calls diskfs_reload_global_state
+    <teythoon> libnetfs could do the same, allowing translators to plug in
+      anything they wish
+    <teythoon> but I'll implement it in procfs for the time being
+    <pinotree> ah, its alias is remount
+    <teythoon> yes
+    <teythoon> I need that working for procfs
+    <teythoon> btw, I think I got your mount confusion thing figured out
+    <pinotree> but procfs has nothing to update/flush, all the information are
+      fetched at every rpc
+    <teythoon> yes
+    <teythoon> but we still need to ignore the flag
+    <teythoon> otherwise the set_options rpc fails
+    <teythoon> http://paste.debian.net/12938/
+    <teythoon> whee, remounting proc works :)
+    <braunr> :)

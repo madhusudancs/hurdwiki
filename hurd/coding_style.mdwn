@@ -1,0 +1,59 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_documentation]]
+
+Some coding style comments that are specific to Hurd systems.
+
+[[!toc]]
+
+
+# Freeing Port Rights
+
+## IRC, freenode, #hurd, 2013-07-01
+
+    <teythoon> do I have to explicitly free ports in a short lived process like
+      mount?
+    <pinotree> better take the habit of doing that anyway
+    <teythoon> how do I recognize that I have to free something? mig spec?
+    <braunr> i'd say no
+    <braunr> mig does it for you
+    <braunr> gnumach reference manual
+    <teythoon> not memory, like port rights
+    <braunr> but no, really, for short lived processes it's ok
+    <braunr> yes, port rights
+    <braunr> like memory, you don't free stuff in short lived processes :p
+    <braunr> mach does it correctly when the task is destroyed
+    <braunr> but there are two use cases for rights
+    <braunr> those you create manually
+    <braunr> and those mig creates for its own purpose
+    <braunr> ignore those used by mig, they matter only in very specific parts
+      of glibc and other very low level stuff
+    <braunr> teythoon: keep in mind that there are two flavours of resources
+      with port rights
+    <teythoon> but how do I *know* from looking at say fs.defs that I have to
+      free anything I get?
+    <braunr> rights themselves, and the user reference count per right
+    <braunr> eh, that's complicated
+    <braunr> in a complete RPC call, you must watch two things usually
+    <braunr> out of line memory
+    <braunr> and right references
+    <braunr> except otherwise mentioned, you don't have to free anything
+    <braunr> freeing passed memory should be obvious (e.g. "out" keyword on a
+      memory range)
+    <braunr> for right references, it's less obvious
+    <braunr> refer to the mach server writing guide i guess
+    <teythoon> what does the dealloc qualifier do in mig defs?
+    <braunr> basically, send rights can be created from a receive right
+      (make_send), or another send right (copy_send)
+    <braunr> it tells mig which function to call once an RPC has returned
+    <braunr> all this is described in the mach server writing guide
+    <braunr> and it's tricky
+    <braunr> quite error-prone so check with portinfo

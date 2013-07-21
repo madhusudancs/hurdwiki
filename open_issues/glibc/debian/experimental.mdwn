@@ -11,6 +11,7 @@ License|/fdl]]."]]"""]]
 [[!tag open_issue_glibc]]
 
 Issues with the current 2.17 version of glibc/EGLIBC in Debian experimental.
+Now in unstable.
 
 
 # IRC, OFTC, #debian-hurd, 2013-03-14
@@ -113,3 +114,62 @@ Issues with the current 2.17 version of glibc/EGLIBC in Debian experimental.
       eventually?  (Some experimental package(s), but which?)
     <youpi> that was libc0.3 packages
     <youpi> which are indeed known to break the network
+
+
+# IRC, freenode, #hurd, 2013-06-18
+
+    <braunr> root@darnassus:~# dpkg-reconfigure locales
+    <braunr> Generating locales (this might take a
+      while)... en_US.UTF-8...Segmentation fault
+    <braunr> is it known ?
+    <youpi> uh, no
+
+
+## IRC, OFTC, #debian-hurd, 2013-06-19
+
+    <pinotree> btw i saw too the segmentation fault when generating locales
+
+
+# IRC, OFTC, #debian-hurd, 2013-06-20
+
+    <youpi> damn
+    <youpi> hang at ext2fs boot
+    <youpi> static linking issue, clearly
+
+
+## IRC, freenode, #hurd, 2013-06-30
+
+    <youpi> Mmm
+    <youpi>  __access ("/etc/ld.so.nohwcap", F_OK) at startup of ext2fs
+    <youpi> deemed to fail....
+    <pinotree> when does that happen?
+    <youpi> at hwcap initialization
+    <youpi> at least that's were ext2fs.static linked against libc 2.17 hangs
+      at startup
+    <youpi> and this is indeed a very good culprit :)
+    <pinotree> ah, a debian patch
+    <youpi> does anybody know a quick way to know whether one is the / ext2fs ?
+      :)
+    <pinotree> isn't the root fs given a special port?
+    <youpi> I was thinking about something like this, yes
+    <youpi> ok, boots
+    <youpi> I'll build a 8~0 that includes the fix
+    <youpi> so people can easily build the hurd package
+    <youpi> Mmm, no, the bootstrap port is also NULL for normally-started
+      processes :/
+    <youpi> I don't understand why
+    <youpi> ah, only translators get a bootstrap port :/
+    <youpi> perhaps CRDIR then
+    <youpi> (which makes a lot of sense)
+
+
+## IRC, freenode, #hurd, 2013-07-01
+
+    <braunr> youpi: what is local-no-bootstrap-fs-access.diff supposed to fix ?
+    <youpi> ext2fs.static linked againt debian glibc 2.17
+    <youpi> well, as long as you don't build & use ext2fs.static with it...
+    <braunr> that's thing, i want to :)
+    <braunr> +the
+    <youpi> I'd warmly welcome a way to detect whether being the / translator
+      process btw
+    <youpi> it seems far from trivial

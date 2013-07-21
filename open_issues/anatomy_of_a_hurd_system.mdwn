@@ -323,7 +323,9 @@ Actually, the Hurd has never used an M:N model. Both libthreads (cthreads) and l
     <braunr> etc..
 
 
-# IRC, freenode, #hurd, 2012-12-06
+# Service Directory
+
+## IRC, freenode, #hurd, 2012-12-06
 
     <spiderweb> what is the #1 feature that distinguished hurd from other
       operating systems. the concept of translators. (will read more when I get
@@ -331,6 +333,132 @@ Actually, the Hurd has never used an M:N model. Both libthreads (cthreads) and l
     <braunr> yes, translators
     <braunr> using the VFS as a service directory
     <braunr> and the VFS permissions to control access to those services
+
+
+## IRC, freenode, #hurd, 2013-05-23
+
+    <gnu_srs> Hi, is there any efficient way to control which backed
+      translators are called via RPC with a user space program?
+    <gnu_srs> Take for example io_stat: S_io_stat is defined in boot/boot.c,
+      pfinet/io-ops.c and pflocal/io.c
+    <gnu_srs> And the we have libdiskfs/io-stat.c:diskfs_S_io_stat,
+      libnetfs/io-stat.c:netfs_S_io_stat, libtreefs/s-io.c:treefs_S_io_stat,
+      libtrivfs/io-stat.c:trivfs_S_io_stat
+    <gnu_srs> How are they related?
+    <braunr> gnu_srs: it depends on the server (translator) managing the files
+      (nodes) you're accessing
+    <braunr> so use fsysopts to know the server, and see what this server uses
+    <gnu_srs> fsysopts /hurd/pfinet and fsysopts /hurd/pflocal gives the same
+      answer: ext2fs --writable --no-inherit-dir-group --store-type=typed
+      device:hd0s1
+    <braunr> of course
+    <braunr> the binaries are regular files
+    <braunr> see /servers/socket/1 and /servers/socket/2 instead
+    <braunr> which are the nodes representing the *service*
+    <braunr> again, the hurd uses the file system as a service directory
+    <braunr> this usage of the file system is at the core of the hurd design
+    <braunr> files are not mere files, they're service names
+    <braunr> it happens that, for most files, the service behind them is the
+      same as for regular files
+    <braunr> gnu_srs: this *must* be obvious for you to do any tricky work on
+      the hurd
+
+    <gnu_srs> Anyway, if I create a test program calling io_stat I assume
+      S_io_stat in pflocal is called.
+    <gnu_srs> How to make the program call S_io_stat in pfinet instead? 
+    <braunr> create a socket managed by pfinet
+    <braunr> i.e. an inet or inet6 socket
+    <braunr> you can't assume io_stat is serviced by pflocal
+    <braunr> only stats on unix sockets of pipes will be
+    <braunr> or*
+    <gnu_srs> thanks, what about the *_S_io_stat functions?
+    <braunr> what about them ?
+    <gnu_srs> How they fit into the picture, e.g. diskfs_io_stat?
+    <gnu_srs> *diskfs_S_io_stat
+    <braunr> gnu_srs: if you open a file managed by a server using libdiskfs,
+      e.g. ext2fs, that one will be called
+    <gnu_srs> Using the same user space call: io_stat, right?
+    <braunr> it's all userspace
+    <braunr> say rather, client-side
+    <braunr> the client calls the posix stat() function, which is implemented
+      by glibc, which converts it into a call to io_stat, and sends it to the
+      server managing the open file
+    <braunr> the io_stat can change depending on the server
+    <braunr> the remote io_stat implementation, i mean
+    <braunr> identify the server, and you will identify the actual
+      implementation
+
+
+## IRC, freenode, #hurd, 2013-06-30
+
+    <hacklu> hi, what is the replacer of netname_check_in? 
+
+    <hacklu> I want to ask another question. in my opinion, the rpc is the
+      mach's way, and the translator is the hurd's way. so somebody want to
+      lookup a service, it should not need to ask the mach kernel know about
+      this query. the hurd will take the control. 
+    <hacklu> am I right?
+    <braunr> no
+    <braunr> that's nonsense
+    <braunr> service lookups has never been in mach
+    <braunr> first mach based systems used a service directory, whereas the
+      hurd uses the file system for that
+    <braunr> you still need mach to communicate with either of those
+    <hacklu> how to understand the term of service directory here?
+    <braunr> a server everyone knows
+    <braunr> which gives references to other servers
+    <braunr> usually, depending on the name
+    <braunr> e.g. name_lookup("net") -> port right to network server
+    <hacklu> is that people use netname_check_in to register service in the
+      past? now used libtrivfs?
+    <braunr> i don't know about netname_check_in
+    <braunr> old mach (not gnumach) documentation might mention this service
+      directory
+    <braunr> libtrivfs doesn't have much to do with that
+    <braunr> on the hurd, the equivalent is the file system
+    <hacklu> maybe that is outdate, I just found that exist old doc, and old
+      code which can't be build.
+    <braunr> every process knows /
+    <braunr> the file system is the service directory
+    <braunr> nodes refer to services
+    <hacklu> so the file system is the nameserver, any new service should
+      register in it before other can use
+    <braunr> and the file system is distributed, so looking up a service may
+      require several queries
+    <braunr> setting a translator is exactly that, registering a program to
+      service requests on a node
+    <braunr> the file system isn't one server though
+    <braunr> programs all know about /, but then, lookups are recursive
+    <braunr> e.g. if you have / and /home, and are looking for
+      /home/hacklu/.profile, you ask / which tells you about /home, and /home
+      will give you a right to /home/hacklu/.profile
+    <hacklu> even in the past, the mach don't provide name register service,
+      there must be an other server to provide this service?
+    <braunr> yes
+    <braunr> what's nonsense in your sentence is comparing RPCs and translators
+    <braunr> translators are merely servers attached to the file system, using
+      RPCs to communicate with the rest of the system
+    <hacklu> I know yet, the two just one thing.
+    <braunr> no
+    <braunr> two things :p
+    <braunr> completely different and unrelated except for one using the other
+    <hacklu> ah, just one used aonther one.
+    <hacklu> is exist anyway to anounce service except settrans with file node?
+    <braunr> more or less
+    <braunr> tasks can have special ports
+    <braunr> that's how one task knows about / for example
+    <braunr> at task creation, a right to / is inserted in the new task
+    <hacklu> I think this is also a file node way.
+    <braunr> no
+    <braunr> if i'm right, auth is referenced the same way
+    <braunr> and there is no node for auth
+    <hacklu> how the user get the port of auth with node?
+    <braunr> it's given when a task is created
+    <hacklu> pre-set in the creation of one task?
+    <braunr> i'm unconfortable with "pre-set"
+    <braunr> inserted at creation time
+    <braunr> auth is started very early
+    <braunr> then tasks are given a reference to it
 
 
 # IRC, freenode, #hurd, 2012-12-10
@@ -380,71 +508,6 @@ Actually, the Hurd has never used an M:N model. Both libthreads (cthreads) and l
     <braunr> if you're looking for how to do it for a non-translator
       application, the answer is probably somewhere in glibc
     <braunr> _hurd_startup i'd guess
-
-
-# IRC, freenode, #hurd, 2013-05-23
-
-    <gnu_srs> Hi, is there any efficient way to control which backed
-      translators are called via RPC with a user space program?
-    <gnu_srs> Take for example io_stat: S_io_stat is defined in boot/boot.c,
-      pfinet/io-ops.c and pflocal/io.c
-    <gnu_srs> And the we have libdiskfs/io-stat.c:diskfs_S_io_stat,
-      libnetfs/io-stat.c:netfs_S_io_stat, libtreefs/s-io.c:treefs_S_io_stat,
-      libtrivfs/io-stat.c:trivfs_S_io_stat
-    <gnu_srs> How are they related?
-    <braunr> gnu_srs: it depends on the server (translator) managing the files
-      (nodes) you're accessing
-    <braunr> so use fsysopts to know the server, and see what this server uses
-    <gnu_srs> fsysopts /hurd/pfinet and fsysopts /hurd/pflocal gives the same
-      answer: ext2fs --writable --no-inherit-dir-group --store-type=typed
-      device:hd0s1
-    <braunr> of course
-    <braunr> the binaries are regular files
-    <braunr> see /servers/socket/1 and /servers/socket/2 instead
-    <braunr> which are the nodes representing the *service*
-    <braunr> again, the hurd uses the file system as a service directory
-    <braunr> this usage of the file system is at the core of the hurd design
-    <braunr> files are not mere files, they're service names
-    <braunr> it happens that, for most files, the service behind them is the
-      same as for regular files
-    <braunr> gnu_srs: this *must* be obvious for you to do any tricky work on
-      the hurd
-    <gnu_srs> fsysopts /servers/socket/2 works by /1 gives Operation not
-      supported.
-
-[[!taglink open_issue_hurd]].
-
-    <braunr> ah right, some servers don't implement that
-    <braunr> work around this by using showtrans
-    <braunr> fsysopts asks the server itself how it's running, usually giving
-      its command name and options
-    <braunr> showtrans asks the parent how it starts a passive translator
-      attached to the node
-    <gnu_srs> Yes showtrans works :), thanks.
-    <gnu_srs> Anyway, if I create a test program calling io_stat I assume
-      S_io_stat in pflocal is called.
-    <gnu_srs> How to make the program call S_io_stat in pfinet instead? 
-    <braunr> create a socket managed by pfinet
-    <braunr> i.e. an inet or inet6 socket
-    <braunr> you can't assume io_stat is serviced by pflocal
-    <braunr> only stats on unix sockets of pipes will be
-    <braunr> or*
-    <gnu_srs> thanks, what about the *_S_io_stat functions?
-    <braunr> what about them ?
-    <gnu_srs> How they fit into the picture, e.g. diskfs_io_stat?
-    <gnu_srs> *diskfs_S_io_stat
-    <braunr> gnu_srs: if you open a file managed by a server using libdiskfs,
-      e.g. ext2fs, that one will be called
-    <gnu_srs> Using the same user space call: io_stat, right?
-    <braunr> it's all userspace
-    <braunr> say rather, client-side
-    <braunr> the client calls the posix stat() function, which is implemented
-      by glibc, which converts it into a call to io_stat, and sends it to the
-      server managing the open file
-    <braunr> the io_stat can change depending on the server
-    <braunr> the remote io_stat implementation, i mean
-    <braunr> identify the server, and you will identify the actual
-      implementation
 
 
 # IRC, freenode, #hurd, 2013-06-15

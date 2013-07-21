@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2012, 2013 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -10,7 +10,9 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_libpthread]]
 
-`t/have_kernel_resources`
+`t/fix_have_kernel_resources`
+
+Address problem mentioned in [[/libpthread]], *Threads' Death*.
 
 
 # IRC, freenode, #hurd, 2012-08-30
@@ -19,3 +21,178 @@ License|/fdl]]."]]"""]]
     <braunr> tschwinge: i.e. the ability to tell the kernel where the stack is,
       so it's unmapped when the thread dies
     <braunr> which requiring another thread to perform this deallocation
+
+
+## IRC, freenode, #hurd, 2013-05-09
+
+    <bddebian> braunr: Speaking of which, didn't you say you had another "easy"
+      task?
+    <braunr> bddebian: make a system call that both terminates a thread and
+      releases memory
+    <braunr> (the memory released being the thread stack)
+    <braunr> this way, a thread can completely terminates itself without the
+      assistance of a managing thread or deferring work
+    <bddebian> braunr: That's "easy" ? :)
+    <braunr> bddebian: since it's just a thread_terminate+vm_deallocate, it is
+    <braunr> something like thread_terminate_self
+    <bddebian> But a syscall not an RPC right?
+    <braunr> in hurd terminology, we don't make the distinction
+    <braunr> the only real syscalls are mach_msg (obviously) and some to get
+      well known port rights
+    <braunr> e.g. mach_task_self
+    <braunr> everything else should be an RPC but could be a system call for
+      performance
+    <braunr> since mach was designed to support clusters, it was necessary that
+      anything not strictly machine-local was an RPC
+    <braunr> and it also helps emulation a lot
+    <braunr> so keep doing RPCs :p
+
+
+## IRC, freenode, #hurd, 2013-05-10
+
+    <braunr> i'm not sure it should only apply to self though
+    <braunr> youpi: can we get a quick opinion on this please ?
+    <braunr> i've suggested bddebian to work on a new RPC that both terminates
+      a thread and releases its stack to help fix libpthread
+    <braunr> and initially, i thought of it as operating only on the calling
+      thread
+    <braunr> do you see any reason to make it work on any thread ?
+    <braunr> (e.g. a real thread_terminate + vm_deallocate)
+    <braunr> (or any reason not to)
+    <youpi> thread stack deallocation is always a burden indeed
+    <youpi> I'd tend to think it'd be useful, but perhaps ask the list
+
+
+## IRC, freenode, #hurd, 2013-06-26
+
+    <braunr> looks like there is a port right leak in libpthread
+    <braunr> grmbl, the port leak seems to come from mach_port_destroy being
+      buggy :/
+    <braunr> hum, apparently we're not the only ones to suffer from port leaks
+      wrt mach_port_destroy
+    <braunr> ew, libpthread is leaking
+    <pinotree> memory or ports?
+    <braunr> both
+    <pinotree> sounds great ;)
+    <braunr> as it is, libpthread doesn't destroy threads
+    <braunr> it queues them so they're recycled late
+    <braunr> r
+    <braunr> but there is confusion between the thread structure itself and its
+      internal resources
+    <braunr> i.e. there is pthread_alloc which allocates a thread structure,
+      and pthread_create which allocates everything else
+    <braunr> but on pthread_exit, nothing is destroyed
+    <braunr> when a thread structure is reused, its internal resources are
+      replaced by new instances
+    <pinotree> oh
+    <braunr> it's ok for joinable threads but most of our threads are detached
+    <braunr> pinotree: as expected, it's bigger than expected :p
+    <braunr> so i won't be able to write a quick fix
+    <braunr> the true way to fix this is make it possible for threads to free
+      their own resources
+    <braunr> let's do that :p
+    <braunr> ok, got the new thread termination function, i'll build eglibc
+      package providing it, then experiment with libpthread
+    <pinotree> braunr: iirc there's also a tschwinge patch in the debian eglibc
+      about that
+    <braunr> ah
+    <pinotree> libpthread_fix.diff
+    <braunr> i see
+    <braunr> thanks for the notice
+    <braunr> bddebian:
+      http://www.sceen.net/~rbraun/0001-thread_terminate_deallocate.patch
+    <braunr> bddebian: this is what it looks like
+    <braunr> see, short and easy
+    <bddebian> Aye but didn't youpi say not to bother with it??
+    <braunr> he did ?
+    <braunr> i don't remember
+    <bddebian> I thought that was the implication.  Or maybe that was the one I
+      already did!?
+    <braunr> i'd be interested in reading that
+    <braunr> anyway, there still are problems in libpthread, and this call is
+      one building block to fix some of them
+    <braunr> some important ones
+    <braunr> (big leaks)
+
+
+## IRC, freenode, #hurd, 2013-06-29
+
+    <braunr> damn, i fix leaks in libpthread, only to find out leaks somewhere
+      else :(
+    <braunr> bddebian: ok, actually it was a bit more complicated than what i
+      showed you
+    <braunr> because in addition to the stack, the call must also release the
+      send right in the caller's ipc space
+    <braunr> (it can't be released before since there would be no mean to
+      reference the thread to destroy)
+    <braunr> or perhaps it should strictly be reserved to self termination
+    <braunr> hmm
+    <braunr> yes it would probably be simpler
+    <braunr> but it should be a decent compromise
+    <braunr> i'm close to having a libpthread that doesn't leak anything
+    <braunr> and that properly destroys threads and their resources
+
+
+## IRC, freenode, #hurd, 2013-06-30
+
+    <braunr> bddebian: ok, it was even more tricky, because the kernel would
+      save the return value on the user stack (which is released by the call
+      and then invalid) before checking for asynchronous software traps (ASTs,
+      a kind of software interrupts in mach), and terminating the calling
+      thread is done by a deferred AST ... :)
+    <braunr> hmm, making threads able to terminate themselves makes rpctrace a
+      bit useless :/
+    <braunr> well, more restricted
+
+    <braunr> ok so, tough question :
+    <braunr> i have a small test program that creates a thread, and inspect its
+      state before any thread dies
+    <braunr> i can see msg_report_wait requests when using ps
+    <braunr> (one per thread)
+    <braunr> one of these requests create a new receive right, apparently for
+      the second thread in the test program
+    <braunr> each time i use ps, i can see the sequence numbers of two receive
+      rights increase
+    <braunr> i guess these rights are related to proc and signal handling per
+      thread
+    <braunr> but i can't find what create them
+    <braunr> does anyone know ?
+    <braunr> tschwing_: ^ :)
+
+    <braunr> again, too many things wrong elsewhere to cleanly destroy threads
+      ..
+    <braunr> something is deeply wrong with controlling terminals ..
+
+
+## IRC, freenode, #hurd, 2013-07-01
+
+    <braunr> youpi: if you happen to notice what receive right is created for
+      each thread (beyond the obvious port used for blocking and waking up),
+      please let me know
+    <braunr> it's the only port leak i have with thread destruction
+    <braunr> and i think it's related to the proc server since i see the
+      sequence number increase every time i use ps
+
+    <braunr> pinotree: my change doesn't fix all the pthread leaks but it's a
+      lot better
+    <braunr> bddebian: i've spent almost the whole week end trying to find the
+      last port leak without success
+    <braunr> there is some weird bug related to the controlling tty that hits
+      me every time i try to change something
+    <braunr> it's the same bug that prevents ttys from being correctly closed
+      when using ssh or screen
+    <braunr> well maybe not the same, but it's close
+    <braunr> some stale receive right kept around for no apparent reason
+    <braunr> and i can't find its source
+
+
+## IRC, freenode, #hurd, 2013-07-02
+
+    <braunr> and btw, i don't think i can make my libpthread patch work
+    <braunr> i'll just aim at avoiding leaks, but destroying threads and their
+      related resources depends on other changes i don't clearly see
+
+
+## IRC, freenode, #hurd, 2013-07-03
+
+    <braunr> grmbl, i don't want to give up thread destruction ..

@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2008, 2009, 2010, 2011 Free Software Foundation,
-Inc."]]
+[[!meta copyright="Copyright © 2008, 2009, 2010, 2011, 2013 Free Software
+Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -9,25 +9,69 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
+[[!toc]]
+
+
+# "Weird Issue"
+
+## IRC, freenode, #hurd, 2013-07-01
+
 [[!tag open_issue_hurd]]
 
-There have been several discussions and proposals already, about adding a
-suitable logging mechanism to translators, for example.
+    <teythoon> oh, btw, there is this weird issue that I cannot figure out
+    <teythoon> I noticed that there is no newline printed by /hurd/init after
+      printing " proc" and " auth"
+    <teythoon> but there *is* a printf("\n"); fflush(stdout); in there
+    <teythoon> it's just not working
+    <pinotree> iirc a newline is supposed to be printed after all the essential
+      servers have been started
+    <pinotree> that one
+    <teythoon> yes
+    <teythoon> but this doesn't happen
+    <teythoon> for whatever reason printf("foo"); yields no output
+    <braunr> how are proc and auth printed ?
+    <teythoon> neither does printf("%s", "foo");
+    <teythoon> using printf
+    <teythoon> but printf("%i fooo", 4); works
+    <youpi> uh
+    <braunr> ??
+    <youpi> and does printf("loooooooooong line") worker?
+    <teythoon> no
+    <youpi> uh
+    <youpi> -er
+    <teythoon> and yes, the code is always fflushing stdout
+    <youpi> perhaps trying to put a sleep(1); to check for timing issues?
+    <teythoon> yes, I suspect something like that
+    <teythoon> b/c *sometimes* my hurd just freezes at this point
+    <braunr> ???
+    <teythoon> after printing proc auth and not printing the newline
+    <braunr> such horror stories .
+    <braunr> ..
+    <teythoon> and I *think* that putting more printfs there for testing
+      purposes makes this worse, but I'm not sure about this
+    <braunr> in case you need to debug using printf, there is the mach_print
+      system call
+    <braunr> (in -dbg kernels)
+
+[[microkernel/mach/gnumach/interface/syscall/mach_print]].
+
+    <teythoon> what's wrong with using printf?
+    <braunr> you need to write the little assembly call yourself, where you
+      intend to use it, because it's not exported by glibc
+    <braunr> printf is an RPC
+    <braunr> teythoon: RPCs are complicated stuff
+    <braunr> in particular in core glibc parts like signal handling
+    <youpi> and printf goes through the console translator
+    <braunr> also, if you don't yet have a console server available, it comes
+      in handy
+    <youpi> better direct output directly to the kernel
 
 
-Decide / implement / fix that (all?) running (passive?) translators' output
-should show up on the (Mach / Hurd) console / syslog.
+# `stderr` buffered
 
+## IRC, freenode, #hurd, 2011-11-06
 
-[[!taglink open_issue_documentation]]: [[!message-id
-"87oepj1wql.fsf@becket.becket.net"]]
-
-
-[[!taglink open_issue_documentation]]: Neal once had written an email on this
-topic.
-
-
-IRC, freenode, #hurd, 2011-11-06
+[[!tag open_issue_hurd]]
 
     <youpi> about CLI_DEBUG, you can use #define CLI_DEBUG(fmt, ...) {
       fprintf(stderr, fmt, ## __VA_ARGS__); fflush(stderr); }
@@ -40,7 +84,24 @@ IRC, freenode, #hurd, 2011-11-06
     <tschwinge> That sounds wrong.
 
 
-IRC, freenode, #hurd, 2011-11-23
+# Logging
+
+[[!tag open_issue_hurd]]
+
+There have been several discussions and proposals already, about adding a
+suitable logging mechanism to translators, for example.
+
+Decide / implement / fix that (all?) running (passive?) translators' output
+should show up on the (Mach / Hurd) console / syslog.
+
+[[!taglink open_issue_documentation]]: [[!message-id
+"87oepj1wql.fsf@becket.becket.net"]]
+
+[[!taglink open_issue_documentation]]: Neal once had written an email on this
+topic.
+
+
+## IRC, freenode, #hurd, 2011-11-23
 
     <braunr> we'd need a special logging task for hurd servers
     <pinotree> if syslog would work, that could be used optionally

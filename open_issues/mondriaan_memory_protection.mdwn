@@ -1,0 +1,85 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+<http://scale.eecs.berkeley.edu/mondriaan/>.
+
+
+# IRC, freenode, #hurd, 2013-07-02
+
+    <xscript> in any case, what I wanted to check is if current hurd support
+      PIE
+    <xscript`> I just saw samuel posted some fixes to have PIE working in hurd
+    <xscript`> are those included in the official image?
+    <youpi> sure
+    <youpi> it's just a trivial fixup in some address calculation code
+    <xscript> youpi: nice
+    <xscript> and does anyone know how complex would it be to implement some
+      hackish support to have non-overlapping virtual addresses for
+      applications supporting PIE?
+    <braunr> not too difficult
+    <xscript> really? I didn't expect such an answer XD
+    <xscript> I'd like to have something similar to a SASOS
+    <xscript> (single address space os)
+    <braunr> ?
+    <braunr> you mean an sasos on top of mach ?
+    <xscript> yes, but only for a few apps I want to evaluate
+    <braunr> i see
+    <xscript> the optimal would be to have all of hurd's servers on that mode
+    <braunr> you'l probably need to implement a small allocator but other than
+      that it shouldn't be too hard, yes
+    <braunr> uh ??
+    <xscript> but running on 32 bits can be a problem here
+    <braunr> and not hurdish at all
+    <xscript> what's not hurdish?
+    <braunr> we do want address space separation
+    <xscript> well, you can have multiple address spaces (page tables), but
+      without overlapping addresses between them
+    <xscript> that's exactly what I'm looking for
+    <braunr> sorry i don't see what you mean
+    <braunr> if you run several servers in the same address space, they can
+      corrupt each other
+    <braunr> we don't want that
+    <braunr> it's that simple
+    <xscript> yes, sorry, I didn't explain myself
+    <xscript> I want a separate address space on each server
+    <xscript> but I want all memory allocations to be on addresses unique to
+      the whole OS
+    <braunr> that still doesn't make sense
+    <xscript> well, it will still be secure
+    <xscript> but I know it does not make sense per se
+    <xscript> I want to do some experiments with a simulator
+    <braunr> why do you want them non overlapping if they're separate ?
+    <xscript> well, in my simulator I wouldn't need to change the page tables,
+      protection is provided through other means
+    <braunr> segmentation ?
+    <xscript> that's one possibility
+    <xscript> (small address spaces)
+    <braunr> what do you have in mind ?
+    <braunr> it wouldn't be on top of mach anyway then
+    <braunr> mach implements paging
+    <xscript> what I'm simulating is something of the likes of Mondriaan
+      (http://www.cs.utexas.edu/~witchel/pubs/mmp-asplos2002.pdf)
+    <xscript> paging is ok for me
+    <braunr> 19:06 < xscript> well, in my simulator I wouldn't need to change
+      the page tables, protection is provided through other means
+    <braunr> it didn't sound so
+    <xscript> I meant switching page tables (cr3, etc)
+    <braunr> mach does that
+    <xscript> I know, I know, I can just ignore that part for the moment
+    <braunr> ok
+    <xscript> for now, I'd like to morph hurd into a SASOS using one page table
+      per process
+    <xscript> I just wanted to know how hard that would be, without starting
+      with a full dive into the code
+    <xscript> there are other options (OSes, microkernels), but none of them
+      provides as many readily-available applications as hurd
+    <xscript> I suppose MINIX would also be easy to modify, but there's less
+      apps there, and I also would like to tamper with MIG
+    <xscript> I just wonder how hard it would be to modify MIG

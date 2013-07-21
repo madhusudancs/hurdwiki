@@ -1,0 +1,450 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!toc]]
+
+
+# IRC, freenode, #hurd, 2013-06-29
+
+    <teythoon> so, how is your golang port going?
+    <nlightnfotis> I just started working on it. I had been reading
+      documentation so far. Maybe over reading as people told me when I asked
+      for their feedback
+    <nlightnfotis> but I will report on what I have done (technically tomorrow,
+      and post it in the mailing list too.
+
+    <nlightnfotis> Hey guys, what could possibly cause the following error
+      message when executing a program in the Hurd? "./dumper: Could not open
+      note: (system server) error with unknown subsystem"
+    <nlightnfotis> My program is one that opens a file and dumps it into stdout
+    <nlightnfotis> pinotree: the code I am using is the one present here
+      http://www.gnu.org/software/hurd/hacking-guide/hhg.html under paragraph
+      6.1
+    <nlightnfotis> I investigated it a bit but can not find a lead. I seem to
+      have all the rights to open the file that I want to dump to stdout
+    <pinotree> what if you reset errno to 0 just after all the declarations in
+      main, before the instructions?
+    <nlightnfotis> will check this out and get back to you.
+    <pinotree> sure :)
+    <nlightnfotis> pinotree: Now it suggests that it can't get the number of
+      readable files, which the source suggests that is normal behavior.
+      Thanks for your assistance.
+
+
+# IRC, freenode, #hurd, 2013-07-01
+
+    <nlightnfotis> youpi: from my part I can report that I have started working
+      with the code, and doing as Thomas suggested. I was about to write my
+      report yesterday, but I am facing some build errors on the HURD, which I
+      would like to investigate further before I write my report.
+    <nlightnfotis> that's why I decided to write it later in the day.
+    <youpi> I don't think you have to wait
+    <youpi> you can simply write in your report that you are having build
+      errors
+    <nlightnfotis> ok. I will have it written and delivered later in the day.
+    <nlightnfotis> braunr: that's cool. I think my reading has paid for
+      itself. And you may be pleased to know that I have gotten my hands dirty
+      with the code. I was about to write report yesterday, but some build
+      errors with the gcc (that I am investigating atm) are holding me
+      off. Will have that written later in the day.
+    <braunr> don't hesitate to ask help about build errors
+    <braunr> don't wait too much
+    <braunr> you need to progress on what matters, and not be blocked by
+      secondary problems
+    <nlightnfotis> I will see myself asking for help rather sooner than later,
+      but I would like to investigate it myself, and attempt to solve the
+      issues that occur to me before resort to bugging you guys.
+    <braunr> sure
+    <braunr> just not too long
+    <braunr> too long being a day or so
+    <nlightnfotis> these were my build_results on the hurd
+    <nlightnfotis> they were linker errors
+    <nlightnfotis>
+      https://gist.github.com/NlightNFotis/5896188#file-build_results
+    <nlightnfotis> I am trying to build gcc on a linux 32 bit environment. It
+      also has some issues but not linker errors
+    <nlightnfotis> will resolve them to see if the linker errors are
+      reproducible on linux
+    <braunr> oh, lex stuff
+    <braunr> should be easy enough
+
+
+# IRC, freenode, #hurd, 2013-07-05
+
+    <nlightnfotis> I have not made much progress, but I see myself working with
+      it.
+    <nlightnfotis> I have managed to build gcc go on Linux
+    <nlightnfotis> but Hurd seems to have some issues
+    <nlightnfotis> it seems to randomly crash
+    <teythoon> the build process?
+    <nlightnfotis> not quite randomly it seems to be though
+    <nlightnfotis> yeah
+    <nlightnfotis> I have noticed that there is a pattern
+    <nlightnfotis> it does crash after some time
+    <teythoon> ^^
+    <nlightnfotis> but it doesn't crash at specific files
+    <braunr> define crash
+    <nlightnfotis> at some times it may crash during compiling insn-emit.c
+    <braunr> (hello guys)
+    <teythoon> hi braunr :)
+    <nlightnfotis> braunr: hey there! It does seem to keep on compiling this
+      file for a very long time (I have let it do so for 10, 20, 30 minutes)
+      but the result is the same
+    <nlightnfotis> and it does so for different files for different build
+      options
+    <braunr> ok so it doesn't crash
+    <braunr> it just doesn't complete
+    <braunr> is the virtual machine eating 100% cpu during that time ?
+    <nlightnfotis> I can still type at the terminal, but I can't send a term
+      signal
+    <nlightnfotis> I can report that QEMU does hold 100% of one core at that
+      time, (like it keeps processing) but there is no output on the terminal
+    <braunr> ok
+    <nlightnfotis> of course I can type at the terminal
+    <nlightnfotis> but nothing happens
+    <braunr> any idea of the size of the files involved ?
+    <nlightnfotis> I am checking it out right now
+    <nlightnfotis> before this goes any further, let me report on my
+      investigation
+    <braunr> i expect that to be our classic writeback thread storm issue
+    <nlightnfotis> initially, I thought it might be that it run out of memory
+    <nlightnfotis> even though I know that compilation is not memory intensive,
+      rather, cpu intensive
+    <nlightnfotis> anyway I increased the size of ram available to the vm
+    <nlightnfotis> from 1024 mb to 1536
+    <nlightnfotis> that didn't seem to have any effect. The "crash" still
+      happens at the same time, at the same files
+    <braunr> use freeze
+    <braunr> not crash
+    <braunr> crash is very misleading here
+    <nlightnfotis> freeze it is then.
+    <nlightnfotis> anyway
+    <nlightnfotis> then it striked me that it might be that the hard disk size
+      (3gb) might be too small (considering the gcc git repo is 1gb+)
+    <nlightnfotis> so I resized the qemu image to 8gb of hdd size
+    <nlightnfotis> the new size is acknowledged by the vm
+    <pinotree> for gcc in debug mode? might still not be enough
+    <nlightnfotis> but still it has no effect - it seems to follow its freezing
+      patterns
+    <pinotree> giving your work, i'd have not less than 15-20
+    <braunr> i'd use 32
+    <pinotree> *given
+    <braunr> but that's because i like power of twos
+    <nlightnfotis> pinotree: thanks for the advice. Right now I was gonna
+      increase the swap size
+    <nlightnfotis> according to vmstat in the hurd
+    <nlightnfotis> swap size is 173 mb
+    <nlightnfotis> don't know if it does have an impact
+    <braunr> it may but before rushing
+    <braunr> if you need swap, you're doomed anyway
+    <braunr> consider swap highly unreliable on the hurd
+    <braunr> please show the output of df -h on the file system you're using to
+      build
+    <braunr> ideally, i'd recommend using separate / and /home file systems
+    <braunr> it really improves reliability
+    <nlightnfotis> I don't think it swaps to be honest; however that's
+      something that my mentor thomas had suggested (increasing swap size) so I
+      am gonna try it at some time.
+    <pinotree> or have a separate file system in a subdi and work on it
+    <braunr> yes, /home or whatever suits you
+    <braunr> just not /
+    <nlightnfotis> braunr: pinotree: thanks both for your advice. Will do now,
+      and report on the results.
+    <braunr> that's not all
+    <braunr> 11:17 < braunr> please show the output of df -h on the file system
+      you're using to build
+    <nlightnfotis> braunr: I am on it. Oh and btw, everytime I am forced to
+      close the vm (due to the freezes) when I restart it ext2 reports that the
+      file system was not cleanly unmounted and does some repair to some
+      files. I am trying to find an explanation for that, but I can think of
+      many things
+    <braunr> well obviously
+    <pinotree> ext2 has no journaling
+    <braunr> the file system was not cleanly unmounted since you restarted it
+      with a cold reset
+    <nlightnfotis> braunr: df -h comes out with this: "df: cannot read table of
+      mounted file systems"
+    <pinotree> also, even if you manage to always shut down correctly, when
+      fsck runs because of the maximum mount count it'd find errors anyway (so
+      we have some bug)
+    <braunr> nlightnfotis: df -h /path/to/build/dir
+    <braunr> pinotree: not really bugs but it could be cleaned up
+    <nlightnfotis> filesystem: - Size 2.8G Used 2.8G Avail 0 Use% 100% Mounted
+      on /
+    <nlightnfotis> wow
+    <braunr> nlightnfotis: see
+    <nlightnfotis> that seems to explain many things
+    <teythoon> ^^
+    <nlightnfotis> thanks for that braunr!
+    <braunr> you resized the disk, but not the partition and the file system
+    <pinotree> braunr: well, if something in ext2 (or its libs) leaves issues
+      in the fs, i'd call that a bug :>
+    <nlightnfotis> yeah, that was utterly stupid of me
+    <braunr> pinotree: they're not issues
+    <braunr> nlightnfotis: be careful, mach needs a reboot every time you
+      change a partition table
+    <teythoon> nlightnfotis: important thing is that you found the issue :)
+    <braunr> then only, you can use resize2fs
+    <teythoon> braunr: weird, I thought mach nowadays can reload the partition
+      tables?
+    <teythoon> braunr: doesn't d-i need that?
+    <braunr> maybe a recent change i forgot
+    <braunr> or maybe fdisk still reports the error although it's fine
+    <braunr> in doubt, rebooting is still safe :p
+    <teythoon> or maybe youpi hacked it into d-is gnumach
+    <braunr> i doubt it would be there for the installer only :)
+    <braunr> if it's there, it's there
+    <braunr> i just don't know it
+    <nlightnfotis> braunr: teythoon: and everyone else that helped me. Thanks
+      you all guys. This was something that was driving me crazy. Will do all
+      that you suggested and report back on my status
+
+
+# IRC, freenode, #hurd, 2013-07-08
+
+    <nlightnfotis> tschwinge, I have managed to overcome most of the obstacles
+      I had initially faced with my project
+    <nlightnfotis> but I still had some build errors, that's why I have not
+      reported yet. Wanna try to see if I can resolve them today, and write my
+      report in the afternoon.
+    <tschwinge> nlightnfotis: So, from a quick look into the IRC backlog, it
+      was a "simple" out of disk space problem?  %-)  That happens.
+    <tschwinge> nlightnfotis: And yes, GCC needs a lot of disk space.
+    <tschwinge> nlightnfotis: What kind of build errors are you seeing now?
+    <nlightnfotis> tschwinge, yeah I felt stupid at the time, but it didn't
+      actually strike me that the file system didn't see the extra space. Also
+      it took me some time to figure out that in order to mount the new
+      partition, I only had to edit /etc/fstab
+    <nlightnfotis> always tried to mount it with the ext2 translator
+    <nlightnfotis> and the translator kept dying
+    <nlightnfotis> but it's all figured out now
+    <nlightnfotis> the latest build errors I am seeing are these
+    <teythoon> nlightnfotis: o_O you used fstab and it worked?
+    <nlightnfotis> yeah
+    <teythoon> nlightnfotis: that's unexpected from my perspective...
+    <nlightnfotis> I only had to add the new partition into fstab
+    <nlightnfotis> teythoon: I can pastebin my fstab if you wanna take a look
+      at it
+    <nlightnfotis> tschwinge: these were my latest build errors
+      https://www.dropbox.com/s/b0pssdnfa22ajbp/build_results
+    <teythoon> nlightnfotis: I'm pretty sure that mount -a isn't done on hurd
+      w/o pinos runsystem.sysv
+    <teythoon> weird
+    <nlightnfotis> tschwinge: I have also tried to build gcc with "make -w"
+      which from what I know supresses the errors that stopped compilation
+    <nlightnfotis> but the weird thing is that gcc nearly took forever to build
+    <teythoon> nlightnfotis: could you do a showtrans /your/mountpoint?
+    <nlightnfotis> teythoon: /hurd/ext2fs /dev/hd0s3
+    <teythoon> nlightnfotis: ok, so you've set a passive translator and an
+      active is started on demand
+    <nlightnfotis> it must be a passive translator
+    <teythoon> nlightnfotis: this is the hurd way of doing things, fstab is
+      unrelated
+    <nlightnfotis> it seems to persist during reboots
+    <teythoon> yes, exactly
+    <nlightnfotis> teythoon: my fstab if you wanna take a look
+      http://pastebin.com/ef94JPhG
+    <nlightnfotis> after I added /dev/hd0s3 to fstab along with its mountpoint,
+      and restarting the hurd, only then I did manage to use that partition
+    <nlightnfotis> before doing so I tried pretty much anything involving
+      mounting the partition and setting the ext2fs translator for it, but it
+      kept dying
+    <nlightnfotis> of course it was a ext2 filesystem
+    <youpi> err, perhaps adding to fstab simply triggered an fsck at reboot?
+    <teythoon> nlightnfotis: might have been that you needed to reboot mach so
+      that it picks up the new partition table
+    <teythoon> youpi: I thought this was fixed, the partition reloading I mean?
+    <youpi> that is needed, yes
+    <youpi> let me check
+    <nlightnfotis> youpi: it could be, though, to be honest, my hurd system
+      does an fsck all the time at boot
+    <teythoon> how do you manage to do that w/o rebooting for d-i?
+    <youpi> (I don't remember whether device busy is detected)
+    <youpi> teythoon: by making all translators go away, iirc
+    <teythoon> nlightnfotis: btw, you have ~/gcc_new as mountpoint in your
+      fstab, pretty sure that this cannot work, the path has to be absolute and
+      no ~ expansion is done
+    <nlightnfotis> tbh it does work, and it's weird
+    <teythoon> nlightnfotis: it works b/c of the passive translator you set,
+      not b/c of the fstab entry
+    <nlightnfotis> teythoon: should I change it?
+    <teythoon> probably, yes
+    <tschwinge> Well, that is probably not used anywhere.
+    <teythoon> tschwinge: not yet but soon ;)
+    <tschwinge> Isn't /etc/fstab only consulted for fsck.
+    <youpi> atm yes
+    <tschwinge> Anyway, it is definitely a very good idea to have a partition
+      separate from the rootfs for doing actual work.
+    <tschwinge> I think I described that in one of the first GSoC coodridation
+      emails.  In the long one.
+    <nlightnfotis> teythoon: Oh it struck me now! Is it because tilde expansion
+      is only happening in bash, but /etc/fstab is read before bash is
+      initialized?
+    <tschwinge> nlightnfotis: Instead of fumbling around with partitioning of
+      disk images, it may be easier in your KVM/QEMU setup to simply add a new
+      disk using -hdb [file] (or similar).
+    <tschwinge> nlightnfotis: Basically, yes.
+    <youpi> nlightnfotis: fstab is not related with bash in any way
+    <nlightnfotis> anyway, it shouldn't matter now, it seems to be working, and
+      I wouldn't like fiddling around with it and messing it up now. I will
+      continue with resolving the gcc issues.
+    <tschwinge> But /etc/fstab has its very own "language" (layout), so tilde
+      expansion will never be done there.
+    <tschwinge> nlightnfotis: df -h ~/gcc_new/
+    <nlightnfotis> tschwinge: size 24G Used: 4.2G Avail 18G
+    <tschwinge> OK, that's fine.
+    <tschwinge> As you can see on
+      <http://darnassus.sceen.net/~hurd-web/open_issues/gcc/#index4h1>, GCC
+      will easily need some GiB.
+    <nlightnfotis> tschwinge: I have some questions about GCC: out of curiosity
+      how much time does it take to compile it on your machine? Because
+      yesterday I tried a -w (suppress warnings) build and it seemed to take
+      forever
+    <nlightnfotis> mind you the vm has 1536 ram available (I have read
+      somewhere that it can utilise such an amount) and the vm is KVM enabled
+    <youpi> without disabling g++, it can easily take hours
+    <tschwinge> nlightnfotis: The build error is unexpected, because I had
+      addressed that issue in a recent patch.  :-)
+    <tschwinge> nlightnfotis: This is wrong: »checking whether setcontext
+      clobbers TLS variables... [...] yes«.  Please check your sources, that
+      they correspond to the current version of the upstream
+      tschwinge/t/hurd/go branch.
+    <tschwinge> nlightnfotis: Quoting from that wiki page: »This takes up
+      around 3.5 GiB, and needs roughly 3.5 h on kepler.SCHWINGE and 15 h on
+      coulomb.SCHWINGE.«  The latter is my Hurd machine.
+    <tschwinge> That's however with Java and Ada enabled, and a full
+      three-stages bootstrap.
+    <youpi> ah, right, there's java & ada too
+    <nlightnfotis> tschwinge: git branch (in the repo): master,
+      *tschwinge/t/hurd/go
+    <youpi> in debian they are built separately
+    <tschwinge> What I asked you to do is configure »--disable-bootstrap
+      --enable-languages=go«.
+    <tschwinge> So that should be a lot quicker.
+    <nlightnfotis> tschwinge: oh yes, everytime I have tried to compile gcc I
+      have done with these configurations
+    <tschwinge> But still a few hours perhaps.
+    <nlightnfotis> that's what I did yesterday too.
+    <tschwinge> OK, good.  :-)
+    <tschwinge> A bootstrap build is a good way to check the just-built GCC for
+      sanity, but we expect that it is fine, as we concentrate on the GCC Go
+      port.
+    <nlightnfotis> the only "extra" configuration yesterday was my "-w" flag to
+      make, because those errors were actually triggered by -Werror
+    <tschwinge> Let me read up what make -w does.  ;-)
+    <nlightnfotis> ah, yes, d/w I have read and understood what the bootstrap
+      build is. Seems like we don't need it atm
+    <nlightnfotis> afaik it suppresses all warnings
+    <pinotree> youpi: gcj no more
+    <nlightnfotis> the way gcc builds, it does convert (some) warnings to
+      errors
+    <tschwinge> Hmm.  -w, --print-directory Print a message containing the
+      working directory before and after other processing.
+    <pinotree> youpi: doko folded gcj and gdc into gcc-4.8 to "workaround"
+      Built-Using
+    <tschwinge> nlightnfotis: Ah, that'S configure --enable-werror or something
+      like that.
+    <youpi> pinotree: right
+    <nlightnfotis> yep, and -w suppresses it
+    <nlightnfotis> (from what I have understood)
+    <tschwinge> nlightnfotis: Are you thinking about make -k?
+    <tschwinge> Yeah, I guess.
+    <nlightnfotis> let me see what -k does
+    <pinotree> youpi: (just to make builds even more lightweight, eh</irony>)
+    <nlightnfotis> yeah, -k should do too, I shall try it
+    <tschwinge> But: if gcc -Werror fails, even with make -k, the build will
+      not be able to come to a successful end, because that one complation
+      artefact that failed will be missing.
+    <nlightnfotis> so I shall try again with -w (supressed warnings)
+    <tschwinge> Configureing with --disable-werror (or similar) will "help" if
+      -Werror is the default, and the build fails due to that.
+    <nlightnfotis> from what I have understood these "errors" are not something
+      critical: it's only that function prototypes for these functions are
+      missing
+    <nlightnfotis> I have seen the code there, and even "default" gcc generated
+      prototypes (from the first usage of the function) should do, so I can't
+      understand why it might be a serious problem if I tell gcc to skip that
+      point
+    <tschwinge> nlightnfotis: Ah, now I see.  You don't mean make -w, but
+      rather gcc -w: »-w  Inhibit all warning messages.«
+    <tschwinge> But really, there shouldn't be such warnings/errors that make
+      the build fail.
+    <nlightnfotis> yeah
+    <tschwinge> nlightnfotis: In your GCC sources directory, what does this
+      tell: git rev-parse HEAD
+    <tschwinge> And, is the checkout clean: git status
+    <tschwinge> The latter will take some time.
+    <nlightnfotis> git status takes an awful amount of time
+    <nlightnfotis> last I checked
+    <nlightnfotis> but git rev-parse HEAD
+    <nlightnfotis> produces this result:
+    <nlightnfotis> 91840dfb3942a8d241cc4f0e573e5a9956011532
+    <tschwinge> OK, that's correct.  So probably some of the checked out files
+      are not in a pristine state?
+    <nlightnfotis> I shall run a git clean and see. If that doesn't work too,
+      maybe I shall reclone the repository?
+    <nlightnfotis> there's nothing foreign to the repo that I have added, only
+      lib gmp, lib mpc and lib mpfr (and they are in their own folders inside
+      my gcc working directory)
+    <tschwinge> nlightnfotis: You shouldn't need to do the latter if you
+      instead run: apt-get build-dep gcc-4.8
+    <nlightnfotis> I remember having done that inside the Hurd, but it always
+      resulted in an error from what I can recall
+    <nlightnfotis> let me check this out
+    <nlightnfotis> yes
+    <tschwinge> nlightnfotis: Whenever you use Git on Hurd, pass the --quiet
+      flag, to avoid the rare but possible corruption issue described on
+      <http://darnassus.sceen.net/~hurd-web/open_issues/git_duplicated_content/>
+      and <http://darnassus.sceen.net/~hurd-web/open_issues/git-core-2/>.
+    <nlightnfotis> tschwinge: Forgive me for that. I will set up an alias
+      immediately.
+    <tschwinge> nlightnfotis: I don't know if an alias is possible, because --
+      I think -- you'll need to do things like: git fetch --quiet
+    <tschwinge> So pass --quiet to subcommands.
+    <nlightnfotis> oh. ok.
+    <tschwinge> nlightnfotis: What you can also do, is shut down your Hurd VM,
+      and mount the disk image on GNU/Linux (mount with offset to get the right
+      partition), and then run a diff -ru against a Git clone done on
+      GNU/Linux, and see whether there are any unexpected differences outside
+      of the .git/ directory.
+    <nlightnfotis> sounds like a plan. I will check this out today then :)
+    <nlightnfotis> tschwinge: if all else fails, then recloning the repo with
+      --quiet passed should work, right?
+    <tschwinge> Yes, that's probably the most straight-forward check to do.
+    <tschwinge> Heh, yes to both these questions.  :-)
+    <tschwinge> nlightnfotis: Oh, you don't even have to re-clone, but rather
+      re-check-out the branch.
+    <nlightnfotis> I was thinking of recloning just to bring the whole
+      repository to a pristine state
+    <tschwinge> So something like (inside the source directory): rm -rf ./*
+      (remove any files, but leave .* in place, in particular the .git/
+      directory), followd by git checkout -f HEAD --quiet
+    <tschwinge> nlightnfotis: But before doing that, please do the diff first,
+      so that we know (hopefully) where the erroneous build results were coming
+      from.
+    <nlightnfotis> considering the Copyright assignment files, I have sent them
+      from day 1 (that is the 20th of June). I have not heard anything about
+      those documents to date (sadly)
+    <nlightnfotis> what's worst is that although I have a reference number to
+      track those documents, their (greek postal office) tracking service sucks
+      so badly, that one day it's offline, the next it suggests it can't find
+      the object in their database, the next it says it is still in the local
+      post office
+    <nlightnfotis> let me check it out now
+    <nlightnfotis> still nothing from their online service
+    <nlightnfotis> let me call them
+    <nlightnfotis> tschwinge: I called the post office regarding the copyright
+      papers. They told me that the same day (the 20th of June) it left from
+      Herakleion, Crete to Athens and the same day it must have left the
+      country heading towards the US. They also told me it takes about 1 week
+      for it to arrive.
+    <tschwinge> nlightnfotis: OK, so probably waiting at the FSF office to be
+      processed.  Let's allow for some more time.  After all, this is not
+      critical for your progress.

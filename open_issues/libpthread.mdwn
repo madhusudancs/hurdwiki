@@ -1260,7 +1260,7 @@ Most of the issues raised on this page has been resolved, a few remain.
     <braunr> i'll add traces to know which step causes the error
 
 
-### IRC, freenode, #hurd, 2012-12-11
+#### IRC, freenode, #hurd, 2012-12-11
 
     <youpi> braunr: mktoolnix seems like a reproducer for the libports thread
       priority issue
@@ -1273,7 +1273,7 @@ Most of the issues raised on this page has been resolved, a few remain.
     <youpi> that's it, yes
 
 
-### IRC, freenode, #hurd, 2013-03-01
+#### IRC, freenode, #hurd, 2013-03-01
 
     <youpi> braunr: btw, "unable to adjust libports thread priority: (ipc/send)
       invalid destination port" is actually not a sign of fatality
@@ -1282,6 +1282,34 @@ Most of the issues raised on this page has been resolved, a few remain.
     <braunr> but it means that, for some reason, a process looses a right for a
       very obscure reason :/
     <braunr> weird sentence, agreed :p
+
+
+#### IRC, freenode, #hurd, 2013-06-14
+
+    <gnu_srs> Hi, when running check for gccgo the following occurs (multiple
+      times) locking up the console
+    <gnu_srs> unable to adjust libports thread priority: (ipc/send) invalid
+      destination port
+    <gnu_srs> (not locking up the console, it was just completely filled with
+      messages))
+    <braunr> gnu_srs: are you running your translator as root ?
+    <braunr> or, do you have a translator running as an unprivileged user ?
+    <braunr> hm, invalid dest port
+    <braunr> that's a bug :p
+    <braunr> but i don't know why
+    <braunr> i'll have to take some time to track it down
+    <braunr> it might be a user ref overflow or something similarly tricky
+    <braunr> gnu_srs: does it happen everytime you run gccgo checks or only
+      after the system has been alive for some time ?
+    <braunr> (some time being at least a few hours, more probably days)
+
+#### IRC, freenode, #hurd, 2013-07-05
+
+    <braunr> ok, found the bug about invalid ports when adjusting priorities
+    <braunr> thhe hurd must be plagued with wrong deallocations :(
+    <braunr> i have so many problems when trying to cleanly destroy threads
+
+[[libpthread/t/fix_have_kernel_resources]].
 
 
 ### IRC, freenode, #hurd, 2013-03-11
@@ -1295,6 +1323,171 @@ Most of the issues raised on this page has been resolved, a few remain.
     <braunr> easy to fix but worth saying to keep in mind
     <youpi> uh
     <youpi> indeed
+
+### IRC, freenode, #hurd, 2013-07-01
+
+    <youpi> braunr: it seems as if pfinet is not prioritized enough
+    <youpi> I'm getting network connectivity issues when the system is quite
+      loaded
+    <braunr> loaded with what ?
+    <braunr> it could be ext2fs having a lot more threads than other servers
+    <youpi> building packages
+    <youpi> I'm talking about the buildds
+    <braunr> ok
+    <braunr> ironforge or others ?
+    <youpi> they're having troubles uploading packages while building stuff
+    <youpi> ironforge and others
+    <youpi> that happened already in the past sometimes
+    <youpi> but at the moment it's really pronounced
+    <braunr> i don't think it's a priority issue
+    <braunr> i think it's swapping
+    <youpi> ah, that's not impossible indeed
+    <youpi> but why would it swap?
+    <youpi> there's a lot of available memory
+    <braunr> a big file is enough
+    <braunr> it pushes anonymous memory out
+    <youpi> to fill 900MiB memory ?
+    <braunr> i see 535M of swap on if
+    <braunr> yes
+    <youpi> ironforge is just building libc
+    <braunr> and for some reason, swapping is orders of magnitude slower than
+      anything else
+    <youpi> not linking it yet
+    <braunr> i also see 1G of free memory on it
+    <youpi> that's what I meant with 900MiB
+    <braunr> so at some point, it needed a lot of memory, caused swapping
+    <braunr> and from time to time it's probably swapping back
+    <youpi> well, pfinet had all the time to swap back already
+    <youpi> I don't see why it should be still suffering from it
+    <braunr> swapping is a kernel activity
+    <youpi> ok, but once you're back, you're back
+    <youpi> unless something else pushes you out
+    <braunr> if the kernel is busy waiting for the default pager, nothing makes
+      progress
+    <braunr> (eccept the default pager hopefully)
+    <youpi> sure but pfinet should be back already, since it does work
+    <youpi> so I don't see why it should wait for something
+    <braunr> the kernel is waiting
+    <braunr> and the kernel isn't preemptibl
+    <braunr> e
+    <braunr> although i'm not sure preemption is the problem here
+    <youpi> well
+    <youpi> what I don't understand is what we have changed that could have so
+      much impact
+    <youpi> the only culprit I can see is the priorities we have changed
+      recently
+    <braunr> do you mean it happens a lot more frequently than before ?
+    <youpi> yes
+    <youpi> way
+    <braunr> ok
+    <youpi> ironforge is almost unusable while building glibc
+    <youpi> I've never seen that
+    <braunr> that's weird, i don't have these problems on darnassus
+    <braunr> but i think i reboot it more often
+    <braunr> could be a scalability issue then
+    <braunr> combined with the increased priorities
+    <braunr> if is indeed running full time on the host, whereas swapping
+      issues show the cpu being almost idle
+    <braunr> loadavg is high too so i guess there are many threads
+    <braunr>    0   971     3 -20 -20 1553 305358625 866485906 523M 63M *   S<o
+      ?    13hrs /hurd/ext2fs.static -A /dev/hd0s2
+    <braunr>    0   972     3 -20 -20 1434 125237556 719443981 483M 5.85M * S<o
+      ?    13hrs /hurd/ext2fs.static -A /dev/hd0s3
+    <braunr> around 1k5 each
+    <youpi> that's quite usual
+    <braunr> could be the priorities then
+    <braunr> but i'm afraid that if we lower them, the number of threads will
+      grow out of control
+    <braunr> (good thing is i'm currently working on a way to make libpthread
+      actually remove kernel resources)
+    <youpi> but the priorities should be the same in ext2fs and pfinet,
+      shouldn't they?
+    <braunr> yes but ext2 has a lot more threads than pfinet
+    <braunr> the scheduler only sees threads, we don't have a grouping feature
+    <youpi> right
+    <braunr> we also should remove priority depressing in glibc
+    <braunr> (in sched_yield)
+    <braunr> it affects spin locks
+
+    <braunr> youpi: is it normal to see priorities of 26 ?
+    <youpi> braunr: we have changed the nice factor
+    <braunr> ah, factor
+    <youpi> Mm, I'm however realizing the gnumach kernel running these systems
+      hasn't been upgraded in a while
+    <youpi> it may not even have the needed priority levels
+    <braunr> ar euare you using top right now on if ?
+    <braunr> hm no i don't see it any more
+    <braunr> well yes, could be the priorities ..
+    <youpi> I've rebooted with an upgraded kernel
+    <youpi> no issue so far
+    <youpi> package uploads will tell me on the long run
+    <braunr> i bet it's also a scalability issue
+    <youpi> but why would it appear now only?
+    <braunr> until the cache and other data containers start to get filled,
+      processing is fast enough that we don't see it hapenning
+    <youpi> sure, but I haven't seen that in the past
+    <braunr> oh it's combined with the increased priorities
+    <youpi> even after a week building packages
+    <braunr> what i mean is, increased priorities don't affect much if threads
+      porcess things fast
+    <braunr> things get longer with more data, and then increased prioritis
+      give more time to these threads
+    <braunr> and that's when the problem appears
+    <youpi> but increased priorities give more time to the pfinet threads too,
+      don't they?
+    <braunr> yes
+    <youpi> so what is different ?
+    <braunr> but again, there are a lot more threads elsewhere
+    <braunr> with a lot more data to process
+    <youpi> sure, but that has alwasy been so
+    <braunr> hm
+    <youpi> really, 1k5 threads does not surprise me at all :)
+    <youpi> 10k would
+    <braunr> there aren't all active either
+    <youpi> yes
+    <braunr> but right, i don't know why pfinet would be given less time than
+      other threads ..
+    <braunr> compared to before
+    <youpi> particularly on xen-based buildds
+    <braunr> libpthread is slower than cthreads
+    <youpi> where it doesn't even have to wait for netdde
+    <braunr> threads need more quanta to achieve the same ting
+    <braunr> perhaps processing could usually be completed in one go before,
+      and not any more
+    <braunr> we had a discussion about this with antrik
+
+    <braunr> youpi: concerning the buildd issue, i don't think pfinet is
+      affected actually
+    <braunr> but the applications using the network may be
+    <youpi> why using the network would be a difference ?
+    <braunr> normal applications have a lower priority
+    <braunr> what i mean is, pfinet simply has nothing to do, because normal
+      applications don't have enough cpu time
+    <braunr> (what you said earlier seemed to imply pfinet had issues, i don't
+      think it has)
+    <braunr> it should be easy to test by pinging the machine while under load
+    <braunr> we should also check the priority of the special thread used to
+      handle packets, both in pfinet and netdde
+    <braunr> this one isn't spawned by libports and is likely to have a lower
+      priority as well
+
+    <braunr> youpi: you're right, something very recent slowed things down a
+      lot
+    <braunr> perhaps the new priority factor
+    <braunr> well not the factor but i suppose the priority range has been
+      increased
+
+[[nice_vs_mach_thread_priorities]].
+
+    <youpi> braunr: haven't had any upload issue so far
+    <youpi> over 20 uploads
+    <youpi> while it was usually 1 every 2 before...
+    <youpi> so it was very probably the kernel missing the priorities levels
+    <braunr> ok
+    <braunr> i think i've had the same problem on another virtual machine
+    <braunr> with a custom kernel i built a few weeks ago
+    <braunr> same kind of issue i guess
+    <braunr> it's fine now, and always was on darnassus
 
 
 ## IRC, freenode, #hurd, 2012-12-05

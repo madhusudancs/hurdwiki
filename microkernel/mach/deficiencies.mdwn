@@ -2190,3 +2190,131 @@ In context of [[open_issues/multithreading]] and later [[open_issues/select]].
     <core-ix> i really need to dig into this code at some point :)
     <braunr> well you may but you may not see that property from the code
       itself
+
+
+## IRC, freenode, #hurd, 2013-06-28
+
+    <teythoon> so tell me about x15 if you are in the mood to talk about that
+    <braunr> what do you want to know ?
+    <teythoon> well, the high level stuff first
+    <teythoon> like what's the big picture
+    <braunr> the big picture is that x15 is intended to be a "better mach for
+      the hurd
+    <braunr> "
+    <braunr> mach is too general purpose
+    <braunr> its ipc mechanism too powerful
+    <braunr> too complicated, error prone, and slow
+    <braunr> so i intend to build something a lot simpler and faster :p
+    <teythoon> so your big picture includes actually porting hurd? i thought i
+      read somewhere that you have a rewrite in mind
+    <braunr> it's a clone, yes
+    <braunr> x15 will feature mostly sync ipc, and no high level types inside
+      messages
+    <braunr> the ipc system call will look like what qnx does
+    <braunr> send-recv from the client, recv/reply/reply-recv from the server
+    <teythoon> but doesn't sync mean that your context switch will have to be
+      quite fast?
+    <braunr> how does that differ from the async approach ?
+    <braunr> (keep in mind that almost all hurd RPCs are synchronous)
+    <teythoon> yes, I know, and it also affects async mode, but a slow switch
+      is worse for the sync case, isn't it?
+    <teythoon> ok so your ipc will be more agnostic wrt to what it transports?
+      unlike mig I presume?
+    <braunr> no it's the same
+    <braunr> yes
+    <braunr> input will be an array, each entry denoting either memory or port
+      rights
+    <braunr> (or directly one entry for fast ipcs)
+    <teythoon> memory as in pointers?
+    <braunr> (well fast ipc when there is only one entry to avoid hitting a
+      table)
+    <braunr> pointer/size yes
+    <teythoon> hm, surely you want a way to avoid copying that, right?
+    <braunr> the only operation will be copy (i.e. unlike mach which allows
+      sharing)
+    <braunr> why ?
+    <braunr> copy doesn't exclude zero copy
+    <braunr> (zero copy being adjusting page tables with copy on write
+      techniques)
+    <teythoon> right
+    <teythoon> but isn't that too coarse, like in cow a whole page?
+    <braunr> depends on the message size
+    <braunr> or options provided by the caller, i don't know yet
+    <teythoon> oh, you are going to pack the memory anyway?
+    <braunr> depends on the caller
+    <braunr> i'm not yet sure about these details
+    <braunr> ideally, i'd like to avoid serialization altogether
+    <teythoon> wouldn't that be like cheating b/c it's the first copy?
+    <braunr> directly pass pointers/sizes from the sender address space, and
+      either really copy or use zero copy
+    <teythoon> right, but then you're back at the page size issue
+    <braunr> yes
+    <braunr> it's not a real issue
+    <braunr> the kernel must support both ways
+    <braunr> the minor issue is determining which way to choose
+    <braunr> it's not a critical issue
+    <braunr> my current plan is to always copy, unless the caller has
+      explicitely set a flag and is passing properly aligned buffers
+    <teythoon> u sure? I mean the caller is free to arange the stuff he intends
+      to send anyway he likes, how are you going to cow that then?
+    <teythoon> ok
+    <teythoon> right
+    <braunr> properly aligned buffers :)
+    <braunr> otherwise the kernel rejects the request
+    <teythoon> that's reasonable, yes
+    <braunr> in addition to being synchronous, ipc will also take a special
+      path in the scheduler to directly use the client scheduling context
+    <braunr> avoiding the sleep/wakeup overhead, and providing priority
+      inheritence by side effect
+    <teythoon> uh, but wouldn't dropping serialization create security and
+      reliability issues? if the receiver isn't doing a proper job sanitizing
+      its stuff
+    <braunr> why would the client not sanitize ?
+    <braunr> err
+    <braunr> server
+    <braunr> it has to anyway
+    <teythoon> sure, but a proper parser written once might be more robust,
+      even if it adds overhead
+    <teythoon> the serialization i mean
+    <braunr> it's just a layer
+    <braunr> even with high level types, you still need to sanitize
+    <braunr> the real downside is loosing cross architecture portability
+    <braunr> making the potential implementation of a single system image a lot
+      more restricted or difficult
+    <braunr> but i don't care about that much
+    <braunr> mach was built with this in mind though
+    <teythoon> it's a nice idea, but i don't believe anyone does ssi anymore
+    <braunr> i don't know
+    <teythoon> and certainly not across architectures
+    <braunr> there are few projects
+    <braunr> anyway it's irrelevant currently
+    <braunr> and my interface just restricts it, it doesn't prevent it
+    <braunr> so i consider it an acceptable compromise
+    <teythoon> so, does it run? what does it do?
+    <teythoon> it certainly is, yes
+    <braunr> for now, it manages memory (physical, virtual, kernel, and soon,
+      anonymous)
+    <braunr> support multiple processors with the required posix scheduling
+      policies
+    <braunr> (it uses a cute proportionally fair time sharing algorithm)
+    <braunr> there are locks (spin locks, mutexes, condition variables) and
+      lockless stuff (à la rcu)
+    <braunr> both x86 and x86_64 are supported
+    <braunr> (even pae)
+    <braunr> work queues
+    <teythoon> sounds impressive :)
+    <braunr> :)
+    <braunr> i also added basic debugging
+    <braunr> stack trace (including getting the symbol table) handling
+    <braunr> so yes, it's much much better than what i previously did
+    <braunr> and on the right track
+    <braunr> it already scales a lot better than mach for what it does
+    <braunr> there are generic data structures (linked list, red-black tree,
+      radix tree)
+    <braunr> the radix tree supports lockless lookups, so looking up both the
+      page cache and the ipc spaces is lockless)
+    <teythoon> that's nice :)
+    <braunr> there are a few things using global locks, but there are TODOs
+      about them
+    <braunr> even with that, it should be scalable enough for a start
+    <braunr> and improving those parts shouldn't be too difficult

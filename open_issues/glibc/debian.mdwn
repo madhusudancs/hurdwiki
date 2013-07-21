@@ -62,3 +62,70 @@ apter applying patches.
 If the Debian symbol versioning file is not up to date and the build of Debian
 packages fails due to this, putting `DPKG_GENSYMBOLS_CHECK_LEVEL=0` in the
 environment \`\`helps''; see `man dpkg-gensymbols`.
+
+
+# IRC, freenode, #hurd, 2013-07-01
+
+    <braunr> something seems to have changed with regard to patch handling in
+      eglibc 2.17
+    <braunr> pinotree: when i add a patch to series and use dpkg-buildpackage,
+      i'm told there are local modifications and the build stops :/
+    <braunr> any idea what i'm doing wrong ?
+    <pinotree> which steps do you do?
+    <braunr> i extract the sources, copy the patch to debian/patches/hurd-i386,
+      add the appropriate line to debian/patches/series, call dch -i, then
+      dpkg-buildpackage
+    <pinotree> eglibc is a "3.0 (quilt)" format source package
+    <pinotree> this means its default patches are in a quilt-style system, and
+      they are applied on extraction
+    <braunr> ok
+    <braunr> and it can't detect new patches ?
+    <pinotree> so if you add a new patch to the global serie, you have to push
+      it manually
+    <braunr> i have to revert them all ?
+    <braunr> ok
+    <braunr> how do i do that ?
+    <pinotree> quilt push -a
+    <braunr> ok
+    <braunr> thanks
+    <pinotree> remember to do that before starting the build, since the rest
+      assumes the quilt-style patches are fully applied
+    <bddebian> No push applies them, quilt pop -a reverts them
+    <pinotree> yeah, and he has to push the new over the dpkg-applied ones
+    <bddebian> Oh, aye
+    <braunr> does quilt change series ?
+    <pinotree> no
+    <braunr> ok
+    <pinotree> i mean, some commands do that
+    <braunr> so i do everything i did, with an additional push, right ?
+    <pinotree> ok, screw me, i didn't get your question above :P
+    <braunr> does that change your answer ?
+    <pinotree> <braunr> does quilt change series ?
+    <braunr> yes
+    <pinotree> if you import or create a new patch, it changes series indeed
+    <braunr> ok
+    <pinotree> push or pop of patches does not
+    <braunr> i'm doing it wron
+    <braunr> g
+    <pinotree> btw, in a quilt patch stack you can easily import a new patch
+      using the import command
+    <pinotree> so for example you could do
+    <pinotree> apt-get source eglibc # or get it somehow else
+    <pinotree> cd eglibc-*
+    <pinotree> quilt import /location/of/my/patch
+    <pinotree> quilt push # now your patch is applied
+    <braunr> ah thanks
+    <pinotree> dpkg-buildpackage as usual
+    <braunr> that's what i was looking for
+    <bddebian> quilt new adds a new entry in series
+    <pinotree> y
+    <bddebian> or import, aye
+    <pinotree> braunr: if you want to learn quilt, a very good doc is its own,
+      eg /usr/share/doc/quilt/quilt.txt.gz
+    * bddebian has never actually used import
+    <braunr> ok
+    <pinotree> it is basically a simple stack of patches
+
+    <youpi> braunr: yes, patch handling is a bit different
+    <youpi> the arch-independant patches are applied by dpkg-source -x
+    <youpi> and the arch-dependent patches are applied during build
