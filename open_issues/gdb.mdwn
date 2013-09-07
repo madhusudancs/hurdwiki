@@ -27,14 +27,14 @@ Here's what's to be done for maintaining GNU GDB.
 <!--
 
 git checkout reviewed
-git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefix=./ --find-renames --ignore-space-change ..sourceware/master | awk '/^diff/ { c = $0; } /^@@/ { print c; } { print; }' | less
+git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefix=./ --find-renames --ignore-space-change ..sourceware/master | awk '/^diff/ { c = " " $0; } /^@@/ { print c; } { print; }' | less
 -i
 /^---.*/([^.]*|.*\.texi.*|[^/]*gnu[^/]*)$|hurd|linux|nacl|nptl|glibc|gs:
 
 -->
 
-Last reviewed up to the [[Git mirror's 9799ab54486adf49a50e5aadd9f5e6bc03db6123
-(2013-06-13) sources|source_repositories/gdb]].
+Last reviewed up to the [[Git mirror's 954ad01d097b28191088bdd8e085eda3c0bd3f0b
+(2013-09-07) sources|source_repositories/gdb]].
 
   * Globally
 
@@ -66,12 +66,19 @@ Last reviewed up to the [[Git mirror's 9799ab54486adf49a50e5aadd9f5e6bc03db6123
   * Configure so that Debian system's `/usr/lib/debug/[...]` will be loaded
     automatically.
 
+  * old-style function definition
+
+        ../../Ferry_Tagscherer/gdb/gnu-nat.c: In function 'trace_me':
+        ../../Ferry_Tagscherer/gdb/gnu-nat.c:2106:8: warning: old-style function definition [-Wold-style-definition]
+           void trace_me ()
+                ^
+
 
 # Build
 
 Here's a log of a GDB build run; this is from our [[Git
 repository|source_repositories/gdb]]'s `tschwinge/Ferry_Tagscherer` branch,
-commit 9799ab54486adf49a50e5aadd9f5e6bc03db6123 (2013-06-13), run on
+commit 954ad01d097b28191088bdd8e085eda3c0bd3f0b (2013-09-07), run on
 kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -87,7 +94,7 @@ There are several occurences of *error: dereferencing type-punned pointer will
 break strict-aliasing rules* in the MIG-generated stub files; thus no `-Werror`
 until that is resolved ([[strict_aliasing]]).
 
-This takes up around 230 MiB and needs roughly 8 min on kepler.SCHWINGE and 28
+This takes up around 230 MiB and needs roughly 8 min on kepler.SCHWINGE and 31
 min on coulomb.SCHWINGE.
 
 <!--
@@ -193,7 +200,7 @@ formats and more emulation vectors.
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 50 MiB, and needs roughly 1 min on kepler.SCHWINGE and 2
+This takes up around 50 MiB, and needs roughly 1 min on kepler.SCHWINGE and 3
 min on coulomb.SCHWINGE.
 
 
@@ -209,7 +216,7 @@ min on coulomb.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This needs roughly 14 min on kepler.SCHWINGE and 70 min on coulomb.SCHWINGE.
+This needs roughly 15 min on kepler.SCHWINGE and 72 min on coulomb.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
 the `tee` process does not terminate if there are still stray leftover
@@ -538,5 +545,22 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
     "20130126202645.GA4888@host2.jankratochvil.net"]], and maybe [[!message-id
     "CAO2gOZXvCLdaKE2=ZKpjGVGq8A0wQ94-AUo7eKvvWHWncrU_yg@mail.gmail.com"]] look
     related.
+
+  * `gdb.base/argv0-symlink.exp`
+
+    kepler.SCHWINGE:
+
+        Running ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/argv0-symlink.exp ...
+        get_compiler_info: gcc-4-8-1
+        Executing on host: gcc  -c -g  -o /media/data/home/thomas/tmp/source/gdb/tschwinge/Ferry_Tagscherer.build/gdb/testsuite/gdb.base/argv0-symlink0.o ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/argv0-symlink.c    (timeout = 300)
+        spawn gcc -c -g -o /media/data/home/thomas/tmp/source/gdb/tschwinge/Ferry_Tagscherer.build/gdb/testsuite/gdb.base/argv0-symlink0.o ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/argv0-symlink.c
+        Executing on host: gcc /media/data/home/thomas/tmp/source/gdb/tschwinge/Ferry_Tagscherer.build/gdb/testsuite/gdb.base/argv0-symlink0.o  -g  -lm   -o /media/data/home/thomas/tmp/source/gdb/tschwinge/Ferry_Tagscherer.build/gdb/testsuite/gdb.base/argv0-symlink    (timeout = 300)
+        spawn gcc /media/data/home/thomas/tmp/source/gdb/tschwinge/Ferry_Tagscherer.build/gdb/testsuite/gdb.base/argv0-symlink0.o -g -lm -o /media/data/home/thomas/tmp/source/gdb/tschwinge/Ferry_Tagscherer.build/gdb/testsuite/gdb.base/argv0-symlink
+        Executing on host: ln -sf argv0-symlink /media/data/home/thomas/tmp/source/gdb/tschwinge/Ferry_Tagscherer.build/gdb/testsuite/gdb.base/argv0-symlink-filelink    (timeout = 300)
+        spawn ln -sf argv0-symlink /media/data/home/thomas/tmp/source/gdb/tschwinge/Ferry_Tagscherer.build/gdb/testsuite/gdb.base/argv0-symlink-filelink
+        UNSUPPORTED: gdb.base/argv0-symlink.exp: kept file symbolic link name (host does not support symbolic links)
+        testcase ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/argv0-symlink.exp completed in 0 seconds
+
+    Strange.  No error message?  Invoking `ln -sf` manually works just fine.
 
 TODO.
