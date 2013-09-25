@@ -179,6 +179,69 @@ small backend stores, like floppy devices.
 That would be a nice improvement, but only after writeback throttling is implemented.
 
 
+## Stripped vs. Unstripped `ext2fs.static`
+
+[[!tag open_issue_hurd]]
+
+
+### IRC, freenode, #hurd, 2013-09-17
+
+    <teythoon> I always had some trouble with dropping a rebuild ext2fs.static
+      into my test system and I never figured out why
+    <teythoon> I just followed a hunch and stripped the binary, and all of the
+      sudden it works
+    <teythoon> any ideas why?
+    <tschwinge> teythoon: I quick search found me:
+      <https://savannah.gnu.org/bugs/?8497> and
+      <http://news.gmane.org/find-root.php?message_id=%3c4090243E.2040605%40comcast.net%3e>.
+    <teythoon> tschwinge: ugh, thanks for the pointers ;)
+    <tschwinge> teythoon: They won't help too much I fear.  Anyway, good
+      intuition (or whatever) ;-) that you found this out.
+    <tschwinge> teythoon: Not exactly related to stripped/unstripped per se
+      (that is, debug information), but in the past we've had an issue about
+      relro (see binutils/glibc, <http://www.airs.com/blog/archives/189>),
+      where a variable (that erroneously happend to be in such a read-only
+      section, if I remember correct) was tried to be modified -- which worked
+      "sometimes": depending on where exactly it was located in the binary
+      (which shifted around a page
+    <tschwinge> boundary by stripped/unstripped), it'd segfault or not.  Burnt
+      several days on that before Samuel (IIRC) eventually figured it out.
+    <teythoon> tschwinge: well, thanks anyway ;)
+
+
+## Increased Memory Consumption
+
+### IRC, freenode, #hurd, 2013-09-18
+
+    <braunr> ext2fs is using a ginormous amount of memory on darnassus since i
+      last updated the hurd package :/
+    <braunr> i wonder if my ext2fs large store patches rework have introduced a
+      regression
+    <braunr> the order of magnitude here is around 1.5G virtual space :/
+    <braunr> it used to take up to 3 times less before that
+    <braunr> looks like my patches didn't make it into the latest hurd package
+    <braunr> teythoon: looks like there definitely is a new leak in ext2fs
+    <teythoon> :/
+    <braunr> memory only
+    <braunr> the number of ports looks stable relative to file system usage
+    <teythoon> braunr: I tested my patches on my development machine, it's up
+      for 14 days (yay libvirt :) and never encountered problems like this
+    <braunr> i've been building glibc to reach that state
+    <teythoon> hm, that's a heavy load indeed
+    <teythoon> could be the file name tracking stuff, I tried to make sure that
+      everything is freed, but I might have missed something
+    <braunr> teythoon: simply running htop run shows a slight, regular increase
+      in physical memory usage in ext2fs
+    <pinotree> old procfs stikes again? :)
+    <teythoon> braunr: I see that as well... curious...
+    <braunr> 16:46 < teythoon> could be the file name tracking stuff, I tried
+      to make sure that everything is freed, but I might have missed something
+    <braunr> how knows, maybe completely unrelated
+    <teythoon> the tracking patch isn't that big, I've gone over it twice today
+      and it still seems reasonable to me
+    <braunr> hm
+
+
 # Documentation
 
   * <http://e2fsprogs.sourceforge.net/ext2.html>

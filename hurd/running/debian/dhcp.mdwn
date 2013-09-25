@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2011, 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2012, 2013 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -29,3 +30,97 @@ scripts, but has its own `/libexec/rc` script -- which integrates scripts from
   * [[!debbug 616290]]
 
   * [[Proper Hurdy DHCP support|hurd/translator/pfinet/dhcp]]
+
+  * [[!message-id desc="dhclient aborting with a stack smashing error"
+    "874ngfvwn4.fsf@kepler.schwinge.homeip.net"]]
+
+    IRC, freenode, #hurd, 2013-08-21:
+
+        <teythoon> yay, I fixed the path of the dhcp leases file...
+        <teythoon> ... and now dhclient dies of a buffer overflow
+        <teythoon> fortunately the fix is rather simple, anyone who cares about
+          the security of his box just has to stop using isc software
+        <teythoon> the code is full of stuff like char foo[100]; /* surely
+          that's enough */
+        <pinotree> note that our version of isc-dchp (the one in ports) is
+          older than the latest one available in unstable (which is still older
+          than the latest upstream releases)
+        <teythoon> so?
+        <pinotree> dunno, might have been fixed or not
+        <teythoon> ^^ yeah sure
+        <gnu_srs> A lot of software has these limitations and PATH_MAX,
+          MAXPATHLEN issues :(
+        <pinotree> having a limitation is not a problem per-se
+        <teythoon> no, only software written in c has these kind of problems
+        <pinotree> the problem is not checking whether the limits are hit
+        <teythoon> well, looking at the source of isc-dhcp my time is better
+          spent making another dhcp client work on hurd
+        <teythoon> also reading up on bug #616290 does make me want to avoid
+          touching it ever
+        <braunr> hehe
+        <gnu_srs> teythoon: somebody was offering an alternative to the isc
+          dhcpclient, but I think it was rejected by Samuel?
+        <teythoon> why would he do that?
+        <braunr> probably for compliance
+        <gnu_srs> He probably thought they would release a new version soon, is
+          4.3.0 out yet?
+        <teythoon> well, as soon as my fixes for ifupdown go in, dhclient will
+          start crashing
+        <teythoon> no, there is no new version released
+        <teythoon> no major one that is
+        <teythoon> 4.2.5 is out
+        <gnu_srs> can't you just increase the buffer size, where is the problem
+          exactly?
+        <teythoon> I have no idea
+        <gnu_srs> The Hurd patches are not in 4.2.5, they were promised for
+          4.3.0a1. 
+        <gnu_srs> Still the buffer overflow problem might be present in 4.2.5
+          if patched to build on Hurd.
+        <braunr> there, darnassus now has a fully featured git/gitweb service
+        <teythoon> :)
+        <teythoon> btw, I managed to reproduce the crash reliably
+        <teythoon> rm /var/lib/dhcp/*; dhclient -v /dev/eth0  ... *boom*
+        <teythoon> ditch the -v, everything works, and now that there is a
+          lease file, you can add the -v again and it works
+        <braunr> ew :)
+        <teythoon> and what has dhclient.c to say for its defense?
+        <teythoon> log_info("%s", "");
+        <teythoon> hm, not much :/
+
+    IRC, freenode, #hurd, 2013-08-22:
+
+        <teythoon> uh, the isc-dhcp situation is a huge pita, the source on
+          -ports does not compile anymore :/
+
+    IRC, freenode, #hurd, 2013-08-23:
+
+        <gnu_srs> teythoon: Was it the slash in the network interface names
+          that caused the buffer overflow in dhclient? 
+        <teythoon> gnu_srs: no, previously no dhcp leases file was written and
+          everything was fine
+        <pinotree> teythoon: did you really develop your patch against that old
+          version of ifupdown?
+        <teythoon> gnu_srs: now it is written, and for some reason dhclient
+          crashes *iff* -v is given *and* there is no previous lease file
+        <teythoon> pinotree: no, I did not. that was only reportbug including
+          information from my desktop machine without asking me
+        <teythoon> but when I first looked at ifupdown it was still a 6000
+          lines noweb file >,<
+        <teythoon> that was fun
+        <pinotree> which version is it against?
+        <teythoon> hg tip
+
+    IRC, freenode, #hurd, 2013-08-30:
+
+        <tschwinge> teythoon: I understand correctly that you found that
+          id:"874ngfvwn4.fsf@kepler.schwinge.homeip.net" in fact was really
+          "just" a buffer overflow in the dhclient code?
+        <teythoon> tschwinge: ah, most interesting, I didn't realize that you
+          stumbled across this as well
+        <teythoon> to be honest I don't know what's going on there, I only
+          observed what I wrote in my report
+        <teythoon> for me it started crashing once the lease file was actually
+          a valid path (i.e. not to a non-existing directory b/c of the slashes
+          in /dev/eth0)
+        <teythoon> I tried to rebuild the package served on debian-ports, but
+          that failed

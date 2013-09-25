@@ -13,11 +13,10 @@ invoker of `kill` to the target process.  The target process' [[signal_thread]]
 job is it to listen to such messages and to set up signal handler contexts in
 other threads.
 
----
-
-[[!tag open_issue_documentation]]
 
 # IRC, freenode, #hurd, 2011-04-20
+
+[[!tag open_issue_documentation]]
 
     <braunr> bugs around signals are very tricky
     <braunr> signals are actually the most hairy part of the hurd
@@ -50,3 +49,43 @@ other threads.
     <braunr> mach and the hurd were intended to be "hyperthreaded"
 
 [[open_issues/multithreading]].
+
+
+# IRC, freenode, #hurd, 2013-09-17
+
+    <teythoon> I just realized that I know next to nothing about signal
+      handling on the Hurd...
+    <teythoon> especially /hurd/inits role in it
+    <teythoon> reading glibcs kill.c it does not involve /hurd/init at all, but
+      /hurd/init is full of proxying code for the msg protocol
+    <teythoon> ah, /hurd/init mitms the signal handling logic in the libc for
+      its own signals
+    <teythoon> for msg_sig_post it sends a reply immediately, and then
+      processes the signal, I wonder why that is done
+    <teythoon> also it "forwards" any signals it receives to the child it
+      spawned (like /etc/hurd/runsystem), I wonder why...
+    <teythoon> good thing the comments tell what is done, not why...
+    <teythoon> so in theory kill -HUP 1 should have been forwarded to the
+      "runsystem" process, I wonder why that does not work if that one execs
+      sysvinit
+    <braunr> teythoon: can't help you there :/
+    <teythoon> braunr: I think I sorted it out on my own, we'll see how that
+      works out in practice ;)
+    <braunr> good
+
+
+## IRC, freenode, #hurd, 2013-09-18
+
+    <teythoon> braunr: I figured out why /hurd/init does this strange thing
+      with the msg protocol
+    <teythoon> braunr: it has no signal thread
+    <teythoon> I wonder how /hurd/exec and the initial filesystem handle
+      this...
+    <teythoon> err, afaics the signal thread is created in fork(), so any
+      process not created using it (ie manually using task_create) should lack
+      the signal thread, no?
+    <teythoon> that'd be the root fs, /hurd/{exec,init,auth,proc} and
+      /etc/hurd/runsystem (the child started by /hurd/init)
+    <teythoon> but I see only /hurd/init doing something about it, namely
+      setting a msgport and handling the msg protocol, relaying any messages to
+      the signal handling logic in the glibc

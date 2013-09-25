@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2012, 2013 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -433,3 +434,92 @@ restults of GNU/Linux and GNU/Hurd look very similar.
     <civodul> pinotree: is it a Debian-specific change, or included upstream?
     <pinotree> libgc using SIGUSR1/2? upstream
     <civodul> ok
+
+
+### IRC, freenode, #hurd, 2013-09-03
+
+    <congzhang> braunr: when will libc malloc say memory corruption?
+    <braunr> congzhang: usually on free
+    <braunr> sometimes on alloc
+    <congzhang> and after one thread be created
+    <congzhang> I want to know why and how to find the source
+    <congzhang> does libgc work well on hurd?
+    <braunr> i don't think it does
+    <congzhang> so , why it can't?
+    <braunr> congzhang: what ?
+    <congzhang> libgc was not work on hurd
+    <pinotree> why?
+    <congzhang> I try porting dotgnu
+    <braunr> ah
+    <braunr> nested signal handling
+    <congzhang> one program always receive Abort signal
+    <pinotree> and why it should be a problem in libgc?
+    <congzhang> for malloc memory corruption
+    <braunr> libgc relies on this
+    <congzhang> yes
+    <congzhang> so, is there a workaround to make it work? 
+    <braunr> show the error please
+    <congzhang> http://paste.debian.net/34416/
+    <pinotree> where's libgc?
+    <congzhang> i compile dotgnu with enable-gc
+    <pinotree> so?
+    <congzhang> I am not sure about it
+    <pinotree> so why did you say earlier that libgc doesn't work?
+    <congzhang> because after I see one thread was created notice by gdb, it
+      memory corruption
+    <pinotree> so what?
+    <congzhang> maybe gabage collection happen, and gc thread start
+    <pinotree> that's speculation
+    <pinotree> you cannot debug things speculating on code you don't know
+    <pinotree> less speculation and more in-deep debugging, please
+    * congzhang I try again, to check weather thread list changing
+    <congzhang> sorry for this
+    <braunr> it simply looks like a real memory corruption (an overflow)
+    <congzhang> maybe PATH related problem
+    <pinotree> PATH?
+    <congzhang> yes
+    <braunr> PATH_MAX
+    <braunr> but unlikely
+    <congzhang> csant do path traverse
+    <congzhang> I fond the macro
+    <congzhang> found
+    <congzhang> #if defined(__sun__) || defined(__BEOS__)
+    <congzhang> #define     BROKEN_DIRENT   1
+    <congzhang> #endif
+    <congzhang> and so for hurd?
+    <pinotree> BROKEN_DIRENT doesn't say much about what it does
+    <WhiteKIBA> nope
+    <WhiteKIBA> whoops
+    <congzhang> it seems other port meet the trouble too
+    <pinotree> which trouble?
+    <congzhang> http://comments.gmane.org/gmane.comp.gnu.dotgnu.developer/3642
+    <congzhang> (gdb) ptype struct dirent
+    <congzhang> type = struct dirent {
+    <congzhang>     __ino_t d_ino;
+    <congzhang>     unsigned short d_reclen;
+    <congzhang>     unsigned char d_type;
+    <congzhang>     unsigned char d_namlen;
+    <congzhang>     char d_name[1];
+    <congzhang> }
+    <congzhang>  
+    <congzhang> d_name should be char[PATH_MAX]?
+    <congzhang> and
+      http://libjit-linear-scan-register-allocator.googlecode.com/svn/trunk/pnet/support/dir.c
+    <pinotree> no
+    <braunr> stop pasting that much
+    <_d3f> uhm PATH_MAX on the hurd?
+    <braunr> and stop saying nonsense
+    <congzhang> sorry, i think four line was not worth to pastbin 
+    <pinotree> they are 8
+    <congzhang> never again
+    <braunr> just try by defining BROKEN_DIRENT to 1 in all cases and see how
+      it goes
+    * congzhang read dir.c again
+    <congzhang> braunr: it does not crash this time, I do more test
+
+
+#### IRC, freenode, #hurd, 2013-09-04
+
+    <congzhang> hi, I am dotgnu work on hurd, and even winforms app 
+    <congzhang> s/am/make
+    <congzhang> and maybe c# hello world translate another day :)

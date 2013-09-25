@@ -11,6 +11,11 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_porting]]
 
+[[!toc]]
+
+
+# `time`
+
 Neither the `time` executable from the GNU time package work completely
 correctly, nor does the GNU Bash built-in one.
 
@@ -56,20 +61,20 @@ As above; also here all the running time should be attributed to *user* time.
 This is probably a [[!taglink open_issue_gnumach]].
 
 
-# 2011-09-02
+## 2011-09-02
 
 Might want to revisit this, and take Xen [[!tag open_issue_xen]] into account
 -- I believe flubber has already been Xenified at that time.
 
 
-## IRC, freenode, #hurd, 2011-09-02
+### IRC, freenode, #hurd, 2011-09-02
 
 While testing some [[performance/IPC_virtual_copy]] performance issues:
 
     <tschwinge> And I can confirm that with dd if=/dev/zero of=/dev/null bs=4k
       running, a parallel sleep 10 takes about 20 s (on strauss).
 
-# 2013-03-30/31
+## 2013-03-30/31
 
 Investigating time's `configure`, a difference of the output between Linux and
 Hurd shows:
@@ -81,3 +86,754 @@ This causes a different code path in `resuse.c` to be used; such code path does
 not get a define for `HZ`, which is then defined with a fallback value of 60.
 
 [[!debbug 704283]] has been filed with a fix for this no-wait3 case.
+
+
+# `times`
+
+## guile
+
+### IRC, freenode, #hurd, 2013-08-21
+
+    <nalaginrut> does guile2 on hurd fixed? times issue
+    <teythoon> nalaginrut: does not look good
+    <teythoon> scheme@(guile-user)> (times)
+    <teythoon> $1 = #(0 0 0 0 0)
+    <nalaginrut> well, seems not a fixed version, if there's fixed version
+    <nalaginrut> since it's not Guile's bug, I can do nothing for it
+    <teythoon> ah
+    <nalaginrut> in spite of this, Guile2 works I think
+    <nalaginrut> all tests passed but 2 fail
+    <nalaginrut> one of the failure is version shows "UNKNOWN" which is
+      trivials
+    <teythoon> well, did you try to fix the times issue in Hurd?
+    <nalaginrut> I didn't , I have to get more familiar with hurd first
+    <nalaginrut> I'm playing hurd these days
+    <teythoon> :)
+    <nalaginrut> anyway, I think times issue is beyond my ability at present
+    <nalaginrut> ;-P
+    <teythoon> times is implemented in the glibc, in sysdeps/mach/hurd/times.c
+    <teythoon> don't say that before you had a look
+    <nalaginrut> yes, you're right
+    <nalaginrut> but I think times has something to do with the kernel time
+      mechanism, dunno if it's related to the issue
+    <nalaginrut> how did you get the times.c under hurd?
+    <nalaginrut> apt-get source glibc?
+    <teythoon> well, I'd clone git://sourceware.org/git/glibc.git
+    <teythoon> and yes, the kernel is involved
+    <teythoon> task_info is used to obtain the actual values
+    <teythoon>
+      http://www.gnu.org/software/hurd/gnumach-doc/Task-Information.html
+    <teythoon> I'd guess that something fails, but the times(2) interface is
+      not able to communicate the exact failure
+    <nalaginrut> maybe it's not proper to get src from upstream git? since it's
+      OK under Linux which uses it too
+    <nalaginrut> but apt-get source glibc has nothing
+    <teythoon> so I would copy the times(2) implementation from the libc so
+      that you can modify it and run it as a standalone program
+    <teythoon> well, the libc has system dependent stuff, times(2) on Linux is
+      different from the Hurd version
+    <teythoon> it has to be
+    <nalaginrut> alright, I got what you mean ;-)
+    <teythoon> and the debian libc is built from the eglibc sources, so the
+      source package is called eglibc iirc
+    <nalaginrut> ah~I'll try
+    <teythoon> have you tried to rpctrace your times test program? the small c
+      snippet you posted the other day?
+    <nalaginrut> I haven't build all the tools & debug environment on my hurd
+      ;-(
+    <teythoon> what tools?
+    <nalaginrut> well, I don't even have git on it, and I'm installing but
+      speed is slow, I'm looking for a new mirror
+    <teythoon> ah well, no need to do all this on the Hurd directly
+    <teythoon> building the libc takes like ages anyway
+    <nalaginrut> oops ;-)
+    <nalaginrut> I'll take your advice to concentrate on times.c only
+    <teythoon> oh well, it might be difficult after all, not sure though
+    <teythoon> times sends two task_info messages, once with TASK_BASIC_INFO,
+      once with TASK_THREAD_TIMES_INFO
+    <teythoon> here is the relevant rpctrace of your test program:
+    <teythoon> task131(pid14726)->task_info (1 10) = 0 {0 25 153427968 643072 0
+      0 0 0 1377065590 570000}
+    <teythoon> task131(pid14726)->task_info (3 4) = 0 {0 0 0 10000}
+    <teythoon> ok, I don't know enough about that to be honest, but
+      TASK_THREAD_TIMES_INFO behaves funny
+    <teythoon> I put a sleep(1) into your test program, and if I rpctrace it,
+      it behaves differently o_O
+    * nalaginrut is reading task-information page to get what it could be
+    <nalaginrut> maybe I have to do the same steps under Linux to find some
+      clue
+    <teythoon> no, this is Mach specific, there is no such thing on Linux
+    <teythoon> on Linux, times(2) is a system call
+    <teythoon> on Hurd, times is a function implemented in the libc that
+      behaves roughly the same way
+    <nalaginrut> OK~so different
+    <teythoon> look at struct task_basic_info and struct task_thread_times_info
+      in the task-information page for the meaning of the values in the
+      rpctrace
+    <teythoon> yes, very
+    <braunr> nalaginrut: you may want to try a patch i did but which is still
+      waiting to be merged in glibc
+    <nalaginrut> braunr:  ah~thanks for did it ;-)
+    <nalaginrut> can I have the link?
+    <braunr> i'm getting it
+    <braunr> teythoon: funny things happen with rpctrace, that's expected
+    <braunr> keep in mind rpctrace doesn't behave like ptrace at all
+    <braunr> it acts as a proxy
+    <braunr> nalaginrut:
+      http://git.savannah.gnu.org/cgit/hurd/glibc.git/commit/?h=rbraun/getclktck_100_hz&id=90404d6d1aa01f6ce1557841f5a675bb6a30f508
+    <braunr> nalaginrut: you need to add it to the debian eglibc patch list,
+      rebuild the packages, and install the resulting .debs
+    <braunr> if you have trouble doing it, i'll make packages when i have time
+    <nalaginrut> braunr:  I think your test result is expected? ;-)
+    <braunr> what test result ?
+    <nalaginrut> times test under that patch
+    <braunr> yes
+    <braunr> but i have no idea if it will work
+    <braunr> my patch fixes a mismatch between glibc and the procfs server
+    <braunr> nothing more
+    <braunr> it may help, it may not, that's what i'd like to know
+    <nalaginrut> hah~thanks for that
+    <nalaginrut> I get source from apt-get, then manually modified the files,
+      no much code ;-)
+    <nalaginrut> compiling
+    <nalaginrut> there is no cpuinfo in /proc?
+    <teythoon> no
+    <nalaginrut> a feature need to be done? or there's another way for that?
+    <teythoon> well, it hasn't been implemented
+    <teythoon> do you need that? what for?
+    <nalaginrut> compiling error, I realized I should use gcc-4.7
+    <pinotree> how are you building?
+    <nalaginrut> I just happened to play proc while compiling, and found
+      there's no
+    <nalaginrut> cxa_finalize.c:48:1: error: tcbhead_t has no member
+      named multiple_threads
+    <nalaginrut> I changed to gcc-4.7
+    <pinotree> just edit the sources, and then dpkg-buildpackage -nc -us -uc
+    <pinotree> that will rebuild the debian package as it would be in a debian
+      build, making sure all the build dependencies are there, etc
+    <pinotree> doing it different than that is just wrong™
+    <nalaginrut> ok, doing
+    <pinotree> were you really doing ./configure etc yourself?
+    <nalaginrut> well, I can't wait till it's done, I'll let it compile and
+      check it out tomorrow
+    <nalaginrut> I used configure, yes ;-P
+    <pinotree> not good
+    <nalaginrut> I have to go, thanks for help guys
+
+
+### IRC, freenode, #hurd, 2013-08-22
+
+    < nalaginrut> eglibc was done by dpkg-buildpackage, then how to install it?
+      (sorry I'm a brand new debian users)
+    < nalaginrut> oh~I found it
+    < nalaginrut> yes, (times) returns reasonable result ;-)
+     * nalaginrut is trying 'make check'
+    < nalaginrut> unfortunately, it can't pass the test though, I'm researching
+      it, anyway, we made first step
+    < nalaginrut> for Hurd internal-time-units-per-second will be 1000
+    < nalaginrut> , but the elapsed time is far larger than (* 2
+      internal-time-units-per-second)
+    < nalaginrut> I think the different of two returned clocks after 1 second
+      should be the TIME_UNITS_PER_SECOND, in principle
+    < nalaginrut> but I'm not sure if it's elibc or Guile bug
+    < nalaginrut> dunno, maybe clock tick should be 1000?
+    < nalaginrut> well, I'll try clock per second as 1000
+    < braunr> nalaginrut: clock tick (or actually, the obsolete notion of a
+      clock tick in userspace) should be 100
+    < braunr> nalaginrut: how did you come with 1000 ?
+    < nalaginrut> braunr:  Guile set TIME_UNITS_PER_SECOND to 1000 when there's
+      no 8bytes size and doesn't define HAVE_CLOCK_GETTIME
+    < nalaginrut> #if SCM_SIZEOF_LONG >= 8 && defined HAVE_CLOCK_GETTIME
+    < nalaginrut> #define TIME_UNITS_PER_SECOND 1000000000
+    < nalaginrut> #else
+    < nalaginrut> #define TIME_UNITS_PER_SECOND 1000
+    < nalaginrut> #endif
+    < nalaginrut> and the test for 'times' used time-units-per-second
+    < pinotree> what has sizeof(long) have to do with time units per second?
+    < nalaginrut> dunno, maybe the representation of time?
+    < nalaginrut> the test failed since the difference between two clocks after
+      1sec is too large
+    < nalaginrut> and for the test context, it should small than 2 times of
+      units-per-second
+    < nalaginrut> should be smaller 
+    < nalaginrut> sorry for bad English
+    < pinotree> aren't you basically looking for clock_getres?
+    < nalaginrut> pinotree:  I don't understand what you mean
+    < pinotree>
+      http://pubs.opengroup.org/onlinepubs/9699919799/functions/clock_getres.html
+    < nalaginrut> I wonder if there's a standard CLK_PER_SEC for Hurd
+    < nalaginrut> or it can be modified as wish
+    < pinotree> why do you need it?
+    < nalaginrut> the difference is 10,000,000, which can never less than
+      2*clock_per_second
+    < nalaginrut> pinotree:  I don't need it, but I want to know if there's a
+      standard value
+    < braunr> nalaginrut: ok so, this is entirely a guile thing
+    < braunr> nalaginrut: did you test with my patch ?
+    < nalaginrut> braunr:  yes, 'times' works fine
+    < braunr> but even with that, a tets fails ?
+    < braunr> test*
+    < nalaginrut> well, I can't say works fine, the proper description is "now
+      it has reasonable result"
+    < braunr> youpi: could you bring
+      http://darnassus.sceen.net/gitweb/savannah_mirror/glibc.git/commit/90404d6d1aa01f6ce1557841f5a675bb6a30f508
+      into debian glibc btw ?
+    < nalaginrut> braunr:  it failed the test since the clock run too fast, but
+      it should be smaller than 2*clk-per-sec
+    < braunr> i don't get that
+    < braunr> can you show the code that checks the condition ?
+    < nalaginrut> braunr:  http://pastebin.com/sG3QxnPt
+    < braunr> * 0.5 internal-time-units-per-second ?
+    < nalaginrut> for C users, it's just like
+      a=times(...);sleep(1);b=times(...); then time-units-per-sec/2 <= (b-a) <=
+      time-units-per-sec*2
+    < braunr> ah ok
+    < nalaginrut> the test passes when it's true
+    < braunr> so basically, it says sleep(1) sleeps for more than 2 seconds
+    < braunr> can you check the actual value ?
+    < braunr> b-a
+    < nalaginrut> hold on for minutes
+    < nalaginrut> it's 10,000,000
+    < nalaginrut> for clk-per-sec=1000,000,000, it's OK
+    < nalaginrut> but for 100 or 1000, it's too small
+    < braunr> let's forget 100
+    < braunr> guile uses 1000
+    < nalaginrut> OK
+    < braunr> but i still don't get why
+    < nalaginrut> so I asked if there's standard value, or it can be ajustified
+    < nalaginrut> adjusted
+    < braunr> ok so, times are expressed in clock ticks
+    < braunr> are you sure you're using a patched glibc ?
+    < nalaginrut> yes I used your patch, and the 'times' get reasonable result
+    < braunr> then
+    < braunr> 11:28 < nalaginrut> it's 10,000,000
+    < braunr> doesn't make sense
+    < nalaginrut> hmm
+    < braunr> anhd i don't understand the test
+    < braunr> what's tms:clock new ?
+    < nalaginrut> it's actually the return value of 'times'
+    < nalaginrut> Guile wrap the clock_t and tms to a vector, then we can get
+      all the thing in a row
+    < nalaginrut> 'new' is a variable which was gotten after 1 sec
+    < braunr> let's see what this does exactly
+    < nalaginrut> equal to "new = times(...)"
+    < nalaginrut> 'tms' equal to (clock_t (struct tms))
+    < nalaginrut> we have to pass in the struct pointer to get the struct
+      values filled, but for Guile we don't use pointer, times actually returns
+      two things: clock_t and struct tms
+    < nalaginrut> and Guile returns them as a vector in a row, that's it
+    < braunr> nalaginrut: test this please:
+      http://darnassus.sceen.net/~rbraun/test.c
+    < braunr> i don't have a patched libc here
+    < braunr> i'll build one right now
+    < nalaginrut> clock ticks: 1000000
+    < braunr> and this seems reasonable to you ?
+    < braunr> anyway, i think the guile test is bugged
+    < nalaginrut> no, the reasonable is not for this
+    < braunr> does it ever get the clock tick value from sysconf() ?
+    < nalaginrut> I say reasonable since it's always 0 both for clock and tms,
+      before apply your patch
+    < braunr> uh no
+    < braunr> i have the same value, without my patch
+    < nalaginrut> so I said "I can't say it works fine"
+    < braunr> either the test is wrong because it doesn't use sysconf()
+    < nalaginrut> anyway, I don't think times should return "all zero"
+    < braunr> or the clock values have already been ocnverted
+    < braunr> but it doesn't
+    < braunr> you did something wrong
+    < nalaginrut> with your patch it doesn't 
+    < braunr> without neither
+    < braunr> 11:43 < braunr> i have the same value, without my patch
+    < nalaginrut> well, it's too strange
+    < braunr> check how the test actually gets the clock values
+    < braunr> also, are your running in vbox ?
+    < braunr> you*
+    < nalaginrut> no ,it's physical machine
+    < braunr> oh
+    < braunr> nice
+    < braunr> note that vbox has timing issues
+    < nalaginrut> I thought I should give you some info of CPU, but there's no
+      /proc/cpuinfo
+    < braunr> shouldn't be needed
+    < nalaginrut> OK
+    < braunr> run my test again with an unpatched glibc
+    < braunr> just to make sure it produces the same result
+    < braunr> and
+    < nalaginrut> so the clock-per-sec is machine independent for Hurd I think
+    < braunr> 11:46 < braunr> check how the test actually gets the clock values
+    < nalaginrut> since it's implemented in userland
+    < braunr> clock-per-sec is always system dependent
+    < braunr>        All times reported are in clock ticks.
+    < braunr>        The number of clock ticks per second can be obtained
+      using:
+    < braunr>            sysconf(_SC_CLK_TCK);
+    < braunr> 11:46 < braunr> check how the test actually gets the clock values
+    < braunr> to see if they're converted before reaching the test code or not
+     * nalaginrut is building eglibc 
+    < braunr> building ?
+    < braunr> what for ?
+    < nalaginrut> I modified it to 1000, now it's useless
+    < braunr> we want it to 100 either way
+    < nalaginrut> and how to reinstall eglibc under debian?
+    < braunr> it's obsolete, procfs already uses 100, and 100 is low enough to
+      avoid overflows in practically all cases
+    < braunr> aptitude install libc0.3=<version>
+    < nalaginrut> OK
+    < braunr> aptitude show -v libc0.3
+    < braunr> for the list of available versions
+    < nalaginrut> out of topic, what's the meaning of the code in
+      quantize_timeval ?
+    < nalaginrut> tv->tv_usec = ((tv->tv_usec + (quantum - 1)) / quantum) *
+      quantum;
+    < nalaginrut> I can't understand this line
+    < braunr> scaling and rounding i guess
+    < nalaginrut> hmm...but quantum seems always set to 1?
+    < nalaginrut> 100/__getclktck()
+    < braunr> ah right
+    < braunr> old crap from the past
+    < nalaginrut> and clk-tck is 100
+    < braunr> the author probably anticipated clk_ticks could vary
+    < braunr> in practice it doesn't, and that's why it's been made obsolete
+    < nalaginrut> I wonder if it could be vary
+    < braunr> no
+    < nalaginrut> alright
+    < nalaginrut> why not just assign it to 1?
+    < braunr> 11:55 < braunr> old crap from the past
+    < braunr> the hurd is 20 years old
+    < braunr> like linux
+    < nalaginrut> oh~
+    < braunr> but with a lot less maintenance
+    < nalaginrut> braunr:  well, I tried the original eglibc, your test was
+      clock ticks: 1000000
+    < nalaginrut> but in Guile, (times) ==> (0 0 0 0 0)
+    < nalaginrut> the reasonable result maybe: #(4491527510000000 80000000 0 0
+      0)
+    < braunr> 11:46 < braunr> check how the test actually gets the clock values
+    < braunr> ah, he left
+
+
+### IRC, freenode, #hurd, 2013-08-23
+
+    < braunr> nalaginrut: times() doesn't seem to be affected by my patch at
+      all
+    < nalaginrut> braunr:  but it did in my machine
+    < nalaginrut> well, I think you mean it doesn't affect your C test code
+    < braunr> i'm almost sure something was wrong in your test
+    < braunr> keep using the official debian glibc package
+    < nalaginrut> I don't think it's test issue, since every time (times)
+      return zero, the test can never get correct result
+    < braunr> times doesn't return 0
+    < braunr> for sleep(1), i always have the right result, except in
+      microseconds
+    < nalaginrut> times in Guile always return #(0 0 0 0 0)
+    < braunr> (microseconds is the native mach time unit)
+    < braunr> well, guile does something wrong
+    < nalaginrut> after sleep 1, it's 0 again, so it's none sense
+    < braunr> 11:46 < braunr> check how the test actually gets the clock values
+    < braunr> not on my system
+    < nalaginrut> but (times) returns reasonable result after applied your
+      patch 
+    < braunr> that's not normal, since times isn't affected by my patch
+    < nalaginrut> oops
+    < braunr> you need to look for what happens in guile between the times()
+      call and the #(0 0 0 0 0) values
+    < nalaginrut> well, I tried many times between patch or non-patch, I think
+      there's no mistake
+    < nalaginrut> I read the 'times' code in Guile, there's nothing strange,
+      just call 'times' and put all the result to a vector
+    < braunr> which means there is no conversion
+    < braunr> in which case the test is plain wrong since there MUST also be a
+      call to sysconf()
+    < braunr> to obtain the right clock ticks value
+    < braunr> is your box reachable with ssh ?
+    < nalaginrut> oh~wait, seems there's a quotient operation, I'm checking
+    < nalaginrut> factor = scm_quotient (scm_from_long (TIME_UNITS_PER_SECOND),
+    < nalaginrut>                        scm_from_long (ticks_per_second));
+    < braunr> iirc, TIME_UNITS_PER_SECOND is hardcoded
+    < nalaginrut> unless factor is zero
+    < nalaginrut> yes, it's hardcoded
+    < braunr> that's completely non portable and wrong
+    < nalaginrut> you suggest to call sysconf?
+    < braunr> yes
+    < braunr> but i don't have the code in mind
+    < braunr> what is ticks_per_second ?
+    < nalaginrut> OK, that's one issue, we have to find why times return 0
+    < braunr> 14:14 < braunr> is your box reachable with ssh ?
+    < braunr> i'd like to make sure times returns 0 at your side
+    < braunr> because it doesn't at mine
+    < nalaginrut> no
+    < braunr> until i can reproduce, i can't consider there is a problem
+    < nalaginrut> I think it's unreachable for outer space
+    < nalaginrut> well, if you want to reproduce, just get guile src of debian
+    < braunr> guile 2.0 ?
+    < nalaginrut> yes, apt-get source guile-2.0
+    < nalaginrut> I'm checking ticks_per_second
+    < braunr> got the source, how do i test 
+    < braunr> ?
+    < nalaginrut> you have to build it, and run ./meta/guile, then you don't
+      have to install it
+    < nalaginrut> and try (times)
+    < braunr> aw libgc
+    < nalaginrut> the reasonable result should be #(4313401920000000 110000000
+      20000000 0 0) or something alike
+    < nalaginrut> but #(0 0 0 0 0) in each time is not reasonable apparently
+    < nalaginrut> maybe you need apt-get build-dep guile-2.0?
+    < braunr> already done
+    < nalaginrut> building Guile2 may take very long time
+    < nalaginrut> about 30 minutes in my old machine
+    < braunr> then it should take just a few minutes on mine
+    < nalaginrut> alright it's not very long, I've spent 8 hours for gcc in LFS
+    < braunr> 8 hours ?
+    < braunr> takes 5-10 minutes on a common machine ..
+    < nalaginrut> but it's Celeron566 at that time...
+    < braunr> ah, that old
+    < nalaginrut> include bootstrap, so very long
+    < braunr> nalaginrut: i got the test failure from the build procedure, how
+      do i run it manually ?
+    < nalaginrut> braunr:   ./meta/guile -L test-suite
+      test-suite/tests/time.test
+    < nalaginrut> braunr:  or make check for all
+    < braunr> put a print after the schedule() and before the return nil; in
+      runtime_mstart, since that's the body of new threads
+    < nlightnfotis> unfortunately, I can't confirm this with goroutines
+      running; the assertion failure aborts before I can get anything useful
+    < braunr> you can
+    < braunr> make sure there is a \n in the message, since stdout is line
+      buffered by default
+    < braunr> if you don't reach that code, it means threads don't exit
+    < braunr> at least goroutine threads
+    < braunr> btw, where is the main thread running ?
+    < nlightnfotis> I just checked there is a \n at the end.
+    < nlightnfotis> "<braunr> btw, where is the main thread running " could you
+      elaborate a little bit on this?
+    < braunr> what does main() after initializing the runtime ?
+    < braunr> +do
+    < nlightnfotis> the runtime main or the process's main?
+    < braunr> the process
+    < braunr> nlightnfotis: what we're interested in is knowing whether main()
+      exits or not
+    < nlightnfotis> braunr: I can see there are about 4 functions of interest:
+      runtime_main (the main goroutine, and I can imagine 1st thread)
+    < nlightnfotis> main_init (I don't know what it does, will check this out
+      now)
+    < nlightnfotis> main_main (not sure about this one either)
+    < nlightnfotis> and runtime_exit (0)
+    < braunr> i can see that too
+    < braunr> i'm asking about main()
+    < nlightnfotis> which seems to be the function that terminates the main
+      thread
+    < nlightnfotis> <braunr> nlightnfotis: what we're interested in is knowing
+      whether main() exits or not --> my theory is runtime_exit (0) exits the
+      process' main. Seeing as at various times go programs echo $? == 0.
+    < nlightnfotis> let me research that a little bit
+    < nlightnfotis> braunr: that will require a bit more studying. main_main()
+      and main_init() are both expanded to assembly tags if I understand it
+      correctly. 
+    < nlightnfotis> main.main and __go_init_main respectively.
+    < braunr> why are you looking from there instead of looking from main() ?
+    < nlightnfotis> are we not looking out if main exits?
+    < braunr> we are
+    < braunr> so why look at main_main ?
+    < braunr> or anything else than main ?
+    < nlightnfotis> these are called inside runtime_main and I figured out they
+      might have a clue
+    < braunr> runtime_main != main
+    < braunr> (except if there is aliasing)
+    < nlightnfotis> there is still the possibility that runtime_main is the
+      main function and that runtime_exit(0) exits it.
+    < braunr> there is no doubt that main is main
+    < braunr> (almost)
+    < nlightnfotis> and I just found out that there is no main in assembly
+      produced from go. Only main.main
+    < braunr> check the elf headers for the entry point then
+    < nlightnfotis> braunr: I went through the headers, and found the process'
+      main. You can find it in <gcc_root>/libgo/runtime/go-main.c
+    < nlightnfotis> it seems very strange though: It creates a new thread, then
+      aborts?
+    < braunr> nlightnfotis: see :)
+    < braunr> nlightnfotis: add traces there
+    < nlightnfotis> braunr: can you look into that piece of code to check out
+      something I don't understand?
+    < nlightnfotis> braunr: I can not seem able to find __go_go 's definition
+    < nlightnfotis> only a declaration in runtime.h
+    < braunr>
+      https://github.com/NlightNFotis/gcc/blob/master/libgo/runtime/proc.c,
+      line 1552
+    < nlightnfotis> gee thanx. For a strange kind of fashion, I was looking for
+      it in runtime.c
+    < braunr> use git grep
+    < braunr> or tags/cscope
+    < nlightnfotis> braunr: yep! runtime_exit does seem to terminate a go
+      process that was not otherwise abnormally terminated.
+    < braunr> ?
+    < braunr> is it called or not ?
+    < braunr> runtime_exit is a macro on exit()
+    < braunr> so we already know what it does
+    < nlightnfotis> it is called
+    < braunr> ok
+    < braunr> that's not normal :)
+    < nlightnfotis> for a simple program
+    < braunr> uh ?
+    < nlightnfotis> for one that has a go routine
+    < braunr> but
+    < nlightnfotis> it doesn't
+    < nlightnfotis> it's expected
+    < braunr> ok
+    < braunr> that makes sense
+    < braunr> well, trace
+    < braunr> keep tracing
+    < braunr> for example in main()
+    < braunr> is runtime_mstart() actually reached ?
+    < nlightnfotis> yeah main and runtime_main were my next two targets
+    < braunr> good
+    < nlightnfotis> and now I followed your advice and it does compiler much
+      faster
+    < braunr> so, it looks like the main thread just becomes a mere kernel
+      thread
+    < braunr> running runtime_mstart() and fetching goroutines as needed
+    < braunr> after your traces, i'd suggest running a small go test program,
+      with one simple goroutine (doesn't crash right ?)
+    < braunr> and trace context switching
+    < braunr> but after the traces
+    < braunr> one important trace is to understand why runtime_exit gets called
+    < nlightnfotis> it does crash even with 1 goroutine
+    < braunr> oh
+    < braunr> when doesn't it crash ?
+    < nlightnfotis> when it has 0 goroutines
+    < nlightnfotis> it works as expected
+    < nlightnfotis> but anything involving goroutines crashes
+    < nlightnfotis> and goroutines are very important; everything in the
+      standard library involves goroutines
+    < braunr> ok
+    < braunr> doesn't change what i suggested, good
+    < braunr> 1/ find out why runtime_exit gets called
+    < braunr> 2/ trace context switching with 1 goroutine
+    < nlightnfotis> on it.
+    < braunr> in all cases, make all your goroutines (including the main one)
+      *not* return
+    < braunr> so that you don't deal with goroutine destruction yet
+    < nlightnfotis> runtime_mstart in main doesn't to be run at all. So the
+      path is __go_go and then return from it.
+    < nlightnfotis> *doesn't seem
+
+
+### IRC, freenode, #hurd, 2013-08-26
+
+    < braunr> youpi: my glibc clock patch looks incomplete btw
+    < youpi> which one?
+    < youpi> ah, the ticks one?
+    < braunr> yes
+    < braunr> it doesn't change the values returned by times
+    < braunr> as a side effect, the load average bumps to 2+ on an idle machine
+
+
+### IRC, freenode, #hurd, 2013-08-27
+
+    < nalaginrut> braunr:  have you tried Guile2 on your machine? ;-)
+    < braunr> nalaginrut: no
+    < braunr> nalaginrut: but i saw the code actually does use sysconf()
+    < nalaginrut> braunr:  yes, for ticks_per_second
+    < braunr> i had to look myself to find it out, you didn't say it, despite
+      me asking multiple times
+    < braunr> it won't make debugging easier ;p
+    < braunr> nalaginrut: also, the return value of times is actually *never*
+      used
+    < braunr> i don't know why you've been talking about it so much
+    < nalaginrut> braunr:  I'm sorry, it's first time to look stime.c for me
+    < braunr> the interesting function is get_internal_run_time_times()
+    < nalaginrut> what do you mean about "the return value of times is actually
+      *never* used"? in which context?
+    < braunr> see get_internal_run_time_times
+    < braunr> struct tms time_buffer;
+    < braunr> times(&time_buffer);
+    < braunr> return ...
+    < braunr> and yes, the user and system time reported in struct tms are 0
+    < braunr> let's see what posix has to say about it
+    < pinotree> it says it will return (clock_t)-1 for errors, but no standard
+      errors are defined yet
+    < nalaginrut> but I don't think  get_internal_run_time_times has something
+      to do with scm_times
+    < braunr> well, i don't see any other call to times()
+    < braunr> i've asked you repeatedly to look for how guile fetches the data
+    < braunr> i think it's done in get_internal_run_time_times
+    < braunr> what makes you think otherwise ?
+    < braunr> our times() seems to behave fine, other than the units of the
+      return value
+    < nalaginrut> I don't understand what do you mean?
+      get_internal_run_time_times is unrelated to scm_times which is actually
+      "times" in Scheme code
+    < braunr> ok
+    < nalaginrut> I think we're talking about "times" activity, right?
+    < braunr> ok so result is a vector
+    < braunr> with the return value and the four values in struct tms
+    < nalaginrut> yes
+    < braunr> and what looks interesting is
+    < braunr> factor = scm_quotient (scm_from_long (TIME_UNITS_PER_SECOND),
+      scm_from_long (ticks_per_second));
+    < braunr> SCM_SIMPLE_VECTOR_SET (result, 0, scm_product (scm_from_long
+      (rv), factor));
+    < braunr> TIME_UNITS_PER_SECOND is 1000
+    < nalaginrut> yes, it means (clock_t *
+      (TIME_UNITS_PER_SECOND/ticks_per_second)), though I've no idea why it
+      does this
+    < braunr> normalizing values i guess
+    < nalaginrut> I wonder if the factor should be 1, just guessing
+    < braunr> let's see what our clock tick really is
+    < braunr> 1000000 on an unmodified libc
+    < braunr> 100 with my patch
+    < nalaginrut> so what's the problem?
+    < nalaginrut> all the values were multiplied by ticks, it's fair for the
+      subtraction
+    < nalaginrut> I think the problem is clock is too large for the difference
+      between utime and utime(sleep 1)
+    < nalaginrut> oops, is too small
+    < nalaginrut> sorry, I confused,
+    < nalaginrut> the problem is the difference of clock is too large for
+      2*internal-time-units-per-second
+    < nalaginrut> and actually, internal-time-units-per-second is
+      SCM_TIME_UNITS_PER_SECOND
+    < nalaginrut> but without your patch, 'times' would return zeros all the
+      time, which is never meet the condition: SCM_TIME_UNITS_PER_SECOND/2 <=
+      (clock2 - clock1)
+    < nalaginrut> well, maybe your point is
+      TIME_UNITS_PER_SECOND/ticks_per_second is too small without your patch,
+      which causes the scm_to_long cast give a 0 value
+    < nalaginrut> s/cast/casting
+    < nalaginrut> when ticks_per_second is 100, the factor would be 10, which
+      seems to be reasonable
+    < nalaginrut> s/scm_to_long/scm_from_long
+    < nalaginrut> well, I have to checkout this
+    < nalaginrut> OK, let me reconstruct the point: ticks_per_second so too
+      large that makes the factor becomes zero
+    < nalaginrut> but decrease ticks_per_second to 100 causes the clock become
+      too large than  TIME_UNITS_PER_SECOND
+    < braunr> 10:59 < nalaginrut> but without your patch, 'times' would return
+      zeros all the time, which is never meet the condition:
+      SCM_TIME_UNITS_PER_SECOND/2 <= (clock2 - clock1)
+    < braunr> until you prove me otherwise, this is plain wrong
+    < braunr> times() never returned me 0
+    < braunr> so let's see, this gives us a factor of 1000 / 1000000
+    < braunr> so the problem is factor being 0
+    < braunr> that's why *guile* times returns 0
+    < braunr> with my patch it should return 10
+    < nalaginrut> braunr:  I'm sorry I mean "stime" in Scheme returns zeros
+    < nalaginrut> yes, I think the problem is factor 
+    < nalaginrut> the factor
+    < braunr> now why doesn't my patch fix it all ?
+    < braunr> ah yes, rv is still in microseconds
+    < braunr> that's what i've been telling youpi recently, my patch is
+      incomplete
+    < braunr> i'll cook a quick fix, give me a few minutes please
+    < nalaginrut> but it fixed something ;-)
+    < braunr> well, guile makes a stupid assumption here
+    < braunr> so it's not really a fix
+    < nalaginrut> braunr:  should I ask some info about  TIME_UNITS_PER_SECOND
+      from Guile community?
+    < nalaginrut> or it doesn't help
+    < braunr> what do you want to ask them ?
+    < nalaginrut> since I don't know how this value was chosen
+    < nalaginrut> dunno, I'll ask if you need it
+    < nalaginrut> I just think maybe you need this info
+    < braunr> well
+    < braunr> my plan is to align the hurd on what other archs do
+    < braunr> i.e. set clk_tck to 100
+    < braunr> in which case this won't be a problem any more
+    < braunr> now you could warn them about the protability issue
+    < braunr> i'm not sure if they would care though
+    < nalaginrut> the warning is useful for the future
+    < nalaginrut> and it's not hard to make a change I think, for a constant,
+      but it depends on the maintainers
+    < braunr> it's not that simple
+    < braunr> time related things can easily overflow in the future
+    < nalaginrut> alright
+    < braunr> refer to the 2038 end-of-the-world bug
+    < nalaginrut> so how can I describe the warning/suggestion to them? 
+    < braunr> i'm not sure
+    < braunr> tell them the TIME_UNITS_PER_SECOND isn't appropriate for larger
+      values of clk_tck
+    < braunr> dammit, microseconds are hardcoded everywhere in
+      sysdeps/mach/hurd ... >(
+    < braunr> nalaginrut: my new patch seems to fix the problem
+    < braunr> nalaginrut: i've built debian packages with which you can
+      directly test
+    < braunr> nalaginrut: deb http://ftp.sceen.net/debian-hurd-i386
+      experimental/
+    < braunr> Totals for this test run:
+    < braunr> passes:                 38605
+    < braunr> failures:               0
+    < braunr> unexpected passes:      0
+    < braunr> expected failures:      7
+    < braunr> unresolved test cases:  578
+    < braunr> untested test cases:    1
+    < braunr> unsupported test cases: 10
+    < braunr> errors:                 0
+    < braunr> PASS: check-guile
+    < braunr> =============
+    < braunr> 1 test passed
+    < braunr> =============
+    < braunr> :)
+    < braunr> youpi: the branch i added to glibc contains a working patch for
+      clock_t in centiseconds
+    < youpi> k
+
+
+### IRC, freenode, #hurd, 2013-08-28
+
+    <nalaginrut> braunr:  well, looks great! I'll try it soon~
+    <nalaginrut> braunr:  BTW, where is the patch/
+    <mark_weaver> braunr: what was needed to get guile working on the hurd?
+    <mark_weaver> well, if the fix wasn't to guile, I don't need the details.
+    <braunr> 04:53 < nalaginrut> braunr:  BTW, where is the patch/
+    <braunr> there is hardly anyone here at 5am
+    <braunr> nalaginrut:
+      http://git.savannah.gnu.org/cgit/hurd/glibc.git/log/?h=rbraun/clock_t_centiseconds
+    <nalaginrut> braunr:  thanks for that, but why not use a constant for 100?
+    <braunr> nalaginrut: i don't know where to define it
+    <braunr> it's glibc, you don't define new stuff mindlessly
+    <youpi> braunr: about your centiseconds patch, did you run the libc
+      testsuite with it?
+    <mark_weaver> it does seem a shame to reduce the resolution of the timers
+      from microseconds to centiseconds.  I wonder if that could be avoided.
+    <youpi> by fixing all applications which assume centiseconds
+    <mark_weaver> *nod*  well, if there's such a problem in Guile, I'd be glad
+      to fix that.
+    <braunr> youpi: no
+    <mark_weaver> I see that there's a macro CLOCKS_PER_SEC that programs
+      should consult.
+    <youpi> braunr: ok, I'll do then
+    <braunr> mark_weaver: why is it a shame ?
+    <braunr> it's not clock or timer resolution
+    <youpi> it's clock_t resolution
+    <braunr> it's an obsolete api to measure average cpu usage
+    <braunr> having such a big value on the other hand reduces the cpu usage
+      durations
+    <mark_weaver> braunr: good point :)  I confess to being mostly ignorant of
+      these APIs.
+    <mark_weaver> Though Guile should still consult CLOCKS_PER_SEC instead of
+      assuming centiseconds.  If it's making an improper assumption, I'd like
+      to know so I can fix it.
+    <braunr> the improper assumption is that there are less than 1000 clock
+      ticks per second
+    <mark_weaver> do you know off-hand of some code in Guile that is making
+      improper assumptions?
+    <braunr> yes
+    <braunr> let me find it
+    <mark_weaver> thanks
+    <braunr>   factor = scm_quotient (scm_from_long (TIME_UNITS_PER_SECOND),
+    <braunr>                          scm_from_long (ticks_per_second));
+    <braunr> it seems guile attempts to normalize all times values to
+      TIME_UNITS_PER_SECOND
+    <braunr> while i think it would be better off using ticks_per_second (clock
+      ticks as provided by sysconf())
+    <braunr> attempting to normalize here causes factor to become 0 if
+      TIME_UNITS_PER_SECOND < ticks_per_second
+    <mark_weaver> ah, I see.
+    <mark_weaver> I'll take care of it.  thanks for the pointer!
+    <youpi> braunr: I've commited the centisecond patch to debian's glibc
+
+
+### IRC, freenode, #hurd, 2013-08-29
+
+    <nalaginrut> braunr:  Guile2 works smoothly now, let me try something cool
+      with it
+    <braunr> nalaginrut: nice

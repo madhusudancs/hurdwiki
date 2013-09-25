@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2012, 2013 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -28,6 +29,132 @@ A similar problem is described in
 [[community/gsoc/project_ideas/unionfs_boot]], and needs to be implemented.
 
 
-# TODO
+# Open Issues
 
-How to use, etc.
+## Documentation
+
+[[!tag open_issue_documentation]]
+
+## [[open_issues/hurd_build_without_parted]]
+
+## IRC, freenode, #hurd. 2013-09-21
+
+    <phcoder> Hello, guys. Is there a way to know where partition starts on
+      hurd. E.g. given hd0s1 get "2048 sectors"
+    <youpi> yes, it's the storeinfo RPC
+    <youpi> let me find you a pointer
+    <phcoder> in GRUB 2 files for determining device relations are a mess of
+      #if's. I try to split it into logical files and make common logic
+      uniform. Current Hurd's logic is completely different and, actually,
+      wrong. Same logic is used by Mac OS X part ...
+    <youpi> phcoder: Mmm, I guess you never got the userland-part.patch
+      upstream
+    <youpi> ah, yes ,you did
+    <youpi> I mean the find_hurd_root_device function
+    <youpi> grub was previously using file_get_storage_info
+    <phcoder> youpi: find_hurd_root_Device/file_get_storage info is about
+      translating / -> /dev/hd0s1. Current problem is in step hd0s1 ->
+      hd0,msdos1
+    <youpi> yes, but iirc file_get_storage_info might work for hd0s1 itself
+    <phcoder> I see, let me try this
+    <phcoder> youpi: file_get_storage gives offset=0 size=partition size
+    <youpi> (file_get_storage) damn
+    <phcoder> and name=hd0s1
+    <youpi> ah, that might be because we're still using in-kernel partition
+      table, instead of the parted partition table
+    <phcoder> looks like file_get_storage would be useful to get block size
+      though
+    <phcoder> youpi: is parted already used in some cases? Any reliable way to
+      check for it? Any way to access kernel partition map? Ioctl? RPC to
+      kernel?
+    <youpi> the parted table is only enabled in the debian installer for
+      now. You can set up one for yourself by running e.g. settrans -c
+      /tmp/myhd0s1 /hurd/storeio -T typed part:1:device:hd0
+    <youpi> I don't think there is any ioctl/RPC to get the kernel partition
+      table
+    <phcoder> youpi: is it using Linux partition code with some glue?
+    <youpi> phcoder: the kernel partition table, yes
+    <phcoder> youpi: that's bad. it's probably one of the least consistent
+      numbering schemes. It would imply that it only worked because only
+      simplest cases were ever tested
+    <youpi> I know
+    <youpi> that's why we want to migrate to the parted-based partition table
+      support
+    <youpi> (which also brings us much better support than the old linux2.0
+      code :) )
+    <phcoder> youpi: I've looked into code and must say that I dislike what I
+      see: partitions handled in ide/ahci/sd/...
+    <youpi> phcoder: which code?
+    <phcoder> youpi: gnumach
+    <youpi> sure, that's not what we want in the end
+    <phcoder> grep -r start_sect
+    <youpi> it's just the legacy linux way of doing partition support
+    <phcoder> Well Linux at least gives a meaningful ioctl
+    <phcoder> couldn't find any hint of it in gnumach
+    <youpi> we didn't bother to add one since the parted way is supposed to be
+      what we have in the end
+    <phcoder> youpi: I can't make our code follow sth that might be the case in
+      the future
+    <youpi> why not?
+    <youpi> that's the way we will go
+    <youpi> it's not just hypothetic
+    <youpi> we just can't continue maintaining disk drivers in the kernel
+    <youpi> so it won't be in the kernel
+    <phcoder> youpi: if I do then GRUB won't work on current GNU/Hurd anymore
+    <youpi> can't you also keep the old code?
+    <youpi> as a fallback when the proper way does not work (yet)
+    <phcoder> More hairs... :(
+    <phcoder> How do I check for it? offset == 0 isn't proper as partitions may
+      start at 0
+    <phcoder> but checking than name still refers to partition is probably the
+      right way
+    <youpi> I don't see what you mean
+    <youpi> (about name)
+    <phcoder> youpi: I mean that we need a way to know that current code is
+      used and not future parted-based code
+    <youpi> phcoder: I understand that for the offset ==0 thing
+    <youpi> but I didn't understand the phrase you wrote just after that
+    <phcoder> youpi: file_get_storage gives back a name. If this name is the
+      same as the partition we requested in the first place then it's current
+      code
+    <youpi> ah, ok
+    <youpi> yes, if the name is the same, it means it's not actually a
+      partition
+    <phcoder> youpi: current gnumach code makes fake devices out of partitions
+    <youpi> yes
+    <phcoder> youpi: with settrans command you told, I get num_ints = 0
+    <youpi> phcoder: odd, I do get information, e.g.:
+    <youpi> hurd:/tmp# settrans -c /tmp/mysd0s1 /hurd/storeio  -T typed
+      part:1:device:sd0
+    <youpi> hurd:/tmp# storeinfo mysd0s1
+    <youpi> device (0x200): sd0: 512: 83905: 42959360: 63+83905
+    <phcoder> storeinfo: myhd0s1: Operation not supported
+    <youpi> do you actually have an hd0 device?
+    <phcoder> yes
+    <phcoder> youpi: I typed parted instead of part
+    <phcoder> Now it works
+    <youpi> good :)
+    <phcoder> youpi: what is expected timeline on migration to part interface?
+    <youpi> there's no real timeline
+    <youpi> like everything, it'll happen when somebody actually looks at how
+      to achieve it
+    <youpi> perhaps it'll be easy, perhaps not. IIRC there is still an issue
+      with the swapper
+    <phcoder> youpi: sounds like we're stuck will fallback code for at least
+      couple of years
+    <youpi> possibly, entirely depends on people taking the task
+    <youpi> if that becomes really pressing at some point, I'll have to do it,
+      but of course, I can not magically do everything in a glimpse
+    <phcoder> youpi: it's not pressing but just be aware that unusual
+      partitioning is likely to fail. Probably not huge issue. As to its place
+      in our code it's not ideal but it's not the only case of suboptimal
+      construction for specific systems (what we had to do because of Linux
+      caching is terrifying). I'm not going to make hurd code a scapegot of
+      more generic problem
+    <phcoder> youpi: and since we very rarely drop support this code is
+      probably stuck for good
+    <youpi> as long as it's not used whenever we get to move to parted-based
+      partitioning, it's not too bad
+    <phcoder> youpi: and Mac OS X/Darwin case is even worse. Apparently they
+      deprecated their *BSD functions (which probably don't work since they
+      don't use BSD labels) without giving any replacement.

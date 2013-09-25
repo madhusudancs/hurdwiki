@@ -281,13 +281,54 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
 
         [[glibc_madvise_vs_static_linking]].
 
+        IRC, OFTC, #debian-hurd, 2013-09-09:
+
+            <gg0> does hurd MADV_DONTNEED or MADV_FREE or none?
+              http://sources.debian.net/src/jemalloc/3.4.0-1/include/jemalloc/jemalloc_defs.h.in#L239
+            <gg0> seems it builds by defining JEMALLOC_PURGE_MADVISE_DONTNEED
+              but i don't know what i'm talking about, so it could build with
+              JEMALLOC_PURGE_MADVISE_FREE as well
+
+        IRC, OFTC, #debian-hurd, 2013-09-10:
+
+            <youpi> gg0: it implements none, even if it defines DONTNEED (but
+              not FREE)
+
+        See also:
+
+            gnash (0.8.11~git20130903-1) unstable; urgency=low
+            
+              * Git snapshot.
+                + Embedded jemalloc copy has been replaced by system one.
+                  [...]
+                  - Disable jemalloc on hurd and kfreebsd-*. No longer disabled upstream.
+
       * `msync`
 
         Then define `_POSIX_MAPPED_FILES`, `_POSIX_SYNCHRONIZED_IO`.
 
-      * `sys/epoll.h`
+      * `epoll`, `sys/epoll.h`
 
         Used by [[wayland]], for example.
+
+        IRC, freenode, #hurd, 2013-08-08:
+
+            <nalaginrut> is there any possible to have kquque/epoll alike
+              things in hurd? or there is one?
+            <braunr> nalaginrut: use select/poll
+            <nalaginrut> is it possible to implement epoll?
+            <braunr> it is
+            <braunr> we don't care enough about it to do it
+            <braunr> (for now)
+            <nalaginrut> well, since I wrote a server with Guile, and it could
+              take advantage of epoll, never mind, if there's no, it'll use
+              select automatically
+            <nalaginrut> but if someday someone care about it, I'll be
+              interested on it
+            <braunr> epoll is a scalability improvement over poll
+            <braunr> the hurd being full of scalability issues, this one is
+              clearly not a priority
+            <nalaginrut> ok
 
       * `sys/eventfd.h`
 
@@ -390,6 +431,429 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
         libgc, libsigsegv, luatex, mono, nspr, pth, ruby1.8, texlive-bin, uim,
         and more.
 
+        IRC, OFTC, #debian-hurd, 2013-09-08:
+
+            <pinotree> oh, and even ruby2.0 suffers because of fixed-stack
+              threads
+            <youpi> yes, we definitely need to finish fixing it
+            <youpi> my current work is in our glibc repo, youpi/tls-threadvar
+            <pinotree> | *** makecontext: a stack at 0xbc000 with size 0x40000
+              is not usable with threadvars
+            <pinotree> all 8 failing tests with that
+            <youpi> maybe we can hand-disable the use of contexts in ruby for
+              now?
+            <pinotree> gg0: ↑ :)
+            <gg0> after the pseudo-patch i RFCed, i don't deserve to say
+              anything else about that :)
+            <pinotree> i mean, feel free to investigate and "fix" ruby2.0 as
+              above :)
+            <gg0> eh maybe i'd just be able to hand-disable failing
+              thread-related _tests_ :)
+            <gg0> i'm still hoping some real developer picks and actually fixes
+              it, seems it's not enough interesting though
+            <azeem> 21:37 < youpi> yes, we definitely need to finish fixing it
+            <gg0> afaiu youpi is working on threadvars-tls migration, which
+              would mean fixing them all. i just meant fixing ruby, which would
+              mean having puppet btw
+            <youpi> gg0: "actually fixing" means fixing threadvars-tls
+              migration
+            <youpi> "just fixing" ruby can be done by simply disabling context
+              use in ruby
+
+        IRC, OFTC, #debian-hurd, 2013-09-10:
+
+            <gg0> this one fixes make test by disabling context and giving more
+              time to timing related tests http://paste.debian.net/plain/37977/
+            <gg0> make test-all is another story
+            <youpi> gg0: AIUI, the sleep part should get fixed by the next
+              glibc upload, which will include the getclk patch
+            <youpi> but the disabling context part could be good to submit to
+              the debian ruby package, mentioning that this is a workaround for
+              now
+            <gg0> unfortunately still not enough, test-all still fails
+            <youpi> does it make the package not build?
+            <gg0> test-all is the second part of what we call tests
+            <gg0> they build and package (they produce all ruby packages),
+              after that they run debian/run-test-suites.bash which is make
+              test + make test-all
+            <gg0> well after or during the build doesn't matter, it's their
+              testsuite
+            <gg0> ok just failed:
+            <gg0> TestBug4409#test_bug4409 = Illegal instruction
+            <gg0> make: *** [yes-test-all] Error 132
+            <gg0> what to do with Illegal instruction?
+            <gg0> just found 2 words that make everybody shut up :p
+            <pinotree> same as above: debug it
+            <teythoon> gg0: have you confirmed that this is reproducible? I've
+              once had a process die with SIGILL and it was not and I figured
+              it might have been a (qemu?) glitch
+            <gg0> seems i'm running tests which are disabled on _all_ archs,
+              better so
+            <gg0> well, this should be reproducible. i just got it on a qemu, i
+              could try to reproduce it on real hardware but as just said, i
+              was testing tests disabled by maintainer so completely useless
+            <teythoon> gg0: yeah, I'm running all my hurd instances on qemu/kvm
+              as well, I meant did you get this twice in a row?
+            <gg0> to be honest i got another illegal instruction months ago but
+              don't recall doing what
+            <gg0> nope not twice, i've commented it out. then run the remaining
+              and then found out i should not have done what i was doing
+            <gg0> but i could try to reproduce it
+            <gg0> ok now i recall i got it another one few hours ago on real
+              hardware, from logs:
+            <gg0> TestIO#test_copy_stream_socket = Illegal instruction
+            <gg0> teythoon: on real hardware though
+            <gg0> and this is the one i should debug once it finishes, still
+              running
+
+        IRC, freenode, #hurd, 2013-09-11:
+
+            <gg0_> ../sysdeps/mach/hurd/jmp-unwind.c:53: _longjmp_unwind:
+              Assertion `! __spin_lock_locked (&ss->critical_section_lock)'
+              failed.
+            <gg0_> and
+            <gg0_> ../libpthread/sysdeps/mach/pt-thread-halt.c:51:
+              __pthread_thread_halt: Unexpected error: (ipc/send) invalid
+              destination port.
+            <tschwinge> gg0_: Which libpthread source are these?  Stock Debian
+              package?
+            <gg0_> tschwinge: everything debian, ruby rebuilt with
+              http://paste.debian.net/plain/38519/ which should disable
+              *context
+
+        IRC, OFTC, #debian-hurd, 2013-09-11:
+
+            <gg0_> wrt ruby, i'd propose a patch that disables *context and
+              comments out failed tests (a dozen). most of them are timing
+              related, don't always fail
+            <gg0_> if they failed gracefully, we could leave them enabled and
+              just ignoring testsuite result, but most of them block testsuite
+              run when fail
+            <gg0_> anyone against? any better idea (and intention to implement
+              it? :p)?
+            <gg0_> youpi: is disabling some tests acceptable? ^
+            <youpi> it'd be good to at least know what is failing
+            <youpi> so as to know what impact hiding these failures will have
+            <youpi> remember that hiding bugs usually means getting bitten by
+              them even harder later :)
+            <gg0_> many of them use pipes
+            <gg0_> here the final list, see commented out ones
+              http://paste.debian.net/plain/38426
+            <gg0_> and as said some don't always fails
+            <gg0_> test_copy_stream_socket uses a socket
+            <youpi> note that we can still at least build packages with notest
+            <youpi> at least to get the binaries uploaded
+            <youpi> disabling *context should however really be done
+            <youpi> and the pipe issues are concerning
+            <youpi> I don't remember other pipe issues
+            <youpi> so maybe it's a but in the ruby bindings
+            <gg0_> i just remember they didn't die, then something unknown
+              fixed it
+            <youpi> I see something frightening in io.c
+            <youpi> #if BSD_STDIO
+            <youpi>          preserving_errno(fseeko(f, lseek(fileno(f),
+              (off_t)0, SEEK_CUR), SEEK_SET));
+            <youpi> #endif
+            <youpi> this looks very much like a workaround for an odd thing in
+              BSD
+            <youpi> it happens that that gets enabled on hurd too, since
+              __MACH__ is defined
+            <youpi> you could try to drop these three lines, just to see
+            <youpi> this is very probably very worth investigating, at any rate
+            <youpi> even just test_gets_limit_extra_arg is a very simple test,
+              that I fail to see why it should ever fail on hurd-i386
+            <youpi> starting debugging it would be a matter of putting printfs
+              in io.c, to check what gets called, with what parameters, etc.
+            <youpi> just a matter of taking the time to do it, it's not very
+              complex
+            <gg0_> youpi: are you looking at 1.8? no BSD_STDIO here
+            <youpi> yes, 1.8
+            <gg0_> 1.9.3.448
+            <gg0_> landed to sid few days ago
+            <youpi> ah, I have 1.87
+            <youpi> +.
+            <gg0_> my favourites are TestIO#test_copy_stream_socket and
+              TestIO#test_cross_thread_close_fd -> Illegal instruction
+            <gg0_> TestIO#test_io_select_with_many_files sometimes Illegal
+              instruction, sometimes ruby1.9.1:
+              ../sysdeps/mach/hurd/jmp-unwind.c:53: _longjmp_unwind: Assertion
+              `! __spin_lock_locked (&ss->critical_section_lock)' failed.
+
+        [[thread-cancel_c_55_hurd_thread_cancel_assertion___spin_lock_locked_ss_critical_section_lock]]?
+
+            <gg0_> trying to debug illegal instruction
+              http://paste.debian.net/plain/38585/
+            <gg0_> (yes, i'm not even good at gdbing)
+            <gg0_> any hint?
+            <gg0_> oh found out there's an intree .gdbinit, that might
+              complicate things
+
+        IRC, OFTC, #debian-hurd, 2013-09-13:
+
+            <gg0_> where should it be implemented MAP_STACK? plus, is it worth
+              doing it considering migration to tls, wouldn't it be useless?
+            <gg0_> sysdeps/mach/hurd/mmap.c i should reduce stupid questions
+              frequency from daily to weekly basis
+
+        IRC, OFTC, #debian-hurd, 2013-09-14:
+
+            <gg0_> say i managed to mmap 0x200000-aligned memory
+            <gg0_> now i get almost the same failed tests i get disabling
+              *context
+            <gg0_> that would mean they don't depend on threading
+
+        IRC, freenode, #hurd, 2013-09-16:
+
+            <gg0> i get many ../sysdeps/mach/hurd/jmp-unwind.c:53:
+              _longjmp_unwind: Assertion `! __spin_lock_locked
+              (&ss->critical_section_lock)' failed.
+            <gg0> by running ruby testsuite, especially during test_read* tests
+              http://sources.debian.net/src/ruby1.9.1/1.9.3.448-1/test/ruby/test_io.rb#L972
+            <gg0> read/write operations with pipes
+            <braunr> gg0: that's weird
+            <braunr> gg0: debian glibc ?
+            <gg0> braunr: yep, debian 2.17-92
+            <gg0> sometimes assertion above, sometimes tests in question get
+              stuck reading
+            <gg0> it would be nice reproducing it w/o ruby
+            <gg0> probably massive io on pipes could do the job
+            <gg0> also more nice finding someone who finds it interesting to
+              fix :p
+            <gg0> ruby is rebuilt with http://paste.debian.net/plain/40755/, no
+              *context
+            <gg0> pipe function in tests above creates one thread for write,
+              one for read
+              http://sources.debian.net/src/ruby1.9.1/1.9.3.448-1/test/ruby/test_io.rb#L26
+            <tschwinge> gg0: About the jmp-unwind assertion failure: is it be
+              chance this issue:
+              <http://www.gnu.org/software/hurd/open_issues/thread-cancel_c_55_hurd_thread_cancel_assertion___spin_lock_locked_ss_critical_section_lock.html>?
+              I didn't look in detail.
+            <braunr> tschwinge: that's what i thought too about the assertion,
+              which is why i find it strange
+            <gg0> asserting it's not locked then locking it doesn't exclude
+              race conditions
+
+        IRC, OFTC, #debian-hurd, 2013-09-17:
+
+            <gg0> youpi: i guess no one saw it anymore since
+              tg-thread-cancel.diff patch
+            <gg0> it =
+              http://www.gnu.org/software/hurd/open_issues/thread-cancel_c_55_hurd_thread_cancel_assertion___spin_lock_locked_ss_critical_section_lock.html
+            <gg0> this one comes from sysdeps/mach/hurd/jmp-unwind.c:53 though
+            <gg0> another assertion to remove?
+            <youpi> gg0: it's not exactly the same: in hurd_thread_cancel we
+              hold no lock at all at the assertion point
+            <youpi> in jmp-unwind.c, we do hold a lock
+            <youpi> and the assertion might be actually true because all other
+              threads are supposed to hold the first lock before taking the
+              other one
+            <youpi> you could check for that in other places
+            <youpi> and maybe it's the other place which wouldhave to be fixed
+            <youpi> also look for documentation which would say that
+
+        IRC, freenode, #hurd, 2013-09-17:
+
+            <braunr_> gg0: is that what we do ??
+            <gg0> braunr: well, i was looking at
+              http://sources.debian.net/src/eglibc/2.17-92/debian/patches/hurd-i386/tg-thread-cancel.diff
+            <gg0> which afaics fixes
+              http://www.gnu.org/software/hurd/open_issues/thread-cancel_c_55_hurd_thread_cancel_assertion___spin_lock_locked_ss_critical_section_lock.html
+            <gg0> the one i get now is
+              http://sources.debian.net/src/eglibc/2.17-92/sysdeps/mach/hurd/jmp-unwind.c#L53
+            <gg0> 09:12 < youpi> gg0: it's not exactly the same: in
+              hurd_thread_cancel we hold no lock at all at the assertion point
+            <gg0> 09:13 < youpi> in jmp-unwind.c, we do hold a lock
+            <gg0> 09:13 < youpi> and the assertion might be actually true
+              because all other threads are supposed to hold the first lock
+              before taking the other one
+            <braunr> gg0: that assertion is normal
+            <braunr> it says there is a deadlock
+            <braunr> ss->critical_section_lock must be taken before ss->lock
+            <gg0> you mean ss->lock before ss->critical_section_lock
+            <braunr> no
+            <gg0> ah ok got it
+            <braunr> that's a bug
+            <braunr> longjmp
+            <braunr> ugh
+            <braunr> you could make a pass through the various uses of those
+              locks and check what the intended locking protocol should be
+            <braunr> i inferred ss->critical_section_lock before ss->lock from
+              hurd_thread_cancel
+            <braunr> this might be wrong too but considering this function is
+              used a lot, i doubt it
+            <gg0> (no, i hadn't got it, i was looking at jmp-unwind.c where
+              lock is before critical_section_lock)
+            <gg0> could we get useful info from gdb'ing the assertion?
+            <tschwinge> gg0: Only if you first get an understanding why it is
+              happening, what you expect to happen instead/why it shall not
+              happen/etc.  Then you can perhaps use GDB to verify that.
+            <gg0> i can offer an irc interface if anyone is interested, it's
+              ready, just to attach :)
+            <gg0> this is the test
+              http://sources.debian.net/src/ruby1.9.1/1.9.3.448-1/test/ruby/test_io.rb#L937
+            <gg0> pipe function creates two threads
+              http://sources.debian.net/src/ruby1.9.1/1.9.3.448-1/test/ruby/test_io.rb#L26
+            <gg0> Attaching to pid 15552
+            <gg0> [New Thread 15552.1]
+            <gg0> [New Thread 15552.2]
+            <gg0> (gdb) 
+
+        IRC, freenode, #hurd, 2013-09-21:
+
+            <youpi> gg0: it seems the assert (! __spin_lock_locked
+              (&ss->critical_section_lock)); is bogus
+            <youpi> but it'd be good to catch a call trace
+            <youpi> well, it may not be bogus, in case that lock is only ever
+              taken by the thread itself
+            <youpi> in that case, inside longjmp_unwind we're not supposed to
+              have it already
+            <youpi> ok, that's what we had tried to discuss with Roland
+            <youpi> it can happen when playing with thread cancelation
+            <braunr> youpi: the assertion isn't exactly bogus
+            <braunr> the lock ordering is
+            <youpi> braunr: which one are you talking about?
+            <youpi> the one in hurd_thread_cancel looks really wrong
+            <youpi> and some parts of the code keep the critical section lock
+              without ss->lock held, so I don't see how lock ordering can help
+
+        IRC, OFTC, #debian-hurd, 2013-09-22:
+
+            <gg0> how much does this patch suck on a scale from 1 to 10?
+              http://paste.debian.net/plain/44810/
+            <youpi> well, the stack allocation issue will go away once I get
+              the threadvars away
+            <youpi> I'm working on it right now
+            <youpi> about the lib paths, it makes sense to add the gnu case,
+              but i386-gnu shouldn't be put in the path
+            <gg0> that's great
+            <gg0> so seems the wrong moment for what i've already done
+              ie. asking terceiro what he thinks about patch above :/
+            <gg0> any distro-independent way to get libc.so and libm.so path?
+            <gg0> ruby as last resource takes them from "ldd ruby"
+            <pinotree> gg0: should work fine then
+            <gg0> well it does. but gnu doesn't have a case so it hits default
+              which is broken
+              http://bugs.ruby-lang.org/projects/ruby-trunk/repository/revisions/40235/entry/test/dl/test_base.rb
+            <gg0> btw even linux and kfreebsd with debian multipath have broken
+              cases but they don't hit default and get fixed by ldd later
+            <pinotree> why it is broken? are arguments passed to that script?
+            <gg0> i'm not sure about what propose. a broken case so it doesn't
+              hit default like linux and kfbsd
+            <gg0> yes they are :/
+            <pinotree> and which ones are? who executes that script and which
+              arguments does it pass to it?
+            <gg0> other ruby scripts which have nothing to do with libc/libm
+            <pinotree> well, if they pass arguments which should be the paths
+              to libc and libm, they must be getting such paths, aren't they?
+            <gg0> they don't. arguments are other ruby scripts, don't know why,
+              maybe something else broken before
+            <gg0> but that would mean that before there's a smarter path
+              detection way, i doubt
+            <pinotree> then add the case for hurd, but setting both libc and
+              libm as nil
+            <pinotree> so they will be fetched again
+            <gg0> yep and would really ugly
+            <gg0> +be
+            <gg0> "please commit this one which wrongly sets paths."
+            <gg0> an alternative would be removing default case
+            <gg0> or pointing it out by proposing ldd in hurd case might make
+              them review the whole detection
+            <gg0> by setting correct paths like in patch above it wouldn't
+              break a possible hurd-amd64, it would work due to ldd
+            <youpi> gg0: that's why I said the patch is fine, but without the
+              i386-gnu part of the path
+            <youpi> just like it happens to be on linux & kfreebsd
+            <gg0> i might take ldconfig -p output
+            <gg0> to make it uselessly correct from start
+            <gg0> http://bugs.ruby-lang.org/issues/8937
+            <pinotree> note thar ruby 1.8 is EOL
+            <pinotree> *that
+            <gg0> -- If you're reporting a bug in both Ruby 1.9/2.0 and Ruby
+              1.8: ruby-trunk, and write like "this bug can be reproduced in
+              Ruby 1.8 as well." --
+            <gg0> i suspect this one won't be the only one i'll file. unless
+              upcoming youpi's tls and braunr's thread destruction patches fix
+              all ruby tests
+            <pinotree> did you check ruby2.0 too, btw?
+            <gg0> switched to ruby2 few hours ago. i pointed out 2nd part of
+              testsuite is not enabled, probably terceiro will enable it soon
+            <gg0> by applying my patch above we'd completely fix current
+              ruby2.0 build (yes because tests are not completely enabled)
+            <pinotree> what you run those extra tests?
+            <gg0>
+              http://anonscm.debian.org/gitweb/?p=collab-maint/ruby1.9.1.git;a=blob;f=debian/run-test-suites.bash
+            <gg0> make test + make test-all
+            <gg0> (test-all is 2nd part)
+            <gg0> many are problematic. i didn't finish yet to suppress them
+              one-by-one. one i suppress, another one pops up
+            <gg0> either get stuck or well known assertion
+            <pinotree> check those that get stuck :)
+            <gg0> which kind of check?
+            <pinotree> "check" as in "debug"
+            <gg0> btw i tested puppet few days ago (with ruby1.8), it seems to
+              be working, at least at trasferring files from master
+            <gg0> don't know about any advanced usage
+            <pinotree> ruby 1.8 is going to die soon, so testing things against
+              it is not totally useful
+            <gg0> so you assume 1.8 is less broken than 1.9/2.0, right?
+            <pinotree> no
+            <gg0> i just can see it's been built without tests itself too
+            <pinotree> erm no
+            <gg0> well ok, if i can be wrong, i'll be wrong
+            <gg0> i say that after a quick check time ago, might be wrong
+            <pinotree> `getbuildlogs ruby1.8 last hurd-i386`, see the last
+              build log
+            <gg0> ah from pkg-kde-tools
+            <gg0> i hate kde :)
+            <pinotree> no?
+            <gg0> no what?
+            <pinotree> devscripts: /usr/bin/getbuildlog
+            <gg0> pkg-kde-tools: /usr/bin/pkgkde-getbuildlogs
+            <pinotree> which is not what i said
+            <gg0> wait that's what apt-file found
+            <gg0> maybe i should update it
+            <gg0> is it so recent?
+            <pinotree> no
+            <pinotree> i just added an 's' more at the end of the command, but
+              typing getbu<tab> could have been helpful anyway...
+            <gg0> yeah just got it
+            <gg0> my fault not to have tried to run it before looking for it
+            <pinotree> and btw, i don't see what hating kde has to do with
+              tools developed by qt/kde debian packagers
+            <gg0> j/k i simply don't use kde, never used and apt-file search
+              told me it was from pkg-kde-tools
+            <gg0> btw build log says "make test" fails, doesn't even start. and
+              its failure doesn't block the build
+            <pinotree> exactly
+            <gg0> s/make test/make test-all/
+            <gg0> "make test" (aka "1st part" above) doesn't run. i guess it's
+              missing in packaging
+
+        IRC, freenode, #hurd, 2013-09-22:
+
+            <braunr> youpi: i mean the lock order where the assertion occurs is
+              reserved compared to the one in hurd_thread_cancel
+            <braunr> (and the one in hurd_thread_cancel is the same used in
+              hurd condition-related functions)
+            <youpi> "reserved" ?
+            <braunr> reversed
+            <braunr> :)
+            <youpi> by "the assertion occurs", you mean gg0's spot?
+            <braunr> yes
+            <youpi> well , the assertion also happens in hurd_thread_cancel
+            <braunr> it does oO
+            <braunr> i didn't see that
+            <youpi> but otherwise yes, it's completely bogus that we have both
+              locking in different orders
+            <youpi> could you submit the fix for jmp-unwind.c to upstream?
+            <braunr> what fix ?
+            <youpi> reversing the lock order
+            <braunr> ah, simply that
+            <youpi> (well, provided that hurd_thread_cancel is right)
+            <braunr> that's what i suggested to gg0
+            <braunr> to check where those locks are held and determine the
+              right order
+
       * `recvmmsg`/`sendmmsg` (`t/sendmmsg`)
 
         From [[!message-id "20120625233206.C000A2C06F@topped-with-meat.com"]],
@@ -401,13 +865,140 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
         Then perhaps the Linux fallback case should be that instead of stubs,
         too.*
 
+      * `SOCK_CLOEXEC`
+
+        IRC, freenode, #hurd, 2013-09-02:
+
+            <gnu_srs1> Do we support  accept4  with the SOCK_CLOEXEC flag?
+            <gnu_srs1> According to the code in  sysdeps/mach/hurd/accept4.c
+              that case is not covered 
+            <gnu_srs1> (only O_NONBLOCK, not SOCK_NONBLOCK??))
+            <pinotree> gnu_srs1: we do
+            <pinotree> but only for accept4, not for socket and socketpair
+            <gnu_srs1> pinotree: cannot find the case for O_CLOEXEC covered in
+              __libc_accept4()
+            <pinotree> gnu_srs1: no, you need SOCK_*
+            <gnu_srs1> The only code for accept4() is in sysdeps/mach/hurd/ and
+              it uses O_* for flags ?
+            <pinotree>   flags = sock_to_o_flags (flags);
+            <pinotree> tried checking it?
+            <gnu_srs1> Aha, tks:-D
+            <pinotree> and you don't need an explicit case of O_CLOEXEC, since
+              it is handled in other ways
+
+        [[!message-id "1378154151.21738.15.camel@G3620.my.own.domain"]].
+
+        IRC, freenode, #hurd, 2013-09-03:
+
+            <gnu_srs> any ideas about the SOCK_CLOEXEC issue?
+            <pinotree> didn't i tell already about it?
+            <gnu_srs> I did not find any hurd related code in tschwinges
+              branches.
+            <pinotree> you didn't check deep then...
+            <gnu_srs> so why does socket/socketpair not return ENOSYS then?
+            <pinotree> why should it, since they are implemented?
+            <braunr> ...
+            <gnu_srs> for socket/socketpair?
+            <braunr> gnu_srs: enosys means no system call
+            <gnu_srs> s/ENOSYS/EINVAL/
+            <gnu_srs> see the mail to the bug-hurd/debian-hurd ML for more info
+            <gnu_srs> and tschwinges reply
+            <pinotree> which is what i knew already?
+            <gnu_srs> pinotree: please reply on the mailing list on the EINVAL
+              vs EPROTOTYPE issue to clarify things
+            <pinotree> gnu_srs:
+              https://sourceware.org/ml/libc-alpha/2013-02/msg00092.html
+            <pinotree> gnu_srs: things were clear already...
+            <gnu_srs> pinotree: I've read that patch and still pflocal/pf.c
+              returns EPROTOTYPE not changed by the __socket wrapper in eglibc
+            <pinotree> gnu_srs: what about realizing SOCK_CLOEXEC and friends
+              are NOT posix?
+            <gnu_srs> since socket/socketpair does not return EINVAL the dbus
+              code has to be patched then?
+            <pinotree> pflocal should never ever get such flags mixed to the
+              protocol, so any invalid value of protocol correctly returns
+              EPROTOTYPE
+            <gnu_srs> this is the question I need answered: Which way to go?
+            <pinotree> all of them
+            <gnu_srs> ?
+            <pinotree> - applications should not assume that because you have
+              accept4 (which is not posix) then SOCK_CLOEXEC and SOCK_NONBLOCK
+              (flags for it) are usable to socket and socketpair
+            <pinotree> - glibc should (as the idea of my patch) handle
+              implementations providing SOCK_* but not supporting them for
+              socket/socketpair
+            <pinotree> - finally the hurd part of glibc could implement them
+            <gnu_srs> to conclude: should I send a bug report for dbus then?
+            <gnu_srs> pinotree: yes or no?
+            <pinotree> gnu_srs: *shrug* i wrote it above, so an *upstream*
+              report (not a debian one)
+
+        IRC, freenode, #hurd, 2013-09-06:
+
+            <gnu_srs> I've found another error code issue, now in  glib2.0 (and
+              dbus). Are you really sure the error code 
+            <gnu_srs> for protocol of pflocal/pf.c should be
+              EPROTONOSUPPORT. The code expects EINVAL for a protocol with
+            <gnu_srs>  SOCK_CLOEXEC, which is a flag. Maybe pf.c should add
+              this case and return EINVAL instead of 
+            <gnu_srs> submitting bug reports upstream. Yes, I know this is not
+              POSIX, but it is defined for Hurd too, 
+            <gnu_srs> currently only supported for accept4, not socket or
+              socketpair. 
+            <pinotree> gnu_srs: no, and i explained already why it is wrong
+              this way
+            <pinotree> pflocal shouldn't even get such flags
+            <pinotree> (pflocal or any other server implementing socket_create)
+            <gnu_srs> (20:19:35) pinotree: pflocal shouldn't even get such
+              flags
+            <gnu_srs> then the glibc wrapper code is missing to catch this
+              flag:(
+            <gnu_srs> youpi: ?
+            <pinotree> gnu_srs: because, as told many times, socket and
+              socketpair do not support such flags
+            <pinotree> given they don't do, they filter nothing
+            <pinotree> and no, you need to file bugs upstream, since having
+              SOCK_* and accept4 does not imply at all that socket and
+              socketpair support them
+
+        IRC, freenode, #hurd, 2013-09-07:
+
+            <gnu_srs> A correction from yesterdays discussion:
+              s/EPROTONOSUPPORT/EPROTOTYPE
+
+        IRC, freenode, #hurd, 2013-09-10:
+
+            <gnu_srs> for dbus2.0 I found out that the third SOCK_CLOEXEC case
+              needs a patch too (more working tests),
+            <gnu_srs> the updated patch is at http://paste.debian.net/37948/ if
+              you have the time, otherwise I'll do it.
+            <pinotree> gnu_srs: which is what i wrote in my bug report...
+            <gnu_srs> Yes you wrote that, but the patch is not updated yet?
+            <pinotree> it refers to a different socket access, recently added,
+              which is not used by default
+            <gnu_srs> I got two more tests running when adding that patch:-/
+            <pinotree> tests of what?
+            <gnu_srs>  run-test.sh and run-test-systemserver.sh:P
+            <pinotree> tests of what?
+            <pinotree> i don't have the universal knowledge of the files in all
+              the sources
+            <gnu_srs> dbus-1.6.14/test/name-test/*
+
+        [[!message-id "523A3D6C.2030200@gmx.de"]].
+
+        IRC, OFTC, #debian-hurd, 2013-09-19:
+
+            <pinotree> tschwinge: ehm, regarding the SOCK_* patches for
+              socket/socketpair, didn't we talk about them when i worked on
+              eglibc 2.17?
+
     For specific packages:
 
       * [[octave]]
 
   * Create `t/cleanup_kernel-features.h`.
 
-  * Add tests from Linux kernel commit messages for `t/dup3` et al.
+  * [[Secure_file_descriptor_handling]].
 
   * In `sysdeps/unix/sysv/linux/Makefile`, there are a bunch of
     `-DHAVE_SENDFILE` -- but we do have `sendfile`, too.
@@ -927,6 +1518,31 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
         <tschwinge> Yeah, that's known for years...  :-D
         <tschwinge> Probably not too difficult to resolve, though.
 
+  * IRC, OFTC, #debian-hurd, 2013-08-16:
+
+        <pinotree> http://paste.debian.net/25934/ ← _hurd_thread_sigstate calls
+          malloc, boom
+
+  * `conformtest`
+
+    IRC, OFTC, #debian-hurd, 2013-09-22:
+
+        <youpi> btw, I noticed that glibc has a head conformance test which we
+          happily fail quite a bit :)
+        <youpi> it's not so awful, we don't have twice as many failures as
+          linux, but not so far
+        <pinotree> youpi: do you mean "header" for "head", right?
+        <youpi> err, where ? :)
+        <pinotree> <youpi> btw, I noticed that glibc has a head conformance
+          test which we happily fail quite a bit :)
+        <youpi> ah, yes
+        <pinotree> noticed that too
+        <youpi> I had a quick look at the POSIX part, some things are probably
+          not too hard to change (e.g. exposing pthread_kill in signal.h)
+        <youpi> others will by quite hard to fix (short type instead of int
+          type for some flock structure field)
+        <youpi> s/by/be/
+
   * Verify baseline changes, if we need any follow-up changes:
 
       * a11ec63713ea3903c482dc907a108be404191a02
@@ -1252,6 +1868,13 @@ TODO.
         sysdeps/mach/hurd/ioctl.c:306: warning: case value '0' not in enumerated type 'error_t'
 
     [[!message-id "20120723195143.7F8142C0B9@topped-with-meat.com"]].
+
+    IRC, freenode, #hurd, 2013-08-27:
+
+        < gnu_srs> Hi, is this fixed by now?
+        < gnu_srs> ../hurd/hurd.h:72:5: warning: case value ‘0’ not in
+          enumerated type ‘error_t’ [-Wswitch]
+        < pinotree> nope
 
   * baseline
     fd5bdc0924e0cfd1688b632068c1b26f3b0c88da..2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b

@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2011, 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2012, 2013 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -14,15 +15,17 @@ The dbus problems are due to missing scm credentials [[sendmsg_scm_creds]] and s
 [[pflocal_socket_credentials_for_local_sockets]]. There was also a problem with short timeout in 
 [[select]], but that has been solved in Debian by setting a minimum timeout of 1ms.
 
----
+[[!toc]]
 
-IRC, freenode, #hurd, 2011-11-26:
+
+# IRC, freenode, #hurd, 2011-11-26
 
     <antrik> BTW, how much effort is necessary to fix dbus?
     <pinotree> basically, have pflocal know who's the sender
       (pid/uid/gid/groups) in the socket send op
 
-IRC, freenode, #hurd, 2011-12-16:
+
+# IRC, freenode, #hurd, 2011-12-16
 
     <braunr> pinotree: what's the problem with dbus ?
     <pinotree> braunr: select() returning 0 changed fd's with very short (eg <
@@ -53,7 +56,8 @@ IRC, freenode, #hurd, 2011-12-16:
     <braunr> hm i agree with neal, i don't understand why the timeout is given
       to the kernel as part of the mach_msg call
 
-IRC, freenode, #hurd, 2011-12-20:
+
+# IRC, freenode, #hurd, 2011-12-20
 
     <braunr> hm, i don't see any occurrence of SCM_CREDENTIALS in dbus
     <braunr> only SCM_RIGHTS
@@ -88,3 +92,164 @@ IRC, freenode, #hurd, 2011-12-20:
     <pinotree> iirc roland didn't like one or more parts of it (but i could be
       wrong)
     <braunr> ok
+
+
+# IRC, freenode, #hurd, 2013-07-17
+
+    <teythoon> btw pinotree, what happened to your efforts to make dbus work?
+    <pinotree> not much, my initial patch was just a crude hack, a better
+      solution requires more thinkering and work 
+    <teythoon> yes, ive seen that
+    <teythoon> but that was only a tiny patch against the libc, surely there
+      must be more to that?
+    <pinotree> not really
+    <teythoon> and the proper fix is to patch pflocal to query the auth server
+      and add the credentials?
+    <pinotree> possibly
+    <teythoon> that doesn't sound to bad, did you give it a try?
+    <pinotree> not really, got caught in other stuff
+
+
+# IRC, freenode, #hurd, 2013-09-02
+
+    <gnu_srs1> something is wrong with libc0.3 since the switch to 2.17. dbus
+      does not run any longer when rebuilt
+    <gnu_srs1> the latest build of dbus was with 2.13: libc0.3-dev: already
+      installed (2.13-38)
+    <pinotree> debug it
+    <gnu_srs1> Yes, I will. Maybe somebody could rebuild it and verify my
+      findings?
+    <pinotree> gnu_srs1: your finding is "doesn't work", which is generic and
+      does not help without investigation
+    <gnu_srs1> just rebuild it and: e.g. ./build-debug/bus/dbus-daemon --system
+      (--nofork)
+    <pinotree> gnu_srs1: please, debug it
+    <gnu_srs1> I have partially already. But maybe the problems only shows on
+      my box. I'll rebuild on another box before continuing debugging.
+    <pinotree> gnu_srs1: are you, by chance, running a libc or something else
+      with your scm_creds work?
+    <gnu_srs1> I did, but I've backed to 2.17-92 right now.
+    <gnu_srs1> sane problem with dbus on another box, something's fishy:-(
+    <gnu_srs1> braunr: any good way to find out if the dbus problems are with
+      libpthread? Setting a breakpoint with libc0.3-dbg installed.
+    <braunr> gnu_srs1: i don't know
+
+See [[glibc]], *Missing interfaces, amongst many more*, *`SOCK_CLOEXEC`*.
+
+
+# IRC, freenode, #hurd, 2013-09-04
+
+    <gnu_srs> Hi, looks like dbus requires abstract socket namespace: #undef
+      HAVE_ABSTRACT_SOCKETS What's missing?
+    <pinotree> uh?
+    <pinotree> abstract unix sockets are a Linux feature, and surely it is not
+      mandatory for dbus
+    <gnu_srs> Looks like dbus exits if they are not supported:
+    <gnu_srs>  dbus_set_error (error, DBUS_ERROR_NOT_SUPPORTED,  "Operating
+      system does not support abstract socket namespace\n");        _dbus_close
+      (listen_fd, NULL);  1061       return -1;
+    <pinotree> that is enclosed in a if (abstract)
+    <pinotree> and that parameter is set to true in other places (eg
+      dbus/dbus-server-unix.c) only when HAVE_ABSTRACT_SOCKETS is defined
+    <pinotree> so no, abstract sockets are not mandatory
+    <gnu_srs> Well this code is executed e.g. when running emacs remotely in
+      X. Have to dig deeper then to see why.
+    <pinotree> maybe it could have to do the fact that your dbus server is
+      running in linux and runs by default using such sockets type
+    <pinotree> but yes, you need to dig better
+    <gnu_srs> pinotree: You are right. when running natively the problem is:
+    <pinotree> *drums*
+    <gnu_srs> Manually: Process /usr/lib/at-spi2-core/at-spi-bus-launcher
+      exited with status 1
+    <pinotree> eh?
+    <gnu_srs> Error retrieving accessibility bus address:
+      org.freedesktop.DBus.Error.Spawn.ChildExited: ^
+    <pinotree> most probably that service does not start due to the lack of
+      socket credentials which affects dbus
+    <pinotree> uninstall or disable those additional services, they are not
+      your problem
+    <gnu_srs> credentials is enabled. which services to remove?
+    <pinotree> dunno
+
+
+# IRC, freenode, #hurd, 2013-09-11
+
+    <gnu_srs> Hi, looks like frebsd had (2008) the same problem as hurd when
+      sending credentials over PF_INET: 
+    <gnu_srs>
+      http://lists.freebsd.org/pipermail/freebsd-hackers/2008-May/024577.html
+    <gnu_srs> Since the dbus code is about the same now (2013), maybe they
+      added support?
+    <gnu_srs> The next message in the thread confirms that the dbus code is
+      invalid, does anybody have pointers?
+    <pinotree> from what i've seen so far, socket credentials are done only for
+      local sockets (ie PF_UNIX)
+    <pinotree> i don't see how things like uid/gid/pid of the socket endpoint
+      can have anything to do with AF_INET
+    <pinotree> and socket credentials in dbus are used only in the [local]
+      socket transport, so there's no issue
+
+
+# IRC, freenode, #hurd, 2013-09-12
+
+    <gnu_srs> pinotree: Yes, there is an issue with dbus and AF_INET, see
+      test/corrupt.c: tests /corrupt/tcp and /corrupt/byte-order/tcp:-/
+    <pinotree> gnu_srs: what's wrong with those? they are just testing the
+      connection over a tcp socket
+    <pinotree> as said above, socket credentials shouldn't be used in such
+      cases
+    <gnu_srs> They are, see also test/relay.c: /relay and /limit tests:-(
+    <pinotree> how are they?
+    <pinotree> please be more specifc...
+    <gnu_srs> Just run the tests yourself with DBUS_VERBOSE=1
+    <pinotree> you are claiming there is a problem, so please specify what is
+      the actual issue
+    <gnu_srs>  DBUS_VERBOSE=1 build-debug/test/test-relay 
+    <pinotree> you are claiming there is a problem, so please specify what is
+      the actual issue
+    <gnu_srs> same with test-corrupt
+    <gnu_srs> look at the verbose output:  Failed to write credentials: Failed
+      to write credentials byte: Invalid argument
+    <gnu_srs> coming from pfinet since PF_INET is used.
+    <pinotree> check what it does on linux then
+    <pinotree> put an abort() at the start of the read/write socket credential
+      functions in dbus-sysdeps-unix.c and see whether it is triggered also on
+      linux
+    <gnu_srs> SO_PEERCRED is used for linux and LOCAL_CREDS is used for
+      kfreebsd, so we are on our own here:-/
+    <pinotree> and linux' SO_PEERCRED works also on AF_INET sockets? i'd doubt
+      it
+    <gnu_srs>
+      http://stackoverflow.com/questions/10037086/so-peercred-vs-scm-credentials-why-there-are-both-of-them
+    <pinotree> yes, i know the difference, but please read what i asked again
+    <gnu_srs> I'll check to be sure...
+    <braunr> gnu_srs: user credentials are not supposed to be passed through an
+      AF_INET socket
+    <braunr> how hard is that to understand ?
+    <gnu_srs> OK, linux use send since CMSGCREDS is not defined to write
+      credentials. Working on how they are received.
+    <gnu_srs> braunr: I do understand, but the dbus code tries to do that for
+      Hurd:-(
+    <pinotree> then it should do that on linux too
+    <pinotree> (since the local socket credentials code is isolated in own
+      functions, and they are called only for the unix transport)
+    <gnu_srs> Happiness:-D, almost all dbus tests pass!
+    <gnu_srs> 17(17) dbus tests pass:)
+    <braunr> gnu_srs: hopefully your patch does things right
+    <gnu_srs> which patch
+    <braunr> adding credentials through unix socket
+    <braunr> isn't that what you're doing ?
+    <gnu_srs> the mail to MLs is from the stock installed packages.
+    <braunr> ?
+    <gnu_srs> the test reports are with the SCM_CREDS patches, but I stumbled
+      on the SCM_RIGHTS issues reported to MLs
+    <gnu_srs> no patches applied, just test the attached file yourself.
+    <braunr> so what's your work about ?
+    <gnu_srs> I'm working on SCM_CREDS, yes, and created patches for dbus,
+      glib2.0 and libc.
+    <gnu_srs> the mail was about some bug in the call to io_restrict_auth in
+      sendmsg.c: without any of my patches applied (another image) 
+    <teythoon> gnu_srs: you have to give us more context, how are we supposed
+      to know how to find this sendmsg.c file?
+    <pinotree> (it's in glibc, but otherwise the remark is valid)
+    <pinotree> s/otherwise/anyway/

@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2009, 2010, 2011 Free Software Foundation,
+[[!meta copyright="Copyright © 2009, 2010, 2011, 2013 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -188,6 +188,65 @@ one...
             /home/tschwinge/tmp/gnumach/gnumach-1-branch-Xen-branch.build/../gnumach-1-branch-Xen-branch/kern/ipc_kobject.c:76
             mach_msg_trap
             /home/tschwinge/tmp/gnumach/gnumach-1-branch-Xen-branch.build/../gnumach-1-branch-Xen-branch/ipc/mach_msg.c:1367
+
+
+# IRC, freenode, #hurd, 2013-09-07
+
+    <rekado> I'm trying to investigate a crash in pfinet, so it will actually
+      die.  I just want to know why it dies and what the value of a few
+      variables has been when it died.
+    <teythoon> have you tried to make it dump core?
+    <rekado> oh, good idea.
+    <rekado> I'll try that.
+    <teythoon> do you know how?
+    <rekado> I don't, but I think I can figure it out.
+    <teythoon> look into /servers
+    <rekado> do I just have to set CRASHSERVER=/servers/crash-dump-core and run
+      pfinet in that environment?
+    <teythoon> possibly, I've never heard of CRASHSERVER, but it's certainly
+      plausible ;)
+    <teythoon> I just link crash to crash-dump-core, that way it is permanent
+      and for all processes
+    <rekado> found it in the website contents
+    <rekado> gotta try that.
+    <rekado> hmm, I can't get pfinet to dump core; linked /servers/crash to
+      /servers/crash-dump-core and compiled pfinet to raise(6) at one point.
+    <rekado> But no core file is created.
+    <teythoon> :/
+    <teythoon> rekado: try cd /tmp ; cat & kill -SIGILL %% to see if that dumps
+      core
+    <rekado> yes, this works.
+    <rekado> I replaced the original pfinet with my crashing version.
+    <rekado> Should it dump core to /hurd then?
+    <teythoon> I'm not sure about it's wd
+    <teythoon> hm, ok, I just did settrans -ca foo /hurd/pfinet and then killed
+      that pfient with SIGILL and it dumped core
+    <teythoon> to the directory I issued the settrans from
+    <rekado> So I must run it myself.  I can't just replace the original binary
+      and have it dump core somewhere.
+    <teythoon> it seems that you have to use settrans -ca to start an active
+      translator
+    <teythoon> do fsysopts /servers/socket/2 to find out the cmdline of your
+      pfinet
+    <rekado> that's very helpful.
+    <rekado> thanks
+    <teythoon> then use this to restart it, e.g.:
+    <teythoon> settrans -afg /servers/socket/2 $(fsysopts /servers/socket/2)
+    <teythoon> if it dies it should dump core to you cwd
+    <rekado> great. Thank you very much.  I had been wondering how to get the
+      full cmdline of pfinet.
+    * rekado makes a note of fsysopts
+    <rekado> yup, there's the core file. Nice.
+    <teythoon> cool 8D
+    <teythoon> btw, in case using gdb doesn't work out for your problem, if you
+      start pfinet (or any translator) this way (with -a == active), you can
+      write stuff to stderr
+    <rekado> yeah, I noticed that.  The assert() call wrote to stderr.  Useful.
+    <braunr> rekado: core dumps are another not-working-well feature of the
+      hurd :/
+    <braunr> i recommend attaching
+    <tschwinge> rekado: In case that's still helpful:
+      <http://www.gnu.org/software/hurd/hurd/debugging/translator.html>.
 
 ---
 
