@@ -102,6 +102,939 @@ Likely there's also some other porting needed.
     <braunr> just assume you can't use systemd on anything else than linux
 
 
+## IRC, OFTC, #debian-hurd, 2013-08-12
+
+    <azeem> huh, Lennert Poettering just mentioned the Hurd in his systmd talk
+    <azeem> well, in the context of you IPC in Unix sucks and kdbus
+    <azeem> s/you/how/
+    <pinotree> QED
+    <pinotree> what did you expect? :)
+    <azeem> I didn't quite get it, but he seemed to imply the Hurd was a step
+      in the right direction over Unix
+    <azeem> (which is obvious, but it wasn't obvious he had that opinion)
+
+
+## IRC, OFTC, #debian-hurd, 2013-08-13
+
+    <azeem> so cgroups seems to be most prominent thing the systemd people
+      think the Hurd lacks
+    <tschwinge> azeem: In 2010, I came to the same conclusion,
+      <http://www.gnu.org/software/hurd/open_issues/systemd.html>.  ;-)
+    <azeem> heh
+    <tschwinge> I don't think of any show-stopper for implementing that -- just
+      someone to do it.
+    <youpi> azeem: which part of cgroups, like being able to kill a cgroup?
+    <youpi> it shouldn't be very hard to implement what systemd needs
+    <azeem> probably also the resource allocation etc.
+    <azeem> the questions are I guess (i) do the cgroups semantics make sense
+      from our POV and/or do we accept that cgroups is the "standard" now and
+      (ii) should systemd require concrete implementations or just the concept
+      in a more abstract sense
+    <teythoon> being the first non Linux OS that runs systemd would be a nice
+      showcase of Hurds flexibility
+    <azeem> maybe upstart is less trouble
+    <pinotree> azeem: possibly
+    <azeem> teythoon: can you just include upstart in your GSOC? kthxbye
+    <pinotree> at least libnih (the library with base utilities and such used
+      by upstart) required a working file monitor (and the current
+      implementation kind of exposes a fd) and certain semantics for waitid
+    <pinotree> libnih/upstart have "just" the issue of being under CLA...
+    <azeem> pinotree: yeah, true
+    <azeem> I suggested "startup" as a name for a fork
+    <pinotree> imho there would be no strict need to fork
+    <teythoon> azeem: but upstart is a lot less interesting. last time I used
+      it it wasn't even possible to disable services in a clean way
+    <pochu> pinotree: is that still so now that Scott works for google?
+    <pinotree> pochu: yeah, since it's a Canonical CLA, not rally something
+      tied to a person
+    <pinotree> (iirc)
+    <pochu> sure, but scott is the maintainer...
+    <pochu> shrug
+    <azeem> nah, scott left upstart
+    <azeem> AFAIK
+    <azeem> at least James Hunt gave a talk earlier with Steve Langasek and
+      introduced himself as the upstart maintainer
+    <azeem> also I heard in the hallway track that the upstart people are
+      somewhat interested in BSD/Hurd support as they see it as a selling point
+      against systemd
+    <pinotree> pochu: it's just like FSF CLA for GNU projects: even if the
+      maintainers/contributors change altogether, copyright assignment is still
+      FSF
+    <azeem> but their accents were kinda annoying/hard to follow so I didn't
+      follow their talk closesly to see whether they brought it up
+    <azeem> pinotree: well, it's not
+    <pochu> azeem: looking at https://code.launchpad.net/libnih, I'm not sure
+      libnih has a maintainer anymore...
+    <azeem> pinotree: first off, you're not signing over the copyright with
+      their CLA, just giving them the right to relicense
+    <azeem> pinotree: but more importantaly, the FSF announced in a legally
+      binding way that they will not take things non-free 
+    <azeem> anyway, I'll talk to the upstart guys about libnih
+
+
+## IRC, OFTC, #debian-hurd, 2013-08-15
+
+    <azeem> btw, I talked to vorlon about upstart and the Hurd
+    <azeem> so the situation with libnih is that it is basically
+      feature-complete, but still maintained by Scott
+    <azeem> upstart is leveraging it heavily
+    <azeem> and Scott was (back in the days) against patches for porting
+    <azeem> for upstart proper, Steve said he would happily take porting
+      patches
+
+
+## IRC, freenode, #hurd, 2013-08-26
+
+    < youpi> teythoon: I tend to agree with mbanck
+    < youpi> although another thing worth considering would be adding something
+      similar to control groups
+    < youpi> AIUI, it's one of the features that systemd really requires
+    < braunr> uhg, cgroups already
+    < braunr> youpi: where is that discussion ?
+    < youpi> it was a private mail
+    < braunr> oh ok
+    < teythoon> right, so about upstart
+    < teythoon> to be blunt, I do not like upstart, though my experience with
+      it is limited and outdated
+    < braunr> that was quick :)
+    < braunr> i assume this follows your private discussion with youpi and
+      mbank ?
+    < teythoon> I used it on a like three years old ubuntu and back then it
+      couldn't do stufft hat even sysvinit could do
+    < teythoon> there was not much discussion, mbank suggested that I could
+      work on upstart
+    < teythoon> b/c it might be easier to support than systemd
+    < teythoon> which might be very well true, then again what's the benefit of
+      having upstart? I'm really curious, I should perhaps read up on its
+      features
+    < pinotree> event-based, etc
+    < youpi> it is also about avoiding being pushed out just because we don't
+      support it?
+    < teythoon> yes, but otoh systemd can do amazing things, the featurelist of
+      upstart reads rather mondane in comparison
+    < youpi> I don't really have an opinion over either, apart from portability
+      of the code
+    < braunr> teythoon: the system requirements for systemd would take much
+      time to implement in comparison to what we already have
+    < braunr> i still have maksym's work on last year gsoc on my list
+    < braunr> waiting to push in the various libpager related patches first
+    < teythoon> so you guys think it's worthwile to port upstart?
+    < braunr> no idea
+    < braunr> teythoon: on another subject
+    < azeem_> teythoon: I like systemd more, but the hallway track at Debconf
+      seemed to imply most people like Upstart better except for the CLA
+    < azeem_> which I totally forgot to address
+    < youpi> CLA ?
+    < azeem_> contributor license agreement
+    < braunr> since you've now done very good progress, is your work available
+      in the form of ready-to-test debian packages ?
+    < teythoon> braunr: it is
+    < teythoon> braunr: http://teythoon.cryptobitch.de/gsoc/heap/debian/
+    < braunr> i remember urls in some of your mails
+    < braunr> ah thanks
+    < braunr> "cryptobitch" hum :)
+    < azeem_> in any case, everbody assumed either Upstart or Systemd are way
+      ahead of systemvinit
+    < braunr> sysvinit is really ancient :)
+    < azeem_> apart from the non-event-driven fundamental issue, a lot of
+      people critized that the failure rate at writing correct init-scripts
+      appears to be too high
+    < azeem_> one of the questions brought up was whether it makes sense to
+      continue to ship/support systemvinit once a switch is made to
+      systemd/upstart for the Linux archs
+    < azeem_> systemvinit scripts might bitrot
+    < azeem_> but anyway, I don't see a switch happen anytime soon
+    < teythoon> well, did upstart gain the capability of disabling a service
+      yet?
+    < azeem_> teythoon: no idea, but apparently:
+      http://askubuntu.com/questions/19320/recommended-way-to-enable-disable-services/20347#20347
+    < teythoon> azeem_: then there is hope yet ;)
+    < azeem_> the main selling point of Upstart is that it shipped in several
+      LTS releases and is proven technology (and honestly, I don't read a lot
+      of complaints online about it)
+    < azeem_> (I don't agree that SystemD is unproven, but that is what the
+      Upstart guys implied)
+    < teythoon> am I the only one that thinks that upstart is rather
+      unimpressive?
+     * azeem_ doesn't have an opinion on it
+    < azeem> teythoon:
+      http://penta.debconf.org/dc13_schedule/events/1027.en.html has slides and
+      the video
+    < azeem> teythoon: eh, appears the link to the slides is broken, but they
+      are here:
+      http://people.canonical.com/~jhunt/presentations/debconf13/upstart-debconf-2013.pdf
+    < braunr> teythoon: actually, from the presentation, i'd tend to like
+      upstart
+    < braunr> dependency, parallelism and even runlevel compatibility flows
+      naturally from the event based model
+    < braunr> sysv compatibility is a great feature
+    < braunr> it does look simple
+    < braunr> i admit it's "unimpressive" but do we want an overkill init
+      system ?
+    < braunr> teythoon: what makes you not like it ?
+    < azeem> Lennart critized that upstart doesn't generate events, just
+      listens to them
+    < azeem> (which is a feature, not a bug to some)
+    < braunr> azeem: ah yes, that could be a lack
+    < azeem> braunr: http://penta.debconf.org/dc13_schedule/events/983.en.html
+      was the corresponding SystemD talk by Lennart, though he hasn't posted
+      slides yet I think
+    < teythoon> braunr: well, last time I used it it was impossible to cleanly
+      disable a service
+    < teythoon> also ubuntu makes such big claims about software they develop,
+      and when you read up on them it turns out that most of the advertised
+      functionality will be implemented in the near future
+    < teythoon> then they ship software as early as possible only to say later
+      that is has proven itself for so many years
+    < teythoon> and tbh I hate to be the one that helped port upstart to hurd
+      (and maybe kfreebsd as a byproduct) and later debian choses upstart over
+      systemd b/c it is available for all debian kernels
+    < kilobug> teythoon: ubuntu has a tendency to ship software too early when
+      it's not fully mature/stable, but that doesn't say anything about the
+      software itself
+    < pinotree> teythoon: note the same is sometimes done on fedora for young
+      technologies (eg systemd)
+    < azeem> teythoon: heh, fair enough
+    < p2-mate> braunr: I would prefer if my init doesn't use ptrace :P
+    < teythoon> p2-mate: does upstart use ptrace?
+    < p2-mate> teythoon: yes
+    < teythoon> well, then I guess there won't be an upstart for Hurd for some
+      time, no?
+    < kilobug> p2-mate: why does it use ptrace for ?
+    < p2-mate> kilobug: to find out if a daemon forked 
+    < kilobug> hum I see
+    < azeem> p2-mate: the question is whether there's a Hurdish way to
+      accomplish the same
+    < p2-mate>
+      http://bazaar.launchpad.net/~upstart-devel/upstart/trunk/view/head:/init/job_process.c
+    < p2-mate> see job_process_trace_new  :)
+    < kilobug> azeem: it doesn't seem too complicated to me to have a way to
+      get proc notify upstart of forks
+    < p2-mate> azeem: that's a good question. there is a linuxish way to do
+      that using cgroups
+    < azeem> right, there's a blueprint suggesting cgroups for Upstart here:
+      https://blueprints.launchpad.net/ubuntu/+spec/foundations-q-upstart-overcome-ptrace-limitations
+    < teythoon> yes, someone should create a init system that uses cgroups for
+      tracking child processes >,<
+    < teythoon> kilobug: not sure it is that easy. who enforces that proc_child
+      is used for a new process? isn't it possible to just create a new mach
+      task that has no ties to the parent process?
+    < teythoon> azeem: what do you mean by "upstart does not generate events"?
+      there are "emits X" lines in upstart service descrpitions, surely that
+      generates event X?
+    < azeem> I think the critique is that this (and those upstart-foo-bridges)
+      are bolted on, while SystemD just takes over your systems and "knows"
+      about them first-hand
+    < azeem> but as I said, I'm not the expert on this
+    < teythoon> uh, in order to install upstart one has to remove sysvinit
+      ("yes i am sure...") and it fails to bring up the network on booting the
+      machine
+    < teythoon> also, both systemd and upstart depend on dbus, so no cookie for
+      us unless that is fixed first, right?
+    < pinotree> true
+    < teythoon> well, what do you want me to do for the next four weeks?
+    < youpi> ideally you could make both upstart and systemd work on hurd-i"86
+    < pinotree> both in 4 weeks?
+    < youpi> so hurd-i386 doesn't become the nasty guy that makes people tend
+      for one or the other
+    < youpi> I said "ideally"
+    < youpi> I don't really have any idea how much work is required by either
+      of the two
+    < youpi> I'd tend to think the important thing to implement is something
+      similar to control groups, so both upstart (which is supposed to use them
+      someday) and systemd can be happy about it
+    < teythoon> looks like upstarts functionality depending on ptrace is not
+      required, but can be enabled on a per service base
+    < teythoon> so a upstart port that just lacks this might be possible
+    < teythoon> youpi: the main feature of cgroups is that a process cannot
+      escape its group, no? i'm not sure how this could be implemented atop of
+      mach in a secure and robust way
+    < teythoon> b/c any process can just create mach tasks
+    < youpi> maybe we need to add a feature in mach itself, yes
+    < teythoon> ok, implementing cgroups sounds fun, I could do that
+    < youpi> azeem: are you ok with that direction?
+    < azeem> well, in general yes; however, AIUI, cgroups is being redesigned
+      upstream, no?
+    < youpi> that's why I said "something like cgroups"
+    < azeem> ah, ok
+    < youpi> we can do something simple enough to avoid design quesetions, and
+      that would still be enough for upstart & systemd
+    < azeem>
+      (http://www.linux.com/news/featured-blogs/200-libby-clark/733595-all-about-the-linux-kernel-cgroups-redesign)
+      btw
+    < braunr> p2-mate: upstart uses ptrace ?
+    < p2-mate> yes
+    < youpi> teythoon: and making a real survey of what needs to be fixed for
+      upstart & systemd
+    < p2-mate> see my link posted earlier
+    < braunr> ah already answered
+    < braunr> grmbl
+    < braunr> it's a simple alternative to cgroups though
+    < braunr> teythoon: dbus isn't a proble
+    < braunr> problem
+    < braunr> it's not that hard to fix
+    < youpi> well, it hasn't been fixed for a long time now :)
+    < braunr> we're being slow, that's all
+    < braunr> and interested by other things
+    < gg0> 12:58 < teythoon> btw, who is this heroxbd fellow and why has he
+      suddenly taken interest in so many debian gsoc projects?
+    < gg0> http://lists.debian.org/debian-hurd/2013/05/msg00133.html
+    < gg0> i notice nobody mentioned openrc
+    < pinotree> he's the debian student working on integrating openrc
+    < gg0> pinotree: no, the student is Bill Wang, Benda as he says is a
+      co-mentor
+      https://wiki.debian.org/SummerOfCode2013/Projects#OpenRC_init_system_in_Debian
+    < pinotree> whatever, it's still the openrc gsoc
+    < azeem> well, they wanted to look at it WRT the Hurd, did they follow-up
+      on this?
+    < gg0> btw wouldn't having openrc on hurd be interesting too?
+    < pinotree> imho not really
+    < gg0> no idea whether Bill is also trying to figure out what to do,
+      probably not
+    < azeem> somebody could ping that thread you mentioned above to see whether
+      they looked at the Hurd and/or need help/advice
+    < gg0> azeem: yeah somebody who could provide such help/advice. like.. you?
+      for instance
+     * gg0 can just paste urls
+    < azeem> they should just follow-up on-list
+
+
+## IRC, freenode, #hurd, 2013-08-28
+
+    <teythoon> anyone knows a user of cgroups that is not systemd? so far I
+      found libcg, that looks like a promising first target to port first,
+      though not surprisingly it is also somewhat linux specific
+    <taylanub> teythoon: OpenRC optionally uses cgroups IIRC.
+    <taylanub> Not mandatory because unlike systemd it actually tries (at all)
+      to be portable.
+
+
+## IRC, freenode, #hurd, 2013-09-02
+
+    <teythoon> braunr: I plan to patch gnumach so that the mach tasks keep a
+      reference to the task that created them and to make that information
+      available
+    <teythoon> braunr: is such a change acceptable?
+    <braunr> teythoon: what for ?
+    <teythoon> braunr: well, the parent relation is currently only implemented
+      in the Hurd, but w/o this information tracked by the kernel I don't see
+      how I can prevent malicious/misbehaving applications to break out of
+      cgroups
+    <teythoon> also I think this will enable us to fix the issue with tracking
+      which tasks belong to which subhurd in the long term
+    <braunr> ah cgroups
+    <braunr> yes cgroups should partly be implemented in the kernel ...
+    <braunr> teythoon: that doesn't surprise me
+    <braunr> i mean, i think it's ok
+    <braunr> the kernel should implement tasks and threads as closely as the
+      hurd (or a unix-like system) needs it
+    <teythoon> braunr: ok, cool
+    <teythoon> braunr: I made some rather small and straight forward changes to
+      gnumach, but it isn't doing what I thought it would do :/
+    <teythoon> braunr: http://paste.debian.net/33717/
+    <braunr> you added a field to task_basic_info
+    <braunr> thereby breaking the ABI
+    <teythoon> braunr: my small test program says: my task port is 1(pid 13)
+      created by task -527895648; my parent task is 31(pid 1)
+    <teythoon> braunr: no, it is not. I appended a field and these structures
+      are designed to be extendable
+    <braunr> hm
+    <braunr> ok
+    <braunr> although i'm not so sure
+    <braunr> there are macros defining the info size, depending on what you ask
+    <braunr> you may as well get garbage
+    <braunr> have you checked that ?
+    <teythoon> i initialized my struct to zero before calling mach
+    <braunr> teythoon: can you put some hardcoded value, just to make sure data
+      is correctly exported ?
+    <teythoon> braunr: right, good idea
+    <teythoon> braunr: my task port is 1(pid 13) created by task 3; my parent
+      task is 31(pid 1) -- so yes, hardcoding 3 works
+    <braunr> ok
+    <teythoon> braunr: also I gathered evidence that the convert_task_to_port
+      thing works, b/c first I did not have the task_reference call just before
+      that so the reference count was lowered (convert... consumes a reference)
+      and the parent task was destroyed
+    <teythoon> braunr: I must admit I'm a little lost. I tried to return a
+      reference to task rather than task->parent_task, but that didn't work
+      either
+    <teythoon> braunr: I feel like I'm missing something here
+    <teythoon> maybe I should get aquainted with the kernel debugger
+    <teythoon> err, the kernel debugger is not accepting any symbol names, even
+      though the binary is not stripped o_O
+    <teythoon> err, neither the kdb nor gdb attached to qemu translates
+      addresses to symbols, gdb at least translates symbols to addresses when
+      setting break points
+    <teythoon> how did anyone ever debug a kernel problem under these
+      conditions?
+    <braunr> teythoon: i'll have a look at it when i have some time
+
+
+## IRC, freenode, #hurd, 2013-09-03
+
+    <teythoon> :/ I believe the startup_notify interface is ill designed... an
+      translator can defer the system shutdown indefinitely
+    <braunr> it can
+    <teythoon> that's bad
+    <braunr> yes
+    <braunr> the hurd has a general tendency to trust its "no mutual trust
+      required" principle
+    <braunr> to rely on it a bit too much
+    <teythoon> well, at least it's a privileged operation to request this kind
+      of notification, no?
+    <braunr> why ?
+    <braunr> teythoon: it normally is used mostly by privileged servers
+    <braunr> but i don't think there is any check on the recipient
+    <teythoon> braunr: b/c getting the port to /hurd/init is done via
+      proc_getmsgport
+    <braunr> teythoon: ?
+    <teythoon> braunr: well, in order to get the notifications one needs the
+      msgport of /hurd/init and getting that requires root privileges
+    <braunr> teythoon: oh ok then
+    <braunr> teythoon: what's bad with it then ?
+    <teythoon> braunr: even if those translators are somewhat trusted, they can
+      (and do) contain bugs and stall the shutdown
+    <teythoon> I think this even happened to me once, I think it was the pfinet
+      translator
+    <braunr> teythoon: how do you want it to behave instead ?
+    <teythoon> braunr: well, /hurd/init notifies the processes sequentially,
+      that seems suboptimal, better to send async notifications to all of them
+      and then to collect all the answers
+    <teythoon> braunr: if one fails to answer within a rather large time frame
+      (say 5 minutes) shutdown anyway
+    <braunr> i agree with async notifications but
+    <braunr> i don't agree with the timeout
+    <teythoon> for reference, a (voluntary) timeout of 1 minute is hardcoded in
+      /hurd/init
+    <braunr> the timeout should be a parameter
+    <braunr> it's common on large machines to have looong shutdown delays
+    <teythoon> of the notification?
+    <braunr> the answer means "ok i'm done you can shutdown"
+    <braunr> well this can take long
+    <braunr> most often, administrators simply prefer to trust their program is
+      ok and won't take longer than it needs to, even if it's long
+    <teythoon> and not answering at all causes the shutdown / reboot to fail
+      making the system hang
+    <braunr> i know
+    <teythoon> in a state where it is not easily reached if you do not have
+      access to it
+    <braunr> but since it only concerns essential servers, it should befine
+    <braunr> essential servers are expected to behave well
+    <teythoon> it concerns servers that have requested a shutdown notification
+    <braunr> ok so no essential but system servers
+    <teythoon> essential servers are only exec, proc, /
+    <teythoon> yes
+    <braunr> the same applies
+    <pinotree> init and auth too, no?
+    <teythoon> yes
+    <braunr> you expect root not to hang himself
+    <teythoon> I do expect all software to contain bugs
+    <braunr> yes but you also expect them to provide a minimum level of
+      reliability
+    <braunr> otherwise you can just throw it all away
+    <teythoon> no, not really
+    <braunr> well
+    <teythoon> I know, that's my dilemma basically ;)
+    <braunr> if you don't trust your file system, you make frequent backups
+    <braunr> if you don't trust your shutdown code, you're ready to pull the
+      plug manually
+    <braunr> (or set a watchdog or whatever)
+    <braunr> what i mean is
+    <braunr> we should NEVER interfere with a program that is actually doing
+      its job just because it seems too long
+    <braunr> timeouts are almost never the best solution
+    <braunr> they're used only when necessary
+    <braunr> e.g. across networks
+    <braunr> it's much much much worse to interrupt a proper shutdown process
+      because it "seems too long" than just trust it behaves well 99999%%%% of
+      the time
+    <braunr> in particular because this case deals with proper data flushing,
+      which is an extremely important use case
+    <teythoon> it's hard/theoretically impossible to distinguish between taking
+      long and doing nothing
+    <braunr> it's impossible
+    <braunr> agreed
+    <braunr> => trust
+    <braunr> if you don't trust, you run real time stuff
+    <braunr> and you don't flush data on disk
+    <teythoon> ^^
+    <braunr> (which makes a lot of computer uses impossible as well)
+    <teythoon> there are only 2 people I trust, and the other one is not
+      /hurd/pfinet
+    <braunr> if this shutdown procedure is confined to the TCB, it's fine to
+      trust it goes well
+    <teythoon> tcb?
+    <braunr> trusted computing base
+    <braunr> http://en.wikipedia.org/wiki/Trusted_computing_base
+    * teythoon shudders
+    <teythoon> "trust" is used way to much these days
+    <teythoon> and I do not like the linux 2.0 ip stack to be part of our TCB
+    <braunr> basically, on a multiserver system like the hurd, the tcb is every
+      server on the path to getting a service done from a client
+    <braunr> then make it not request to be notified
+    <braunr> or make two classes of notifications
+    <braunr> because unprivileged file systems should be notified too
+    <teythoon> indeed
+    <teythoon> by the way, we should have a hurdish libnotify or something for
+      this kind of notifications
+    <braunr> but in any case, it should really be policy
+    <braunr> we should ... :)
+    <teythoon> ^^
+
+
+## IRC, freenode, #hurd, 2013-09-04
+
+    <teythoon> braunr: btw, I now believe that no server that requested
+      shutdown notifications can stall the shutdown for more than 1 minute
+      *unless* its message queue is full
+    <teythoon> so any fs should better sync within that timeframe
+    <braunr> where is this 1 min defined ?
+    <teythoon> init/init.c search for 60000
+    <braunr> ew
+    <teythoon> did I just find the fs corruption bug everyone was looking for?
+    <braunr> no
+    <braunr> what corruption bug ?
+    <teythoon> not sure, I thought there was still some issues left with
+      unclean filesystems every now and then
+    <teythoon> *causing
+    <braunr> yes but we know the reasons
+    <teythoon> ah
+    <braunr> involving some of the funniest names i've seen in computer
+      terminology :
+    <braunr> writeback causing "message floods", which in turn create "thread
+      storms" in the servers receiving them
+    <teythoon> ^^ it's usually the other way around, storms causing floods >,,
+    <braunr> teythoon: :)
+    <braunr> let's say it's a bottom-up approach
+    <teythoon> then the fix is easy, compile mach with -DMIGRATING_THREADS :)
+    <braunr> teythoon: what ?
+    <teythoon> well, that would solve the flood/storm issue, no?
+    <braunr> no
+    <braunr> the real solution is proper throttling
+    <braunr> which can stem from synchronous rpc (which is the real property we
+      want from migrating threads)
+    <braunr> but the mach writeback interface is async
+    <braunr> :p
+
+
+## IRC, freenode, #hurd, 2013-09-05
+
+    <braunr> teythoon: oh right, forgot about your port issue
+    <teythoon> don't worry, I figured by now that this must be a pointer
+    <teythoon> and I'm probably missing some magic that transforms this into a
+      name for the receiver
+    <teythoon> (though I "found" this function by looking at the mig
+      transformation for ports)
+    <braunr> i was wondering why you called the convert function manually
+    <braunr> instead of simply returning the task
+    <braunr> and let mig do the magic
+    <teythoon> b/c then I would have to add another ipc call, no?
+    <braunr> let me see the basic info call again
+    <braunr> my problem with this code is that it doesn't take into account the
+      ipc space of the current task
+    <braunr> which means you probably really return the ipc port
+    <braunr> the internal kernel address of the struct
+    <braunr> indeed, ipc_port_t convert_task_to_port(task)
+    <braunr> i'd personally make a new rpc instead of adding it to basic info
+    <braunr> basic info doesn't create rights
+    <braunr> what you want to achieve does
+    <braunr> you may want to make it a special port
+    <braunr> i.e. a port created at task creation time
+    <teythoon> y?
+    <braunr> it also means you need to handle task destruction and reparent
+    <teythoon> yes, I thought about that
+    <braunr> see
+      http://www.gnu.org/software/hurd/gnumach-doc/Task-Special-Ports.html#Task-Special-Ports
+    <braunr> for now you may simply turn the right into a dead name when the
+      parent dies
+    <braunr> although adding a call and letting mig do it is simpler
+    <braunr> mig handles reference counting, users just need to task_deallocate
+      once done
+    <teythoon> o_O mig does reference counting of port rights?
+    <braunr> mig/mach_msg
+    <teythoon> is there anything it *doesn't* do?
+    <braunr> i told you, it's a very complicated messaging interface
+    <braunr> coffee ?
+    <braunr> fast ?
+    <teythoon> ^^
+    <braunr> mig knows about copy_send/move_send/etc...
+    <braunr> so even if it doesn't do reference counting explicitely, it does
+      take care of that
+    <teythoon> true
+    <braunr> in addition, the magic conversions are intended to both translate
+      names into actual structs, and add a temporary reference at the same time
+    <braunr> teythoon: everything clear now ? :)
+    <teythoon> braunr: no, especially not why you suggested to create a special
+      port. but this will have to wait for tomorrow ;)
+
+
+## IRC, OFTC, #debian-hurd, 2013-09-06
+
+    <vorlon> teythoon: hi there
+    <vorlon> so I've been following your blog entries about cgroups on
+      hurd... very impressive :)
+    <vorlon> but I think there's a misunderstanding about upstart and
+      cgroups... your "conjecture" in
+      https://teythoon.cryptobitch.de/posts/what-will-i-do-next-cgroupfs-o/ is
+      incorrect
+    <vorlon> cgroups does not give us the interfaces that upstart uses to
+      define service readiness; adding support for cgroups is interesting to
+      upstart for purposes of resource partitioning, but there's no way to
+      replace ptrace with cgroups for what we're doing
+    <teythoon> vorlon: hi and thanks for the fish :)
+    <teythoon> vorlon: what is it exactly that upstart is doing with ptrace
+      then?
+    <teythoon> .,oO( your nick makes me suspicious for some reason... ;)
+    <teythoon> service readiness, what does that mean exactly?
+    <vorlon> teythoon: so upstart uses ptrace primarily for determining service
+      readiness.  The idea is that traditionally, you know an init script is
+      "done" when it returns control to the parent process, which happens when
+      the service process has backgrounded/daemonized; this happens when the
+      parent process exits
+    <vorlon> in practice, however, many daemons do this badly
+    <vorlon> so upstart tries to compensate, by not just detecting that the
+      parent process has exited, but that the subprocess has exited
+    <vorlon> (for the case where the upstart job declares 'expect daemon')
+    <vorlon> cgroups, TTBOMK, will let you ask "what processes are part of this
+      group" and possibly even "what process is the leader for this group", but
+      doesn't really give you a way to detect "the lead process for this group
+      has changed twice"
+    <vorlon> now, it's *better* in an upstart/systemd world for services to
+      *not* daemonize and instead stay running in the foreground, but then
+      there's the question of how you know the service is "ready" before moving
+      on to starting other services that depend on it
+    <vorlon> systemd's answer to this is socket-based activation, which we
+      don't really endorse for upstart for a variety of reasons
+    <teythoon> hm, okay
+    <teythoon> so upstart does this only if expect daemon is declared in the
+      service description?
+    <vorlon> (in part because I've seen security issues when playing with the
+      systemd implementation on Fedora, which Lennart assures me are
+      corner-cases specific to cups, but I haven't had a chance to test yet
+      whether he's right)
+    <teythoon> and it is not used to track children, but only to observe the
+      daemonizing process?
+    <vorlon> yes
+    <teythoon> and it then detaches from the processes?
+    <vorlon> yes
+    <vorlon> once it knows the service is "ready", upstart doesn't care about
+      tracking it; it'll receive SIGCHLD when the lead process dies, and that's
+      all it needs to know
+    <teythoon> ok, so I misunderstood the purpose of the ptracing, thanks for
+      clarifying this
+    <vorlon> my pleasure :)
+    <vorlon> I realize that doesn't really help with the problem of hurd not
+      having ptrace
+    <teythoon> no, but thanks anyway
+    <vorlon> fwiw, the alternative upstart recommends for detecting service
+      readiness is for the process to raise SIGSTOP when it's ready
+    <vorlon> doesn't require ptracing, doesn't require socket-based activation
+      definitions; does require the service to run in a different mode than
+      usual where it will raise the signal at the correct time
+    <teythoon> right, but that requires patching it, same as the socket
+      activation stuff of systemd
+    <vorlon> (this is upstart's 'expect stop')
+    <vorlon> yes
+    <vorlon> though at DebConf, there were some evil ideas floating around
+      about doing this with an LD_PRELOAD or similar ;)
+    <vorlon> (overriding 'daemonize')
+    <vorlon> er, 'daemon()'
+    <teythoon> ^^
+    <vorlon> and hey, what's suspicious about my /nick? vorlons are always
+      trustworthy
+    <vorlon> ;)
+    <teythoon> sure they are
+    <teythoon> but could this functionality be reasonably #ifdef'ed out for a
+      proof of concept port?
+    <vorlon> hmm, you would need to implement some kind of replacement... if
+      you added cgroups support to upstart as an alternative
+    <vorlon> that could work
+    <vorlon> i.e., you would need upstart to know when the service has exited;
+      if you aren't using ptrace, you don't know the "lead pid" to watch for,
+      so you need some other mechanism --> cgroups
+    <vorlon> and even then, what do you do for a service like openssh, which
+      explicitly wants to leave child processes behind when it restarts?
+    <teythoon> right...
+    <vorlon> oh, I was hoping you knew the answer to this question ;)  Since
+      AFAICS, openssh has no native support for cgroups
+    <teythoon> >,< I don't, but I'll think about what you've said... gotta go,
+      catch what's left of the summer ;)
+    <teythoon> fwiw I consider fork/exec/the whole daemonizing stuff fubar...
+    <teythoon> see you around :)
+    <vorlon> later :)
+
+
+## IRC, OFTC, #debian-hurd, 2013-09-07
+
+    <teythoon> vorlon: I thought about upstarts use of ptrace for observing the
+      daemonizing process and getting hold of the child
+    <teythoon> vorlon: what if cgroup(f)s would guarantee that the order of
+      processes listed in x/tasks is the same they were added in?
+    <teythoon> vorlon: that way, the first process in the list would be the
+      daemonized child after the original process died, no?
+    <vorlon> teythoon: that doesn't tell you how many times the "lead" process
+      has changed, however
+    <vorlon> you need synchronous notifications of the forks in order to know
+      that, which currently we only get via ptrace
+
+
+## IRC, OFTC, #debian-hurd, 2013-09-08
+
+    <teythoon> vorlon: ok, but why do the notifications have to be synchronous?
+      does that imply that the processes need to be stopped until upstart does
+      something?
+    <vorlon> teythoon: well, s/synchronous/reliable/
+    <vorlon> you're right that it doesn't need to be synchronous; but it can't
+      just be upstart polling the status of the cgroup
+    <vorlon> because processes may have come and gone in the meantime
+    <teythoon> vorlon: ok, cool, b/c the notifications of process changes I'm
+      hoping to introduce into the proc server for my cgroupfs do carry exactly
+      this kind of information
+    <vorlon> cool
+    <vorlon> are you discussing an API for this with the Linux cgroups
+      maintainers?
+    <teythoon> otoh it would be somewhat "interesting" to get upstart to use
+      this b/c of the way the mach message handling is usually implemented
+    <vorlon> :)
+    <teythoon> no, I meant in order for me to be able to implement cgroupfs I
+      had to create these kind of notifications, it's not an addition to the
+      cgroups api
+    <teythoon> is upstart multithreaded?
+    <vorlon> no
+    <vorlon> threads are evil ;)
+    <teythoon> ^^ I mostly agree
+    <vorlon> it uses a very nice event loop, leveraging signalfd among other
+      things
+    <teythoon> uh oh, signalfd sounds rather Linuxish
+    <pinotree> it is
+    <vorlon> I think xnox mentioned when he was investigating it that kfreebsd
+      now also supports it
+    <vorlon> but yeah, AFAIK it's not POSIX
+    <pinotree> it isn't, yes
+    <vorlon> but it darn well should be
+    <vorlon> :)
+    <vorlon> it's the best improvement to signal handling in a long time
+    <teythoon> systemd also uses signalfd
+    <teythoon> umm, it seems I was wrong about Hurd not having ptrace, the wiki
+      suggests that we do have it
+    <pinotree> FSVO "have"
+    <teythoon> ^^
+    <xnox> vorlon: teythoon: so ok kFreeBSD/FreeBSD ideally I'd be using
+      EVFILT_PROC from kevent which allows to receive events & track: exit,
+      fork, exec, track (follow across fork)
+    <xnox> upstart also uses waitid()
+    <xnox> so a ptrace/waitid should be sufficient to track processes, if Hurd
+      has them.
+
+
+## IRC, freenode, #hurd, 2013-09-09
+
+    <youpi> teythoon: yes, the shutdown notifications do stall the process
+    <youpi> but no more than a minute, or so
+    <youpi> teythoon: btw, did you end up understanding the odd thing in
+      fshelp_start_translator_long?
+    <youpi> I haven't had the time to have a look
+    <teythoon> youpi: what odd thing? the thing about being implemented by hand
+      instead of using the mig stub?
+    <youpi> the thing about the port being passed twice
+    <youpi> XXX this looks wrong to me, please have a look
+    <youpi> in the mach_port_request_notification call
+    <teythoon> ah, that was alright, yes
+    <youpi> ok
+    <youpi> so I can drop it from my TODO :)
+    <teythoon> this is done on the control port so that a translator is
+      notified if the "parent" translator dies
+    <teythoon> was that in fshelp_start_translator_long though? I thought that
+      was somewhere else
+    <youpi> that's what the patch file says
+    <youpi> +++ b/libfshelp/start-translator-long.c
+    <youpi> @@ -293,6 +293,7 @@ fshelp_start_translator_long (fshelp_open_fn_t
+      underlying_open_fn,
+    <youpi> +  /* XXX this looks wrong to me, bootstrap is used twice as
+      argument... */
+    <youpi>                                    bootstrap,
+      MACH_NOTIFY_NO_SENDERS, 0,
+    <teythoon> right
+    <teythoon> I remember that when I got a better grip of the idea of
+      notifications I figured that this was indeed okay
+    <teythoon> I'll have a quick look though
+    <youpi> ok
+    <teythoon> ah, I remember, this notifies the parent translator if the child
+      dies, right
+    <teythoon> and it is a NO_SENDERS notification, so it is perfectly valid to
+      use the same port twice, as we only hold a receive right
+
+
+## IRC, freenode, #hurd, 2013-09-10
+
+    <teythoon> braunr: are pthreads mapped 1:1 to mach threads?
+    <braunr> teythoon: yes
+    <teythoon> I'm reading the Linux cgroups "documentation" and it talks about
+      tasks (Linux threads) and thread group IDs (Linux processes) and I'm
+      wondering how to map this accurately onto Hurd concepts...
+    <teythoon> apparently on Linux there are PIDs/TIDs that can be used more or
+      less interchangeably from userspace applications
+    <teythoon> the Linux kernel however knows only PIDs, and each thread has
+      its own, and those threads belonging to the same (userspace) PID have the
+      same thread group id
+    <teythoon> aiui on Mach threads belong to a Mach task, and there is no
+      global unique identifier exposed for threads, right?
+    <teythoon> braunr: ^
+    <tschwinge> teythoon: There is its thread port, which in combination with
+      its task port should make it unique?  (I might be missing context.)
+    <tschwinge> Eh, no.  The task port's name will only locally be unique.
+    * tschwinge confused himself.
+    <teythoon> tschwinge, braunr: well, the proc server could of course create
+      TIDs for threads the same way it creates PIDs for tasks, but that should
+      probably wait until this is really needed
+    <teythoon> for the most part, the tasks and cgroup.procs files contain the
+      same information on Linux, and not differentiating between the two just
+      means that cgroupfs is not able to put threads into cgroups, just
+      processes
+    <teythoon> that might be enough for now
+
+
+## IRC, freenode, #hurd, 2013-09-11
+
+    <teythoon> ugh, some of the half-backed Linux interfaces will be a real
+      pain in the ass to support
+    <teythoon> they do stuff like write(2)ing file descriptors encoded as
+      decimal numbers for notifications :-/
+    <braunr> teythoon: for cgroup ?
+    <teythoon> braunr: yes, they have this eventfd based notification mechanism
+    <teythoon> braunr: but I fear that this is a more general problem
+    <braunr> do we need eventfd ?
+    <teythoon> I mean passing FDs around is okay, we can do this just fine with
+      ports too, but encoding numbers as an ascii string and passing that
+      around is just not a nice interface
+    <braunr> so what ?
+    <teythoon> it's not a designed interface, it's one people came up with b/c
+      it was easy to implement
+    <braunr> if it's meant for compatibility, that's ok
+    <teythoon> how would you implement this then? as a special case in the
+      write(2) implementation in the libc? that sounds horrible but I do hardly
+      see another way
+    <teythoon> ok, some more context: the cgroup documentation says
+    <teythoon> write "<event_fd> <control_fd> <args>" to cgroup.event_control.
+    <teythoon> where event_fd is the eventfd the notification should be sent to
+    <pinotree> theorically they could have used sendmsg + a custom payload
+    <teythoon> control_fd is an fd to the pseudo file one wants notifications
+      for
+    <teythoon> yes, they could have, that would have been nicer to implement
+    <teythoon> but this...
+
+
+## IRC, freenode, #hurd, 2013-09-12
+
+    <teythoon> ugh, gnumachs build system drives me crazy %-/
+    <pinotree> oh there's worse than that
+    <teythoon> I added a new .defs file, did as Makerules.mig.am told me to do,
+      but it still does not create the stubs I need
+    <braunr> teythoon: gnumach doesn't
+    <braunr> teythoon: glibc does
+    <braunr> well, gnumach only creates the stubs it needs
+    <braunr> teythoon: you should perhaps simply use gnumach.defs
+    <teythoon> braunr: sure it does, e.g. vm/memory_object_default.user.c
+    <braunr> teythoon: what are you trying to add ?
+    <teythoon> braunr: I was trying to add a notification mechanism for new
+      tasks
+    <teythoon> b/c now the proc server has to query all task ports to discover
+      newly created tasks, this seems wasteful
+    <teythoon> also if the proc server could be notified on task creation, the
+      parent task is still around, so the notification can carry a reference to
+      it
+    <teythoon> that way gnumach wouldn't have to track the relationship, which
+      would create all kind of interesting questions, like whether tasks would
+      have to be reparented if the parent dies
+    <braunr> teythoon: notifications aren't that simple either
+    <teythoon> y not?
+    <braunr> 1/ who is permitted to receive them
+    <braunr> 2/ should we contain them to hurd systems ? (e.g. should a subhurd
+      receive notifications concerning tasks in other hurd systems ?)
+    <teythoon> that's easy imho. 1/ a single process that has a host_priv
+      handle is able to register for the notifications once
+    <braunr> what are the requirements so cgroups work as expected concerning
+      tasks ?
+    <braunr> teythoon: a single ?
+    <teythoon> i.e. the first proc server that starts
+    <braunr> then how will subhurd proc servers work ?
+    <teythoon> 2/ subhurds get the notifications from the first proc server,
+      and only those that are "for them"
+    <braunr> ok
+    <braunr> i tend to agree
+    <braunr> this removes the ability to debug the main hurd from a subhurd
+    <teythoon> this way the subhurds proc server doesn't even have to have the
+      host_priv porsts
+    <teythoon> yes, but I see that as a feature tbh
+    <braunr> me too
+    <braunr> and we can still debug the subhurd from the main
+    <teythoon> it still works the other way around, so it's still...
+    <teythoon> yes
+    <braunr> what would you include in the notification ?
+    <teythoon> a reference to the new task (proc needs that anyway) adn one to
+      the parent task (so proc knows what the parent process is and/or for
+      which subhurd it is)
+    <braunr> ok
+    <braunr> 17:21 < braunr> what are the requirements so cgroups work as
+      expected concerning tasks ?
+    <braunr> IOW, why is the parental relation needed ?
+    <braunr> (i don't know much about the details of cgroup)
+    <teythoon> well, currently we rely on proc_child to build this relation
+    <teythoon> but any task can use task_create w/o proc_child
+    <teythoon> until one claims a newly created task with proc_child, its
+      parent is pid 1
+    <braunr> that's about the hurd
+    <braunr> i'm rather asking about cgroups
+    <teythoon> ah
+    <teythoon> the child process has to end up in the same cgroup as the parent
+    <braunr> does a cgroup include its own pid namespace ?
+    <teythoon> not quite sure what you mean, but I'd say no
+    <teythoon> do you mean pid namespace as in the Linux sense of that phrase?
+    <teythoon> cgroups group processes(threads) into groups
+    <teythoon> on Linux, you can then attach controllers to that, so that
+      e.g. scheduling decisions or resource restrictions can be applied to
+      groups
+    <teythoon> braunr: http://paste.debian.net/38950/
+    <braunr> teythoon: ok so a cgroup is merely a group of processes supervised
+      by a controller
+    <braunr> for resource accounting/scheudling
+    <braunr> teythoon: where does dev_pager.c do the same ?
+    <teythoon> braunr: yes. w/o such controllers cgroups can still be used for
+      subprocess tracking
+    <teythoon> braunr: well, dev_pager.c uses mig generated stubs from
+      memory_object_reply.defs
+    <braunr> ah memory_object_reply ok
+    <braunr> teythoon: have you tried adding it to EXTRA_DIST ?
+    <braunr> although i don't expect it will change much
+    <braunr> teythoon: hum, you're not actually creating client stubs
+    <braunr> create a kern/task_notify.cli file
+    <braunr> as it's done with device/memory_object_reply.cli
+    <braunr> see #define KERNEL_USER 1
+    <teythoon> braunr: right, thanks :)
+
+
+## IRC, freenode, #hurd, 2013-09-13
+
+    <teythoon> hm, my notification system for newly created tasks kinda works
+    <teythoon> as in I get notified when a new task is created
+    <teythoon> but the ports for the new task and the parent that are carried
+      in the notification are both MACH_PORT_DEAD
+    <teythoon> do I have to add a reference manually before sending it?
+    <teythoon> that would make sense, the mig magic transformation function for
+      task_t consumes a reference iirc
+    <braunr> ah yes
+    <braunr> that reference counting stuff is some hell
+    <teythoon> braunr: ah, there's more though, the mig transformations are
+      only done in the server stub, not in the client, so I still have to
+      convert_task_to_port myself afaics
+    <teythoon> awesome, it works :)
+    <braunr> :)
+    <teythoon> ugh, the proc_child stuff is embedded deep into libc and signal
+      handling stuff...
+    <teythoon> "improving" the child_proc stuff with my shiny new notifications
+      wrecks havoc on the system
+
+
 # Required Interfaces
 
 In the thread starting

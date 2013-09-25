@@ -273,3 +273,56 @@ architecture.
     <slpz> braunr: OK, thanks. I'm interested on it, and didn't want to
       duplicate efforts.
     <braunr> little addition: it may have started, but we don't know about it
+
+
+# IRC, freenode, #hurd, 2013-09-18
+
+    <Hooligan0> as i understand ; on startup, vm_resident.c functions configure
+      the whole available memory ; but at this point the system does not split
+      space for kernel and space for future apps
+    <Hooligan0> when pages are tagged to be used by userspace ?
+    <braunr> Hooligan0: at page fault time
+    <braunr> the split is completely virtual, vm_resident deals with physical
+      memory only
+    <Hooligan0> braunr: do you think it's possible to change (at least)
+      pmap_steal_memory to mark somes pages as kernel-reserved ?
+    <braunr> why do you want to reserve memory ?
+    <braunr> and which memory ?
+    <Hooligan0> braunr: first because on my mmu i have two entry points ; so i
+      want to set kernel pages into a dedicated space that never change on
+      context switch (for best cache performance)
+    <Hooligan0> braunr: and second, because i want to use larger pages into
+      kernel (1MB) to reduce mmu work
+    <braunr> vm_resident isn't well suited for large pages :(
+    <braunr> i don't see the effect of context switch on kernel pages
+    <Hooligan0> at many times, context switch flush caches
+    <braunr> ah you want something like global pages on x86 ?
+    <Hooligan0> yes, something like
+    <braunr> how is it done on arm ?
+    <Hooligan0> virtual memory is split into two parts depending on msb bits
+    <Hooligan0> for example 3G/1G
+    <Hooligan0> MMU will use two pages tables depending on vaddr (hi-side or
+      low-side)
+    <braunr> hi is kernel, low is user ?
+    <Hooligan0> so, for the moment i've put mach at 0xC0000000 -> 0xFFFFFFFF  ;
+      and want to use 0x00000000 -> 0xBFFFFFFF for userspace
+    <Hooligan0> yes
+    <braunr> ok, that's what is done for x86 too
+    <Hooligan0> 1MB pages for kernel ; and 4kB (or 64kB) pages for apps
+    <braunr> i suggest you give up the large page stuff
+    <braunr> well, you can use them for the direct physical mapping, but for
+      kernel objects, it's a waste
+    <braunr> or you can rewrite vm_resident to use something like a buddy
+      allocator but it's additional work
+    <Hooligan0> for the moment it's waste ; but with some littles changes this
+      allow only one level of allocation mapping ;  -i think- it's better for
+      performances
+    <braunr> Hooligan0: it is, but not worth it
+    <Hooligan0> will you allow changes into vm_resident if i update i386 too ?
+    <braunr> Hooligan0: sure, as long as these are relevant and don't introduce
+      regressions
+    <Hooligan0> ok
+    <braunr> Hooligan0: i suggest you look at x15, since you may want to use it
+      as a template for your own changes
+    <braunr> as it was done for the slab allocator for example
+    <braunr> e.g. x15 already uses a buddy allocator for physical memory

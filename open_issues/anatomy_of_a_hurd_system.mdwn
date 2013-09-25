@@ -660,3 +660,146 @@ Actually, the Hurd has never used an M:N model. Both libthreads (cthreads) and l
     <braunr> but as youpi said, it still requires work
     <braunr> and nobody's working on it
     <braunr> you may want to check l4 fiasco.oc though
+
+
+# System Personality
+
+## IRC, freenode, #hurd, 2013-07-29
+
+    <teythoon> over the past few days I gained a new understanding of the Hurd
+    <braunr> teythoon: really ? :)
+    <tschwinge> teythoon: That it's a complex and distributed system?  ;-)
+    <tschwinge> And at the same time a really simple one?
+    <tschwinge> ;-D
+    <teythoon> it's just a bunch of mach programs and some do communicate and
+      behave in a way a posix system would, but that is more a convention than
+      anything else
+    <teythoon> tschwinge: yes, kind of simple and complex :)
+    <braunr> the right terminology is "system personality"
+    <braunr> 11:03 < teythoon> over the past few days I gained a new
+      understanding of the Hurd
+    <braunr> teythoon: still no answer on that :)
+    <teythoon> braunr: ah, I spent lot's of time with the core servers and
+      early bootstrapping and now I gained the feeling that I've seen the Hurd
+      for what it really is for the first time
+
+
+# RPC Interfaces
+
+## IRC, freenode, #hurd, 2013-09-03
+
+    <rekado> I'm a little confused by the hurd and incubator git repos.
+    <rekado> DDE is only found in the dde branch in incubator, but not in the
+      hurd repo.
+    <rekado> Does this mean that DDE is not ready for master yet?
+    <braunr> yes
+    <rekado> If DDE is not yet used in the hurd (except in the dde branch in
+      the incubator repo), does pfinet use some custom glue code to use the
+      Linux drivers?
+    <braunr> this has nothing to do with pfinet
+    <braunr> pfinet is the networking stack, netdde are the networking drivers
+    <braunr> the interface between them doesn't change, whether drivers are in
+      kernel or not
+    <rekado> I see
+
+
+# IRC, freenode, #hurd, 2013-09-20
+
+    <giuscri> HI there, I have no previous knowledge about OS's. I'm trying to
+      undestand the structure of the Hurd and the comparison between, say,
+      Linux way of managing stuff ...
+    <giuscri> for instance, I read: "Unlike other popular kernel software, the
+      Hurd has an object-oriented structure that allows it to evolve without
+      compromising its design."
+    <giuscri> that means that while for adding feature to the Linux-kernel you
+      have to add some stuff `inside` a procedure, whilst in the Hurd kernel
+      you can just, in principle at least, add an object and making the kernel
+      using it?...
+    <giuscri> Am I making stuff too simple?
+    <giuscri> Thanks
+    <braunr> not exactly
+    <braunr> unix historically has a "file-oriented" structure
+    <braunr> the hurd allows servers to implement whatever type they want,
+      through the ability to create custom interfaces
+    <braunr> custom interfaces means custom calls, custom semantics, custom
+      methods on objects
+    <braunr> you're not restricted to the set of file interfaces (open, seek,
+      read, write, select, close, etc..) that unix normally provides
+    <giuscri> braunr: uhm ...some example?
+    <braunr> see processes for example
+    <braunr> see
+      http://darnassus.sceen.net/gitweb/savannah_mirror/hurd.git/tree/HEAD:/hurd
+    <braunr> this is the collection of interfaces the hurd provides
+    <braunr> most of them map to unix calls, because gnu aims at posix
+      compatibility too
+    <braunr> some are internal, like processes
+    <braunr> or authentication
+    <braunr> but most importantly, you're not restricted to that, you can add
+      your own interfaces
+    <braunr> on a unix, you'd need new system calls
+    <braunr> or worse, extending through the catch-all ioctl call
+    <giuscri> braunr: mhn ...sorry, not getting that.
+    <braunr> what part ?
+    <kilobug> ioctl has become such a mess :s
+    <giuscri> braunr: when you say that Unix is `file-oriented` you're
+      referring to the fact that sending/receiving data to/from the kernel is
+      designed like sending/receiving data to/from a file ...?
+    <braunr> not merely sending/receiving
+    <braunr> note how formatted your way of thinking is
+    <braunr> you directly think in terms of sending/receiving (i.e. read and
+      write)
+    <giuscri> braunr: (yes)
+    <braunr> that's why unix is file oriented, access to objects is done that
+      way
+    <braunr> on the hurd, the file interface is one interface
+    <braunr> there is nothing preventing you from implementing services with a
+      different interface
+    <braunr> as a real world example, people interested in low latency
+      profesionnal audio usually dislike send/recv
+    <braunr> see
+      http://lac.linuxaudio.org/2003/zkm/slides/paul_davis-jack/unix.html for
+      example
+    <kilobug> braunr: how big and messy ioctl has become is a good proof that
+      the Unix way, while powerful, does have its limits
+    <braunr> giuscri: keep in mind the main goal of the hurd is extensibility
+      without special privileges
+    <giuscri> braunr: privileges?
+    <braunr> root
+    <giuscri> braunr: what's wrong with privileges?
+    <braunr> they allow malicious/buggy stuff to happne
+    <braunr> and have dramatic effects
+    <giuscri> braunr: you're obviously *not* referring to the fact that once
+      one have the root privileges could change some critical-data
+    <giuscri> ?
+    <braunr> i'm referring to why privilege separation exists in the first
+      place
+    <braunr> if you have unprivileged users, that's because you don't want them
+      to mess things up
+    <braunr> on unix, extending the system requires privileges, giving those
+      who do it the ability to destroy everything
+    <giuscri> braunr: yes, I think the same
+    <braunr> the hurd is designed to allow unprivileged users to extend their
+      part of the system, and to some extent share that with other users
+    <braunr> although work still remains to completely achieve that
+    <giuscri> braunr: mhn ...that's the `server`-layer between the
+      single-application and kernel ?
+    <braunr> the multi-server based approach not only allows that, but
+      mitigates damage even when privileged servers misbehave
+    <braunr> one aspect of it yes
+    <braunr> but as i was just saying, even root servers can't mess things too
+      much
+    <braunr> for example, our old (sometimes buggy) networking stack can be
+      restarted when it behaves wrong
+    <braunr> the only side effect being some applications (ssh and exim come to
+      mind) which need to be restarted too because they don't expect the
+      network stack to be restarted
+    <giuscri> braunr: ...instead?
+    <braunr> ?
+    <kilobug> giuscri: on Linux, if the network stack crash/freezes, you don't
+      have any other option than rebooting the system - usually with a nice
+      "kernel pani"
+    <kilobug> giuscri: and you may even get filesystem corruption "for free" in
+      the bundle
+    <braunr> and hoping it didn't corrupt something important like file system
+      caches before being flushed
+    <giuscri> kilobug, braunr : mhn, ook

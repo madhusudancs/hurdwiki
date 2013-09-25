@@ -615,3 +615,1485 @@ In context of [[open_issues/libpthread/t/fix_have_kernel_resources]]:
       found that.
     <tschwinge> hacklu: That's how I found it, yes.
     <hacklu> tschwinge: :)
+
+
+# IRC, freenode, #hurd, 2013-07-14
+
+    <hacklu> hi. what is a process's msgport? 
+    <hacklu> And where can I find the msg_sig_post_untraced_request()?
+    <hacklu> (msg_sig_post* in [hurd]/hurd/msg_defs)
+    <hacklu> this is my debugger demo code
+      https://github.com/hacklu/HDebugger.git use make test to run the demo. I
+      put a breakpoint before the second printf in hello_world(inferior
+      program).  but I can't resume execution from that.
+    <hacklu> could somebody give me some suggestions? thanks so much.
+    <teythoon> hacklu: % make test
+    <teythoon> make: *** No rule to make target `exc_request_S.c', needed by
+      `all'.  Stop.
+    <hacklu_> teythoon: updated, forget to git add that file .
+    <teythoon> hacklu_: cool, seems to work now
+    <teythoon> will look into this tomorrow :)
+    <hacklu_> exit
+    <hacklu_> teythoon: not work. the code can,t resume from a breakpoint 
+
+
+# IRC, freenode, #hurd, 2013-07-15
+
+    <hacklu> hi, this is my weekly
+      report. http://hacklu.com/blog/gsoc-weekly-report4-148/
+    <hacklu> sadly to unsolve the question of resume from breakpoint.
+    <teythoon> hacklu: have you tried to figure out what gdb does to resume a
+      process?
+    <hacklu> teythoon: hi. em, I have tried, but haven't find the magic in gdb
+      yet.
+    <teythoon> have you tried rpctrace'ing gdb?
+    <hacklu> no, rpctrace has too many noise. I turned on the debug in gdb.
+    <hacklu> I don't want rpctrace start gdb as its child task. if it can
+      attach at some point instead of at start
+    <teythoon> hacklu: you don't need to use gdb interactively, you could pipe
+      some commands to it
+    <hacklu> teythoon: that sounds a possible way. I am try it, thank you 
+    <hacklu> youpi: gdb can't work correctlly with rpctrace even in batch
+      mode. 
+    <hacklu> get something like this "rpctrace: get an unknown send right from
+      process 2151"
+    <youpi> hacklu: well, ideally, fix rpctrace );
+    <youpi> ;)
+    <youpi> hacklu: but you can also as on the list, perhaps somebody knows
+      what you need
+    <hacklu> ok.
+    <hacklu> or I should debug gdb more deeply.
+    <youpi> do both
+    <youpi> so either of them may win first
+
+    <hacklu> braunr: I have found that, if there is no exception appears, the
+      signal thread will not be createed. Then there is only one thread in the
+      task.
+
+
+# IRC, freenode, #hurd, 2013-07-17
+
+    <hacklu__> braunr: ping
+    <braunr> hacklu__: yes ?
+    <hacklu__> I have reply your email
+    <braunr> i don't understand
+    <braunr> "I used this (&_info)->suspend_count to get the sc value."
+    <braunr> before the thread_info call ?
+    <hacklu__> no, after the call
+    <braunr> but you have a null pointer
+    <braunr> the info should be returned in info, not _info
+    <hacklu__> strange thing is the info is a null pointer. but _info not
+    <braunr> _info isn't a pointer, that's why
+    <braunr> the kernel will use it if the data fits, which is usually the case
+    <hacklu__> in the begin , the info=&_info.
+    <braunr> and it will dynamically allocate memory if it doesn't
+    <braunr> yes
+    <braunr> info should still have that value after the call
+    <hacklu__> but the call had change it. this is what I can;t understand.
+    <braunr> are you completely sure err is 0 on return ?
+    <hacklu__> since the parameter is a pointer to pointer, the thread_info can
+      change it , but I don't think it is a good ideal to set it to null
+      pointer without any err .
+    <hacklu__> yes. i am sure
+    <braunr> info_len is wrong
+    <braunr> it should be the number of integers in _info
+    <braunr> i.e. sizeof(_info) / sizeof(unsigned int)
+    <braunr> i don't think that's the problem though
+    <braunr> yes, THREAD_BASIC_INFO_COUNT is already exactly that
+    <braunr> hm not exactly
+    <braunr> yes, exactly in fact
+    <hacklu__> I try to set it by hand, not use the macro.
+    <braunr> the macro is already defined as #define THREAD_BASIC_INFO_COUNT
+      (sizeof(thread_basic_info_data_t) / sizeof(natural_t))
+    <hacklu__> the info_len is 13. I checked.
+    <braunr> so, i said something wrong
+    <braunr> the call doesn't reallocate thread_info
+    <braunr> it uses the provided storage, nothing else
+    <braunr> yes, your call is wrong
+    <braunr> use thread_info (thread->port, THREAD_BASIC_INFO, (int *) info,
+      &info_len);
+    <hacklu__> em. thread_info (thread->port, THREAD_BASIC_INFO, (int *) &info,
+      &info_len);
+    <braunr> &info would make the kernel erase the memory where info (the
+      pointer) was stored
+    <braunr> info, not &info
+    <braunr> or &_info directly
+    <braunr> i don't see the need for an intermediate pointer here
+    <braunr> ideally, avoid the cast
+    <hacklu__> but in gnu-nat.c line 3338, it use &info.
+    <braunr> use a union with both thread_info_data_t and
+      thread_basic_info_data_t
+    <braunr> well, try it my way
+    <braunr> i think they're wrong
+    <hacklu__> ok, you are right, use info it is ok. the value is the same as
+      &_info after the call.
+    <hacklu__> but the  suspend_count is zero  again.
+    <braunr> check the rest of the result to see if it's consistent
+    <hacklu__> I think this line need a patch. 
+    <hacklu__> what you mean the rest of the result?
+    <braunr> the thread info
+    <braunr> run_state, sleep_time, creation_time
+    <braunr> see if they make sense
+    <hacklu__> ok, I try to dump it
+    <braunr> bbl
+    <hacklu__> braunr: thread [118] suspend_count=0
+    <hacklu__> run_state=3, flags=1, sleep_time=0,
+      creation_time.second=1374079641
+    <hacklu__> something like this, seems no problems.
+
+
+# IRC, freenode, #hurd, 2013-07-18
+
+    <hacklu__> how to get the thread state from TH_STATE_WAITING to
+      TH_STATE_RUNNING
+    <braunr> hacklu__:
+      http://www.gnu.org/software/hurd/gnumach-doc/Thread-Execution.html#Thread-Execution
+    <braunr> hacklu__: ah waiting
+    <braunr> hacklu__: this means the thread is waiting for an event
+    <braunr> so probably waiting for a message
+    <braunr> or an internal kernel event
+    <hacklu__> braunr: so I need to send it a message. I think I maybe forget
+      to send some reply message.
+    <braunr> hacklu__: i'm really not sure about those low level details
+    <braunr> confirm before doing anything
+    <hacklu__> the gdb has called msg_sig_post_untraced_request(), I don't get
+      clear about this function, I just call it as the same, maybe I am wrong .
+    <hacklu__> how will if I send a CONT to the stopped process? maybe I should
+      try this.
+    <hacklu__> when the inferior is in waiting
+      status(TH_STATE_WAITING,suspend_count=0), I use kill to send a CONT. then
+      the become(TH_STATE_STOP,suspend_count=1). when I think I am near the
+      success,I call thread_resume(),inferior turn out to be (TH_STATE_WAITING,
+      suspend_count=0).
+    <braunr> so yes, probably waiting for a message
+    <hacklu__> braunr: after send a CONT to the inferior, then send a -9 to the
+      debugger, the inferior continue!!!
+    <braunr> probably because it was notified there wasn't any sender any more
+    <hacklu__> that's funny, I will look deep into thread_resume and kill
+    <braunr> (gdb being the sender here)
+    <hacklu__> in hurd, when gdb attach a inferior, send signal to the
+      inferior, who will get the signal first? the gdb or the inferior?
+    <hacklu__> quite differnet with linux. seems the inferior get first
+    <braunr> do you mean gdb catches its own signal through ptrace on linux ?
+    <hacklu__> kkk
+    <braunr> ?
+
+
+# IRC, freenode, #hurd, 2013-07-20
+
+    <hacklu> braunr: yeah, on Linux the gdb catch the signal from inferior
+      before the signal handler. And that day my network was broken, I can't
+      say goodbye to you. sorry for that.
+
+
+# IRC, freenode, #hurd, 2013-07-22
+
+    <hacklu> hi all, this is my weekly
+      report. http://hacklu.com/blog/gsoc-weekly-report5-152/
+    <teythoon> good to hear that you got the resume issue figured out
+    <hacklu> teythoon: thanks :)
+    <teythoon> hacklu: so your next step is to port gdbserver to hurd?
+    <hacklu> yep, I am already begin to.
+    <hacklu> before the mid-evaluate, I must submit something. I am far behind
+      my personal expections
+    <tschwinge> hacklu: You've made great progress!  Sorry, for not being able
+      to help you very much: currently very busy with work.  :-|
+    <tschwinge> hacklu: Working on gdbserver now is fine.  I understand you
+      have been working on HDebugger to get an understanding of how everyting
+      works, outside of the huge GDB codebase.  It's of course fine to continue
+      working on HDebugger to test things, etc., and that also counts very much
+      for the mid-term evaluation, so nothing to worry about.  :-)
+    <hacklu> but I have far away behind my application on GSOC. I haven't
+      submit any patches. is it ok?
+    <tschwinge> hacklu: Don't worry.  Before doing the actual work, things
+      always look much simpler than they will be.  So I was expecting/planning
+      for that.
+    <tschwinge> The Hurd system is complex, with non-trivial and sometimes
+      asynchronous communication between the different components, and so it
+      takes some time to get an understanding of all that.
+    <hacklu> yes, I haven't get all clear about the signal post. that's too
+      mazy.
+    <tschwinge> hacklu: It surely is, yes.
+    <hacklu> tschwinge: may you help me to understand the msg_sig_post(). I
+      don't want to understand all details now, but I want to get the _right_
+      understanding of the gerneral.
+    <hacklu> as I have mentioned on my weekly report, gdb is listening on the
+      inferior's exception port, then gdb post a signal to that port. That
+      says: gdb post a message to herself, and handle it. is this right?
+    <hacklu> tschwinge: [gdb]/gdb/gnu-nat.c (line 1371), and
+      [glibc]/hurd/hurdsig.c(line 1390)
+    <tschwinge> hacklu: My current understanding is that this is a "real"
+      signal that is sent to the debugged process' signal thread (msgport), and
+      when that process is resumed, it will process that signal.
+    <tschwinge> hacklu: This is different from the Mach kernel sending an
+      exception signal to a thread's exception port, which GDB is listening to.
+    <tschwinge> Or am I confused?
+    <hacklu> is the msgport equal the exception port?
+    <hacklu> in my experience, when the thread haven't  cause a exception, the
+      signal thread will not be created. after the exception occured, the
+      signal thread is come out. so somebody create it, who dose? the mach
+      kernel? 
+    <tschwinge> hacklu: My understanding is that the signal thread would always
+      be present, because it is set up early in a process' startup.
+    <hacklu> but when I call task_threads() before the exception appears, only
+      on thread returned.
+    <tschwinge> "Interesting" -- another thing to look into.
+    <tschwinge> hacklu: Well, you must be right: GDB must also be listening to
+      the debugged process' msgport, because otherwise it wouldn't be able to
+      catch any signals the process receives.  Gah, this is all too complex.
+    <hacklu> tschwinge: that's maybe not. gdb listening on the task's exception
+      port, and the signal maybe handle by the signal thread if it could
+      handle. otherwise the signal thread pass the exception to the task's
+      exception port where gdb catched.
+    <tschwinge> hacklu: Ah, I think I now get it.  But let me first verify...
+      ;-)
+
+    <hacklu> something strange. I have write a program to check whether create
+      signal threads at begining, the all created!
+    <hacklu> tschwinge: this is my test code and
+      result. http://pastebin.com/xtM6DUnG  
+        cat test.c
+        #define _GNU_SOURCE 1
+        #include <stdlib.h>
+        #include <stdio.h>
+        #include <errno.h>
+        #include <mach.h>
+        #include <mach_error.h>
+        int main(int argc,char** argv)
+        {
+                mach_port_t task_port;
+                thread_array_t threads[5];
+                mach_msg_type_number_t num_threads[5];
+                error_t err;
+                task_port = mach_task_self();
+                int i;
+                int j;
+                for(i=0;i<5;i++)
+                        if(task_port){
+                                err = task_threads(task_port,&threads[i],&num_threads[i]);
+                                if(err)
+                                        printf("err\n");
+                        }
+                for(i=0;i<5;i++){
+                                printf("===============\n");
+                                printf("has %d threads now\n",num_threads[i]);
+                                for(j=0;j<num_threads[i];j++)
+                                        printf("thread[%d]=%d\n",j,threads[i][j]);
+                }
+                return 0;
+        }
+        
+        
+        and the output
+        ./a.out
+        ===============
+        has 2 threads now
+        thread[0]=87
+        thread[1]=97
+        ===============
+        has 2 threads now
+        thread[0]=87
+        thread[1]=97
+        ===============
+        has 2 threads now
+        thread[0]=87
+        thread[1]=97
+        ===============
+        has 2 threads now
+        thread[0]=87
+        thread[1]=97
+        ===============
+        has 2 threads now
+        thread[0]=87
+        thread[1]=97
+    <hacklu> tschwinge: the result is different with HDebugger case.
+
+    <tschwinge> hacklu: It is my understanding that the two sig_post_untraced
+      RPC calls in inf_signal indeed are invoked on the real msgport (signal
+      thread) if the debugged process.
+    <tschwinge> That port is retrieved via the
+      INF_MSGPORT_RPC/INF_RESUME_MSGPORT_RPC macro, which invoked
+      proc_getmsgport on the proc server, and that will return (unless
+      overridden by proc_setmsgport, but that isn't done in GDB) the msgport as
+      set by [glibc]/hurd/hurdinit.c:_hurd_new_proc_init or _hurd_setproc.
+    <tschwinge> inf_signal is called from gnu_resume, which is via
+      [target_ops]->to_resume is called from target.c:target_resume, which is
+      called several places, for example infrun.c:resume which is used to a)
+      just resume the debugged process, or b) resume it and have it handle a
+      Unix signal (such as SIGALRM, or so), when using the GDB command »signal
+      SIGALRM«, for example.
+    <tschwinge> So such a signal would then not be intercepted by GDB itself.
+    <tschwinge> By the way, this is all just from reading the code -- I hope I
+      got it all right.
+
+    <tschwinge> Another thing: In Mach 3 Kernel Principles, the standard
+      sequence described on pages 22, 23 is thread_suspend, thread_abort,
+      thread_set_state, thread_resume, so you should probably do that in
+      HDebugger too, and not call thread_set_state before.
+    <tschwinge> I would hope the GDB code also follows the standard sequence?
+      Can you please check that?
+
+    <tschwinge> The one thing I'm now confused about is where/how GDB
+      intercepts the standard setup (probably in glibc's signaling mess?) so
+      that it receives any signals raised in the debugged process.
+    <tschwinge> But I'll have to continue later.
+
+    <hacklu___> tschwinge: thanks for your detail answers. I don't realize that
+      the gnu_resume will resume for handle a signal, much thanks for point
+      this:) 
+    <hacklu___> tschwinge: I am not exactly comply with <Mach 3 kernel
+      principles> when I call thread_set_state. but I have called a
+      task_suspend before. I think it's not too bad:)
+    <tschwinge> hacklu___: Yes, but be aware that gnu_resume is only relevant
+      if a signal is to be forwarded to the debugged process (to be handled
+      there), but not for the case where GDB intercepts the signal (such as
+      SIGSEGV), and handles it itself without then forwarding it to the
+      application.  See the »info signals« GDB command.
+    <hacklu___> I also confused about when to start the signal thread. I will
+      do more experiment.
+    <hacklu___> I have found this: when the inferior is stop at a breakpoint, I
+      use kill to send a CONT to it, the HDebugger will get this message who
+      listening on the exception port.
+
+
+# IRC, freenode, #hurd, 2013-07-28
+
+    <hacklu_> how to understand the rpctrace output? 
+    <hacklu_> like this.  142<--143(pid15921)->proc_mark_stop_request (19 0)
+      125<--1
+    <hacklu_> 27(pid-1)->msg_sig_post_request (20 5  task108(pid15919));
+    <hacklu_> what is the (pid-1)? the kernel?
+    <teythoon> 1 is /hurd/init
+    <hacklu_> pid-1 not means minus 1?
+    <teythoon> ah, funny, you're right... I dunno then
+    <teythoon> 2 is the kernel though
+    <hacklu_> the 142<--143 is port name?
+    <teythoon> could very well be, but I'm not sure, sorry
+    <hacklu_> the number must be the port name. 
+    <teythoon> anyone knows why /hurd/init does not get dead name notifications
+      for /hurd/exec like it does for any other essential server?
+    <teythoon> as far as I can see it successfully asks for them
+    <teythoon> about rpctrace, it poses as the kernel for its children, parses
+      and relays any messages sent over the childrens message port, right?
+
+
+# IRC, freenode, #hurd, 2013-07-29
+
+    <hacklu_> hi. this is my weekly
+      report. http://hacklu.com/blog/gsoc-weekly-report6-156/
+    <teythoon> hacklu_: the inferior voluntarily stops itself if it gets a
+      signal and notifies its tracer?
+    <hacklu_> yes
+    <teythoon> what if it chose not to do so? undebugable program?
+    <hacklu_> debugged program will be set an flag so called
+      hurdsig_traced. normal program will handle the signal by himself.
+    <hacklu_> in my env, I found that when GDB attach a running program, gdb
+      will not catch the signal send to the program. May help me try it?
+    <teythoon> it doesn't? I'll check...
+    <teythoon> hacklu_: yes, you're right
+    <hacklu_> you can just gdb a loop program, and kill -CONT to it. If I do
+      this I will get "Can't wait for pid 12332:NO child processes" warning.
+    <teythoon> yes, I noticed that too
+    <teythoon> does gdb reparent the tracee?
+    <hacklu_> I don't think this is a good behavior. gdb should get inferior's
+      signal
+    <teythoon> absolutely
+    <hacklu_> In linux it does, not sure about hurd. but I think it should.
+    <teythoon> definitively. there is proc_child in process.defs, but that may
+      only be used once to set the parent of a process
+    <hacklu_> gdb doesn't set the inferior as its child process if attached a
+      running procss in HURD.
+
+    <tschwinge> hacklu_: So you figured out this tracing/signal stuff.  Great!
+    <hacklu_> tschwinge: Hi. not exactly. 
+    <hacklu_> as I have mentioned,  gdb can't get signal when attach to a
+      running process.
+    <hacklu_> I also want to know how to build glibc in hurd. I have got this "
+      relocation error: ./libc.so: symbol _dl_find_dso_for_object, version
+      GLIBC_PRIVATE not defined in file ld.so.1 with link time reference" when
+      use LD_PRELOAD=./my_build_glibc/libc.so 
+    <tschwinge> hacklu: You can't just preload the new libc.so, but you'll also
+      need to use the new ld.so.  Have a look at [glibc-build]/testrun.sh for
+      how to invoke these properly.  Or, link with
+      »-Wl,-dynamic-linker=[glibc-build]/elf/ld.so,-rpath,[glibc-build]:[glibc-build]/elf
+      -L [glibc-build] -L [glibc-build]/elf«.  If using the latter, I suggest
+      to also add »-Wl,-t« to verify that you're linking against the correct
+      libraries, and »ldd
+    <tschwinge> [executable]« to verify that [€xecutable] will load the correct
+      libraries when invoked.
+    <hacklu> I will try that, and I can't find this call
+      pthread_cond_broadcast(). which will called in the proc_mark_stop 
+    <tschwinge> hacklu: Oh, right, you'll also need to add libpthread (I think
+      that's the directory name?) to the rpath and -L commands.
+    <hacklu> is libpthread a part of glibc or hurd?
+    <pinotree> glibc
+    <NlightNFotis> hacklu: it is a different repository available here
+      http://git.savannah.gnu.org/cgit/hurd/libpthread.git/
+    <hacklu> tschwinge: thanks for that, but I don't think I need help about
+      the comiler error now, it just say missing some C file. I will look into
+      the Makefile to verify.
+    <NlightNFotis> but I think it's a part of glibc as a whole
+    <tschwinge> hacklu: OK.
+    <tschwinge> glibc is/was a stand-alone package and library, but in Debian
+      GNU/Hurd is nowadays integrated into glibc's build process.
+    <hacklu> NlightNFotis: thanks. I only add hurd, glibc, gdb,mach code to my
+      cscope file. seems need to add libpthread.
+    <tschwinge> hacklu: If you use the Debian glibc package, our libpthread
+      will be in the libpthread subdirectory.
+    <tschwinge> Ignore nptl, which is used for the Linux kernel.
+    <hacklu> tschwinge:BTW, I have found that, to continue the inferior from a
+      breakpoint, doesn't need to call msg_sig_post_untraced. just call
+      thread_abort and thread_resume is already ok.
+    <hacklu> I get the glibc from http://git.savannah.gnu.org/cgit/hurd. 
+    <tschwinge> hacklu: That sounds about right, because you want the inferior
+      to continue normally, instead of explicitly sending a (Unix) signal to
+      it.
+    <tschwinge> hacklu: I suggest you use: »apt-get source eglibc« on your Hurd
+      system.
+    <tschwinge> hacklu: The Savannah repository does not yet have libpthread
+      integrated.  I have this on my TODO list...
+    <hacklu> tschwinge: no, apt-get source doesn't work in my Hurd. I got any
+      code from git clone ***
+    <pinotree> you most probably lack the deb-src entry in your sources.list
+    <tschwinge> hacklu: Do you have deb-src lines in /etc/apt/source-list?  Or
+      how does it fail?
+    <hacklu> tschwinge: I have deb-src lines. and apt-get complain that: E:
+      Unable to find a source package for eglibc or E: Unable to find a source
+      package for glibc
+    <youpi> hacklu: which deb-src lines do you have?
+    <hacklu> and piece of my source_list : deb
+      http://ftp.debian-ports.org/debian unreleased main deb-src
+      http://ftp.debian-ports.org/debian unreleased main
+    <youpi> you also need a deb-src line with the main archive
+    <youpi> deb-src http://cdn.debian.net/debian unstable main
+    <tschwinge> hacklu: Oh, hmm.  And you did run »apt-get update« before?
+      That aside, there also is <http://snapshot.debian.org/package/eglibc/>
+      that you can use.  You'll need the *.dsc and *.debian.tar.xz files
+      corresponbding to your version of glibc, and the *.orig.tar.xz file.  And
+      then run »dpkg-source -x *.dsc«.
+    <tschwinge> The Debian snapshot is often very helpful if you need source
+      packages that are no longer in the main Debian repository.
+    <youpi> or simply running dget on the dsc url
+    <tschwinge> Oh.  Good to know.
+    <youpi> e.g. dget
+      http://cdn.debian.net/debian/pool/main/e/eglibc/eglibc_2.17-7.dsc
+    <hacklu> the network is slowly. and I am in apt-get update.
+    <youpi> I will be away from this evening until sunday, too
+    <hacklu> what the main difference between the source site?
+    <hacklu> is dget means wget?
+    <pinotree> no
+    <hacklu> not exist in linux?
+    <pinotree> it does, in devscripts
+    <pinotree> it's a debian tool
+    <hacklu> oh, yes, I have installed devscripts.
+    <hacklu> I have got the libphread code, thanks.
+
+    <braunr> teythoon: the simple fact that this msg thread exists to receive
+      requests and that these requests are sent by ps and procfs is a potential
+      DoS
+    <teythoon> braunr: but does that mean that on Hurd a process can prevent a
+      debugger from intercepting signals?
+    <braunr> teythoon: yes
+    <braunr> that's not a problem for interactive programs
+    <braunr> it's part of the hurd design that programs have limited trust in
+      each other
+    <braunr> a user can interrupt his debugger if he sees no activity
+    <braunr> that's more of a problem for non interactive system stuff like
+      init scripts
+    <braunr> or procfs
+    <hacklu> why gdb can't get inferior's signal if attach a running process?
+    <braunr> hacklu: try to guess
+    <hacklu> braunr: it is not a reasonable thing. I always think it should
+      catch the signal.
+    <braunr> hacklu: signals are a unix thing built on top of mach
+    <braunr> hacklu: think in terms of ports
+    <braunr> all communication on the hurd goes through ports
+    <hacklu> but when use gdb to start a process and debugg it, this way, gdb
+      can catch the signal
+    <braunr> hacklu: my guess is :
+    <braunr> when starting a process, gdb can act as a proxy, much like
+      rpctrace
+    <braunr> when attaching, it can't 
+    <hacklu> braunr: ah, my question should ask like this: why gdb can't set
+      the inferior as its child process when attaching it? or it can not ?
+    <braunr> hacklu: i'm not sure, the proc server is one of the parts i know
+      the less
+    <braunr> but again, i guess there is no facility to update the msg port of
+      a process in the proc server
+    <braunr> check that before taking it as granted
+    <hacklu> braunr: aha, I alway think you know everything:)
+    <tschwinge> braunr: There is: setmsgport or similar.
+    <braunr> if there is one, gdb doesn't use it
+    <tschwinge> hacklu: That is a good question -- I can't answer it off-hand,
+      but it might be possible (by setting the tracing flag, and such things).
+      Perhaps it's just a GDB bug, which omits to do that.  Perhaps just a
+      one-line code change, perhaps not.  That's a new bug (?) report that we
+      may want to have a look at later on.
+    <tschwinge> hacklu: But also note, this new problem is not really related
+      to your gdbserver work -- but of course you're fine to have a look at it
+      if you'd like to.
+    <hacklu> I just to ask for whether this is a normal behavior. this is
+      related to my gdbserver work, as gdbserver also need to attach a running
+      process...
+    <braunr> gdbserver can start a process just like gdb does
+    <braunr> you may want to focus on that first
+    <tschwinge> Yes.
+    <tschwinge> Attaching to processes that are already running is, I think,
+      always more complicated compared to the case where GDB/gdbserver has
+      complete control about the inferior right from the beginning.
+    <hacklu> yes, I am  only focus on start one. the attach way I haven't
+      research now.
+    <tschwinge> hacklu: That's totally fine.  You can just say that attaching
+      to processes is not supported yet.
+    <hacklu> that's sound good:)
+    <tschwinge> Ther will likely be more things in gdbserver that you won't be
+      able to easily support, so it's fine to do it step-by-step.
+    <tschwinge> And then later add more features incrementally.
+    <tschwinge> That's also easier for reviewing the patches.
+
+    <hacklu> and one more question I have ask yestoday. what is the rpctrace
+      output (pid-1) mean?
+    <tschwinge> hacklu: Another thing I can't tell off-hand.  I'll try to look
+      it up.
+    <teythoon> hacklu, tschwinge: my theory is that it is in fact an error
+      message, maybe the proc server did not now a pid for the task
+    <braunr> hacklu: utsl
+    <hacklu> tschwinge: for saving your time, I will look the code myself, I
+      don;t think this is a real hard question need you to help me by reading
+      the source code.
+    <tschwinge> teythoon, hacklu: Yes, from a quick inspection it looks like
+      task2pid returning a -1 PID -- but I can't tell yet what that is supposed
+      to mean, if it's an actualy bug, or just means there is no data
+      available, or similar.
+    <hacklu> braunr: utsl??
+    <tschwinge> hacklu: http://www.catb.org/~esr/jargon/html/U/UTSL.html
+    <hacklu> tschwinge: thank you. braunr like say abbreviation which I can't
+      google out.
+    <tschwinge> hacklu: Again, if this affects your work, it is fine to have a
+      look at that presumed rpctrace problem, if not, it is fine to have a look
+      at it if you'd like to, and otherwise, we'll file it as a possible bug to
+      be looked at laster.
+    <tschwinge> hacklu: Now you learned that one.  :-)
+    <hacklu> tschwinge: ok , this doesn't affect me now. If I have time I will
+      figure out it.
+
+    <teythoon> btw, what about the copyright assignment process?
+    <tschwinge> teythoon, hacklu: You still haven't heard from the FSF about
+      your copyright assignments?  What's the latest you have heard?
+    <hacklu> tschwinge: I have wrote a emali to ask for that, but no reply.
+    <teythoon> tschwinge: last and only response I got was on July 1st, the
+      last ping with explicit request for confirmation was on July the 12th
+    <tschwinge> hacklu: When did you send this email?
+    <hacklu> tschwinge: last week.
+    <tschwinge> teythoon: I suggest you send another inquiry, and please put me
+      in CC.  And if there'S no answer within a couple days (well, I'm away
+      until Monday...), I'll follow up.
+    <tschwinge> hacklu: Likewise for you; depending on when exactly ;-) you
+      sent the last email.  (Always allow for a few days until you exect an
+      answer, but if nothing happend within a week for such rather simple
+      administrative tasks, better ask again, unfrotunately.)
+    <hacklu> tschwinge:ok , I will email more
+
+    <hacklu> how to understand the asyn RPC? 
+    <braunr> hacklu: hm ?
+    <hacklu> for instance, [hurd]/proc/main.c proc_server is loop in listening
+      message. and handle it by message_demuxer.
+    <hacklu> but when I send a request like proc_wait_request() to it, will it
+      block in the message_demuxer?
+    <hacklu> and where is the function of
+      ports_manage_port_operations_multithread()?
+    <braunr> this one is in libports
+    <braunr> it's the last thing a server calls after bootstrapping itself
+    <braunr> message_demuxer normally blocks, yes
+    <braunr> but it's not "async"
+    <hacklu> the names seems the proc_server is listening message with many
+      threads?
+    <braunr> every server in the hurd does
+    <braunr> threads are created by ports_manage_port_operations_multithread
+      when incoming messages can't be processed quick enough by the set of
+      already existing threads
+    <hacklu> if too many task send request to the server, will it ddos?
+    <braunr> yes
+    <teythoon> every server but /hurd/init
+    <braunr> (and /hurd/hello)
+    <braunr> hacklu: that's, in my opinion, a major design defect
+    <hacklu> yes, that is reasonable.
+    <braunr> that's what causes what i like to call thread storms on message
+      floods ... :)
+    <braunr> my hurd clone is intended to address such major issues
+    <teythoon> couldn't that be migitated by some kind of heuristic?
+    <braunr> it already is ..
+    <hacklu> I don't image that the port_manage_port_operations_multithread
+      will dynamically create threads. I thought the server will hang if all
+      work thread is in use.
+    <braunr> that would also be a major defect
+    <braunr> creating as many threads as necessary is a good thing
+    <braunr> the problem is the dos
+    <braunr> hacklu: btw, ddos is "distributed" dos, and it doesn't really
+      apply to what can happen on the hurd
+    <hacklu> why not ? as far as I known, the message transport is
+      transparent. hurd has the chance to be DDOSed
+    <braunr> we don't care about the distributed property of the dos
+    <hacklu> oh, I know what you mean.
+    <braunr> it simply doesn't matter
+    <braunr> on thread calling select in an event loop with a low timeout (high
+      frequency) on a bunch of file descriptors is already enough to generate
+      many dead-name notifications
+    <tschwinge> Oh!  Based on what I've read in GDB source code, I thought the
+      proc server was single-threaded.  However, it no longer is, after 1996's
+      Hurd commit fac6d9a6d59a83e96314103b3181f6f692537014.
+    <braunr> those notifications cause message flooding at servers (usually
+      pflocal/pfinet), which spawn a lot of threads to handle those messages
+    <braunr> one* thread
+    <hacklu> tschwinge: ah, the comment in gnu_nat.c is out of date!
+    <braunr> hacklu: and please, please, clean the hello_world processes you're
+      creating on darnassus
+    <braunr> i had to do it myself again :/
+    <hacklu> braunr: [hacklu@darnassus ~]$ ps  ps: No applicable processes
+    <braunr> ps -eflw
+    <braunr> htop
+    <tschwinge> hacklu: Probably the proc_wait_pid and proc_waits_pending stuff
+      could be simplified then?  (Not an urgent issue, of course, will file as
+      an improvement for later.)
+    <hacklu> braunr: ps -eflw |grep hacklu
+    <hacklu> 1038 12360 10746  26  26  2    87    22  148M 1.06M 97:21001   S
+      p1  0:00.00 grep --color=auto hacklu
+    <braunr> 15:08 < braunr> i had to do it myself again :/
+    <teythoon> braunr: so as a very common special case, a lot of dead name
+      notifications cause problems for pf*?
+    <braunr> and use your numeric uid
+    <braunr> teythoon: yes
+    <hacklu> braunr: I am so sorry. I only used ps to check. forgive me
+    <braunr> teythoon: simply put, a lot of messages cause problems
+    <braunr> select is one special use case
+    <teythoon> braunr: blocking other requests?
+    <braunr> the other is page cache writeback
+    <braunr> creating lots of threads
+    <braunr> potentially deadlocking on failure
+    <braunr> and in the case of writebacks, simply starving
+    <teythoon> braunr: but dead name notifications should mostly trigger
+      cleanup actions, couldn't those be handled by a different thread(pool)
+      than the rest?
+    <braunr> that's why you can bring down a hurd system with a simple cp
+      bigfile somewhere, bigfile being a few hundreds MiBs
+    <braunr> teythoon: it doesn't change the problem
+    <braunr> threads are per task
+    <braunr> and the contention would remain the same
+    <teythoon> hm
+    <braunr> since dead-name notifications are meant to release resources
+      created by what would then be "regular" threads
+    <braunr> don't worry, there is a solution
+    <braunr> it's simple
+    <braunr> it's well known
+    <braunr> it's just hard to directly apply to the hurd
+    <braunr> and impossible to enforce on mach
+    <hacklu> tschwinge: I am confuzed after I have look into S_proc_wait()
+      [hurd/proc/wait.c], it has relate pthread_hurd_cond_wait_np. I can't find
+      out when it will return. And the signal is report to the debuger by
+      S_proc_wait.
+    <teythoon> braunr: a pointer please ;)
+    <braunr> teythoon: basically, synchronous ipc
+    <braunr> then, enforcing one server thread per client thread
+    <braunr> and replace mach-generated notifications with messages sent from
+      client threads
+    <braunr> the only kind of notification required by the hurd are no-senders
+      notifications
+    <braunr> this happens when a client releases all references it has to a
+      resource
+    <braunr> so it's easy to make that synchronous as well
+    <braunr> trying to design RPCs as closely as system calls on monolithic
+      kernels helps in viewing how this works
+    <braunr> the only real additions are address space crossing, and capability
+      invocation
+    <teythoon> sounds reasonable, why is it hard to apply to the hurd? most
+      rpcs are synchonous, no?
+    <braunr> mach ipc isn't
+    <hacklu> braunr: When client C send a request to server S, but doesn't wait
+      for the reply message right now, for a while, C call mach_msg to recieve
+      reply. Can I think this is a synchronous RPC?
+    <braunr> a malicious client can still overflow message queues
+    <braunr> hacklu: no
+    <teythoon> yes, I can see how this is impossible to enforce, but still we
+      could all try to play nice :)
+    <braunr> teythoon: no
+    <braunr> :)
+    <braunr> async ipc is heavy, error-prone, less performant than sync ipc
+    <braunr> some async ipc is necessary to handle asynchronous events, but
+      something like unix signals is actually a lot more appropriate
+    <braunr> we're diverging from the gsoc though
+    <braunr> don't waste too much time on that
+    <teythoon> 15:13 < braunr> it's just hard to directly apply to the hurd
+    <teythoon> I wont
+    <teythoon> why is it hard
+    <braunr> almost everything is synchronous on the hurd
+    <braunr> except a few critical bits
+    <braunr> signals :)
+    <braunr> and select
+    <braunr> and pagecache writebacks
+    <braunr> fixing those parts require some work
+    <braunr> which isn't trivial
+    <braunr> for example, select should be rewritten not to use dead-name
+      notifications
+    <teythoon> adding a light weight signalling mechanism to mach and using
+      that instead of async ipc?
+    <braunr> instead of destroying ports once an event has been received, it
+      should (synchyronously) remove the requests installed at remote servers
+    <braunr> uh no
+    <braunr> well maybe but that would be even harder
+    <tschwinge> hacklu: This (proc/wait.c) is related to POSIX thread
+      cancellation -- I don't think you need to be concerned about that.  That
+      function's "real" exit points are earlier above.
+    <braunr> teythoon: do you understand what i mean about select ?
+    <teythoon> ^^ is that a no go area?
+    <braunr> for now it is
+    <braunr> we don't want to change the mach interface too much
+    <teythoon> yes, I get the point about select, but I haven't looked at its
+      implementation yet
+    <hacklu> tschwinge: when I want to know the child task's state, I call
+      proc_wait_request(), unless the child's state not change. the
+      S_proc_wait() will not return?
+    <braunr> it creates ports, puts them in a port set, gives servers send
+      rights so they can notify about events
+    <teythoon> y not? it's not that hurd is portable to another mach, or is it?
+      and is there another that we want to be compatible with?
+    <braunr> when an event occurs, all ports are scanned
+    <braunr> then destroyed
+    <braunr> on destruction, servers are notified by mach
+    <braunr> the problem is that the client is free to continue and make more
+      requests while existing select requests are still being cancelled
+    <teythoon> uh, yeah, that sounds like a costly way of notifying somewone
+    <braunr> the cost isn't the issue
+    <braunr> select must do something like that on a multiserver system, you
+      can't do much about it
+    <braunr> but it should be synchronous, so a client can't make more requests
+      to a server until the current select call is complete
+    <braunr> and it shouldn't use a server approach at the client side
+    <braunr> client -> server should be synchronous, and server -> client
+      should be asynchronous (e.g. using a specific SIGSELECT signal like qnx
+      does)
+    <braunr> this is a very clean way to avoid deadlocks and denials of service
+    <teythoon> yes, I see
+    <braunr> qnx actually provides excellent documentation about these issues
+    <braunr> and their ipc interface is extremely simple and benefits from
+      decades of experience on the subject
+    <tschwinge> hacklu: This function implements the POSIX wait call, and per
+      »man 2 wait«: »The wait() system call suspends execution of the calling
+      process until one of its children terminates.«
+    <tschwinge> hacklu: This is implemented in glibc in sysdeps/posix/wait.c,
+      sysdeps/unix/bsd/bsd4.4/waitpid.c, sysdeps/mach/hurd/wait4.c, by invoking
+      this RPC synchronously.
+    <tschwinge> hacklu: GDB on the other hand, uses this infrastructure (as I
+      understand it) to detect (that is, to be informed) when a debuggee exits
+      (that is, when the inferior process terminates).
+    <tschwinge> hacklu: Ah, so maybe I miss-poke earlier: the
+      pthread_hurd_cond_wait_np implements the blocking.  And depending on its
+      return value the operation will be canceled or restarted (»start_over«).
+    <tschwinge> s%maybe%%
+    <tschwinge> hacklu: Does this information help?
+    <hacklu> tschwinge: proc_wait_request is not only to detect the inferior
+      exit. it also detect the child's state change
+    <braunr> as tschwinge said, it's wait(2)
+    <hacklu> tschwinge: and I have see this, when kill a signal to inferior,
+      the gdb will get the message id=24120 which come from S_proc_wait
+    <hacklu> braunr: man 2 wait says: wait, waitpid, waitid - wait for process
+      to change state. (in linux, in hurd there is no man wait)
+    <braunr> uh
+    <braunr> there is, it's the linux man page :)
+    <braunr> make sure you have manpages-dev installed
+    <hacklu> I always think we are talk about linux's manpage :/
+    <hacklu> but regardless the manpage, gdb really call proc_wait_request() to
+      detect whether inferior's changed states
+    <braunr> in any case, keep in mind the hurd is intended to be a posix
+      system
+    <braunr> which means you can always refer to what wait is expected to do
+      from the posix spec
+    <braunr> see
+      http://pubs.opengroup.org/onlinepubs/9699919799/functions/wait.html
+    <hacklu> braunr: even in the manpags under hurd, man 2 wait also says: wait
+      for process to change state. 
+    <braunr> yes
+    <braunr> that's what it's for
+    <braunr> what's the problem ?
+    <hacklu> the problem is what tschwinge has said I don't understand. like
+      and per »man 2 wait«: »The wait() system call suspends execution of the
+      calling process until one of its children terminates.«
+    <braunr> terminating is a form of state change
+    <braunr> historically, wait was intended to monitor process termination
+      only
+    <hacklu> so the thread become stoped wait also return
+    <braunr> afterwards, process tracing was added too
+    <braunr> what ?
+    <hacklu> so when the child state become stopped, the wait() call will
+      return?
+    <braunr> yes
+    <hacklu> and I don't know this pthread_hurd_cond_wait_np. 
+    <braunr> wait *blocks* until the process it references changes state
+    <braunr> pthread_hurd_cond_wait_np is the main blocking function in hurd
+      servers
+    <braunr> well, pthread_hurd_cond_timedwait_np actually
+    <braunr> all blocking functions end up there
+    <braunr> (or in mach_msg)
+    <braunr> (well pthread_hurd_cond_timedwait_np calls mach_msg too)
+    <hacklu> since I use proc_wait_request to get the state change, so the
+      thread in proc_server will be blocked, not me. is that right?
+    <braunr> no
+    <braunr> both
+    <hacklu> this is just a request, why should block me?
+    <braunr> because you're waiting for the reply afterwards
+    <braunr> or at least, you should be
+    <braunr> again, i'm not familiar with those parts
+    <hacklu> after call proc_wait_request(), gdb does a lot stuffs, and then
+      call mach_msg to recieve reply. 
+    <braunr> ok
+    <hacklu> I think it will be blocked only in mach_msg() if need.
+    <braunr> usually, xxx_request are the async send-only versions of RPCs
+    <tschwinge> Yes, that'S my understanding too.
+    <braunr> and xxx_reply the async receive-only
+    <braunr> so that makes sense
+    <hacklu> so I have ask you is it a asyn RPC.
+    <braunr> yes
+    <braunr> 15:18 < hacklu> braunr: When client C send a request to server S,
+      but doesn't wait for the reply message right now, for a while, C call
+      mach_msg to recieve reply. Can I think this is a  synchronous RPC?
+    <braunr> 15:19 < braunr> hacklu: no
+    <braunr> if it's not synchronous, it's asynchronous
+    <hacklu> sorry, I spell wrong. missing a 'a' :/
+    <tschwinge> S_proc_wait_reply will then be invoked once the procserver
+      actually answers the  "blocking" proc_wait call.
+    <tschwinge> Putting "blocking" in quotes, because (due to the asyncoronous
+      RPC invocation), GDB has not actually blocked on this.
+    <braunr> well, it doesn't call proc_wait
+    <hacklu> tschwinge: yes, the S_proc_wait_reply is called by
+      process_reply_server(). 
+    <hacklu> tschwinge: so the "blocked" one is the thread in proc_server .
+    <tschwinge> braunr: Right.  »It requests the proc_wait service.«
+    <braunr> gdb will also block on mach_msg
+    <braunr> 16:05 < braunr> both
+    <hacklu> braunr: yes, if gdb doesn't call mach_msg to recieve reply it will
+      not be blocked.
+    <braunr> i expect it will always call mach_msg
+    <braunr> right ?
+    <hacklu> braunr: yes, but before it call mach_msg, it does a lot other
+      things. but finally will call mach_msg
+    <braunr> that's ok
+    <braunr> that's the kind of things asynchronous IPC allows
+    <hacklu> tschwinge: I have make a mistake in my week report. The signal
+      recive by inferior is notified by the proc_server, not the
+      send_signal. Because the send_singal send a SIGCHLD to gdb's msgport not
+      gdbself. That make sense.
+
+
+# IRC, freenode, #hurd, 2013-07-30
+
+    <hacklu> braunr: before I go to sleep last night, this question pop into my
+      mind. How do you find my hello_world is still alive on darnassus? The
+      process is not a CPU-heavy or IO-heavy guy. You will not feel any
+      performance penalization. I am so curious :)
+    <teythoon> hacklu: have you looked into patching the proc server to allow
+      reparenting of processes?
+    <hacklu> teythoon:not yet
+    <teythoon> hacklu: i've familiarized myself with proc in the last week,
+      this should get you started nicely: http://paste.debian.net/19985/
+        diff --git a/proc/mgt.c b/proc/mgt.c
+        index 7af9c1a..a11b406 100644
+        --- a/proc/mgt.c
+        +++ b/proc/mgt.c
+        @@ -159,9 +159,12 @@ S_proc_child (struct proc *parentp,
+           if (!childp)
+             return ESRCH;
+         
+        +  /* XXX */
+           if (childp->p_parentset)
+             return EBUSY;
+         
+        +  /* XXX if we are reparenting, check permissions.  */
+        +
+           mach_port_deallocate (mach_task_self (), childt);
+         
+           /* Process identification.
+        @@ -176,6 +179,7 @@ S_proc_child (struct proc *parentp,
+           childp->p_owner = parentp->p_owner;
+           childp->p_noowner = parentp->p_noowner;
+         
+        +  /* XXX maybe need to fix refcounts if we are reparenting, not sure */
+           ids_rele (childp->p_id);
+           ids_ref (parentp->p_id);
+           childp->p_id = parentp->p_id;
+        @@ -183,11 +187,14 @@ S_proc_child (struct proc *parentp,
+           /* Process hierarchy.  Remove from our current location
+              and place us under our new parent.  Sanity check to make sure
+              parent is currently init. */
+        -  assert (childp->p_parent == startup_proc);
+        +  assert (childp->p_parent == startup_proc); /* XXX */
+           if (childp->p_sib)
+             childp->p_sib->p_prevsib = childp->p_prevsib;
+           *childp->p_prevsib = childp->p_sib;
+         
+        +  /* XXX we probably want to keep a reference to the old
+        +     childp->p_parent around so that if the debugger dies or detaches,
+        +     we can reparent the process to the old parent again */
+           childp->p_parent = parentp;
+           childp->p_sib = parentp->p_ochild;
+           childp->p_prevsib = &parentp->p_ochild;
+    <teythoon> the code doing the reparenting is already there, but for now it
+      is only allowed to happen once at process creation time
+    <hacklu> teythoon: good job. This is in my todo list, when I implement
+      attach feature to gdbserver I will need this 
+    <braunr> hacklu: i use htop
+    <teythoon> braunr: why is that process so disruptive?
+    <braunr> the big problem with those stale processes is that they're in a
+      state that prevents one important script to complete
+    <braunr> there is a bug on the hurd with regard to terminals
+    <braunr> when you log out of an ssh session, the terminal remains open for
+      some reason (bad reference counting somewhere, but it's quite tricky to
+      identify)
+    <braunr> to work around the issue, i have a cron job that calls a script to
+      kill unused terminals
+    <braunr> this works by listing processes
+    <braunr> your hello_world processes block that listing
+    <teythoon> uh, how so?
+    <hacklu> braunr: ok. I konw. 
+    <braunr> teythoon: probably the denial of service we were talking about
+      yesterday
+    <teythoon> select flooding a server?
+    <braunr> no, a program refusing to answer on its msg port
+    <braunr> ps has an option -M :
+    <braunr>   -M, --no-msg-port          Don't show info that uses a process's
+      msg port
+    <braunr> the problem is that my script requires those info
+    <teythoon> ah, I see, right
+    <braunr> hacklu being working on gdb, it's not surprising he's messing with
+      that
+    <teythoon> yes indeed. couldn't ps use a timeout to detect that?
+    <hacklu> braunr: yes, once I have found ps will hang when I has run
+      hello_world in a breakpoint state.
+    <teythoon> braunr: thanks for explaining the issue, i always wondered why
+      that process is such big a deal ;)
+    <braunr> teythoon: how do you tell between processes being slow to answer
+      and intentionnally refusing to answer ?
+    <braunr> a timeout is almost never the right solution
+    <braunr> sometimes it's the only solution though, like for networking
+    <braunr> but on a system running on a local machine, there is usually
+      another way
+    <teythoon> braunr: I don't of course
+    <braunr> ?
+    <braunr> ah ok
+    <braunr> it was rethorical :)
+    <teythoon> yes I know, and I was implying that I wasn't expecting a timeout
+      to be the clean solution
+    <teythoon> and the current behaviour is hardly acceptable
+    <braunr> i agree
+    <braunr> it's ok for interactive cases
+    <braunr> you can use Ctrl-C, which uses a 3 seconds delay to interrupt the
+      client RPC if nothing happens
+    <teythoon> braunr: btw, what about *_reply.defs? Should I add a
+      corresponding reply simpleroutine if I add a routine?
+    <braunr> normally yes
+    <braunr> right, forgot about that
+    <teythoon> so that the procedure ids are kept in sync in case one wants to
+      do this async at some point in the future?
+    <braunr> yes
+    <braunr> this happened with select
+    <braunr> i had to fix the io interface
+    <teythoon> ok, noted
+
+
+# IRC, freenode, #hurd, 2013-07-31
+
+    <hacklu> Do we need write any other report for the mid-evaluation? I have
+      only submit a question-answer to google.
+
+
+# IRC, freenode, #hurd, 2013-08-05
+
+    <hacklu> hi, this is my weekly
+      report. http://hacklu.com/blog/gsoc-weekly-report7build-gdbserver-on-gnuhurd-164/
+    <hacklu> youpi: can you show me some suggestions about how to design the
+      interface and structure of gdbserver?
+    <youpi> hacklu: well, I've read your blog entry, I was wondering about
+      tschwinge's opinion, that's why I asked whether he was here
+    <youpi> I would tend to start from an existing gdbserver, but as I haven't
+      seen the code at all, I don't know how much that can help
+    <hacklu> so you mean I shoule get a worked gdbserver then to improve it?
+    <youpi> I'd say so, but again it's not a very strong opinion
+    <youpi> I'd rather let tschwinge comment on this
+    <hacklu> youpi: ok :)
+
+    <youpi> how about the copyright assignments? did hacklu or teythoon receive
+      any answer?
+    <teythoon> youpi: I did, the copyright clerk told me that he finally got my
+      papers and that everything is in order now
+    <youpi> few!
+    <youpi> s/f/ph
+    <youpi> teythoon: you mean all steps are supposed to be done now, or is he
+      doing the last steps? I don't see your name in the copyright folder yet
+    <teythoon> youpi: well, he said that he had the papers and they are about
+      to be signed
+    <youpi> teythoon: ok, so it's not finished, that's why your name is not on
+      the list yet
+    <youpi> this paper stuff is really a pain
+    <hacklu> youpi: I haven't got any answer from FSF now.
+    <youpi> did you ping them recently?
+    <hacklu> I have pinged 2 week ago. 
+    <hacklu> what you mean of ping? I just write an email to him. Is it enough?
+    <youpi> yes
+
+
+# IRC, freenode, #hurd, 2013-08-12
+
+    <hacklu> hi, this is my weekly report
+      http://hacklu.com/blog/gsoc-weekly-report8-168/ . sorry for so late.
+
+    <youpi> hacklu: it seems we misunderstood ourselves last week, I meant to
+      start from the existing gdbserver implementation
+    <youpi> but never mind :)
+    <youpi> starting from the lynxos version was a good idea
+    <hacklu> youpi: em... yeah, the lynxos port is so clean and simple.
+
+    <hacklu> youpi: aha, the "Remote connection closed" problem has been fixed
+      after I add a init_registers_i386() and set the structure target_desc.
+    <hacklu> but I don't get understand with the structure target_desc. I only
+      know it is auto-generated which configured by the configure.srv.
+    <tschwinge> Hi!
+    <tschwinge> hacklu: In gdbserver, you should definitely re-use existing
+      infrastructure, especially anything that deals with the
+      protocol/communication with GDB (that is, server.c and its support
+      files).
+    <tschwinge> hacklu: Then, for the x86 GNU Hurd port, it should be
+      implemented in the same way as an existing port.  The Linux port is the
+      obvious choice, of course, but it is also fine to begin with something
+      simpler (like the LynxOS port you've chosen), and then we can still add
+      more features later on.  That is a very good approach actually.
+    <tschwinge> hacklu: The x86 GNU Hurd support will basically consist of
+      three pieces -- exactly as with GDB's native x86 GNU Hurd port: x86
+      processor specific (tge existing gdbserver/i386-low.c etc. -- shouldn't
+      need any modifications (hopefully)), GNU Hurd specific
+      (gdbserver/gnu-hurd-low.c (or similar)), and x86 GNU Hurd specific
+      (gdbserver/gnu-hurd-x86-low.c (or similar)).
+    <tschwinge> s%tge%the
+    <hacklu> tschwinge: now I have only add a file named gnu-low.c, I should
+      move some part to the file gnu-i386-low.c I think.
+    <tschwinge> hacklu: That's fine for the moment.  We can move the parts
+      later (everything with 86 in its name, probably).
+    <hacklu> that's ok.
+    <hacklu> tschwinge: Can I copy code from gnu-nat.c to
+      gdbserver/gnu-hurd-low.c? I think the two file will have many same code.
+    <tschwinge> hacklu: That's correct.  Ideally, the code should be shared
+      (for example, in a file in common/), but that's an ongoing discussion in
+      GDB, for other duplicated code.  So, for the moment, it is fine to copy
+      the parts you need.
+    <tschwinge> hacklu: Oh, but it may be a good idea to add a comment to the
+      source code, where it is copied from.
+    <hacklu> maybe I can do a common-part just for hurd gdb port.
+    <tschwinge> That should make it easier later on, to consolidate the
+      duplicated code into one place.
+    <tschwinge> Or you can do that, of course.  If it's not too difficult to
+      do?
+    <hacklu> I think at the begining it is not difficult. But when the
+      gdbserver code grow, the difference with gdb is growing either. That will
+      be too many #if else.
+    <tschwinge> I think we should check with the GDB maintainers, what they
+      suggest.
+    <tschwinge> hacklu: Please send an email To: <gdb@sourceware.org> Cc:
+      <lgustavo@codesourcery.com>, <thomas@codesourcery.com>, and ask about
+      this: you need to duplicate code that already exists in gnu-nat.c for new
+      gdbserver port -- how to share code?
+    <hacklu> tschwinge: ok, I will send the email right now.
+    <hacklu> tschwinge: need I cc to hurd mail-list?
+    <tschwinge> hacklu: Not really for that questions, because that is a
+      question only relevant to the GDB source code itself.
+    <hacklu> tschwinge: got it.
+
+[[!message-id
+"CAB8fV=jzv_rPHP3-HQVBA-pCNZNat6PNbh+OJEU7tZgQdKX3+w@mail.gmail.com"]].
+
+
+# IRC, freenode, #hurd, 2013-08-19
+
+<http://hacklu.com/blog/gsoc-weekly-report9-172/>.
+
+    <hacklu__> when and where is the best time and place to get the regitser
+      value in gdb?
+    <youpi> well, I'm not sure to understand the question
+    <youpi> you mean in the gdb source code, right?
+    <youpi> isn't it already done in gdb?
+    <youpi> probably similarly to i386?
+    <youpi> (linux i386 I mean)
+    <hacklu__> I don't find the fetch_register or relate function implement in
+      gnu-nat.c 
+    <hacklu__> so I can't make decision how to implement this in gdbserver.
+    <youpi> it's in i386gnu-nat.c, isn't it?
+    <hacklu__> yeah.
+    <youpi> does that answer your issue?
+    <hacklu__> thank you. I am so stupid
+
+
+# IRC, freenode, #hurd, 2013-08-26
+
+    < hacklu> hello everyone, this is my week
+      report. http://hacklu.com/blog/gsoc-weekly-report10-174/
+
+    < hacklu> btw, my FSF copyright assignment has been concepted. They guy
+      said, they have recived my mail for a while but forget to handle it.
+
+    < hacklu> but now I face a new problem, when I typed the first continue
+      command, gdb will continue all the breakpoint, and the inferior will run
+      until normally exit.
+
+
+# IRC, freenode, #hurd, 2013-08-30
+
+    <hacklu> tschwinge: hi, does gdb's attach feature work correctlly on Hurd? 
+    <hacklu> on my hurd-box, the gdb can't attach to a running process, after a
+      attaching, when I continue, gdb complained "can't find pid 12345"
+    <teythoon> hacklu: attaching works, not sure why gdb is complaining
+    <hacklu> teythoon: yeah, it can attaching, but can't contine process. 
+    <hacklu> in this case, the debugger is useless if it can't resume execution
+    <teythoon> hacklu: well, gdb on Linux reacts a little differently, but for
+      me attaching and then resuming works
+    <hacklu> teythoon: yes, gdb on linux works well.
+    <teythoon> % gdb --pid 21506 /bin/sleep
+    <teythoon> [...]
+    <teythoon> (gdb) c
+    <teythoon> Continuing.
+    <teythoon> warning: Can't wait for pid 21506: No child processes
+    <teythoon> # pkill -SIGILL sleep
+    <teythoon> warning: Pid 21506 died with unknown exit status, using SIGKILL.
+    <hacklu> yes. I used a sleep program to test too.
+    <teythoon> I believe that the warning and deficiencies with the signal
+      handling are b/c on Hurd the debuggee cannot be reparented to the
+      debugger
+    <hacklu> oh, I remembered, I have asked this before.
+    <tschwinge> Confirming that attaching to a process in __sleep -> __mach_msg
+      -> mach_msg_trap works fine, but then after »continue«, I see »warning:
+      Can't wait for pid 4038: No child processes« and three times »Can't fetch
+      registers from thread bogus thread id 1: No such thread« and the sleep
+      process exits (normally, I guess? -- interrupted "system call").
+    <tschwinge> If detaching (exit GDB) instead, I see »warning: Can't modify
+      tracing state for pid 4041: No such process« and the sleep process exits.
+    <tschwinge> Attaching to and then issueing »continue« in a process that is
+      not currently in a mach_msg_trap (tested a trivial »while (1);«) seems to
+      work.
+    <tschwinge> hacklu: ^
+    <hacklu> tschwinge: in my hurdbox, if I just attach a while(1), the system
+      is near down. nothing can happen, maybe my hardware is slow.
+    <hacklu> so I can only test on the sleep one.
+    <hacklu> my gdbserver doesn't support attach feature now. the other basic
+      feather has implement. I am doing test and review the code now.
+    <tschwinge> Great!  :-)
+    <tschwinge> It is fine if attaching does not work currently -- can be added
+      later.
+    <hacklu> btw, How can I submit my code? put the patch in email directly?
+    <tschwinge> Did you already run the GDB testsuite using your gdbserver?
+    <hacklu> no, haven't yet
+    <tschwinge> Either that, or a Git branch to pull from.
+    <hacklu> I think I should do more review and test than I submit patches.
+    <tschwinge> hacklu: See [GDB]/gdb/testsuite/boards/native-gdbserver.exp
+      (and similar files) for how to run the GDB testsuite with gdbserver.
+    <hacklu> ok. 
+    <tschwinge> But don't be disappointed if there are still a lot of failures,
+      etc.  It'll already be great if some basic stuff works.
+    <hacklu> now it can set and remove breakpoint. show register, access
+      variables.
+    <tschwinge> ... which already is enogh for a lot of debugging sessions.
+      :-)
+    <hacklu> I will continue to make it more powerful.
+    <hacklu> :)
+    <tschwinge> Yes, but please first work on polishing the existing code, and
+      get it integrated upstream.  That will be a great milestone.
+    <tschwinge> No doubt that GDB maintainers will have lots of comments about
+      proper formatting of the source code, and such things.  Trivial, but will
+      take time to re-work and get right.
+    <hacklu> oh, I got it. I will give my pathch before this weekend.
+    <tschwinge> Then once your basic gdbserver is included, you can continue to
+      implement additional features, piece by piece.
+    <tschwinge> And then we can run the GDB testsuite with gdbserver and
+      compare that there are no regressions, etc.
+    <tschwinge> Heh, »before the weekend« -- that's soon.  ;-)
+    <hacklu> honestly to say, most of the code is copyed from other files, I
+      haven't write too many code myself.
+    <tschwinge> Good -- this is what I hoped.  Often, more time in software
+      development is spent on integrating existing things rathen than writing
+      new code.
+    <hacklu> but I have spent a lot of time to get known the code and to debug
+      it to work.
+    <tschwinge> Thzis is normal, and is good in fact: existing code has already
+      been tested and documented (in theory, at least...).
+    <tschwinge> Yes, that's expected too: when relying on/reusing existing
+      code, you first have to understand it, or at least its interfaces.  Doing
+      that, you're sort of "mentally writing the existing code again".
+    <tschwinge> So, this sounds all fine.  :-)
+    <hacklu> your words make me happy.
+    <hacklu> :)
+    <tschwinge> Well, I am, because this seems to be going well.
+    <hacklu> thank you. I am going to coding now~~
+
+
+# IRC, freenode, #hurd, 2013-09-02
+
+    <hacklu> hi, this is my weekly
+      report. http://hacklu.com/blog/gsoc-weekly-report11-181/
+
+    <hacklu> please give me any advice on how to use mig to generate stub-files
+      in gdbserver? 
+    <braunr> hacklu:
+      http://darnassus.sceen.net/gitweb/rbraun/slabinfo.git/blob/HEAD:/Makefile
+    <hacklu> braunr: shouldnt' I work like this
+      https://github.com/hacklu/gdbserver/blob/gdbserver/gdb/config/i386/i386gnu.mh
+      ?
+    <braunr> hacklu: seems that you need server code
+    <braunr> other than that i don't see the difference
+    <hacklu> gdb use autoconf to generate the Makefile, and part from the *.mh
+      file, but in gdbserver, there is no .mh like files.
+    <braunr> hacklu: why can't you reuse /i386gnu.mh ?
+    <hacklu> braunr: question is that, there are something not need in
+      /i386gnu.mh.
+    <braunr> hacklu: like what ?
+    <hacklu> braunr: like fork-child.o msg_U.o core-regset.o
+    <braunr> hacklu: well, adjust the dependencies as you need
+    <braunr> hacklu: do you mean they become useless for gdbserver but are
+      useful for gdb ?
+    <hacklu> braunr: yes, so I need another one gnu.mh file.
+    <hacklu> braunr: but the gdbserver's configure doesn't have any *.mh file,
+      can I add the first one? 
+    <braunr> or adjust the values of those variables depending on the building
+      mode
+    <braunr> maybe
+    <braunr> tschwinge is likely to better answer those questions
+    <hacklu> braunr: ok, I will wait for tschwinge's advice.
+    <luisgpm> hacklu, The gdb/config/ dir is for files related to the native
+      gdb builds, as opposed to a cross gdb that does not have any native bits
+      in it. In the latter, gdbserver will be used to touch the native layer,
+      and GDB will only guide gdbserver through the debugging session...
+    <luisgpm> hacklu, In case you haven't figured that out already.
+    <hacklu> luisgpm: I am not very clear with you. According to your words, I
+      shouldn't use gdb/config for gdbserver? 
+    <luisgpm> hacklu, Correct. You should use configure.srv for gdbserver.
+    <luisgpm> hacklu, gdb/gdbserver/configure.srv that is.
+    <luisgpm> hacklu, gdb/configure.tgt for non-native gdb files...
+    <luisgpm> hacklu, and gdb/config for native gdb files.
+    <luisgpm> hacklu, The native/non-native separation for gdb is due to the
+      possibility of having a cross gdb.
+    <congzhang> what's srv file purpose?
+    <luisgpm> hacklu, gdbserver, on the other hand, is always native.
+    <luisgpm> Doing the target-to-object-files mapping.
+    <hacklu> how can I use configure.srv to config the MIG to generate
+      stub-files?
+    <luisgpm> What are stub-files in this context?
+    <hacklu> On Hurd, some rpc stub file are auto-gen by MIG with *.defs file
+    <braunr> luisgpm: c source code handling low level ipc stuff
+    <braunr> mig is the mach interface generator
+    <tschwinge> luisgpm, hacklu: If that is still helpful by now, in
+      <http://news.gmane.org/find-root.php?message_id=%3C87ppwqlgot.fsf%40kepler.schwinge.homeip.net%3E>
+      I described the MIG usage in GDB.  (Which also states that ptrace is a
+      system call which it is not.)
+    <tschwinge> hacklu: For the moment, it is fine to indeed copy the rules
+      related to MIG/RPC stubs from gdb/config/i386/i386gnu.mh to a (possibly
+      new) file in gdbserver.  Then, later, we should work out how to properly
+      share these, as with all the other code that is currently duplicated for
+      GDB proper and gdbserver.
+    <luisgpm> hacklu, tschwinge: If there is code gdbserver and native gdb can
+      use, feel free to put them inside gdb/common for now.
+    <tschwinge> hacklu, luisgpm: Right, that was the conclusion from
+      <http://news.gmane.org/find-root.php?message_id=%3CCAB8fV%3Djzv_rPHP3-HQVBA-pCNZNat6PNbh%2BOJEU7tZgQdKX3%2Bw%40mail.gmail.com%3E>.
+    <hacklu> tschwinge, luisgpm : ok, I got it.
+    <hacklu> tschwinge: sorry for haven't submit pathes yet, I will try to
+      submit my patch tomorrow.
+
+[[!message-id "CAB8fV=iw783uGF8sWyqJNcWR0j_jaY5XO+FR3TyPatMGJ8Fdjw@mail.gmail.com"]].
+
+
+# IRC, freenode, #hurd, 2013-09-06
+
+    <hacklu> If I want compile a file which is not in the current directory,
+      how should I change the Makefile. I have tried that obj:../foo.c, but the
+      foo.o will be in ../, not in the current directory.
+    <hacklu> As say, When I build gdbserver, I want to use [gdb]/gdb/gnu-nat.c,
+      How can I get the gnu-nat.o under gdbserver's directory?
+    <hacklu> tschwinge: ^^
+    <tschwinge> Hi!
+    <tschwinge> hacklu: Heh, unexpected problem.
+    <tschwinge> hacklu: How is this handled for the files that are already in
+      gdb/common/?  I think these would have the very same problem?
+    <hacklu> tschwinge: ah. 
+    <hacklu> I got it
+    <tschwinge> I see, for example:
+    <tschwinge> ./gdb/Makefile.in:linux-btrace.o:
+      ${srcdir}/common/linux-btrace.c
+    <tschwinge> ./gdb/gdbserver/Makefile.in:linux-btrace.o:
+      ../common/linux-btrace.c $(linux_btrace_h) $(server_h)
+    <hacklu> If I have asked before, I won't use soft link to solve this.
+    <tschwinge> But isn't that what you've been trying?
+    <hacklu> when this, where the .o file go to?
+    <tschwinge> Yes, symlinks can't be used, because they're not available on
+      every (file) system GDB can be built on.
+    <tschwinge> I would assume the .o files to go into the current working
+      directory.
+    <tschwinge> Wonder why this didn't work for you.
+    <hacklu> in gdbserver/configure.srv, there is a srv_tgtobj="gnu_nat.c ..",
+      if I change the Makefile.in, it doesn't gdb's way.
+    <hacklu> So I can't use the variable srv_tgtobj? 
+    <tschwinge> That should be srv_tgtobj="gnu_nat.o [...]"?  (Not .c.)
+    <hacklu> I have try this, srv_tgtobj="../gnu_nat.c", then the gnu_nat.o is
+      generate in the parent directory. 
+    <hacklu> s/.c/.o
+    <hacklu> (wrong input)
+    <hacklu> For my understand now, I should set the srv_tgtobj="", and then
+      set the gnu_nat.o:../gnu_nat.c in the gdbserver/Makefile.in. right?
+    <tschwinge> Hmm, I thought you'd need both.
+    <tschwinge> Have you tried that?
+    <hacklu> no, haven't yet. I will try soon.
+    <hacklu> I have met an strange thing. I have this in Makefile,
+      i386gnu-nat.o:../i386gnu-nat.c $(CC) -c $(CPPFLAGS) $(INTERNAL_CFLAGS) $<
+    <hacklu> When make, it will complain that: no rules for target
+      i386gnu-nat.c 
+    <hacklu> but I also have a line gnu-nat.o:../gnu-nat.c ../gnu-nat.h. this
+      works well.
+    <tschwinge> hacklu: Does it work if you use $(srcdir)/../i386gnu-nat.c
+      instead of ../i386gnu-nat.c?
+    <tschwinge> Or similar.
+    <hacklu> I have try this, i386gnu-nat.c: echo "" ; then it works.
+    <hacklu> (try $(srcdir) ing..)
+    <hacklu> make: *** No rule to make target `.../i386gnu-nat.c', needed by
+      `i386gnu-nat.o'.  Stop.
+    <hacklu> seems no use.
+    <hacklu> tschwinge: I have found another thing, if I rename the
+      i386gnu-nat.o to other one, like i386gnu-nat2.o. It works!
+
+
+# IRC, freenode, #hurd, 2013-09-07
+
+    <hacklu> hi, I have found many '^L' in gnu-nat.c, should I fix it or keep
+      origin? 
+    <LarstiQ> hacklu: fix in what sense?
+    <hacklu> remove the line contains ^L
+    <LarstiQ> hacklu: see bottom of
+      http://www.gnu.org/prep/standards/standards.html#Formatting
+    <LarstiQ> hacklu: "Please use formfeed characters (control-L) to divide the
+      program into pages at logical places (but not within a function)."
+    <LarstiQ> hacklu: so unless a reason has come up to deviate from the gnu
+      coding standards, those ^L's are there by design
+    <hacklu> LarstiQ: Thank you! I always think that are some format error. I
+      am stupid.
+    <LarstiQ> hacklu: not stupid, you just weren't aware
+    * LarstiQ thought the same when he first encountered them
+
+
+# IRC, freenode, #hurd, 2013-09-09
+
+    <youpi> hacklu_, hacklu__: I don't know what tschwinge thinks, but I guess
+      you should work with upstream on integration of your existing work, this
+      is part of the gsoc goal: submitting one's stuff to projects
+    <tschwinge> youpi: Which is what we're doing (see the patches recently
+      posted).  :-)
+    <youpi> ok
+    <hacklu__> youpi: I always doing what you have suggest. :)
+    <hacklu> I have asked in my new mail, I want to ask at here again.  Should
+      I change the gdb use lwp filed instead of tid field? There are 
+    <hacklu> too many functions use tid. Like
+    <hacklu> named tid in the structure proc also.
+    <hacklu> make_proc(),inf_tid_to_thread(),ptid_build(), and there is a field
+    <hacklu> (sorry for the bad \n )
+    <hacklu> and this is my weekly
+      report. http://hacklu.com/blog/gsoc-weekly-report12-186/
+    <hacklu> And in Pedro Alves's reply, he want me to integration only one
+      back-end for gdb and gdbserver. but the struct target_obs are just
+      decalre different in both of the two. How can I integrate this? or I got
+      the mistaken understanding?
+    <hacklu> tschwinge: ^^
+    <tschwinge> hacklu: I will take this to email, so that Pedro et al. can
+      comment, too.
+    <tschwinge> hacklu: I'm not sure about your struct target_ops question.
+      Can you replay to Pedro's email to ask about this?
+    <hacklu> tschwinge: ok.
+    <tschwinge> hacklu: I have sent an email about the LWP/TID question.
+    <hacklu> tschwinge: Thanks for your email, now I know how to fix the
+      LWP/TID for this moment.
+    <tschwinge> hacklu: Let's hope that Pedro also is fine with this.  :-)
+    <hacklu> tschwinge: BTW, I have a question, if we just use a locally
+      auto-generated number to distignuish threads in a process, How can we do
+      that?
+    <hacklu> How can we know which thread throwed the exception?
+    <hacklu> I haven't thought about this before.
+    <tschwinge> hacklu: make_proc sets up a mapping from Mach threads to GDB's
+      TIDs.  And then, for example inf_tid_to_thread is used to look that up.
+    <hacklu> tschwinge: oh, yeah. that is.
+
+
+# IRC, freenode, #hurd, 2013-09-16
+
+    <tschwinge> hacklu: Even when waiting for Pedro (and me) to comment, I
+      guess you're not out of work, but can continue in parallel with other
+      things, or improve the patch?
+    <hacklu> tschwinge: honestly to say, these days I am out of work T_T after
+      I have update the patch.
+    <hacklu> I am not sure how to improve the patch beyond your comment in the
+      email. I have just run some testcase and nothing others.
+    <tschwinge> hacklu: I have not yet seen any report on the GDB testsuite
+      results using your gdbserver port (see
+      gdb/testsuite/boards/native-gdbserver.exp).  :-D
+    <hacklu> question is, the resule of that testcase is just how many pass how
+      many not pass.
+    <hacklu> and I am not sure whether need to give this information.
+    <tschwinge> Just as a native run of GDB's testsuite, this will create *.sum
+      and *.log files, and these you can diff to those of a native run of GDB's
+      testsuite.
+    <hacklu> https://paste.debian.net/41066/ this is my result
+     === gdb Summary ===
+    
+    # of expected passes            15573
+    # of unexpected failures        609
+    # of unexpected successes       1
+    # of expected failures          31
+    # of known failures             57
+    # of unresolved testcases       6
+    # of untested testcases         47
+    # of unsupported tests          189
+    /home/hacklu/code/gdb/gdb/testsuite/../../gdb/gdb version  7.6.50.20130619-cvs -nw -nx -data-directory /home/hacklu/code/gdb/gdb/testsuite/../data-directory
+    
+    make[3]: *** [check-single] Error 1
+    make[3]: Leaving directory `/home/hacklu/code/gdb/gdb/testsuite'
+    make[2]: *** [check] Error 2
+    make[2]: Leaving directory `/home/hacklu/code/gdb/gdb'
+    make[1]: *** [check-gdb] Error 2
+    make[1]: Leaving directory `/home/hacklu/code/gdb'
+    make: *** [do-check] Error 2
+    <hacklu> I got a make error so I don't get the *.sum and *.log file. 
+    <tschwinge> Well, that should be fixed then?
+    <tschwinge> hacklu: When does university start again for you?
+    <hacklu> My university have start a week ago.
+    <hacklu> but I will fix this,
+    <tschwinge> Oh, OK.  So you won't have too much time anymore for GDB/Hurd
+      work?
+    <hacklu> it is my duty to finish my work. 
+    <hacklu> time is not the main problem to me, I will shedule it for myself.
+    <tschwinge> hacklu: Thanks!  Of course, we'd be very happy if you stay with
+      us, and continue working on this project (or another one)!  :-D
+    <hacklu> I also thanks all of you who helped me and mentor me to improve
+      myself.
+    <hacklu> then, what the next I can do is that fix the testcase failed? 
+    <tschwinge> hacklu: It's been our pleasure!
+    <tschwinge> hacklu: A comparison of the GDB testsuite results for a native
+      and gdbserver run would be good to get an understanding of the current
+      status.
+    <hacklu> ok, I will give this comparison soon. BTW,should I compare the
+      native gdb result with the one before my patch
+    <tschwinge> You mean compare the native run before and after your patch?
+      Yes, that also wouldn't hurt to do, to show that your patch doesn't
+      introduce any regressions to the native GDB port.
+    <hacklu> ok, beside this I should compare the native gdb with gdbserver ?
+    <tschwinge> Yes.
+    <hacklu> beside this, what I can do more? 
+    <tschwinge> No doubt, there will be differences between the native and
+      gdbserver test runs -- the goal is to reduce these.  (This will probably
+      translate to: implement more stuff for the Hurd port of gdbserver.)
+    <hacklu> ok, I know it. Start it now
+    <tschwinge> As time permits.  :-)
+    <hacklu> It's ok. :)
+
+
+# IRC, freenode, #hurd, 2013-09-23
+
+    <hacklu_> I have to go out in a few miniutes, will be back at 8pm. I am
+      sorry to miss the meeting this week, I will finishi my report soon. 
+    <hacklu_> tschwinge, youpi ^^

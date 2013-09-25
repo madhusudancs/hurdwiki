@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2012, 2013 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -12,8 +12,56 @@ License|/fdl]]."]]"""]]
 
 There are is some memory leak in [[`exec`|hurd/translator/exec]].
 
+[[!toc]]
 
-# I
+
+# IRC, freenode, #hurd, 2012-08-11
+
+    <braunr> the exec servers seems to leak a lot
+    <braunr> server*
+    <braunr> exec now uses 109M on darnassus
+    <braunr> it really leaks a lot
+    <pinotree> only 109mb? few months ago, exec on exodar was taking more than
+      200mb after few days of uptime with builds done
+    <braunr> i wonder how much it takes on the buildds
+
+
+## IRC, freenode, #hurd, 2012-08-17
+
+    <braunr> the exec leak is tricky
+    <braunr> bddebian: btw, look at the TODO file in the hurd source code
+    <braunr> bddebian: there is a not from thomas bushnell about that
+    <braunr> "*** Handle dead name notifications on execserver ports. !
+    <braunr> not sure it's still a todo item, but it might be worth checking
+    <bddebian> braunr: diskfs_execboot_class = ports_create_class (0, 0);
+      This is what would need to change right?  It should call some cleanup
+      routine in the first argument?
+    <bddebian> Would be ideal if it could just use deadboot() from exec.
+    <braunr> bddebian: possible
+    <braunr> bddebian: hum execboot, i'm not so sure
+    <bddebian> Execboot is the exec task, no?
+    <braunr> i don't know what execboot is
+    <bddebian> It's from libdiskfs
+    <braunr> but "diskfs_execboot_class" looks like a class of ports used at
+      startup only
+    <braunr> ah
+    <braunr> then it's something run in the diskfs users ?
+    <bddebian> yes
+    <braunr> the leak is in exec
+    <braunr> if clients misbehave, it shouldn't affect that server
+    <bddebian> That's a different issue, this was about the TODO thing 
+    <braunr> ah
+    <braunr> i don't know
+    <bddebian> Me either :)
+    <bddebian> For the leak I'm still focusing on do-bunzip2 but I am baffled
+      at my results..
+    <braunr> ?
+    <bddebian> Where my counters are zero if I always increment on different
+      vars but wild freaking numbers if I increment on malloc and decrement on
+      free
+
+
+# 2012-11-25
 
 After twelve hours worth of `fork/exec` ([[GCC]]'s `check-c` part of the
 testsuite), we got:
@@ -29,7 +77,7 @@ quite noticeable.  In comparison:
       276    0     3     1     1 344 442M 28.2M  0.6 48:09.36    91min /hurd/ext2fs /dev/hd2s5
 
 
-# II
+# 2012-12-20
 
 After running the libtool testsuite for some time:
 

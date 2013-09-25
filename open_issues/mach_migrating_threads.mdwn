@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2013 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -15,3 +15,89 @@ License|/fdl]]."]]"""]]
   * [[microkernel/mach/memory_object/discussion]]
 
   * [[resource_management_problems]]
+
+
+# IRC, freenode, #hurd, 2013-08-13
+
+In context of [[resource_management_problems]].
+
+    <braunr> and thread migration itself is something very confusing
+    <braunr> it's better to think of it as scheduling context inheritance
+    <teythoon> braunr: I read the paper I mentioned and then I wanted to find
+      the sources they modified
+    <teythoon> I failed
+    <teythoon> I hate scientific paper about software that fail to provide the
+      source code
+    <teythoon> that's not science imho b/c it's not reproducible
+    <braunr> i have some osf source code here
+    <braunr> i'll send it if you want
+    <teythoon> ah interesting
+    <braunr> but really, when you dive into it, thread migration is merely
+      scheduling context inheritance with kernel upcalls
+    <braunr> it's good
+    <teythoon> I searched for osf mach but google didn't turned up anything
+    <braunr> but it has nothing to do with resource accounting
+    <braunr> (well, it may hepl better account for cpu time actually)
+    <braunr> help*
+    <braunr> but that's all
+    <teythoon> why is that all? wouldn't that be transitive and could also be
+      used for i/o accounting?
+    <teythoon> also I tried to find alternative mach implementations
+    <teythoon> I wasn't terribly successful, and some sites are gone or
+      unmaintained for years :/
+    <braunr> we don't need that for io accountin
+    <braunr> g
+    <braunr> thread migration is a kernel property
+    <braunr> on mach with userspace drivers, io isn't
+    <braunr> mach should only control cpu and memory
+    <braunr> and you though you can account physical memory, you can't transfer
+      virtual memory accounting from one task to another
+    <teythoon> yes, but once all of those resources can be accounted to the
+      thread initiating whatever it needs doing, shouldn't that be much easier?
+    <braunr> teythoon: it's not required for that
+    <braunr> teythoon: keep in mind userspace sees activations
+    <braunr> in a thread migration enabled kernel, activations are what we
+      usually call threads, and threads are scheduling contexts
+    <teythoon> braunr: ok, so TM is not required for accounting, but surely
+      it's a good thing to have, no?
+    <braunr> teythoon: it's required for cpu accounting only
+    <braunr> which is very important :)
+    <braunr> if you look carefully, you'll see hurd servers are what use most
+      cpu
+    <braunr> there is now easy way to know which application actually uses the
+      server
+    <braunr> i personally tend to think more and more that servers *should*
+      impersonate clients
+    <braunr> TM (or rather, scheduling context inheritance) is one step
+    <braunr> it's not enough exactly because it doesn't help with resource
+      accounting
+    <braunr> teythoon:
+      ftp://ftp.mklinux.org/pub/mklinux-pre-R1/SRPMS/sources/osfmk.tar.gz
+
+
+# IRC, freenode, #hurd, 2013-09-02
+
+[[!taglink open_issue_documentation]]: move information to
+[[microkernel/mach/history]].
+
+    <teythoon> braunr: btw, I just noticed lot's of #ifdef MIGRATING_THREADS in
+      gnumach, so there was some work being done in that direction?
+    <braunr> gnumach is a fork of mach4
+    <braunr> at a stage whre migration was being worked on, yes
+    <teythoon> from what I've gathered, gnumach is the only surviving mach4
+      fork, right?
+    <braunr> yes
+    <braunr> well
+    <braunr> the macos x version is probably one too
+    <braunr> i don't know
+    <teythoon> oh? I read that it was based on mach3
+    <braunr> it is
+    <braunr> i can't tell how much of mach3 versus mach4 it has, and if it's
+      relevant at all
+    <teythoon> and the osfmach, was that also based on mach4?
+    <braunr> yes
+    <teythoon> ok, fair enough
+    <braunr> that's why i think macos x is based on it too
+    <braunr> i initially downloaded osfmach sources to see an example of how
+      thread migration was used from userspace
+    <braunr> and they do have a special threading library for that
