@@ -1,0 +1,145 @@
+[[!meta copyright="Copyright © 2008, 2009, 2013 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_documentation]] The following text needs to be updated.
+
+# Original Project Description
+
+As a consequence, there is currently no easy way to obtain a listing of all
+mounted file systems. This also means that commands like `df` can only work on
+explicitly specified mountpoints, instead of displaying the usual listing.
+
+One possible solution to this would be for the translator startup mechanism to
+update the `mtab` on any `mount`/`unmount`, like in traditional systems.
+However, there are some problems with this approach.  Most notably: what to do
+with passive translators, i.e., translators that are not presently running, but
+set up to be started automatically whenever the node is accessed?  Probably
+these should be counted among the mounted filesystems; but how to handle the
+`mtab` updates for a translator that is not started yet?  Generally, being
+centralized and event-based, this is a pretty inelegant, non-hurdish solution.
+
+A more promising approach is to have `mtab` exported by a special translator,
+which gathers the necessary information on demand.  This could work by
+traversing the tree of translators, asking each one for mount points attached
+to it.  (Theoretically, it could also be done by just traversing *all* nodes,
+checking each one for attached translators.  That would be very inefficient,
+though.  Thus a special interface is probably required, that allows asking a
+translator to list mount points only.)
+
+There are also some other issues to keep in mind.  Traversing arbitrary
+translators set by other users can be quite dangerous -- and it's probably not
+very interesting anyways what private filesystems some other user has mounted.
+But what about the global `/etc/mtab`?  Should it list only root-owned
+filesystems?  Or should it create different listings depending on what user
+contacts it?...
+
+That leads to a more generic question: which translators should be actually
+listed?  There are different kinds of translators: ranging from traditional
+filesystems ([[disks|hurd/libdiskfs]] and other actual
+[[stores|hurd/translator/storeio]]), but also purely virtual filesystems like
+[[hurd/translator/ftpfs]] or [[hurd/translator/unionfs]], and even things that
+have very little to do with a traditional filesystem, like a
+[[gzip_translator|hurd/translator/storeio]],
+[[mbox_translator|hurd/translator/mboxfs]],
+[[xml_translator|hurd/translator/xmlfs]], or various device file translators...
+Listing all of these in `/etc/mtab` would be pretty pointless, so some kind of
+classification mechanism is necessary.  By default it probably should list only
+translators that claim to be real filesystems, though alternative views with
+other filtering rules might be desirable.
+
+After taking decisions on the outstanding design questions, the student will
+implement both the actual mtab translator, and the
+necessary interface(s) for gathering the data.  It requires getting a good
+understanding of the translator mechanism and Hurd interfaces in general.
+
+
+# IRC, freenode, #hurd, 2013-04-17
+
+    <kuldeepdhaka> thinking how to get the listing. traversing would be
+      ineffecient,   trying to come up with something better
+    <braunr> what listing ?
+    <braunr> and traversing what ?
+    <kuldeepdhaka> mtab
+    <braunr> well i assumed so
+    <braunr> be more precise please
+    <kuldeepdhaka> when the translator is done initalized      <translation
+      info> are written to /etc/mtab      <translation info> will be provided
+      by the translator, and when some one want to read the info just read it
+      this way if their is some credentials like ftp sites pass username can be
+      masked by the translator
+    <kuldeepdhaka> if some trans dont want to list them, no need to write to
+      file    | while unmounting (sorry i couldnt find the right word) , it
+      will pass the mount node address | <translation info> will have special
+      structure to remove/add mounts example "a /mount-to /mount-from" = add
+      , "r /mount-to" = remove    here "/mount-to" will be unique for every
+      mount
+    <kuldeepdhaka> this have a draw back , we would have to trust trans for the
+      listed data  | also "/mount-to" + "/mount-from" could be used a
+      combination for making sure that other trans unable remove others trans
+      mount data
+    <kuldeepdhaka> sorry but "also "/mount-to" + "/mount-from" could be used a
+      combination for making sure that other trans unable remove others trans
+      mount data"  this is a bad idea if we had to print the whole thing
+    <kuldeepdhaka> braunr, whats ur opinion?
+    <pinotree> you don't need a mtab to "unmount" things on hurd
+    <braunr> kuldeepdhaka: hum, have you read the project idea ?
+    <braunr>
+      http://darnassus.sceen.net/~hurd-web/community/gsoc/project_ideas/mtab/
+    <braunr> A more promising approach is to have mtab exported by a special
+      translator, which gathers the necessary information on demand. This could
+      work by traversing the tree of translators, asking each one for mount
+      points attached to it.
+    <kuldeepdhaka> pinotree, not to unmount, i mean is to remove the
+      <translation data>
+    <braunr> for a first implementation, i'd suggest a recursive traversal of
+      root-owned translators
+    <kuldeepdhaka> braunr, hum, but it did stated it as inefficient
+    <braunr> where ?
+    <kuldeepdhaka> para 5 , line 3
+    <kuldeepdhaka> and line 6
+    <braunr> no
+    <braunr> traversing "all" nodes would be inefficient
+    <braunr> translators which host the nodes of other translators could
+      maintain a simple list of active translators
+    <braunr> ext2fs, e.g. (if that's not already the case) could keep the list
+      of the translators it started
+    <braunr> we can already see that list with pstree for example
+    <braunr> but this new list would only retain those relevant for mtab
+    <braunr> i.e. root-owned ones
+    <pinotree> i would not limit to those though
+    <braunr> and then filter on their type (e.g. file system ones)
+    <braunr> pinotree: why ?
+    <pinotree> this way you could have proper per-user /proc/$pid/mounts info
+    <braunr> we could also very easily have a denial of service
+    <kuldeepdhaka> but how will the mount point and source point will be
+      listed?
+    <braunr> they're returned by the translator
+    <kuldeepdhaka> k
+    <braunr> you ask /, it returns its store and its options, and asks its
+      children recursively 
+    <braunr> a /home translator would return its store and its options
+    <braunr> etc..
+    <braunr> each translator would build the complete path before returning it
+    <braunr> sort of, it's very basic
+    <braunr> but that would be a very hurdish way to do it
+    <kuldeepdhaka> shall /etc/mtab should be made seek-able and what should be
+      the filesize?  content are generated on demand so, it could arise problem
+      (fsize:0 , seek-able:no), ur opinions?
+    <braunr> kuldeepdhaka: it should have all the properties of a regular file
+    <braunr> the filesize would be determined after it's generated
+    <braunr> being empty doesn't imply it's not seekable
+    <kuldeepdhaka> content is generated on demand so, could cause problem while
+      seeking and filesize, shall i still program as regular file?
+    <kuldeepdhaka> in two different read, it could generate different content,
+      though same seek pos is used...
+    <braunr> what ?
+    <braunr> the content is generated on open
+    <kuldeepdhaka> ooh, ok
