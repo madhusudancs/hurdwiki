@@ -10,12 +10,16 @@ License|/fdl]]."]]"""]]
 
 [[!tag faq/open_issues]]
 
-[[!meta title="Getting Assertion `__pthread_threads' failed."]]
+[[!meta title="Assertion `__pthread_threads' failed"]]
 
-Some applications don't link against libpthread, but load plugins which do link against libpthread. This means unexpectedly switch from mono-thread to multi-thread. This is not supported yet, thus the following error:
+Some applications don't themselves link against libpthread, but then load
+plugins which do link against libpthread.  This means internally switching from
+single-threading to multi-threading, which is [[not yet
+supported|open_issues/libpthread_dlopen]] by our [[/libpthread]], and results
+in errors such as:
 
     ./pthread/../sysdeps/generic/pt-mutex-timedlock.c:70: __pthread_mutex_timedlock_internal: Assertion `__pthread_threads' failed.
 
-This can be worked around by using
+This can be worked around by explicitly pre-loading libpthread, for example:
 
-export LD_PRELOAD=/lib/i386-gnu/libpthread.so.0.3
+    $ LD_PRELOAD=/lib/i386-gnu/libpthread.so.0.3 [application]
