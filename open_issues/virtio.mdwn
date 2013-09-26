@@ -1,0 +1,208 @@
+[[!meta copyright="Copyright © 2010, 2011, 2012, 2013 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd open_issue_gnumach]]
+
+
+# IRC, freenode, #hurd, 2012-07-01
+
+In context of [[DDE]].
+
+    <braunr> hm, i haven't looked but, does someone know if virtio is included
+      in netdde ?
+    <youpi> braunr: nope, there's an underlying virtio layer needed before
+
+
+# IRC, freenode, #hurd, 2013-07-24
+
+    <teythoon> btw, I'd love to see libvirt support in hurd
+    <teythoon> I tried to hack up a dde based net translator
+    <teythoon> afaics they are very much like any other pci device, so the
+      infrastructure should be there
+    <teythoon> if anything I expect the libvirt stuff to be more easily
+      portable
+    <youpi> what do you mean by "a  dde based net translator" ?
+    <youpi> ah, you mean virtio support in netdde ?
+    <teythoon> yes
+    <teythoon> virtio net is present in the kernel version we use for the dde
+      drivers
+    <teythoon> so I just copied the dde driver over, but I had no luck
+      compiling it
+    <youpi> ok, but what would be the benefice over e1000 & co?
+    <teythoon> any of the dde drivers btw
+    <teythoon> youpi: less overhead
+    <youpi> e1000 is already low overhead actually
+    <youpi> there are less and less differences in strategies for driving a
+      real board, and a virtual one
+    <youpi> we are seeing shared memory request buffer, dma, etc. in real
+      boards
+    <youpi> which ends up being almost exactly what virtio does :)
+    <youpi> ahci, for instance, really looks extremely like a virtio interface
+    <youpi> (I know, it's a disk, but that's the same idea, and I do know what
+      I'm talking about here :) )
+    <teythoon> that would actually be my next wish, a virtio disk driver, and
+      virt9p ;)
+    <braunr> on the other hand, i wouldn't spend much time on a virtio disk
+      driver for now
+    <braunr> the hurd as it is can't boot on a device that isn't managed by the
+      kernel
+    <braunr> we'd need to change the boot protocol
+    <teythoon> ok, I wasn't planning to, just wanted to see if I can easily
+      hack up the virtio-net translator
+    <braunr> well, as youpi pointed, there is little benefit to that as well
+    <braunr> but if that's what you find fun, help yourself :)
+    <teythoon> I didn't know that, I assumed there was some value to the virtio
+      stuff
+    <braunr> there is
+    <braunr> but relatively to other improvements, it's low
+
+
+# IRC, freenode, #hurd, 2013-09-14
+
+    <rekado> I'm slowly beginning to understand the virtio driver framework
+      after reading Rusty's virtio paper and the Linux sources of a few virtio
+      drivers.
+    <rekado> Has anyone started working on virtio drivers yet?
+    <youpi> rekado: nobody has worked on virtio drivers, as I know of
+    <rekado> youpi: I'm still having a hard time figuring out where virtio
+      would fit in in the hurd.
+    <rekado> I'm afraid I don't understand how drivers in the hurd work at all.
+      Will part of this have to be implemented in Mach?
+    <youpi> rekado: it could be implemented either as a Mach driver, or as a
+      userland driver
+    <youpi> better try the second alternative
+    <youpi> i.e. as a translator
+    <youpi> sitting on e.g. /dev/eth0 or /dev/hd0
+
+
+## IRC, freenode, #hurd, 2013-09-18
+
+    <rekado> To get started with virtio I'd like to write a simple driver for
+      the entropy device which appears as a PCI device when running qemu with
+      -device virtio-rng-pci .
+    <braunr> why entropy ?
+    <rekado> because it's the easiest.
+    <braunr> is it ?
+    <braunr> the driver itself may be, but integrating it within the system
+      probably isn't
+    <rekado> It uses the virtio framework but only really consists of a
+      read-only buffer virtqueue
+    <braunr> you're likely to want something that can be part of an already
+      existing subsystem like networking
+    <rekado> All the driver has to do is push empty buffers onto the queue and
+      pass the data it receives back from the host device to the client
+    <rekado> The thing about existing subsystems is: I don't really understand
+      them enough.
+    <rekado> I understand virtio, though.
+    <braunr> but isn't your goal understanding at least one ?
+    <rekado> yes.
+    <braunr> then i suggest working on virtio-net
+    <braunr> and making it work in netdde
+    <rekado> But to write a virtio driver for network I must first understand
+      how to actually talk to the host virtio driver/device.
+    <braunr> rekado: why ?
+    <rekado> There is still a knowledge gap between what I know about virtio
+      and what I have learned about the Hurd/Mach.
+    <braunr> are you trying to learn about virtio or the hurd ?
+    <rekado> both, because I'd like to write virtio drivers for the hurd.
+    <braunr> hm no
+    <rekado> with virtio drivers pass buffers to queues and then notify the
+      host.
+    <braunr> you may want it, but it's not what's best for the project
+    <rekado> oh.
+    <braunr> what's best is reusing existing drivers
+    <braunr> we're much too far from having enough manpower to maintain our own
+    <rekado> you mean porting the linux virtio drivers?
+    <braunr> there already is a virtio-net driver in linux 2.6
+    <braunr> so yes, reuse it
+    <braunr> the only thing which might be worth it is a gnumach in-kernel
+      driver for virtio block devices
+    <braunr> because currently, we need our boot devices to be supported by the
+      kernel itself ...
+    <rekado> when I boot the hurd with qemu and the entropy device I see it as
+      an unknown PCI device in the output of lspci.
+    <braunr> that's just the lspci database which doesn't know it
+    <rekado> Well, does this mean that I could actually talk to the device
+      already? E.g., through libpciaccess?
+    <rekado> I'm asking because I don't understand how exactly devices "appear"
+      on the Hurd.
+    <braunr> it's one of the most difficult topic currently
+    <braunr> you probably can talk to the device, yes
+    <braunr> but there are issues with pci arbitration
+    * rekado takes notes: "pci arbitration"
+    <rekado> so, this is about coordinating bus access, right?
+    <braunr> yes
+    <braunr> i'm not a pci expert so i can't tell you much more
+    <rekado> heh, okay.
+    <rekado> what kind of "issues with pci arbitration" are you referring to,
+      though?
+    <rekado> Is this due to something that Mach isn't doing?
+    <braunr> ideally, mach doesn't know about pci
+    <braunr> the fact we still need in-kernel drivers for pci devices is a big
+      problem
+    <braunr> we may need something like a pci server in userspace
+    <braunr> on l4 system it's called an io server
+    <rekado> How do in-kernel drivers avoid these issues?
+    <braunr> they don't
+    <rekado> Or rather: why is it they don't have these issues?
+    <braunr> they do
+    <rekado> oh.
+    <braunr> we had it when youpi added the sata driver
+    <braunr> so currently, all drivers need to avoid sharing common interrupts
+      for example
+    <braunr> again, since i'm not an expert about pci, i don't know more about
+      the details
+    <Hooligan0> pci arbitrations are made by hardware ... no ?
+    <braunr> Hooligan0: i don't know
+    <braunr> i'm not merely talking about bus mastering here
+    <braunr> simply preventing drivers from mapping the same physical memory
+      should be enforced somewhere
+    <braunr> i'm not sure it is
+    <braunr> same for irq sharing
+    <Hooligan0> braunr : is the support for boot devices into the kernel is
+      really needed if a loader put servers into the memory before starting
+      mach ?
+    <braunr> Hooligan0: there is a chicken-and-egg problem during boot,
+      whatever the solution
+    <braunr> obviously, we can preload from memory, but then you really want
+      your root file system to use a disk
+    <braunr> Hooligan0: the problem with preloading from memory is that you
+      want the root file system to use a real device
+    <braunr> the same way / refers to one on unix
+    <braunr> so you have an actual, persistent hierarchy from which the system
+      can be initialized and translators started
+    <braunr> you also want to share as much as possible between the early
+      programs and the others
+    <braunr> so for example, both the disk driver and the root file system
+      should be able to use the same libc instance
+    <braunr> this requires a "switch root" mechanism that needs to be well
+      defined and robust
+    <braunr> otherwise we'd just build our drivers and root fs statically
+    <braunr> (which is currently done with rootfs actually)
+    <braunr> and this isn't something we're comfortable with
+    <braunr> so for now, in-kernel drivers
+    <Hooligan0> humm ... disk driver and libc ... i see
+    <Hooligan0> in other way ... disk drivers can use only a little number of
+      lib* functions ; so with a static version, a bit of memory is lots
+    <Hooligan0> s/lots/lost
+    <Hooligan0> and maybe the driver can be hot-replaced after boot (ok ok,
+      it's more simple to say than to write)
+
+
+<a name="KVM"></a>
+# Virtio Drivers for KVM
+
+In context of [[hurd/running/cloud]], *OpenStack*.
+
+Ideally they would be userland.  That means getting documentation about how
+virtio works, and implement it.  The hurdish part is mostly about exposing the
+driver interface.  The [[hurd/translator/devnode]] translator can be used as a
+skeleton.
