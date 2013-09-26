@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2008, 2009, 2013 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -8,7 +9,57 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
-[[!tag open_issue_hurd]]
+[[!tag open_issue_documentation]] The following text needs to be updated.
+
+# Original Project Description
+
+As a consequence, there is currently no easy way to obtain a listing of all
+mounted file systems. This also means that commands like `df` can only work on
+explicitly specified mountpoints, instead of displaying the usual listing.
+
+One possible solution to this would be for the translator startup mechanism to
+update the `mtab` on any `mount`/`unmount`, like in traditional systems.
+However, there are some problems with this approach.  Most notably: what to do
+with passive translators, i.e., translators that are not presently running, but
+set up to be started automatically whenever the node is accessed?  Probably
+these should be counted among the mounted filesystems; but how to handle the
+`mtab` updates for a translator that is not started yet?  Generally, being
+centralized and event-based, this is a pretty inelegant, non-hurdish solution.
+
+A more promising approach is to have `mtab` exported by a special translator,
+which gathers the necessary information on demand.  This could work by
+traversing the tree of translators, asking each one for mount points attached
+to it.  (Theoretically, it could also be done by just traversing *all* nodes,
+checking each one for attached translators.  That would be very inefficient,
+though.  Thus a special interface is probably required, that allows asking a
+translator to list mount points only.)
+
+There are also some other issues to keep in mind.  Traversing arbitrary
+translators set by other users can be quite dangerous -- and it's probably not
+very interesting anyways what private filesystems some other user has mounted.
+But what about the global `/etc/mtab`?  Should it list only root-owned
+filesystems?  Or should it create different listings depending on what user
+contacts it?...
+
+That leads to a more generic question: which translators should be actually
+listed?  There are different kinds of translators: ranging from traditional
+filesystems ([[disks|hurd/libdiskfs]] and other actual
+[[stores|hurd/translator/storeio]]), but also purely virtual filesystems like
+[[hurd/translator/ftpfs]] or [[hurd/translator/unionfs]], and even things that
+have very little to do with a traditional filesystem, like a
+[[gzip_translator|hurd/translator/storeio]],
+[[mbox_translator|hurd/translator/mboxfs]],
+[[xml_translator|hurd/translator/xmlfs]], or various device file translators...
+Listing all of these in `/etc/mtab` would be pretty pointless, so some kind of
+classification mechanism is necessary.  By default it probably should list only
+translators that claim to be real filesystems, though alternative views with
+other filtering rules might be desirable.
+
+After taking decisions on the outstanding design questions, the student will
+implement both the actual mtab translator, and the
+necessary interface(s) for gathering the data.  It requires getting a good
+understanding of the translator mechanism and Hurd interfaces in general.
+
 
 # IRC, freenode, #hurd, 2013-04-17
 
@@ -40,8 +91,7 @@ License|/fdl]]."]]"""]]
     <kuldeepdhaka> braunr, whats ur opinion?
     <pinotree> you don't need a mtab to "unmount" things on hurd
     <braunr> kuldeepdhaka: hum, have you read the project idea ?
-    <braunr>
-      http://darnassus.sceen.net/~hurd-web/community/gsoc/project_ideas/mtab/
+
     <braunr> A more promising approach is to have mtab exported by a special
       translator, which gathers the necessary information on demand. This could
       work by traversing the tree of translators, asking each one for mount
@@ -125,9 +175,7 @@ In context of [[open_issues/mig_portable_rpc_declarations]].
 
     <teythoon> so tell me about the more hurdish way of dealing with that issue
     <teythoon> creating a specialized translator for this?
-    <braunr> 11:45 < pinotree> there's also
-      http://darnassus.sceen.net/~hurd-web/community/gsoc/project_ideas/mtab/
-      about that topic
+
     <braunr> you need to avoid thinking with centralization in mind
     <braunr> the hurd is a distributed system in practice
     <braunr> i think proc is the only centralized component in there
@@ -2070,3 +2118,5 @@ In context of [[open_issues/mig_portable_rpc_declarations]].
     <teythoon> so it might be a problem with either libnetfs (which afaics has
       never supported passive translator records before) or procfs, but tbh I
       haven't investigated this yet
+
+[[open_issues/libnetfs_passive_translators]].
