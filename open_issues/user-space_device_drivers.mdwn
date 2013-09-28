@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2009, 2011, 2012 Free Software Foundation,
+[[!meta copyright="Copyright © 2009, 2011, 2012, 2013 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -154,10 +154,100 @@ A similar problem is described in
     < braunr> s/disk/storage/
 
 
-### IRC, freenode, #hurd, 2012-04-25
+#### IRC, freenode, #hurd, 2012-04-25
 
     <youpi> btw, remember the initrd thing?
     <youpi> I just came across task.c in libstore/ :)
+
+
+#### IRC, freenode, #hurd, 2013-06-24
+
+    <youpi> we added a new initrd command to gnumach, to expose a new mach
+      device, which ext2fs can open and unzip
+    <youpi> we consider replacing that with simply putting the data in a dead
+      process
+    <youpi> s/process/task
+    <youpi> and let ext2fs read data from the task, and kill it when done
+    <teythoon> ok
+    <youpi> alternatively, tmps would work with an initial .tar.gz payload
+    <youpi> that would be best for memory usage
+    <youpi> tmpfs*
+    <teythoon> can't we replace the initrd concept with sub/neighbourhood?
+    <youpi> setting up tmpfs with an initial payload could be done with a
+      bootstrap subhurd
+    <teythoon> yes
+    <youpi> but it seems to me that having tmpfs being able to have an initial
+      payload is interesting
+    <teythoon> is there any advantage of the tmpfs translator prefilled with a
+      tarball over ext2fs with copy & bunzip?
+    <youpi> memory usage
+    <youpi> ext2fs with copy&bunzip takes memory for zeroes
+    <youpi> and we have to forecast how much data might be stored
+    <youpi> (if writable)
+    <teythoon> ah sure
+    <teythoon> but why would it have to be in the tmpfs translator? I why not
+      start the translator and have tar extract stuff there?
+    <teythoon> with the livecd I had trouble replacing the root translator, but
+      when using subhurds that shouldn't be a prwoblem at all
+    <youpi> I don't have a real opinion on this
+    <youpi> except that people don't usually like initrd :)
+    <braunr> 12:43 < teythoon> but why would it have to be in the tmpfs
+      translator? I why not start the translator and have tar extract stuff
+      there?
+    <braunr> that sounds an awful lot like an initramfs
+    <teythoon> yes, exactly, without actually having an initramfs of course
+    <braunr> yep
+    <braunr> i actually prefer that way too
+    <teythoon> a system on a r/o isofs cannot do much, but it can do this
+    <braunr> on the other hand, i wouldn't spend much time on a virtio disk
+      driver for now
+    <braunr> the hurd as it is can't boot on a device that isn't managed by the
+      kernel
+    <braunr> we'd need to change the boot protocol
+
+[[virtio]].
+
+
+#### IRC, freenode, #hurd, 2013-06-28
+
+    <teythoon> I'm tempted to redo a livecd, simpler and without the initrd
+      hack that youpi used for d-i
+    <braunr> initrd hack ?
+    <braunr> you mean more a la initramfs then ?
+    <teythoon> no, I thought about using a r/o isofs translator, but instead of
+      fixing that one up with a r/w overlay and lot's of firmlinks like I used
+      to, it would just start an ext2fs translator with copy on an image stored
+      on the iso and start a subhurd
+    <braunr> why a subhurd ?
+    <teythoon> neighbourhurd even
+    <teythoon> b/c back in the days I had trouble replacing /
+    <braunr> yes, that's hard
+    <teythoon> subhurd would take of that for free
+    <braunr> are you sure ?
+    <teythoon> somewhat
+    <braunr> i'm not, but this requires thorough thinking
+    <braunr> and i'm not there yet
+    <teythoon> y would it not?
+    <teythoon> just start a subhurd and let that one take over the console and
+      let the user and d-i play nicely in that environment
+    <teythoon> no hacks involved
+    <braunr> because it would require sharing things between the two system
+      instances, and that's not easy
+    <teythoon> no but the bootstrap system does nothing after launching the
+      subhurd
+    <teythoon> I mean yes, technically true, but why would it be hard to share
+      with someone who does nothing?
+    <braunr> the context isn't well defined enough to clearly state anything
+    <braunr> if you don't use the resources of the first hurd, that's ok
+    <braunr> otherwise, it may be easy or not, i don't know yet
+    <teythoon> you think it's worth a shot and see what issues crop up?
+    <braunr> sure
+    <braunr> definitely
+    <teythoon> it doesn't sound complicated at all
+    <braunr> it's easy enough to the point we see something goes wrong or works
+      completely
+    <braunr> so worth testin
+    <teythoon> cool :)
 
 
 ### IRC, freenode, #hurd, 2012-07-17
@@ -634,3 +724,8 @@ A similar problem is described in
   * <http://ertos.nicta.com.au/research/drivers/uldd/>
 
   * <http://gelato.unsw.edu.au/IA64wiki/UserLevelDrivers>
+
+  * [Running applications on the Xen
+    Hypervisor](http://blog.netbsd.org/tnf/entry/running_applications_on_the_xen),
+    Antti Kantee, 2013-09-17.  [The Anykernel and Rump
+    Kernels](http://www.netbsd.org/docs/rump/).

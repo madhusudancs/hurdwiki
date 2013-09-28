@@ -1,0 +1,3037 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!toc]]
+
+
+# IRC, freenode, #hurd, 2013-06-29
+
+    <teythoon> so, how is your golang port going?
+    <nlightnfotis> I just started working on it. I had been reading
+      documentation so far. Maybe over reading as people told me when I asked
+      for their feedback
+    <nlightnfotis> but I will report on what I have done (technically tomorrow,
+      and post it in the mailing list too.
+
+    <nlightnfotis> Hey guys, what could possibly cause the following error
+      message when executing a program in the Hurd? "./dumper: Could not open
+      note: (system server) error with unknown subsystem"
+    <nlightnfotis> My program is one that opens a file and dumps it into stdout
+    <nlightnfotis> pinotree: the code I am using is the one present here
+      http://www.gnu.org/software/hurd/hacking-guide/hhg.html under paragraph
+      6.1
+    <nlightnfotis> I investigated it a bit but can not find a lead. I seem to
+      have all the rights to open the file that I want to dump to stdout
+    <pinotree> what if you reset errno to 0 just after all the declarations in
+      main, before the instructions?
+    <nlightnfotis> will check this out and get back to you.
+    <pinotree> sure :)
+    <nlightnfotis> pinotree: Now it suggests that it can't get the number of
+      readable files, which the source suggests that is normal behavior.
+      Thanks for your assistance.
+
+
+# IRC, freenode, #hurd, 2013-07-01
+
+    <nlightnfotis> youpi: from my part I can report that I have started working
+      with the code, and doing as Thomas suggested. I was about to write my
+      report yesterday, but I am facing some build errors on the HURD, which I
+      would like to investigate further before I write my report.
+    <nlightnfotis> that's why I decided to write it later in the day.
+    <youpi> I don't think you have to wait
+    <youpi> you can simply write in your report that you are having build
+      errors
+    <nlightnfotis> ok. I will have it written and delivered later in the day.
+    <nlightnfotis> braunr: that's cool. I think my reading has paid for
+      itself. And you may be pleased to know that I have gotten my hands dirty
+      with the code. I was about to write report yesterday, but some build
+      errors with the gcc (that I am investigating atm) are holding me
+      off. Will have that written later in the day.
+    <braunr> don't hesitate to ask help about build errors
+    <braunr> don't wait too much
+    <braunr> you need to progress on what matters, and not be blocked by
+      secondary problems
+    <nlightnfotis> I will see myself asking for help rather sooner than later,
+      but I would like to investigate it myself, and attempt to solve the
+      issues that occur to me before resort to bugging you guys.
+    <braunr> sure
+    <braunr> just not too long
+    <braunr> too long being a day or so
+    <nlightnfotis> these were my build_results on the hurd
+    <nlightnfotis> they were linker errors
+    <nlightnfotis>
+      https://gist.github.com/NlightNFotis/5896188#file-build_results
+    <nlightnfotis> I am trying to build gcc on a linux 32 bit environment. It
+      also has some issues but not linker errors
+    <nlightnfotis> will resolve them to see if the linker errors are
+      reproducible on linux
+    <braunr> oh, lex stuff
+    <braunr> should be easy enough
+
+
+# IRC, freenode, #hurd, 2013-07-05
+
+    <nlightnfotis> I have not made much progress, but I see myself working with
+      it.
+    <nlightnfotis> I have managed to build gcc go on Linux
+    <nlightnfotis> but Hurd seems to have some issues
+    <nlightnfotis> it seems to randomly crash
+    <teythoon> the build process?
+    <nlightnfotis> not quite randomly it seems to be though
+    <nlightnfotis> yeah
+    <nlightnfotis> I have noticed that there is a pattern
+    <nlightnfotis> it does crash after some time
+    <teythoon> ^^
+    <nlightnfotis> but it doesn't crash at specific files
+    <braunr> define crash
+    <nlightnfotis> at some times it may crash during compiling insn-emit.c
+    <braunr> (hello guys)
+    <teythoon> hi braunr :)
+    <nlightnfotis> braunr: hey there! It does seem to keep on compiling this
+      file for a very long time (I have let it do so for 10, 20, 30 minutes)
+      but the result is the same
+    <nlightnfotis> and it does so for different files for different build
+      options
+    <braunr> ok so it doesn't crash
+    <braunr> it just doesn't complete
+    <braunr> is the virtual machine eating 100% cpu during that time ?
+    <nlightnfotis> I can still type at the terminal, but I can't send a term
+      signal
+    <nlightnfotis> I can report that QEMU does hold 100% of one core at that
+      time, (like it keeps processing) but there is no output on the terminal
+    <braunr> ok
+    <nlightnfotis> of course I can type at the terminal
+    <nlightnfotis> but nothing happens
+    <braunr> any idea of the size of the files involved ?
+    <nlightnfotis> I am checking it out right now
+    <nlightnfotis> before this goes any further, let me report on my
+      investigation
+    <braunr> i expect that to be our classic writeback thread storm issue
+    <nlightnfotis> initially, I thought it might be that it run out of memory
+    <nlightnfotis> even though I know that compilation is not memory intensive,
+      rather, cpu intensive
+    <nlightnfotis> anyway I increased the size of ram available to the vm
+    <nlightnfotis> from 1024 mb to 1536
+    <nlightnfotis> that didn't seem to have any effect. The "crash" still
+      happens at the same time, at the same files
+    <braunr> use freeze
+    <braunr> not crash
+    <braunr> crash is very misleading here
+    <nlightnfotis> freeze it is then.
+    <nlightnfotis> anyway
+    <nlightnfotis> then it striked me that it might be that the hard disk size
+      (3gb) might be too small (considering the gcc git repo is 1gb+)
+    <nlightnfotis> so I resized the qemu image to 8gb of hdd size
+    <nlightnfotis> the new size is acknowledged by the vm
+    <pinotree> for gcc in debug mode? might still not be enough
+    <nlightnfotis> but still it has no effect - it seems to follow its freezing
+      patterns
+    <pinotree> giving your work, i'd have not less than 15-20
+    <braunr> i'd use 32
+    <pinotree> *given
+    <braunr> but that's because i like power of twos
+    <nlightnfotis> pinotree: thanks for the advice. Right now I was gonna
+      increase the swap size
+    <nlightnfotis> according to vmstat in the hurd
+    <nlightnfotis> swap size is 173 mb
+    <nlightnfotis> don't know if it does have an impact
+    <braunr> it may but before rushing
+    <braunr> if you need swap, you're doomed anyway
+    <braunr> consider swap highly unreliable on the hurd
+    <braunr> please show the output of df -h on the file system you're using to
+      build
+    <braunr> ideally, i'd recommend using separate / and /home file systems
+    <braunr> it really improves reliability
+    <nlightnfotis> I don't think it swaps to be honest; however that's
+      something that my mentor thomas had suggested (increasing swap size) so I
+      am gonna try it at some time.
+    <pinotree> or have a separate file system in a subdi and work on it
+    <braunr> yes, /home or whatever suits you
+    <braunr> just not /
+    <nlightnfotis> braunr: pinotree: thanks both for your advice. Will do now,
+      and report on the results.
+    <braunr> that's not all
+    <braunr> 11:17 < braunr> please show the output of df -h on the file system
+      you're using to build
+    <nlightnfotis> braunr: I am on it. Oh and btw, everytime I am forced to
+      close the vm (due to the freezes) when I restart it ext2 reports that the
+      file system was not cleanly unmounted and does some repair to some
+      files. I am trying to find an explanation for that, but I can think of
+      many things
+    <braunr> well obviously
+    <pinotree> ext2 has no journaling
+    <braunr> the file system was not cleanly unmounted since you restarted it
+      with a cold reset
+    <nlightnfotis> braunr: df -h comes out with this: "df: cannot read table of
+      mounted file systems"
+    <pinotree> also, even if you manage to always shut down correctly, when
+      fsck runs because of the maximum mount count it'd find errors anyway (so
+      we have some bug)
+    <braunr> nlightnfotis: df -h /path/to/build/dir
+    <braunr> pinotree: not really bugs but it could be cleaned up
+    <nlightnfotis> filesystem: - Size 2.8G Used 2.8G Avail 0 Use% 100% Mounted
+      on /
+    <nlightnfotis> wow
+    <braunr> nlightnfotis: see
+    <nlightnfotis> that seems to explain many things
+    <teythoon> ^^
+    <nlightnfotis> thanks for that braunr!
+    <braunr> you resized the disk, but not the partition and the file system
+    <pinotree> braunr: well, if something in ext2 (or its libs) leaves issues
+      in the fs, i'd call that a bug :>
+    <nlightnfotis> yeah, that was utterly stupid of me
+    <braunr> pinotree: they're not issues
+    <braunr> nlightnfotis: be careful, mach needs a reboot every time you
+      change a partition table
+    <teythoon> nlightnfotis: important thing is that you found the issue :)
+    <braunr> then only, you can use resize2fs
+    <teythoon> braunr: weird, I thought mach nowadays can reload the partition
+      tables?
+    <teythoon> braunr: doesn't d-i need that?
+    <braunr> maybe a recent change i forgot
+    <braunr> or maybe fdisk still reports the error although it's fine
+    <braunr> in doubt, rebooting is still safe :p
+    <teythoon> or maybe youpi hacked it into d-is gnumach
+    <braunr> i doubt it would be there for the installer only :)
+    <braunr> if it's there, it's there
+    <braunr> i just don't know it
+    <nlightnfotis> braunr: teythoon: and everyone else that helped me. Thanks
+      you all guys. This was something that was driving me crazy. Will do all
+      that you suggested and report back on my status
+
+
+# IRC, freenode, #hurd, 2013-07-08
+
+    <nlightnfotis> tschwinge, I have managed to overcome most of the obstacles
+      I had initially faced with my project
+    <nlightnfotis> but I still had some build errors, that's why I have not
+      reported yet. Wanna try to see if I can resolve them today, and write my
+      report in the afternoon.
+    <tschwinge> nlightnfotis: So, from a quick look into the IRC backlog, it
+      was a "simple" out of disk space problem?  %-)  That happens.
+    <tschwinge> nlightnfotis: And yes, GCC needs a lot of disk space.
+    <tschwinge> nlightnfotis: What kind of build errors are you seeing now?
+    <nlightnfotis> tschwinge, yeah I felt stupid at the time, but it didn't
+      actually strike me that the file system didn't see the extra space. Also
+      it took me some time to figure out that in order to mount the new
+      partition, I only had to edit /etc/fstab
+    <nlightnfotis> always tried to mount it with the ext2 translator
+    <nlightnfotis> and the translator kept dying
+    <nlightnfotis> but it's all figured out now
+    <nlightnfotis> the latest build errors I am seeing are these
+    <teythoon> nlightnfotis: o_O you used fstab and it worked?
+    <nlightnfotis> yeah
+    <teythoon> nlightnfotis: that's unexpected from my perspective...
+    <nlightnfotis> I only had to add the new partition into fstab
+    <nlightnfotis> teythoon: I can pastebin my fstab if you wanna take a look
+      at it
+    <nlightnfotis> tschwinge: these were my latest build errors
+      https://www.dropbox.com/s/b0pssdnfa22ajbp/build_results
+    <teythoon> nlightnfotis: I'm pretty sure that mount -a isn't done on hurd
+      w/o pinos runsystem.sysv
+    <teythoon> weird
+    <nlightnfotis> tschwinge: I have also tried to build gcc with "make -w"
+      which from what I know supresses the errors that stopped compilation
+    <nlightnfotis> but the weird thing is that gcc nearly took forever to build
+    <teythoon> nlightnfotis: could you do a showtrans /your/mountpoint?
+    <nlightnfotis> teythoon: /hurd/ext2fs /dev/hd0s3
+    <teythoon> nlightnfotis: ok, so you've set a passive translator and an
+      active is started on demand
+    <nlightnfotis> it must be a passive translator
+    <teythoon> nlightnfotis: this is the hurd way of doing things, fstab is
+      unrelated
+    <nlightnfotis> it seems to persist during reboots
+    <teythoon> yes, exactly
+    <nlightnfotis> teythoon: my fstab if you wanna take a look
+      http://pastebin.com/ef94JPhG
+    <nlightnfotis> after I added /dev/hd0s3 to fstab along with its mountpoint,
+      and restarting the hurd, only then I did manage to use that partition
+    <nlightnfotis> before doing so I tried pretty much anything involving
+      mounting the partition and setting the ext2fs translator for it, but it
+      kept dying
+    <nlightnfotis> of course it was a ext2 filesystem
+    <youpi> err, perhaps adding to fstab simply triggered an fsck at reboot?
+    <teythoon> nlightnfotis: might have been that you needed to reboot mach so
+      that it picks up the new partition table
+    <teythoon> youpi: I thought this was fixed, the partition reloading I mean?
+    <youpi> that is needed, yes
+    <youpi> let me check
+    <nlightnfotis> youpi: it could be, though, to be honest, my hurd system
+      does an fsck all the time at boot
+    <teythoon> how do you manage to do that w/o rebooting for d-i?
+    <youpi> (I don't remember whether device busy is detected)
+    <youpi> teythoon: by making all translators go away, iirc
+    <teythoon> nlightnfotis: btw, you have ~/gcc_new as mountpoint in your
+      fstab, pretty sure that this cannot work, the path has to be absolute and
+      no ~ expansion is done
+    <nlightnfotis> tbh it does work, and it's weird
+    <teythoon> nlightnfotis: it works b/c of the passive translator you set,
+      not b/c of the fstab entry
+    <nlightnfotis> teythoon: should I change it?
+    <teythoon> probably, yes
+    <tschwinge> Well, that is probably not used anywhere.
+    <teythoon> tschwinge: not yet but soon ;)
+    <tschwinge> Isn't /etc/fstab only consulted for fsck.
+    <youpi> atm yes
+    <tschwinge> Anyway, it is definitely a very good idea to have a partition
+      separate from the rootfs for doing actual work.
+    <tschwinge> I think I described that in one of the first GSoC coodridation
+      emails.  In the long one.
+    <nlightnfotis> teythoon: Oh it struck me now! Is it because tilde expansion
+      is only happening in bash, but /etc/fstab is read before bash is
+      initialized?
+    <tschwinge> nlightnfotis: Instead of fumbling around with partitioning of
+      disk images, it may be easier in your KVM/QEMU setup to simply add a new
+      disk using -hdb [file] (or similar).
+    <tschwinge> nlightnfotis: Basically, yes.
+    <youpi> nlightnfotis: fstab is not related with bash in any way
+    <nlightnfotis> anyway, it shouldn't matter now, it seems to be working, and
+      I wouldn't like fiddling around with it and messing it up now. I will
+      continue with resolving the gcc issues.
+    <tschwinge> But /etc/fstab has its very own "language" (layout), so tilde
+      expansion will never be done there.
+    <tschwinge> nlightnfotis: df -h ~/gcc_new/
+    <nlightnfotis> tschwinge: size 24G Used: 4.2G Avail 18G
+    <tschwinge> OK, that's fine.
+    <tschwinge> As you can see on
+      <http://darnassus.sceen.net/~hurd-web/open_issues/gcc/#index4h1>, GCC
+      will easily need some GiB.
+    <nlightnfotis> tschwinge: I have some questions about GCC: out of curiosity
+      how much time does it take to compile it on your machine? Because
+      yesterday I tried a -w (suppress warnings) build and it seemed to take
+      forever
+    <nlightnfotis> mind you the vm has 1536 ram available (I have read
+      somewhere that it can utilise such an amount) and the vm is KVM enabled
+    <youpi> without disabling g++, it can easily take hours
+    <tschwinge> nlightnfotis: The build error is unexpected, because I had
+      addressed that issue in a recent patch.  :-)
+    <tschwinge> nlightnfotis: This is wrong: »checking whether setcontext
+      clobbers TLS variables... [...] yes«.  Please check your sources, that
+      they correspond to the current version of the upstream
+      tschwinge/t/hurd/go branch.
+    <tschwinge> nlightnfotis: Quoting from that wiki page: »This takes up
+      around 3.5 GiB, and needs roughly 3.5 h on kepler.SCHWINGE and 15 h on
+      coulomb.SCHWINGE.«  The latter is my Hurd machine.
+    <tschwinge> That's however with Java and Ada enabled, and a full
+      three-stages bootstrap.
+    <youpi> ah, right, there's java & ada too
+    <nlightnfotis> tschwinge: git branch (in the repo): master,
+      *tschwinge/t/hurd/go
+    <youpi> in debian they are built separately
+    <tschwinge> What I asked you to do is configure »--disable-bootstrap
+      --enable-languages=go«.
+    <tschwinge> So that should be a lot quicker.
+    <nlightnfotis> tschwinge: oh yes, everytime I have tried to compile gcc I
+      have done with these configurations
+    <tschwinge> But still a few hours perhaps.
+    <nlightnfotis> that's what I did yesterday too.
+    <tschwinge> OK, good.  :-)
+    <tschwinge> A bootstrap build is a good way to check the just-built GCC for
+      sanity, but we expect that it is fine, as we concentrate on the GCC Go
+      port.
+    <nlightnfotis> the only "extra" configuration yesterday was my "-w" flag to
+      make, because those errors were actually triggered by -Werror
+    <tschwinge> Let me read up what make -w does.  ;-)
+    <nlightnfotis> ah, yes, d/w I have read and understood what the bootstrap
+      build is. Seems like we don't need it atm
+    <nlightnfotis> afaik it suppresses all warnings
+    <pinotree> youpi: gcj no more
+    <nlightnfotis> the way gcc builds, it does convert (some) warnings to
+      errors
+    <tschwinge> Hmm.  -w, --print-directory Print a message containing the
+      working directory before and after other processing.
+    <pinotree> youpi: doko folded gcj and gdc into gcc-4.8 to "workaround"
+      Built-Using
+    <tschwinge> nlightnfotis: Ah, that'S configure --enable-werror or something
+      like that.
+    <youpi> pinotree: right
+    <nlightnfotis> yep, and -w suppresses it
+    <nlightnfotis> (from what I have understood)
+    <tschwinge> nlightnfotis: Are you thinking about make -k?
+    <tschwinge> Yeah, I guess.
+    <nlightnfotis> let me see what -k does
+    <pinotree> youpi: (just to make builds even more lightweight, eh</irony>)
+    <nlightnfotis> yeah, -k should do too, I shall try it
+    <tschwinge> But: if gcc -Werror fails, even with make -k, the build will
+      not be able to come to a successful end, because that one complation
+      artefact that failed will be missing.
+    <nlightnfotis> so I shall try again with -w (supressed warnings)
+    <tschwinge> Configureing with --disable-werror (or similar) will "help" if
+      -Werror is the default, and the build fails due to that.
+    <nlightnfotis> from what I have understood these "errors" are not something
+      critical: it's only that function prototypes for these functions are
+      missing
+    <nlightnfotis> I have seen the code there, and even "default" gcc generated
+      prototypes (from the first usage of the function) should do, so I can't
+      understand why it might be a serious problem if I tell gcc to skip that
+      point
+    <tschwinge> nlightnfotis: Ah, now I see.  You don't mean make -w, but
+      rather gcc -w: »-w  Inhibit all warning messages.«
+    <tschwinge> But really, there shouldn't be such warnings/errors that make
+      the build fail.
+    <nlightnfotis> yeah
+    <tschwinge> nlightnfotis: In your GCC sources directory, what does this
+      tell: git rev-parse HEAD
+    <tschwinge> And, is the checkout clean: git status
+    <tschwinge> The latter will take some time.
+    <nlightnfotis> git status takes an awful amount of time
+    <nlightnfotis> last I checked
+    <nlightnfotis> but git rev-parse HEAD
+    <nlightnfotis> produces this result:
+    <nlightnfotis> 91840dfb3942a8d241cc4f0e573e5a9956011532
+    <tschwinge> OK, that's correct.  So probably some of the checked out files
+      are not in a pristine state?
+    <nlightnfotis> I shall run a git clean and see. If that doesn't work too,
+      maybe I shall reclone the repository?
+    <nlightnfotis> there's nothing foreign to the repo that I have added, only
+      lib gmp, lib mpc and lib mpfr (and they are in their own folders inside
+      my gcc working directory)
+    <tschwinge> nlightnfotis: You shouldn't need to do the latter if you
+      instead run: apt-get build-dep gcc-4.8
+    <nlightnfotis> I remember having done that inside the Hurd, but it always
+      resulted in an error from what I can recall
+    <nlightnfotis> let me check this out
+    <nlightnfotis> yes
+    <tschwinge> nlightnfotis: Whenever you use Git on Hurd, pass the --quiet
+      flag, to avoid the rare but possible corruption issue described on
+      <http://darnassus.sceen.net/~hurd-web/open_issues/git_duplicated_content/>
+      and <http://darnassus.sceen.net/~hurd-web/open_issues/git-core-2/>.
+    <nlightnfotis> tschwinge: Forgive me for that. I will set up an alias
+      immediately.
+    <tschwinge> nlightnfotis: I don't know if an alias is possible, because --
+      I think -- you'll need to do things like: git fetch --quiet
+    <tschwinge> So pass --quiet to subcommands.
+    <nlightnfotis> oh. ok.
+    <tschwinge> nlightnfotis: What you can also do, is shut down your Hurd VM,
+      and mount the disk image on GNU/Linux (mount with offset to get the right
+      partition), and then run a diff -ru against a Git clone done on
+      GNU/Linux, and see whether there are any unexpected differences outside
+      of the .git/ directory.
+    <nlightnfotis> sounds like a plan. I will check this out today then :)
+    <nlightnfotis> tschwinge: if all else fails, then recloning the repo with
+      --quiet passed should work, right?
+    <tschwinge> Yes, that's probably the most straight-forward check to do.
+    <tschwinge> Heh, yes to both these questions.  :-)
+    <tschwinge> nlightnfotis: Oh, you don't even have to re-clone, but rather
+      re-check-out the branch.
+    <nlightnfotis> I was thinking of recloning just to bring the whole
+      repository to a pristine state
+    <tschwinge> So something like (inside the source directory): rm -rf ./*
+      (remove any files, but leave .* in place, in particular the .git/
+      directory), followd by git checkout -f HEAD --quiet
+    <tschwinge> nlightnfotis: But before doing that, please do the diff first,
+      so that we know (hopefully) where the erroneous build results were coming
+      from.
+    <nlightnfotis> considering the Copyright assignment files, I have sent them
+      from day 1 (that is the 20th of June). I have not heard anything about
+      those documents to date (sadly)
+    <nlightnfotis> what's worst is that although I have a reference number to
+      track those documents, their (greek postal office) tracking service sucks
+      so badly, that one day it's offline, the next it suggests it can't find
+      the object in their database, the next it says it is still in the local
+      post office
+    <nlightnfotis> let me check it out now
+    <nlightnfotis> still nothing from their online service
+    <nlightnfotis> let me call them
+    <nlightnfotis> tschwinge: I called the post office regarding the copyright
+      papers. They told me that the same day (the 20th of June) it left from
+      Herakleion, Crete to Athens and the same day it must have left the
+      country heading towards the US. They also told me it takes about 1 week
+      for it to arrive.
+    <tschwinge> nlightnfotis: OK, so probably waiting at the FSF office to be
+      processed.  Let's allow for some more time.  After all, this is not
+      critical for your progress.
+
+
+# IRC, freenode, #hurd, 2013-07-10
+
+    <nlightnfotis> tschwinge: I have run the diff of the GCC repo on the Hurd
+      against the one on my host linux os, and there was nothing relevant to
+      fixcontext and initcontext that are the ones that fail the
+      compilation. In any case I did recheck out the branch, and I have
+      attempted a build with it. It fails at the same point. Now I am
+      attempting a build with the -w (inhibit warnings) flag enabled
+    <tschwinge> nlightnfotis: Have there been any differences in the diff?
+      There should be none at all.
+    <nlightnfotis> tschwinge: there were some small changes due to the repo's
+      being checked out at different times. It was a large diff however. I
+      inspected it and didn't find anythign that was of much use. Here it is in
+      case you might want to see it:
+      https://www.dropbox.com/s/ilgc3skmhst7lpv/diffs_in_git.txt
+    <tschwinge> nlightnfotis: Well, the idea of this exercise precisely was to
+      use the same Git revisions on both sides of the diff -- to show that
+      there are no spurious differences -- which can't be shown from your
+      124486 lines diff.  (Even though indeed there is no difference in
+      libgo/configure that would explain the mis-match, but who knows what else
+      might be relevant for that.
+    <tschwinge> Would you please repeat that?
+    <nlightnfotis> tschwinge: I will do so. It was wrong from me to not diff
+      against the same revisions, but going through the diff results grepping
+      for the problematic code didn't yield any results, so I thought that
+      might not be the issue.
+    <nlightnfotis> I will perform the diff again tomorrow morning and report on
+      the results.
+    <tschwinge> nlightnfotis: Anyway, if you checked out again, the latest
+      revision, and it still fails in exactly the same way, there is something
+      wrong.
+    <tschwinge> nlightnfotis: And -w won't help, as there is a hard error
+      involved.
+    <tschwinge> nlightnfotis: Are yous till working on GSoC things today?
+    <nlightnfotis> tschwinge: yeah I am here. I decided to do the diff today
+      instead of tomorrow.
+    <nlightnfotis> It finished now btw
+    <nlightnfotis> let me tell you
+    <nlightnfotis> ah and this time, the gits were checked out at the same time
+    <nlightnfotis> from the same source
+    <nlightnfotis> and are at the same branch
+    <tschwinge> nlightnfotis: Coulod you upload the
+      gccbuild/i686-unknown-gnu0.3/libgo/config.log of the build that failed?
+    <nlightnfotis> tschwinge: sure. give me a minute
+    <nlightnfotis> tschwinge: there is something strange going on. The two
+      repos are at the exact same state (or at least should be, and the logs
+      indicate them to be) but still the diff output is 4.4 mb
+    <nlightnfotis> but no presence of initcontext of fixcontext
+    <nlightnfotis> tschwinge: the config.log file -->
+      http://pastebin.com/bSCW1JfF
+    <nlightnfotis> wow! I can see several errors in the config.log file
+    <nlightnfotis> but I am not so sure about their fatality. Config returns 0
+      at the end of the log
+    <tschwinge> nlightnfotis: As the configure scripts probe for all kings of
+      features on all kings of strange systems, it's to be expected that some
+      of these fail on GNU/Hurd.
+    <tschwinge> What is not expected, however, is:
+    <tschwinge> configure:15046: checking whether setcontext clobbers TLS
+      variables
+    <tschwinge> [...]
+    <tschwinge> configure:15172: ./conftest
+    <tschwinge> /root/gcc_new/gcc/libgo/configure: line 1740:  1015 Aborted
+      ./conftest$ac_exeext
+    <tschwinge> Hmm.  apt-cache policy libc0.3
+    <tschwinge> nlightnfotis: ^
+    <nlightnfotis> tschwinge: Installed 2.13-39+hurd.3
+    <nlightnfotis> Candidate: 2.1-6
+    <nlightnfotis> *2.17
+    <tschwinge> Bummer.
+    <tschwinge> nlightnfotis: As indicated in
+      <http://news.gmane.org/find-root.php?message_id=%3C87li6cvjnl.fsf%40kepler.schwinge.homeip.net%3E>
+      and thereabouts, you need 2.17-3+hurd.4 or later...
+    <tschwinge> Well.
+    <tschwinge> At least that now explains what is going on.
+    <nlightnfotis> tschwinge: i see. I am in the process of updating my hurd
+      vm. I saw that libc has also been updated to 2.17
+    <nlightnfotis> I will confirm when updating is done
+    <tschwinge> nlightnfotis: Anyway, is the diff between the two repositories
+      empty now or are there still differences?
+    <nlightnfotis> there are differences
+    <nlightnfotis> and they were checked out at the same time
+    <nlightnfotis> from the same source
+    <nlightnfotis> (the official git mirror)
+    <nlightnfotis> and they are both at the same branch
+    <nlightnfotis> and still diff output is 4.4 MB
+    <nlightnfotis> but quick grepping into it and there is not mention of
+      initcontext or fixcontext
+    <tschwinge> That's... unexpected.
+    <nlightnfotis> may be a mistake I am making
+    <nlightnfotis> but considering that diff run for some time before
+      completing
+    <tschwinge> In both Git repositories, »git rev-parse HEAD« shows the same
+      thing?
+    <tschwinge> Could you please upload the diff again?
+    <nlightnfotis> tschwinge: confirmed. libc is now version 2.17-1
+    <nlightnfotis> tschwinge: http://pastebin.com/bSCW1JfF
+    <nlightnfotis> for the rev-parse give me a second
+    <tschwinge> nlightnfotis: Where is libc0.3 2.17-1 coming from?  You need
+      2.17-3+hurd.4 or later.
+    <nlightnfotis> it is 2.17-7+hurd.1
+    <tschwinge> OK, good.
+    <tschwinge> The URL you just have is the config.log file, not the diff.
+    <tschwinge> s%have%gave
+    <nlightnfotis> oh my mistake
+    <nlightnfotis> wait a minute
+    <nlightnfotis> the two repos have different output to rev-parse
+    <tschwinge> Phew.
+    <tschwinge> That explains.
+    <tschwinge> So the Git branches are at different revisions.
+    <nlightnfotis> that confused me... when I run git pull -a the branches that
+      were changed were all updated to the same revision
+    <nlightnfotis> unless... there were some automatic merges in the *host* GCC
+      repo required during some pulls
+    <nlightnfotis> but that was some time ago
+    <nlightnfotis> would it have messed my local history that much?
+    <nlightnfotis> that's the only thing that may be different between the two
+      repos
+    <nlightnfotis> they checkout from the same source
+    <tschwinge> nlightnfotis: At which revisions are the two
+      repositories/branches?
+    <tschwinge> I have never used »put pull -a«.  What does that do?
+    <nlightnfotis> tschwinge: from what I know it does an automatic git fetch
+      followed by git merge. The -a flag must signal to pull all branches (I
+      think it's possible to pull only one branch)
+    <tschwinge> That's the --all option.  -a is something different (that I
+      don't understand off-hand).
+    <tschwinge> Well, --all means to pull all remotes.
+    <tschwinge> But you just want the GCC upstream, I guess.
+    <tschwinge> I always use git fetch and git merge manually.
+    <nlightnfotis> oh my god! You are write. -a is equivallent to --append
+    <nlightnfotis>
+      https://www.kernel.org/pub/software/scm/git/docs/git-pull.html
+    <nlightnfotis> git pull must be safe though
+    <nlightnfotis>
+      http://stackoverflow.com/questions/292357/whats-the-difference-between-git-pull-and-git-fetch
+    <nlightnfotis> without the -a
+    <nlightnfotis> *right
+    <nlightnfotis> why did I even write "right" as "write" above I don't
+      even...
+    <nlightnfotis> what did I write in the sentence above
+    <nlightnfotis> oh my god...
+    <nlightnfotis> tschwinge: they are indeed on different revisions: The host
+      repo's last commit was made by me apparently, to merge master into
+      tschwinge/t/hurd/go, whereas the last commit of the Hurd repo was by you
+      and it reverted commit 2eb51ea
+    <nlightnfotis> and that should also explain the large diff file
+    <nlightnfotis> with master merged into the tschwinge/t/hurd/go branch
+    <nlightnfotis> I will purge the debian repo and redownload it
+    <nlightnfotis> *reclone it
+    <nlightnfotis> that should bring it to a safe state I suppose.
+
+
+# IRC, freenode, #hurd, 2013-07-11
+
+    <teythoon> nlightnfotis: how's your build going?
+    <nlightnfotis> I tried one earlier and it seemed to build without any
+      issues, something that was...strange. I am repeating the build now, but I
+      am saving the compilation output this time to study it.
+    <teythoon> it was strange that the build succeeded? that sounds sad :/
+    <nlightnfotis> teythoon: considering that 3 weeks now I failed to build it
+      without errors, it sure seems weird that it builds without errors now :)
+    <braunr> what did you change ?
+    <nlightnfotis> braunr: not many things apparently. To be honest the change
+      that seemed to do the trick was (under thomas' guidance) update of libc
+      from 2.13 to 2.17
+    <braunr> well that can explain
+    <nlightnfotis> tschwinge: Big update! GCC-go not compiles without errors
+      under the Hurd. I have done 2 compilations so far, none of which had
+      issues. Time needed for full build (without bootstrap) is 45 minutes +- 1
+      minute. I also run the test suite, and I can confirm your results
+    <pinotree> s/not/now/, perhaps?
+    <nlightnfotis> pinotree yeah. I don't know how it came up with not there. I
+      meant now
+    <nlightnfotis> tschwinge: link for the go.sum is here -->
+      https://www.dropbox.com/s/7qze9znhv96t1wj/go.sum
+
+
+# IRC, freenode, #hurd, 2013-07-12
+
+    <tschwinge> nlightnfotis: Great!  So you finally reproduced my results.
+      :-)
+    <nlightnfotis> tschwinge: Yep! I am now building a blog, so that I can move
+      my reports there, so that they are more detailed, to allow for greater
+      transparency of my actions
+    <tschwinge> nlightnfotis: Did you recently (in email, I think?) indicate
+      that there is another Go testsuite, for libgo?
+    <tschwinge> nlightnfotis: As you prefer.
+    <nlightnfotis> tschwinge: there seemed to be one, at least in linux. I
+      think I saw one in the Hurd too.
+    <tschwinge> Oh indeed there is a libgo testsuite, too.
+    <nlightnfotis> as a matter of fact, make check-go 
+    <nlightnfotis> did check for the lib
+    <nlightnfotis> but lib was failing
+    <nlightnfotis> yeah
+    <tschwinge> So please have a look at that testsuite's results, too, and
+      compare to the GNU/Linux ones.
+    <nlightnfotis> sure. I can do that now.
+    <tschwinge> And for the go.sum you posted, please have a look at the tests
+      that do not pass (»grep -v ^PASS: < go.sum«), assuming they do pass on
+      GNU/Linux.
+    <tschwinge> I suggest you add a list of the differences between GNU/Linux
+      and GNU/Hurd testresults to the wiki page,
+      <http://darnassus.sceen.net/~hurd-web/open_issues/gccgo/>, at the end of
+      the Part I section.
+    <nlightnfotis> I'm on it.
+    <tschwinge> For now, please ignore any failing tests that have »select« in
+      their name -- that is, do file them, but do not spend a lot of time
+      figuring out what might be wrong there.
+    <tschwinge> The Hurd's select implementation is a bit of a beast, and I
+      don't want you -- at this time -- spend a lot of time on that.  We
+      already know there are some deficiencies, so we should postpone that to
+      later.
+    <nlightnfotis> tschwinge: noted.
+    <tschwinge> So what I would like at the moment, is a list of the testresult
+      differences to GNU/Linux, then from the go.log file any useful
+      information about the failing test (which perhaps already explains)
+      what's going wrong, and then a analysis of the failure.
+    <tschwinge> nlightnfotis: I assume you must be really happy that you
+      finally got it build fine, and reproduced my results.  :-)
+    <nlightnfotis> tschwinge: yeah! I can not hide from you the fact that
+      failing all those builds made me really nervous about me missing my
+      schedule. Having finally built that and revisiting my application I can
+      see I am on schedule, but I have to intensify my work to compensate for
+      any potential unforeseen obstacles
+    <nlightnfotis> , in the futute
+    <nlightnfotis> *future
+
+
+# IRC, freenode, #hurd, 2013-07-15
+
+    <youpi> nlightnfotis: btw, do you have a weekly progress report?
+    <nlightnfotis> youpi: not yet. Will write it shortly and post it here. I
+      made a new blog to keep track of my progress.
+    <nlightnfotis> Will report much more frequently now via my blog
+    <youpi> did you add your blog url to the hurd iwki?
+    <nlightnfotis> currently I am running gcc tests on both gcc go and libgo to
+      see what the differences are with Linux
+    <nlightnfotis> I believe I have done so, let me see
+    <nlightnfotis> youpi: gccgo passes most of its tests (it fails a small
+      number, and I am looking into those tests) but libgo fails 130/131 tests
+      (on the Hurd that is)
+    <youpi> ok
+
+    <nlightnfotis> guys I wrote my report. This time I made it available on my
+      personal blog. You can find it here:
+      www.fotiskoutoulakis.com/blog/2013/07/15/gsoc-week-4-report/  As always,
+      open to (and encouraging) criticism, suggestions, anything that might
+      help me.
+    <nlightnfotis> I also have to mention that now that my personal website is
+      online, I will report much more frequently, to the scale of reporting day
+      by day, or every 2-3 days.
+    <youpi> nlightnfotis: without spending time on select, it'd be good to have
+      an idea of what is going wrong
+    <braunr> eh, go having trouble with select
+    <youpi> select is a beast, but we do have fixed things lately and we don't
+      currently know any issue still pending
+    <nlightnfotis> youpi: are you suggesting to not skip the select tests too?
+    <braunr> select is kind of critical ..
+    <braunr> as youpi said, if you can determine what's wrong, at the interface
+      level (not the implementation), it would be a good thing to do
+    <youpi> so we know what's wrong
+    <youpi> we're not asking to fix it, though
+    <nlightnfotis> braunr: youpi: noted. Thanks for the feedback. Is there
+      something else you might want me to improve? Something with the report
+      itself? Something you were expecting to see but I failed to provide?
+    <braunr> no it's ok
+    <braunr> it's short, readable, and readily answers the questions i might
+      have had so it's good
+    <braunr> as you say, now you have to work on the core of your task :)
+    <youpi> note: the  "select" word in the testsuite is not strictly bound to
+      the C "select"
+    <youpi> so it is probably really worth digging a bit at least on the go
+      side
+    <braunr> but it's really worth doing in the end, as it will probably reveal
+      some nasty bugs on the way
+    <nlightnfotis> I appreciate your input. I will start working on it asap
+      (today) and will report on Wednesday perhaps (or Thursday at worst).
+
+
+# IRC, freenode, #hurd, 2013-07-18
+
+    <nlightnfotis> braunr: I found out what was causing the fails in the tests
+    <nlightnfotis> in both libgo and gccgo
+    <nlightnfotis> it's a assertion: mach_port_t ktid = __mach_thread_self ();
+      int ok = thread->kernel_thread == ktid; __mach_port_deallocate
+      ((__mach_task_self_           + 0), ktid); ok; })
+    <braunr> is all that the assertion ?
+    <nlightnfotis> yes
+    <braunr> please paste the code somewhere
+    <braunr> or is it in libpthread ?
+    <nlightnfotis> http://pastebin.com/G2w9d474
+        nonblock.x: ./pthread/pt-create.c:167: __pthread_create_internal: Assertion `({ mach_port_t ktid = __mach_thread_self (); int ok = thread->kernel_thread == ktid; __mach_port_deallocate ((__mach_task_self_           + 0), ktid); ok; })' failed.
+          9 FAIL: go.test/test/chan/nonblock.go execution,  -O2 -g
+    <braunr> yes
+    <braunr> that's related to my current work on thread destruction
+
+[[open_issues/libpthread/t/fix_have_kernel_resources]].
+
+    <braunr> thread resources recycling is buggy
+    <braunr> i suggest you make your own thread pool if you can
+    <nlightnfotis> I will look into it further and let you know. Thanks for
+      that.
+
+
+# IRC, freenode, #hurd, 2013-07-22
+
+    <nlightnfotis> tschwinge, I have found what is failing both libgo and gccgo
+      tests, but for the life of me, I can not really find the offending code
+      on any repository.
+    <nlightnfotis> not even the eglibc-source debian package. it's driving me
+      insane.
+    <tschwinge> nlightnfotis: If this is driving you insane, we should quickly
+      have a look at that!
+    <nlightnfotis> thanks tschwinge: I have found that the offending code is an
+      assertion: { mach_port_t ktid = __mach_thread_self (); int ok =
+      thread->kernel_th    read == ktid; __mach_port_deallocate ((__mach_task_s
+      elf_ + 0), ktid);     ok; } on a file called pt-create.c under the
+      libpthread on line 167
+    <nlightnfotis> but for the life of me, I can not find that piece of code
+      anywhere. And when I mean anywhere, I mean anywhere. I have looked for it
+      on all of the branches of glibc, libpthread and the source code of
+      eglibc.
+    <nlightnfotis> that's why if you don't mind I would like to write my report
+      in a day or two, when (hopefully) I will have more progress to report on.
+    <youpi> nlightnfotis: isn't that libpthread/sysdeps/mach/pt-thread-start.c
+      ?
+    <youpi> or rather, ./sysdeps/mach/hurd/pt-sysdep.h
+    <nlightnfotis> youpi: let me check this out. If that's it I'm gonna cry. 
+    <youpi> which unfortunately is inlined in a lot of places
+    <youpi> nlightnfotis: does the assertion not tell you the file & line?
+    <nlightnfotis> youpi: holy smokes! That's the code I was looking for! Oh
+      boy. Yeah the logs do tell me, but it was very misleading. So misleading,
+      taht I was actually looking at the wrong place. All logs suggest that
+      this piece of code is at libpthread/pthread/pt-create.c in line 167
+    <youpi> what is that line in your tree?
+    <youpi> a call to _pthread_self(), isn't it?
+    <youpi> then it's not actually misleading, this is indeed where the
+      pt-sysdep.h definition gets inlined
+    <nlightnfotis> it seems so, yeah. it's err = __pthread_sigstate
+      (_pthread_self (), 0, 0, &sigset, 0);
+    <youpi> nlightnfotis: and what is the backtrace?
+    <nlightnfotis> youpi: _pthread_create_internal: Assertion failed.
+    <nlightnfotis> The assertion is the one above
+    <youpi> nlightnfotis: sure, but what is the backtrace?
+    <nlightnfotis> I don't have the full backtrace. These are the logs from the
+      compiler. All I can get is: reports like this: nonblock.x:
+      ./pthread/pt-create.c:167: __pthread_create_internal: Assertion     `({
+      mach_port_t ktid = __mach_thread_self (); int ok = thread->kernel_thread
+      == ktid; __mach_port_deallocate ((__mach_task_self_       + 0), ktid);
+      ok;     })' failed.
+    <youpi> nlightnfotis: you should probably have a look at running the tests
+      by hand
+    <youpi> so you can run them in a debugger, and get backtraces etc.
+    <braunr> nlightnfotis: did i answer that ?
+    <nlightnfotis> braunr: which one?
+    <braunr> the problems you're seeing are the pthread resources leaks i've
+      been trying to fix lately
+    <braunr> they're not only leaks
+    <braunr> creation and destruction are buggy
+    <nlightnfotis> I have read so in
+      http://www.gnu.org/software/hurd/libpthread.html. I believe it's under
+      Thread's Death right?
+    <braunr> nlightnfotis: yes but it's buggy
+    <braunr> and the description doesn't describe the bugs
+    <nlightnfotis> so we will either have to find a temporary workaround, or
+      better yet work on a fix, right?
+    <braunr> nlightnfotis: i also told you the work around
+    <braunr> nlightnfotis: create a thread pool
+    <nlightnfotis> braunr: since thread creation is also buggy, wouldn't the
+      thread pool be buggy too?
+    <braunr> nlightnfotis: creation *and* destruction is buggy
+    <braunr> nlightnfotis: i.e. recycling is buggy
+    <braunr> nlightnfotis: the hurd servers aren't affected much because the
+      worker threads are actually never destroyed on debian (because of a
+      debian specific patch)
+
+    <teythoon> youpi, nlightnfotis, hacklu_: btw, what about the copyright
+      assignment process
+    <tschwinge> nlightnfotis just got his on file, so there is progress.
+    <tschwinge> I have email from Donald R Robertson III
+      <copyright-clerk@fsf.org> about that -- but it is not yet present in the
+      FSF copyright.list file...
+    <tschwinge> I think I received that email because I was CCed on
+      nlightnfotis' submission.
+    <nlightnfotis> tschwinge: I have got the papers, and they were signed by
+      the FSF. They stated delivery date 11 of July, but the documents were
+      signed on the 10th of July :P
+    <tschwinge> Ah, no, I received it via hurd-maintainers@gnu.org -- and the
+      strange thing is that not all assignments that got processed got sent
+      there...
+    <tschwinge> At the recent GNU Tools Cauldron we also discussed this in the
+      GCC context; and their experience was the very same.  Emails get lost,
+      and/or take ages to be processed, etc.
+    <tschwinge> It seems the FSF is undermanned.
+
+
+# IRC, freenode, #hurd, 2013-07-27
+
+    <nlightnfotis> I have one question about the Mach sources: I can see it
+      uses its own scheduler (more like, initializes) and also does the same
+      for the linux scheduler. Which one does it use?
+    <youpi> it doesn't use the linux scheduler
+    <youpi> the linux glue just glues linux scheduling concepts onto the mach
+      scheduler
+    <nlightnfotis> ohh I see now. Thanks for that youpi.
+
+
+# IRC, freenode, #hurd, 2013-07-28
+
+    <nlightnfotis> In the mach kernel source code, does the (void) before a
+      function call have a semantic meaning, or is it just remnants of the past
+      (or even documentation)
+    <pinotree> for example?
+    <nlightnfotis> pinotree: (void) thread_create (kernel_task,
+      &startup_thread);
+    <nlightnfotis> I read on stack overflow that there is only one case where
+      it has a semantic meaning, most of the times it doesn't
+    <nlightnfotis>
+      http://stackoverflow.com/questions/13954517/use-of-void-before-a-function-call
+    <pinotree> most probably thread_create has a non-void return value, and
+      this way you're explicitly suppressing its return value (usually because
+      you don't want/need to care about it)
+    <nlightnfotis> isn't the value discarded if the (void) is not there?
+    <pinotree> yes, but depending on extra attributes and/or compiler warning
+      flags the compiler might warn that the return value is not used while it
+      ought to
+    <pinotree> the cast to void should suppress that
+    <nlightnfotis> oh, okay, thanks for that pinotree
+    <nlightnfotis> and yes you are right that thread_create actually does
+      return something
+    <pinotree> even if there would be no compiler message about that, adding
+      the explicit cast could mean "yes, i know the function does return
+      something, but i don't care about it"
+    <pinotree> ... as hint to other code readers
+    <nlightnfotis> as a form of documentation then
+    <pinotree> also
+
+    <nlightnfotis> oh well, I am gonna ask and I hope someone will answer it:
+      In the Mach's dmesg (/var/log/dmesg) I can see that the version string
+      along with initial memory mapping information are printed twice, when in
+      fact they are supposed to be called only once. Is this a bug, or some
+      buffering error, or are they actually called twice for some reason?
+
+
+# IRC, freenode, #hurd, 2013-07-29
+
+    <nlightnfotis> guys is the evaluation today?
+    <hacklu_> yes
+    <teythoon> right
+    <nlightnfotis> where can we find the evaluation papers on melange?
+    <hacklu_> wait untill 12pm UTC.
+    <nlightnfotis> yeah, I just noticed thanks hacklu_
+    <hacklu_> nlightnfotis:)
+
+    <NlightNFotis> tschwinge: I only have one question regarding my project. If
+      I make some changes to libpthread, what's the best way to test them in
+      the hurd? Rebuild glibc with the updated libpthread?
+    <tschwinge> NlightNFotis: Yes, you'll have to rebuild glibc.  I have a
+      cheat sheet for that:
+      http://darnassus.sceen.net/~hurd-web/open_issues/glibc/debian/
+    <tschwinge> It may be that the »Run debian/rules patch to apply patches«
+      step is no longer encessary with the 2.17 glibc packages.
+    <NlightNFotis> thanks for that tschwinge. :)
+    <tschwinge> NlightNFotis: Sure.  :-)
+
+    <tschwinge> NlightNFotis: Where's your weekly status?
+    <NlightNFotis> I will write it today at the noon. I have written all the
+      other ones, and they are available at www.fotiskoutoulakis.com
+    <NlightNFotis> the next one will be available there as well, later in the
+      day
+    <tschwinge> Ack.  But please try to finish your report before the meeting,
+      as discussed.
+    <NlightNFotis> oh, forgive me for that. I thought it was ok to write my
+      report a day or so later. Sorry.
+    <tschwinge> NlightNFotis: Please write your report as soon as possible --
+      otherwise there's no useful way for me to know what your status is.
+    <NlightNFotis> I will. This week I have been mostly going through the
+      various sources (the Hurd, Mach and libpthread, especially the last two)
+      in my attempt to get a better understanding for how libpthread
+      works. Since yesterday I have attempted some small changes on my
+      libpthread repo that I plan on testing and reporting on them. That's why
+      I still have not written my report.
+    <tschwinge> NlightNFotis: Things don't need to be finished before you
+      report about them.  It's often more useful to discuss issues *before* you
+      spend time on implementing them.
+    #hurd
+    <braunr> NlightNFotis: what kind of changes do you want to add to
+      libpthread ?
+    <tschwinge> Have a look at the asseriton failure, I would hope.  :-)
+    <braunr> well no
+    <braunr> again, i did that
+    <braunr> and it's not easy to fix
+    <NlightNFotis> braunr: I was looking into ways that I could create the
+      thread pool you suggested into libpthread
+    <braunr> no, don't
+    <braunr> create it in your application
+    <braunr> not in libpthread
+    <braunr> well, this may not be an acceptable solution either ..
+    <tschwinge> Before doing that we have to understand what exactly the Go
+      runtime is doing.  It may just be a weird itneraction with the setcontext
+      et al. functions that I failed to think about when implementing these?
+    <NlightNFotis> the other possibility is the go runtime libraries. But I
+      thought that libpthread might be a better idea, since you told me that
+      creation *and* destruction are buggy
+    <hacklu> braunr: you are right, the signal thread is always exist. I have
+      got a wrong understand before.
+    <NlightNFotis> tschwinge: I can look into that, now. I will also include
+      that in my report.
+    <braunr> NlightNFotis: i don't see how this is a relevant argument ..
+    <braunr> tschwinge: i'd suggest he first try with a custom pool in the go
+      runtime, so we exclude what you're suspecting
+    <braunr> if this pool actually works around the issues NlightNFotis is
+      having, it will confirm the offending problem comes from libpthread
+    <tschwinge> So, as a very first step make any thread
+      distruction/deallocation a no-op.
+    <braunr> yes
+    <NlightNFotis> braunr: I originally understood that a thread pool might
+      skip the thread's destruction, so that we escape the buggy part with the
+      thread's destruction. Since that was a problem with libpthread, it sure
+      affects other threads (instead of go's ) too. So I assumed that building
+      the thread pool into libpthread might help eliminate bugs that may affect
+      other code too.
+    <braunr> no, it's not a proper fix
+    <braunr> it's a work around
+    <braunr> and i'm working on a proper fix in parallel
+    <braunr> (when i have the time, that is :/)
+    <NlightNFotis> oh, I see. So for the time, I had better not touch
+      libpthread, and take a look at the go run time aye?
+    <tschwinge> NlightNFotis: Remember: one thing after the other.  First
+      identify what is wrong exactly.  Then think and discuss how to solve the
+      very specific issue.  Then implement it.
+    <braunr> as tschwinge said, make thread destruction a nop in go
+    <braunr> see if that helps
+    <tschwinge> NlightNFotis: For example, you surely have noticed (per your
+      last report), that basically all Go language test pass (aside from the
+      handful of those testing select, etc.) -- but all those of the libgo
+      runtime library fail, literally all of them.
+    <tschwinge> You noticed they basically all fail with the same assertion
+      failure.  But why do all the Go language ones work fine?
+    <tschwinge> Don't they execute the program they built, for example?
+    <tschwinge> (I haven't looked.)
+    <NlightNFotis> they do execute the program. the language ones that fail
+      too, fail due to the assertion failure
+    <tschwinge> Or, what else is different for them?  How are they built, which
+      flags, how are they invoked.
+    <braunr> how many goroutines ?
+    <braunr> :p
+    <tschwinge> Do you also get the assertion failure when you built a small Go
+      program yourself and run that one.
+    <tschwinge> Don't get the assertion failure?  Then add some more complex
+      stuff that are likely to invole adding/re-using new threads, such as
+      goroutines.
+    <NlightNFotis> I didn't get the assertion failure on a small test program,
+      but now that you suggest it it might be a good idea to build a custom
+      test suite
+    <tschwinge> Etc.  That way you'll eventually get an understanding what
+      triggers the assertion failure.
+    <tschwinge> And that exeactly is the kind of analysis I'd like to read in
+      your weekly report.
+    <tschwinge> A list of things what you have done, which assuptions you've
+      made, how that directed your further analysis, what results that gave,
+      etc.
+    <NlightNFotis> I will do it. I will try to rush to finish it today before
+      you leave, so that you can inspect it. God I feel like all that time I
+      spent this week studying the particular source code (libpthread, and the
+      Mach) were in vain...
+    <NlightNFotis> on second thoughts, it was not in vain. I got a pretty good
+      understanding of how these pieces of software work, but now I will have
+      to do something completely different.
+    <tschwinge> Studying code is never in vain.
+    <tschwinge> Exactly.
+    <tschwinge> You must have had some motivation to study the code, so that
+      was surely a valid thing to do.
+    <tschwinge> But we'd link to understand your reasoning, so that we can
+      support you and direct you accordingly.
+    <braunr> but it's better to focus on your goals and determine an
+      appropriate course of actions, usually starting with good analysis
+    <tschwinge> Yes.
+    <pinotree> s/link/like/?
+    <tschwinge> pinotree: Indeed, thanks.
+    <braunr> makes me remember when i implemented radix trees to replace splay
+      trees, only to realize splay trees were barely used ..
+    <tschwinge> braunr: Yes.  It has happened to all of us.  ;-P
+    <tschwinge> NlightNFotis: So, don't worry -- but learn from such things.
+      :-)
+    <NlightNFotis> anyway, I will start right away with the courses of action
+      you suggested, and will try to have finished them by noon. Thanks for
+      your help, it really means a lot.
+    <tschwinge> In software generally, it is never a good idea to let you be
+      distracted, and don't follow your focus goal, because there are always so
+      many different things that could be improved/learned/fixed/etc.
+    <NlightNFotis> tschwinge, I am only nervous about one thing: the fact that
+      I have not submitted yet any patch or some piece of code in general. Then
+      again, the summer of code for me so far has been 70-80% reading about
+      stuff I didn't know about and 30-20% doing the stuff I should know
+      about...
+    <tschwinge> NlightNFotis: That's why we're here, to teach you something.
+      Which we're happy to do, but we all need to cooperate for that (and I'm
+      well aware that this is difficult if one is not in the same rooms, and
+      I'm also aware that my time is pretty limited).
+    <tschwinge> NlightNFotis: We're also very aware that the Hurd system, as
+      any operating system project (if you're not just doing "superficial"
+      things) is difficult, and takes lots of time to learn, and have concepts
+      and things sink into your brain.
+    <braunr> i wouldn't worry too much
+    <tschwinge> We're also still learning every day.
+    <braunr> go doesn't require a lot from the underlying system, but what is
+      required is critical
+    <braunr> once you identify it, coding will be quick
+    <NlightNFotis> tschwinge: braunr: thanks. I shall begin working following
+      the directions you gave to me.
+    <tschwinge> NlightNFotis: So yes, because Google wants us to grade you
+      based on that, you'll eventually have to write some code, but for
+      example, a patch to disable thread distruction/deallocation in libgo
+      would definitely count as such code.  And that seems like one of your
+      next steps.
+    <NlightNFotis> tschwinge: i need to deliver that instantly, right? seeing
+      as the evaluation is today.
+    <tschwinge> NlightNFotis: No.  Deliver it when you have something to
+      deliver.  :-)
+    <NlightNFotis> tschwinge: I am nervous about the evaluation today. I have
+      not submitted a single piece of code, only some reports. How negatively
+      does this influence my performance report?
+    <tschwinge> NlightNFotis: If I can say so, in the evaluation today, Google
+      basically asks us mentors whether we want to fail our students right now.
+      Which I don'T plan to do, knowing about the complexity of the Hurd
+      system, and the learning required before you can do useful code changes.
+    <NlightNFotis> tschwinge: that really means a lot to me, and it got a
+      weight of my chest.
+    <braunr> uh ok, i have to be the rude guy again
+    <braunr> NlightNFotis: the gsoc is also a way for the student to prepare
+      for working in software development communities
+    <braunr> whether free software/open source and/or in companies
+    <braunr> people involved care a lot less about pathos than actual results
+    <pinotree> (or to prepare students to be hired by google, but that's
+      another story)
+    <braunr> NlightNFotis: in other words, stop apologizing that much, stop
+      focusing so much on that, and just work as you can
+
+
+# IRC, freenode, #hurd, 2013-07-31
+
+    <nlightnfotis> teythoon: both samuel and thomas would be missing for the
+      week right?
+    <teythoon> nlightnfotis: they do, why?
+    <teythoon> nlightnfotis: err, they do?? why?
+
+
+# IRC, freenode, #hurd, 2013-08-01
+
+    <nlightnfotis> braunr: I checked out what you (and Thomas) suggested and
+      did some research on go on the Hurd. I have found out that go works,
+      until you need to use anything that has to do with a goroutine. I am now
+      playing with the go runtime and checking to see if turning thread
+      destruction to noop will have any difference.
+
+
+# IRC, freenode, #hurd, 2013-08-05
+
+    <nlightnfotis> youpi: whenever you have time, I would like to report my
+      progress as well.
+    <youpi> nlightnfotis: sure, go ahead
+    <youpi> but again, you should report before the meeting
+    <youpi> so we can read it before coming to the discussion
+    <nlightnfotis> I have written my report
+    <youpi> ah
+    <hacklu> nlightnfotis: I have read your report, these days you have make a
+      great progress.
+    <youpi> where is it?
+    <nlightnfotis> it was available since yesterday
+    <nlightnfotis>
+      http://www.fotiskoutoulakis.com/blog/2013/08/05/gsoc-partial-week-7-report/
+    <nlightnfotis> thanks hacklu. The particular piece of code I was studying
+      was very very interesting :)
+    <hacklu> nlightnfotis: I think you should show your link in here or email
+      next time. I have spend a bit more time to find that :)
+    <nlightnfotis> youpi: for a tldr, at the last time I was told to check
+      gccgo's runtime for clues regarding the go routine failures.
+    <nlightnfotis> hacklu: will keep that in mind, thanks.
+    <nlightnfotis> youpi: thing is, gccgo operates on two different thread
+      types: G's (the goroutines, lightweight threads that are managed by the
+      runtime) and M's (the "real" kernel threads")
+    <nlightnfotis> none of which are really "destroyed"
+    <youpi> ok, makes sense
+    <nlightnfotis> G's are put in a pool of available goroutines when their
+      status is changed to "Gdead" so that they can be reused
+    <nlightnfotis> M's also don't seem to go away. There is always at least one
+      M (the bootstrap one) and all other M's that get created are also stashed
+      in a pool of available working threads.
+    <youpi> you could put some debugging printfs in libpthread, to make sure
+      whether threads do die or not
+    <nlightnfotis> I am studying this further as we speak, but they both don't
+      seem to get "destroyed", so that we can be sure that bugs are triggered
+      by thread destruction
+    <nlightnfotis> I was beginning to believe that maybe I was looking in the
+      wrong direction
+    <nlightnfotis> but then I looked at my past findings, and I noticed
+      something else
+    <nlightnfotis> if you take a look at the first failed go routine, it failed
+      at the time.sleep function, which puts a goroutine to sleep for ns
+      nanoseconds. That made me think if it was something that had to do with
+      the context functions and not the goroutines' creation.
+    <youpi> nlightnfotis: that's possible
+    <youpi> nlightnfotis: I'd say you can focus on this very simple example: a
+      mere sleep
+    <youpi> that's one of the simplest things a thread scheduler has to do, but
+      it has to do it right
+    <youpi> fixing that should fix a lot of other issues
+    <nlightnfotis> if I have understood correctly, there is at least one G
+      (Goroutine) and at least one M (kernel thread) running. Sleep does put
+      that goroutine at a hold, and restarting it might be an issue
+    <braunr> talking about thread scheduling ? :)
+    <youpi> nlightnfotis: go's runtime doesn't actually destroy kernel threads,
+      apparently
+    <nlightnfotis> youpi: yeah, that's what I have understood so far. And it
+      neither does destroy goroutines. If there was an issue with thread
+      creation, then I guess it should be triggered in the beginning of the
+      program too (seeing as both M's and G's are created there)
+    <nlightnfotis> the fact that it is triggered when a goroutine goes to sleep
+      makes me suspect the context functions
+    <youpi> yes
+    <nlightnfotis> again I am studying it the last days, in search of
+      clues. Will keep you all updated.
+    <nlightnfotis> braunr: I have written my report and it is available here
+      http://www.fotiskoutoulakis.com/blog/2013/08/05/gsoc-partial-week-7-report/
+      If you could read it and tell me if you notice something weird tell me
+      so.
+    <braunr> nlightnfotis: ok
+    <braunr> nlightnfotis: quite busy here so don't worry if i suddenly
+      disappear
+    <braunr> nlightnfotis: hum, does go implement its own threads ??
+    <nlightnfotis> braunr: yeah. It has 2 threads. Runtime managed (the
+      goroutines) and "real" (kernel managed) ones.
+    <braunr> i mean, does it still use libpthread ?
+    <nlightnfotis> thing is none of them "disappear" so as to explain the bug
+      with "thread creation **and** destruction)
+    <nlightnfotis> it must use libpthread for kernel threads as far as creation
+      goes.
+    <braunr> ok, good
+    <braunr> then, it schedules its own threads inside one pthread, right ?
+    <braunr> using the pthread as a virtual cpu
+    <nlightnfotis> yes. It matches kernel threads and runtime threads and runs
+      the kernel threads in reality
+    <nlightnfotis> the scheduler decides which goroutine will run on each
+      kernel thread.
+    <braunr> ew
+    <braunr> this is pretty much non portable
+    <braunr> and you're right to suspect context switching functions
+    <nlightnfotis> yeah my thought for it was the following: thread creation,
+      if it was buggy, should be triggered as soon as a program starts, seeing
+      as at least one kernel thread and at least one go routine starts. My
+      sleep experiment crashes when the goroutine is put on hold
+    <braunr> did you find the code putting on hold ?
+    <nlightnfotis> I will give you the exact link, wait a moment
+    <nlightnfotis> braunr:
+      https://github.com/NlightNFotis/gcc/blob/master/libgo/runtime/time.goc?source=c#L59
+    <nlightnfotis> that is the exact location is line 26, which calls the one I
+      pointed you at
+    <braunr> ahah, tsleep
+    <braunr> old ghost from the past
+    <braunr> nlightnfotis: the real location is probably runtime_park
+    <nlightnfotis> I will check this out.
+
+    <nlightnfotis> may I ask something non-technical but relevant to summer of
+      code?
+    <braunr> sure
+    <nlightnfotis> would it be okay if I took the day off tomorrow?
+    <braunr> nlightnfotis: ask tschwinge but i guess it's ok
+
+    <braunr> have you found runtime_park ?
+    <braunr> i'm downloading your repository from github but it's slow :/
+    <nlightnfotis> braunr: not yet. Grepping through the files didn't produce
+      any meaningful results and github's search is not working
+    <nlightnfotis> braunr: there is that strange thing with th gccgo sources,
+      where I can find a function's declaration but not it's definition. Funny
+      thing is those functions are not really extern, so I am playing a hide
+      and seek game, in which I am not always successful.
+    <nlightnfotis> runtime_park is declared in runtime.h. I have looked nearly
+      everywhere for it. There is only one last place I have not looked at.
+    <nlightnfotis> braunr: I found runtime_park. It's here:
+      https://github.com/NlightNFotis/gcc/blob/master/libgo/runtime/proc.c?source=c#L1372
+
+    <tschwinge> nlightnfotis: Taking the day off is fine.  Have fun!
+    <nlightnfotis> tschwinge: I am still here; Thanks for that tschwinge. I
+      will be for the next half hour or something if you would like to ask me
+      anything
+    <tschwinge> nlightnfotis: I have no immediate questions (first have to read
+      your report and discussion in here) -- so feel free to log out and enjoy
+      the sun outside.  :-)
+
+    <teythoon> nlightnfotis, tschwinge: btw, have you seen
+      http://morsmachine.dk/go-scheduler ?
+    <nlightnfotis> teythoon: thanks for the link. It's really interesting.
+
+
+# IRC, freenode, #hurd, 2013-08-12
+
+    <nlightnfotis> teythoon did you manage to build the Hurd successfuly?
+    <teythoon> ah yes, the Hurd is relatively easy
+    <teythoon> the libc is hard
+    <nlightnfotis> debian glibc or hurd upstream libc?
+    <teythoon> but my build on darnassus was successful
+    <nlightnfotis> *debian eglibc
+    <teythoon> well, I rebuilt the debian package with two tweaks
+    <nlightnfotis> do you build on linux and rsync on hurd or ...?
+    <teythoon> I built it on Hurd, though I thought about setting up a cross
+      compiler
+    <nlightnfotis> I see. The process was build Mach, build Hurd, and then
+      build glibc and it's ready or it needed more?
+    <teythoon> no, I never built Mach
+    <teythoon> I must admit I'm not sure about the "proper" procedure
+    <teythoon> if I change one of Hurds RPC definitions, I think the proper way
+      is to rebuild the libc against the new definitions and then the Hurd
+    <teythoon> but I found no way to do that, so everyone seems to build the
+      Hurd, install it, build the libc and then rebuild the Hurd again
+    <nlightnfotis> I see. Thanks for that :)
+
+    <nlightnfotis> tschwinge, I have also written my report! It's available
+      here
+      http://www.fotiskoutoulakis.com/blog/2013/08/12/gsoc-week-8-partial-report/ 
+    <nlightnfotis> I can sum it up if you want me to.
+    <tschwinge> nlightnfotis: I already read it!  :-D
+    <tschwinge> Oh, I didn't.  I read the week 7 one.  Let me read week 8.  ;-)
+    <nlightnfotis> ok. I am currently going through the assembly generated for
+      the sample program I have embedded my report. 
+    <nlightnfotis> the weird thing is that the assembly generated is pretty
+      much the same for the program with 1 and 2 goroutine functions (with the
+      obvious difference that the one with 2 goroutine functions has 1 more
+      goroutine in it's assembly code)
+    <nlightnfotis> I can not understand why it is that when I have 1 goroutine,
+      an exception is triggered, but when I am having two (which are 99%
+      identical) it seems to be executed.
+    <nlightnfotis> and I do not understand why the exception is triggered when
+      I manually use a goroutine.
+    <nlightnfotis> To my understanding so far, there is at least 1 (kernel)
+      thread created at program startup to run main. The same thread gets
+      created to run a new goroutine (goroutines get associated with kernel
+      threads)
+    <nlightnfotis> and it's obvious from the assembly generated.
+    <nlightnfotis> go_init_main (the main function for go programs) starts with
+      a .cfi_startproc
+    <nlightnfotis> the same piece of code (.cfi_startproc) starts a new kernel
+      thread (on which a goroutine runs)
+    <tschwinge> nlightnfotis: Re your two-goroutines example: in that case I
+      assume, you're directly returning from the main function and the program
+      terminates normally.  ;-)
+    <tschwinge> nlightnfotis: Studying the assembly code for this will be too
+      verbose, too low-level.  What we need is a trace of steps that happen
+      until the error.
+    <nlightnfotis> tschwinge, that must be it, but it should trigger the bug,
+      since it still has at least one goroutine (and one is known to trigger
+      the bug)
+    <tschwinge> nlightnfotis: I guess the program exits before the first
+      gorouting would be scheduled for execution.
+    <nlightnfotis> the assembly for the goroutines is identical. You can't tell
+      one from the other. The only change is that it has 2 of these sections
+      instead of one
+    <nlightnfotis> actually it's the same for the first one
+    <tschwinge> nlightnfotis: I very much assume that the issue is not due to
+      the code generated by the Go compiler (which you're seeing in the
+      assembly code), but rather due to the runtime code in the libgo library.
+    <nlightnfotis> I didn't think of it this way.
+    <tschwinge> ... that improperly interacts with our libpthread.
+    <nlightnfotis> so my research should focus on the runtime from now on?
+    <tschwinge> Improperly may well imply that our libpthread is at fault, of
+      course, as we discussed.
+    <tschwinge> Back to the one-gouroutine case (that shows the assertion
+      failure).  Simple case: one goroutine, plus the "main" thread.
+    <tschwinge> We need to get an understanding of the steps that happen until
+      the error happens.
+    <tschwinge> As this is a parallel problem, and it is involving "advanced"
+      things (such as setcontext), I would not trust GDB too much when used on
+      this code.
+    <nlightnfotis> I will have to manually step through the source myself,
+      right?
+    <tschwinge> What I would do, is add printf's (or similar) into the code at
+      critical points, to get an udnerstanding of what's going on.
+    <tschwinge> Such critical points are: pthread_create, setcontext,
+      swapcontext.
+    <nlightnfotis> It sounds like a good idea. Anything else to note?
+    <tschwinge> That way, you can isolate the steps required to trigger the
+      assertion failure.
+    <tschwinge> For example, it could be something like: makecontext,
+      swapcontext, pthread_creat, boom.
+    <nlightnfotis> pthread_create_internal is failing at an assertion. I wonder
+      what would happen if I remove that assertion.
+    <tschwinge> Not without understanding what the error is, and why it is
+      happening (which steps lead to it).  We don't usually do »voodoo
+      computing and programming by coincidence«.
+    <nlightnfotis> tschwinge, I also figured out something. If it is a
+      libpthread issue, it should also get triggered when a simple C program
+      creates a thread (assuming _pthread_create is causing the issue)
+    <nlightnfotis> so maybe I should write a C program to test that
+      functionality and see if it provides any further clues?
+    <tschwinge> nlightnfotis: That's precile what the goal of »isolate the
+      steps required to trigger the assertion failure« is about: reduce the big
+      libgo code to a few function calls required to reproduce the problem.
+    <tschwinge> nlightnfotis: I simple C program just doing pthread_create
+      evidently does not fail.
+    <tschwinge> nlightnfotis: I assume you have a Go program dynamically linked
+      to the libgo you build?
+    <nlightnfotis> yes. To the latest go build from the source (4.9)
+    <nlightnfotis> *gccgo build from source
+    <braunr> removing an assertion is usually extremely bad practice
+    <tschwinge> Then you can just do something like make target-libgo (IIRC)
+      (or instead: cd i686-pc-gnu/libgo/ && make) to rebuild your changed
+      libgo, and then re-run the Go program.
+    <braunr> the thought of randomly removing assertions shouldn't even reach
+      your mind !
+    <nlightnfotis> braunr: even if it is not permanent, but an experiment?
+    <braunr> yes
+    <nlightnfotis> can you explain to me why?
+    <tschwinge> nlightnfotis: <tschwinge> Not without understanding what the
+      error is, and why it is happening (which steps lead to it).  We don't
+      usually do »voodoo computing and programming by coincidence«.
+    <braunr> an assertion exists to make sure something that should *never*
+      happen never happens
+    <braunr> removing it allows such events to silently occur
+    <teythoon> braunr: that's the theory, yes, to check invariants
+    <braunr> i dont' know what you mean by using assertions for "an experiment"
+    <teythoon> unfortunately some people use assert for error handling :/
+    <braunr> that's wrong
+    <braunr> and i dont't remember it to be the case in libpthread
+    <braunr> nlightnfotis: can you point the faulting assertion again there
+      please ?
+    <nlightnfotis> braunr: sure: Assertion `({ mach_port_t ktid =
+      __mach_thread_self (); int ok = thread->kernel_thread == ktid;
+    <nlightnfotis> __mach_port_deallocate ((__mach_task_self + 0), ktid); ok;
+      })' failed.
+    <braunr> so basically, thread->kernel_thread != __mach_thread_self()
+    <braunr> this code is run only for num_threads == 1
+    <braunr> but has there been any thread destruction before ?
+    <nlightnfotis> no. To my understanding kernel threads in the go runtime
+      never get destroyed (comments seem to support that)
+    <braunr> IOW: is it certain the only thread left *is* the main thread ?
+    <braunr> hm
+    <braunr> intuitively, i'd say this is wrong
+    <braunr> i'd say go doesn't destroy threads in most cases, but something in
+      the go runtime must have done it already
+    <braunr> i'm not even sure the main thread still exists
+    <braunr> check that
+    <braunr> where is the go code you're working on ?
+    <nlightnfotis> there are 3 files of interest
+    <braunr> i'd like the whole sources please
+    <nlightnfotis> I will find it in a moment
+    <tschwinge> braunr: GCC Git clone, tschwinge/t/hurd/go branch.
+    <nlightnfotis> it is <gcc_root>/libgo/runtime/runtime.h
+    <nlightnfotis> it is <gcc_root>/libgo/runtime/proc.c
+    <braunr> tschwinge: thanks
+    <tschwinge> braunr: git://gcc.gnu.org/git/gcc.git
+    <nlightnfotis> I will provide links on github
+    <braunr> nlightnfotis: i sayd the whole sources, why do you insist on
+      giving me separate files ?
+    <nlightnfotis> for checking it out quickly
+    <nlightnfotis> oh I misunderstood that sorry
+    <nlightnfotis> thought you wanted to check out thread creation and
+      destruction and that you were interested only in those specific files
+    <braunr> tschwinge: is it completely contained there or are there external
+      libraries ?
+    <tschwinge> braunr: You mean libgo?
+    <braunr> tschwinge: possibly
+    <nlightnfotis> tschwinge, I just made sure that yeah programs are
+      dynamically linked against the compiler's libgo
+    <nlightnfotis> libgo.so.3
+    <braunr> does libgo come from gcc sources ?
+    <nlightnfotis> yeah
+    <braunr> ok
+    <nlightnfotis> go files on gcc sources are split under two directories: go,
+      which contains the frontend go, and libgo which contains the libraries
+      and the runtime code
+    <tschwinge> braunr: darnassus:~tschwinge/tmp/gcc/go.build/ is a recent
+      build, with sources in $PWD/../go/.
+    <tschwinge> braunr: libgo is in i686-unknown-gnu0.3/libgo/.libs/
+    <nlightnfotis> so tschwinge to roundup for this week I should print debug
+      around the "hotspots" and see if I can extract more information about
+      where the specific problem is triggered right?
+    <tschwinge> nlightnfotis: Yes, for a start.
+    <braunr> nlightnfotis: identify the main thread, make sure it doesn't exit
+    <nlightnfotis> noted.
+    <nlightnfotis> braunr: do you have an idea about the issue I described
+      earlier? The one with the 1 goroutine triggering the bug, but the 2
+      exiting successfully but with no output?
+    <braunr> nlightnfotis: i didn't read
+    <nlightnfotis> do you have 2 mins to read my report? I describe the issue
+    <braunr> something messed up in the context i suppose
+    <tschwinge> nlightnfotis: Uhm, I already explained that issue?
+    <braunr> you did ?
+    <nlightnfotis> tschwinge, I know, don't worry. I am trying to get all the
+      insight I can get.
+    <nlightnfotis> you mentioned that the scheduler might have an issue and
+      that the main thread returns before the goroutines execu
+    <nlightnfotis> *execute
+    <nlightnfotis> right?
+    <tschwinge> It is the normal thing for a process to terminate normally when
+      the main function returns.  I would expect Go to behave the same way.
+    <braunr> "Now, if we change one of the say functions inside main to a
+      goroutine, this happens"
+    <braunr> how do you change it ?
+    <tschwinge> Or am I confused?
+    <braunr> tschwinge: i don't remember exactly
+    <nlightnfotis> braunr: from say("world") to go say("world")
+    <nlightnfotis> tschwinge, yeah I get that. What I still have not understood
+      is what is it specifically about the 2 goroutines that doesn't trigger
+      the issu when 1 goroutine does.
+    <nlightnfotis> You said that it might have something to do with the
+      scheduler; it does seem like a good explanation to me
+    <tschwinge> nlightnfotis: My understanding still is that the goroutinges
+      don't get executed before the main thread exits.
+    <braunr> which scheduler ?
+    <nlightnfotis> braunr: the runtime (go) scheduler. 
+    <nlightnfotis> tschwinge, Yeah, they don't. But still, with 1 goroutine:
+      you get into main, attempt to execute it, and bam! With two, it should be
+      the same, but strangely it seems to exit main without an issue
+    <nlightnfotis> (attempt to execute the goroutine)
+    <braunr> why should it be the same ?
+    <nlightnfotis> braunr: seeing as one goroutine has problems, I can't see
+      why two wouldn't. At least one of the two should result in an exception.
+    <braunr> nlightnfotis: why ?
+    <braunr> nlightnfotis: they do have the problem
+    <braunr> they don't run
+    <braunr> they just don't run into that assertion, probably because there is
+      more than one thread
+    <nlightnfotis> wait a minute. You imply that they fail silently? But still
+      end up in the same situation
+    <braunr> yes
+    <braunr> in which case it does look like a go scheduler problem
+    <nlightnfotis> if I understood it correctly, that assertion fails when it
+      is only 1 thread?
+    <braunr> yes
+    <braunr> and since the main thread is always correct, i expect the main
+      thread has exited
+    <braunr> which this happens because the one thread left is *not* the main
+      thread
+    <braunr> (which is a libpthread bug)
+    <braunr> but it's a bug we've not seen because we don't have applications
+      creating threads while exiting
+    <nlightnfotis> I think I got it now.
+    <braunr> try to put something like getchar() in your go program
+    <braunr> something that introduces a break
+    <braunr> so that the main thread doesn't exit
+    <nlightnfotis> oh right. Thanks for that. And sorry tschwinge I reread what
+      you said, it seems I had misinterpreted what you suggested.
+    <tschwinge> braunr: If you're interested: for a Go program triggering the
+      asserition, I don't see any thread exiting (see
+      darnassus:~tschwinge/tmp/gcc/a.go, run: cd ~tschwinge/tmp/gcc/go.build/
+      && ./a.out) -- but perhaps I've been looking for the wrong things in l_.
+      File l is without a goroutine.  Have to leave now, sorry.
+    <tschwinge> braunr: If you want to rebuild: gcc/gccgo -B gcc -B
+      i686-unknown-gnu0.3/libgo ../a.go -Li686-unknown-gnu0.3/libgo/.libs
+      -Wl,-rpath,i686-unknown-gnu0.3/libgo/.libs
+    <braunr> tschwinge: no i won't touch anything
+    <braunr> but thanks
+
+
+# IRC, freenode, #hurd, 2013-08-19
+
+    <youpi> nlightnfotis: how are you going with gcc go?
+    <nlightnfotis> I was print debugging all the week.
+    <nlightnfotis> I can tell you I haven't noticed anything weird so far.
+    <nlightnfotis> But I feel I am close to the solution
+    <nlightnfotis> I have not written my report yet.
+    <nlightnfotis> I will write it maximum until wednesday
+    <nlightnfotis> I hope I will have figured it all out until then
+    <pinotree> a report is not for writing solutions, but for the progress
+    <youpi> yes
+    <youpi> it's completely fine to be saying "I've been debugging, not found
+      anything yet"
+    <pinotree> results or not, always write your reports on time, so your
+      mentor(s) know what you are doing
+    <nlightnfotis> I see. Would you like me to write it right now, or is it
+      okay to write it a day or two later?
+    <hacklu__> nlightnfotis: FYI. this week my report is not finished. just
+      state some problem I face now.
+    <youpi> nlightnfotis: I'd say better write it now
+    <nlightnfotis> youpi: Ok I will write it and tell you when I am done with
+      it.
+    <nlightnfotis> youpi: here is my partial report describing what my course
+      of action looked like this
+      week. http://www.fotiskoutoulakis.com/blog/2013/08/19/gsoc-week-9-partial-report/
+    <nlightnfotis> of course, I will write in a day or two (hopefully having
+      figured out the whole situation) an exhaustive report describing
+      everything I did in detail
+    <nlightnfotis> youpi: I have written my (partial) report describing how I
+      went about this week
+      http://www.fotiskoutoulakis.com/blog/2013/08/19/gsoc-week-9-partial-report/
+    <youpi> nlightnfotis: good, thanks!
+    <nlightnfotis> youpi: please note that this is not an exhaustive link of my
+      findings or course of action, it merely acts as an example to demonstrate
+      the way I think and how I go about every day.
+    <nlightnfotis> I will write an exhaustive report of everything I did so
+      far, when I figure out what the issue is, and I feel I am close.
+    <youpi> well, you don't need to explain all bits in details
+    <youpi> this is fine to show an example of how you went
+    <youpi> but please also provide a summary of your other findings
+    <nlightnfotis> oh okay, I will keep this in mind. :)
+
+
+# IRC, freenode, #hurd, 2013-08-22
+
+    < nlightnfotis> if I want to rebuild libpthread, I have to embed it into
+      eglibc's source, then build?
+    < pinotree> or pick the debian sources, patch libpthread there and rebuild
+    < nlightnfotis> that's most likely what I am going to do. Thanks pinotree.
+    < pinotree> yw
+    < braunr> nlightnfotis: i usually add my patches on top of the debian glibc
+      ones, yes
+    < braunr> it requires some tweaking
+    < braunr> but it's probably the easiest way
+    < nlightnfotis> braunr: I was studying my issues with gcc, and everyday I
+      was getting more and more confident it must be a libpthread issue
+    < nlightnfotis> and I figured out, that I might wanna play with libpthread
+      this time
+    < braunr> it probably is but
+    < braunr> i'm not so sure you should dive there
+    < nlightnfotis> why not?
+    < braunr> because it can be worked around in go
+    < braunr> i had a test for you last time
+    < braunr> do you remember what it was ?
+    < nlightnfotis> nope :/ care to remind it?
+    < braunr> iirc, it was running the go test you did but with an additional
+      instruction in the main function, that pauses
+    < braunr> something like getchar() in c
+    < braunr> to make sure main doesn't exit while the goroutines are still
+      running
+    < braunr> i'm almost positive that the bug you're seeing is main returning
+      and libpthread beleiving it's acting on the main thread because there is
+      only one left
+    < nlightnfotis> oh that's easy, I can do it now. But it's probably what
+      thomas had suggested: go routines may not be running at all.
+    < braunr> they probably aren't
+    < braunr> and that's a context bug
+    < braunr> not a libpthread bug
+    < braunr> and that's what you should focus on
+    < braunr> the libpthread bug is minor
+    < nlightnfotis> which is strange, because I had studied the assembly code
+      and it the code for the goroutine was there
+    < nlightnfotis> anyway I will proceed with what you suggested
+    < braunr> yes please
+    < braunr> that's becoming important
+    < nlightnfotis> would you mind me dumping some of my findings for you to
+      evaluate/ post on opinion on?
+    < braunr> no
+    < braunr> please do so
+    < nlightnfotis> I have found that the go runtime starts with a total number
+      of threads == 1
+    < braunr> nlightnfotis: as all processes
+    < nlightnfotis> I would guess that's because of using fork ()
+    < nlightnfotis> oh so it's ok
+    < braunr> there always is a main thread
+    < braunr> even for non-threaded applications
+    < nlightnfotis> yeah, that I know. The runtime proceeds to create
+      immediately one more.
+    < braunr> then it's 2
+    < nlightnfotis> and that's ok, it doesn't have an issue with that
+    < nlightnfotis> yep
+    < nlightnfotis> the issue begins when it tries to create the 3rd one
+    < braunr> hum
+    < braunr> from what i remember
+    < nlightnfotis> it happily goes through the go runtime's kernel thread
+      allocation function (runtime_newm())
+    < braunr> you also had an issue with the first goroutine
+    < nlightnfotis> that's with 1 go routine
+    < braunr> ok
+    < braunr> so 1 goroutine == 3 threads
+    < nlightnfotis> it seems so yes.
+    < braunr> depending on how the go scheduler is able to assign goroutines to
+      kernel threads i suppose
+    < nlightnfotis> mind you, (disclaimer: I am not so sure about that) that go
+      must be using one extra thread for the runtime scheduler and garbage
+      collector
+    < braunr> that's ok
+    < nlightnfotis> so that's where the two come from
+    < braunr> and expected from a modern runtime
+    < nlightnfotis> the third must be the go routime
+    < nlightnfotis> routine
+    < braunr> hum have to go
+    < braunr> brb in a few minutes
+    < braunr> keep posting
+    < nlightnfotis> it's ok take your time
+    < nlightnfotis> I will be here
+    < braunr> but i may not ;p
+    < braunr> in fact i will not
+    < braunr> i have like 15 mins ;)
+    < braunr> nlightnfotis: ^
+    < nlightnfotis> I am trying what you told me to do with go
+    < nlightnfotis> it's ok if you have to go, I will continue investigating
+      and be back tomorrow
+    < braunr> ok
+    < nlightnfotis> braunr: I tried what you asked me to do, both we waiting to
+      read a string from stdin and with waiting to read an int from stdin
+    < nlightnfotis> it never waits, it still aborts with the assertion failure
+    < nlightnfotis> both with one and two go routines
+    < nlightnfotis> dumping it here just for the log, running the same code
+      without waiting for input results in two threads created (1 for main and
+      1 for runtime, most likely) and "normal" execution. 
+    < nlightnfotis> normal as in no assertion failure,
+    < nlightnfotis> it seems to skip the goroutines altogether
+
+
+# IRC, freenode, #hurd, 2013-08-23
+
+    < braunr> nlightnfotis: can i see your last go test code please ? the one
+      with the read at the end of main
+    < nlightnfotis> braunr sure
+    < nlightnfotis> sorry I had gone to the toilet, now I am back
+    < nlightnfotis> I will send it right now
+    < nlightnfotis> braunr: http://pastebin.com/DVg3FipE
+    < nlightnfotis> it crashes when it attempts to create the 3rd thread (the
+      1st goroutine), with the assertion fail
+    < nlightnfotis> if you remove the Scanf it will not fail, return 0, but
+      only create 2 threads (skip the goroutines alltogether)
+    < braunr> can you add a print right before main exits please ?
+    < braunr> so we know when it does
+    < nlightnfotis> doing it now
+    < nlightnfotis> braunr: If I enter a print statement right before main
+      exits, the assertion failure is triggered. If I remove it, it still runs
+      and creates only 2 threads.
+    < braunr> i don't understand
+    < braunr> 14:42 < nlightnfotis> it crashes when it attempts to create the
+      3rd thread (the 1st goroutine), with the assertion fail
+    < braunr> why don't you get that ?
+    < nlightnfotis> This seems like having to do with the runtime. I mean, I
+      have seen the emitted assembly from the compiler, and the goroutines are
+      there. Something in the runtime must be skipping them
+    < braunr> context switching seems buggy
+    < nlightnfotis> if it's only goroutines in main
+    < nlightnfotis> if there's also something else in main, the assertion
+      failure is triggered.
+    < braunr> i want you to add a printf right before main exits, from the code
+      you pasted
+    < nlightnfotis> I did. It acts the same as before.
+    < braunr> do you see that last printf ?
+    < nlightnfotis> no. It aborts before that
+    < nlightnfotis> :q
+    < braunr> find a way to make sure the output buffer is flushed
+    < braunr> i don't know how it's done in go
+    < nlightnfotis> mistype the :q, was supposed to do it vim
+    < nlightnfotis> braunr will do right away
+    < nlightnfotis> there is one thing I still can not understand: Why is it
+      that two threads are ok, but when the next is going to get created, the
+      assertion is triggered.
+    < braunr> nlightnfotis: the assertion is triggered because a thread is
+      being created while there is only one thread left, and this thread isn't
+      the main thread
+    < braunr> so basically, the main thread has exited, and another (the last
+      one) is trying to create one
+    < nlightnfotis> the other one might be the runtime I guess. Let me check
+      out quickly what you suggested
+    < braunr> the main thread shouldn't exit at all
+    < braunr> so something with context switching is wrong
+    < nlightnfotis> the thing is: it doesn't seem to exit when this happens. My
+      debug statements (in the runtime) suggest that there are at least 2
+      threads active, kernel threads don't get destroyed in gccgo
+    < braunr> 14:52 < braunr> so something with context switching is wrong
+    < braunr> how well have the context switching functions been tested ?
+    < nlightnfotis> to be honest I have not tested them; up until this point I
+      trusted they worked. Should I also take a look at them?
+    < braunr> how can you trust them ?
+    < braunr> they've never been used ..
+    < braunr> thomas added them recently if i'm right
+    < braunr> nothing has been using them except go
+    < braunr> piece of advice: don't trust anything
+    < nlightnfotis> I think they were in before, and thomas recently patched
+      them!
+    < braunr> they were in, but didn't work
+    < braunr> (if i'm right)
+    < braunr> nlightnfotis: you could patch libpthread to monitor the number of
+      threads
+    < braunr> or the go runtime, idk
+    < nlightnfotis> I have done so on the go runtime
+    < nlightnfotis> that's where I am getting the number of threads I
+      report. That's straight out from the scheduler's count.
+    < braunr> threads can exit by calling pthread_exit() or returning from the
+      thread routine
+    < braunr> make sure you catch both
+    < braunr> also check for pthread_cancel(), although i don't expect any in
+      go
+    < nlightnfotis> braunr: Should I really do that? I mean, from what I can
+      see in gccgo's comments, Kernel threads (m) never go away. They are added
+      to a pool of m's waiting for work if there is no goroutine running on
+      them
+    < nlightnfotis> I mean, I am not so sure they exit at all
+    < braunr> be sure
+    < braunr> point me the code please
+    < nlightnfotis>
+      https://github.com/NlightNFotis/gcc/blob/master/libgo/runtime/proc.c#L224
+    < nlightnfotis> this is where it get's stated that m's never go away
+    < nlightnfotis> and at line 257 you can see the pool
+    < nlightnfotis> and wait for me to find the code that actually releases an
+      and places into the pool
+    < nlightnfotis> yep found it
+    < nlightnfotis> line 817 mput
+    < nlightnfotis> puts a kernel thread given as parameter to the pool
+    < nlightnfotis> another proof of the theory is at line 1177. It states:
+      "This point is never reached, because scheduler does not release os
+      threads at the moment."
+    < braunr> fetching git repository, bit busy, i'll have a look in 5-10 mins
+    < nlightnfotis> oh it's ok, I had pointed you to the file directly on
+      github to check it out instantly, but never mind, the file is
+      <gccroot>/libgo/runtime/proc.c
+    < braunr> damn github is so slow ..
+    < braunr> nlightnfotis: i much prefer my own text interface :)
+    < nlightnfotis> braunr: just out of curiosity what's your setup? I use vim
+      mainly (not that I am a vim expert or anything, I only know the basics,
+      but I love it)
+    < braunr> same
+    < braunr> nlightnfotis: add a trace at that comment to make SURE threads do
+      not exit
+    < braunr> you *cannot* get the libpthread assertion with more than 1 thread
+    < braunr> grep for pthread_exit() too
+    < nlightnfotis> will do it now. It will take about an hour to compile
+      though.
+    < braunr> i don't understand the stack trick at the start of runtime_mstart
+    < braunr> ah splitstack ..
+    < nlightnfotis> I think I should try cross compiling gcc, and then move
+      files on the hurd. It would be so much faster I believe.
+    < braunr> than what ?
+    < nlightnfotis> building gcc on the hurd
+    < nlightnfotis> I remember it taking about 10minutes with make -j4 on the
+      host
+    < nlightnfotis> it takes 45-50 minutes on the vm (kvm enabled)
+    < braunr> but you can merely rebuild the files you've changed
+    < nlightnfotis> I feel stupid now...
+    < braunr> nlightnfotis: have you tried setting GOMAXPROCS to 1 ?
+    < nlightnfotis> not really, but from what I know GOMAXPROCS defaults to 1
+      if not set
+    < braunr> again, check that
+    < braunr> take the habit of checking things
+    < nlightnfotis> braunr: yeah sorry for that. I have checked these things
+      out before they don't come out of my head I just don't remember exactly
+      where I had seen this
+    < braunr> what you can also do is use gdb to catch the assertion and check
+      the number of threads at that time, as well as the number of threads as
+      seen by libpthread
+    < nlightnfotis> braunr: line 492 file proc.c: runtime_gomaxprocs = 1;
+    < braunr> also see runtime.LockOSThread
+    < braunr> to make sure the main thread is locked to its own pthread
+    < nlightnfotis> I can see in line 529 of the same file that the first
+      thread is getting locked
+    < nlightnfotis> the new threads that get initialised are non main threads
+    < braunr> if(!runtime_sched.lockmain) runtime_UnlockOSThread();
+    < braunr> i'm suggesting you set runtime_sched.lockmain
+    < braunr> so it remains true for the whole execution
+    < braunr> this code looks like a revamp of plan9 lol
+    < nlightnfotis> it is
+    < nlightnfotis> in the paper from Ian Lance Taylor describing gccgo he
+      states somewhere that the original go compilers (the 3gs) are a modified
+      version of plan9's C compiler, and that gccgo tries to follow them
+    < nlightnfotis> they differ in a lot of ways though
+    < nlightnfotis> the 3gs generate a lot of code during link time
+    < nlightnfotis> gccgo follows the standard gcc procedures
+    < braunr> eh :D
+    < nlightnfotis> go -> gogo -> generic -> gimple -> rtl -> object
+    < nlightnfotis> that's how it flows as far as I recall
+    < nlightnfotis> gogo is an internal representation of go's structure inside
+      the gccgo frontend
+    < nlightnfotis> that's why you see many functions with gogo in their name
+    < nlightnfotis> I just revisited the paper: gogo is there to make it easy
+      to implement whatever analysis might seem desirable. It mirrors however
+      the Go source code read from the input files
+    < braunr> nlightnfotis: what are you trying now ?
+    < nlightnfotis> I am basically studying the runtime's source code while
+      waiting for gccgo to compile on the Hurd
+    < nlightnfotis> yes I did the stupid whole recompilation again. :/ 
+    < braunr> nlightnfotis: compile for what ?
+    < braunr> what test ?
+    < nlightnfotis> to check out to see if M's really are added to the pool
+      instead of getting deleted
+    < braunr> nlightnfotis: but how ?
+    < nlightnfotis> braunr: I have added a statement in mput if we get there
+      first, and secondly the number of threads that the runtime scheduler
+      knows that are waiting (are in the pool of m's waiting for work)
+    < braunr> ok
+    < braunr> when you can, i'd really like you to do this test :
+    < braunr> 15:55 < braunr> what you can also do is use gdb to catch the
+      assertion and check the number of threads at that time, as well as the
+      number of threads as seen by libpthread
+    < nlightnfotis> the number of threads required by libpthread is gonna need
+      me to recompile the whole eglibc right?
+    < braunr> no
+    < braunr> just print it with gdb
+    < nlightnfotis> oh, ok
+    < braunr> it's __pthread_num_threads
+    < nlightnfotis> is gdb reliable? I remember thomas telling me that I can't
+      trust gdb at this point in time
+    < braunr> and also __pthread_total
+    < braunr> really ?
+    < braunr> i don't see why not :/
+    < braunr> youpi: any idea about what nlightnfotis is speaking of ?
+    < nlightnfotis> I may have misunderstood it; don't take it by heart
+    < nlightnfotis> I don't wanna put words in other people's mouths because I
+      misunderstood something
+    < braunr> sure
+    < braunr> that's my habit to check things
+    < youpi> braunr: nope
+    < braunr> youpi: and am i right when i say we don't use context functions
+      on the hurd, and they're likely to be incomplete, even with the recent
+      changes from thomas ?
+    < braunr> (mcontext, ucontext)
+    < nlightnfotis> braunr: this is what had been said: 08:46:30< tschwinge> As
+      this is a parallel problem, and it is involving "advanced" things (such
+      as setcontext), I would not trust GDB too much when used on this code.
+    < pinotree> if thomas' changes were complete and polished, i guess he would
+      have sent them upstream already
+    < braunr> i see but
+    < braunr> you can normally trust gdb for global variables
+    < nlightnfotis> Didn't post it as an objection; I posted it because I felt
+      bad putting the wrong words on other people's mouths, as I said
+      before. So I posted his original comment which was more authoritative
+      than my interpretation of it
+    < braunr> i wonder if there is a tunable to strictly map one thread to one
+      goroutine
+    < braunr> nlightnfotis: more focus on the work, less on the rest please
+    < nlightnfotis> Did I do something wrong?
+    < braunr> you waste too much time apologizing
+    < braunr> for no reason
+    < braunr> nlightnfotis: i suppose you don't use splitstack, right ?
+    < nlightnfotis> no I didn't
+    < nlightnfotis> and here's something interesting: The code I just added, in
+      mput, to see if threads are added in the pool. It's not there, no matter
+      what I run
+    < nlightnfotis> So it seems that we the runtime is not reaching mput. 
+    < nlightnfotis> Could this be normal behavior? I mean, on process
+      termination just release the resources so mput is skipped?
+    < braunr> i don't know the code well enough to answer that
+    < braunr> check closer to the lower interface
+
+
+# IRC, freenode, #hurd, 2013-08-25
+
+    < nlightnfotis> braunr: what is initcontext supposed to be doing?
+    < braunr> nlightnfotis: didn't look
+    < braunr> i'll take a look later
+    < nlightnfotis> braunr: I am buffled by it. It seems to be doing nothing on
+      the Hurd branch and nothing in the Linux branch either. Why call a
+      function that does nothing? (it doesn't only seem to do nothing, I have
+      confirmed it)
+    < nlightnfotis> youpi: I was wondering if you could explain me
+      something. What is the initcontext function supposed to be doing?
+    < youpi> you mean initcontext ?
+    < nlightnfotis> yes
+    < youpi> ergl
+    < youpi> you mean makecontext?
+    < nlightnfotis> no initcontext. I am faced with this in the goruntime. It's
+      called in it, but it is doing nothing. Neither in the Hurd tree, nor in
+      the Linux one
+    < youpi> I don't know what initcontext is
+    < youpi> where do you read it?
+    < nlightnfotis> youpi: let me show you
+    < nlightnfotis>
+      https://github.com/NlightNFotis/gcc/blob/fotisk/goruntime_hurd/libgo/runtime/proc.c#L80
+    < nlightnfotis> and it is called in quite a few places
+    < youpi> it's not doing nothing, see other implementations
+    < pinotree> if SETCONTEXT_CLOBBERS_TLS is not defined, initcontext and
+      fixcontext do nothing
+    < pinotree> otherwise (presuming if setcontext clobbers tls) there are two
+      implementations for solaris/x86_64 and netbsd
+    < youpi> I don't think we have the tls clobber bug
+    < youpi> so these functions being empty is completely fine
+    < nlightnfotis> pinotree: oh,  you mean it's used as a workaround for these
+      two systems only?
+    < youpi> yes
+    < pinotree> yes
+    < nlightnfotis> That makes sense. Thanks both of you for the help :)
+    < nlightnfotis> youpi: if this counts as some progress, I have traced the
+      exact bootstrapping sequence of a new go process. I know a good deal of
+      what is done from it's spawn to it's end. There are some things I wanna
+      sort out, and later tonight I will write my report for it to be ready for
+      tomorrow.
+    < youpi> good
+
+
+# IRC, freenode, #hurd, 2013-08-26
+
+    < nlightnfotis> Hi everyone, my report is here
+      http://www.fotiskoutoulakis.com/blog/2013/08/26/gsoc-week-10-report/
+    < youpi> nlightnfotis: you should clearly put printfs inside libpthread
+    < youpi> to check what is happening with the ktids
+    < nlightnfotis> youpi: yep, that's my next course of action. I just want to
+      spend some more time in the go runtime to make sure that I understand the
+      flow perfectly, and to make sure that it is not the runtime's fault
+    < braunr> nlightnfotis: did you try gdb to print the number of threads ?
+    < youpi> nlightnfotis: to build it, the easiest way is to start building
+      eglibc, and when you see it compiling C files (i.e. run i486-gnu-gcc-4.7
+      etc.)
+    < youpi> stop it
+    < youpi> and go into build/hurd-i386-libc, and run "make others" from there
+    < nlightnfotis> braunr: that was my plan for today or tomorrow :)
+    < braunr> start building *debian* glibc
+    < youpi> there's perhaps some way to only build libpthread, but I don't
+      remember
+    < braunr> nlightnfotis: ok
+    < braunr> youpi: i suggested he tried gdb first
+    < youpi> why not
+    < braunr> if you need quick glibc builds, you can use darnassus
+    < nlightnfotis> braunr: how much time on average should I expect it to
+      take?
+    < youpi> it highly depends on the machine
+    < youpi> it can be hours
+    < youpi> or a few minutes
+    < youpi> depending you already have a built tree, a fast disk, etc.
+    < braunr> make lib others on darnassus takes around 30 minutes
+    < braunr> a complete dpkg-buildpackage from fresh sources takes 5-6 hours
+    < braunr> make others from a built tree is very quick
+    < braunr> a few minutes at most
+    < braunr> nlightnfotis: i don't see any trace of thread exiting in your
+      report, is that normal ?
+    < nlightnfotis> yeah, I guess, since they don't exit prematurely, they are
+      released along with other resources at the process' exit
+    < braunr> i'll rephrase
+    < braunr> you said last time that you saw a function never got called
+    < braunr> i assumed it was because a thread exited prematurely
+    < nlightnfotis> oh I sorted it out with the help of youpi and pinotree
+      yesterday
+    < braunr> that's different
+    < braunr> i'm not talking about the function that does nothing
+    < braunr> i'm talking about the one never called
+    < nlightnfotis> oh, go on then,
+    < braunr> i don't remember its name
+    < braunr> anyway
+    < nlightnfotis> abort()?
+    < braunr> i hope abort doesn't get called :)
+    < nlightnfotis> it doesn't
+    < braunr> i thought it was the one right before
+    < braunr> what i mean is
+    < nlightnfotis> oh runtime_mstart, it does get called
+    < braunr> add traces at thread exit points
+    < nlightnfotis> I sorted it out too
+    < braunr> make *sure* threads don't exit
+    < nlightnfotis> it get's called to start the kernel thread created at
+      process spawn at the runtime_schedinit
+    < braunr> if they really don't, it's probably a context/tls issue
+    < nlightnfotis> I will do this right now.
+    < nlightnfotis> braunr: if it's a context/tls issue it's libpthread's
+      problem?
+
+
+# IRC, freenode, #hurd, 2013-09-02
+
+    <nlightnfotis> Hello! My report for this week is online:
+      http://www.fotiskoutoulakis.com/blog/2013/09/02/gsoc-week-11-report/
+    <braunr> nlightnfotis: there always is a signal thread in every hurd
+      program
+    <braunr> nlightnfotis: i also pointed out that there are two variables
+      involved in counting threads in libpthread, the other one being
+      __pthread_num_threads
+    <braunr> again, more attention to work and details, less showmanship
+    <braunr> i'm tired of repeating it
+    <youpi> nlightnfotis: doesn't backtrace work in gdb to tell you what
+      0x01da48ec is?
+    <youpi> also, do you have libc0.3-dbg installed?
+    <nlightnfotis> braunr: __pthread_num_threads reports is 4.
+    <braunr> then why isn't it in your report ?
+    <braunr> it's acceptable that you overlook it
+    <nlightnfotis> and youpi: yeah I have got the backtrace, but 0x01da48ec is
+      ?? () from /lib/i386-gnu/libc.so.3
+    <braunr> it's NOT when someone else has previously mentioned it to you
+    <youpi> nlightnfotis: only that line, no other line?
+    <nlightnfotis> it has 8 more youpi, the one after ?? is mach_msg ()
+      form/lib/gni386-gnu/libc.so.0.3
+    <braunr> yes mach_msg
+    <braunr> almost everything ends up in mach_msg
+    <youpi> you should probably pastebin somewhere the output of thread apply
+      all bt
+    <braunr> what's before that ?
+    <nlightnfotis> braunr: I don't know how I even missed it. I skimmed through
+      the code and only found __pthread_total and assumed that it was the total
+      number of threads
+    <braunr> nlightnfotis: i don't know either
+    <braunr> take notes
+    <nlightnfotis> before mach_msg ins __pthread_timedblock () from
+      /lib/i386-gnu/libpthread.so.0.3
+    <nlightnfotis> I will add it to pastebin in a second
+    <braunr> i find it very disappointing that after several weeks blocking on
+      this, despite all the pointers you've been given, you still haven't made
+      enough progress to reach the context switching functions
+    <braunr> last week, most progress was made when we talked together
+    <braunr> then nothing
+    <braunr> it seems that you disappear, apparently searching on your own
+    <braunr> but for far too long
+    <nlightnfotis> braunr: I do search on my own, yes, 
+    <braunr> almost like exploiting being blocked not to make progress on
+      purpose ...
+    <braunr> but too much
+    <nlightnfotis> braunr: I am not doing this on purpose, I believe you are
+      unfair to me. I am trying to make as much progress as I can alone, and
+      reach out only when I can't do much more alone
+    <braunr> then why is it only now that we get replies to questions such as
+      "how much is __pthread_num_threads" ?
+    <braunr> why do you stop discussions for almost a week, just to find
+      yourself blocked again ?
+    <nlightnfotis> I was working on gcc, going through the runtime making sure
+      about assumptions and going through various other goroutine or not
+      programs through gdb
+    <braunr> that doesn't take a week
+    <braunr> clearly not
+    <braunr> last time we talked was
+    <braunr> 10:40 < nlightnfotis> braunr: if it's a context/tls issue it's
+      libpthread's problem?
+    <nlightnfotis> it did for me... honestly, what is it you believe I am doing
+      wrong? I too am frustrated by my lack of progress, but I am doing my best
+    <braunr> august 26
+    <nlightnfotis> yeah, I wanted to make sure about certain assumptions on the
+      gcc side. I don't want to start hacking on libpthread only to see that it
+      might have been something I msissed on the gcc side
+    <braunr> i told you
+    <braunr> it's probably not a libpthread issue
+    <braunr> the assertion is
+    <braunr> but it's minor
+    <braunr> it's not the realy problem, only a side effect
+    <braunr> i told you about __pthread_num_threads, why didn't you look at it
+      ?
+    <braunr> i told you about context switching functions, why nothing about it
+      ?
+    <braunr> doing a few printfs to check numbers and using gdb to check them
+      at break points should be quick
+    <braunr> when we talk,ed we had the results in a few minutes
+    <nlightnfotis> yeah, because I was guided, and that helped me target my
+      research. On my own things are quite different. I find out something
+      about gcc's behavior, then find out I need tons more information, and I
+      have a lot of things that I need to research to confirm any assumptions
+      from my side
+    <braunr> how did you miss the signal thread ?
+    <braunr> we even talked about it right here with hacklu 
+    <braunr> i'll say it again
+    <braunr> if blocked more than one day, ask for help
+    <braunr> 2 days minimum each time is just too long
+    <nlightnfotis> I'm sorry. I will be online every day from now on and report
+      every 10 minutes, on my course of actions.
+    <nlightnfotis> I recognise that time is off the essence at this point in
+      time
+    <braunr> it's also NO
+    <braunr> NO
+    <braunr> *SIGH*
+    <hacklu> nlightnfotis: calm down. braunr just want to help you solve
+      problem quickly.
+    <braunr> 10 minutes is the other extreme
+    <hacklu> nlightnfotis: in my experiecence, if something block me, I will
+      keep asking him until I solve the problem.
+    <braunr> it's also very frustrating to see you answer questions quickly
+      when you're here, then wait days for unanswered questions that could have
+      taken little time if you kept being here
+    <braunr> this just gives the impression that you're doing something else in
+      parallel that keeps you busy
+    <braunr> and comfort me in believing you're not being serious enough
+      aboutit
+    <nlightnfotis> yeah, I understand that it gives that impression. The only
+      thing I can tell you now, is that I am *not* doing something else in
+      parallel. I am only trying to demonstrate some progress alone, and when
+      working alone things for me take quite some more time than when I am
+      guided
+    <braunr> hacklu: i'm actually the nervous one here
+    <nlightnfotis> braunr: ok, I understand I have dissapointed you. What would
+      you suggest me to do from now on?
+    <hacklu> braunr: :)
+    <braunr> manage your time correctly or you'll fail
+    <braunr> i'm not the main mentor of this project so it's not for me to
+      decide
+    <braunr> but if i were, and if i had to wait again for several days before
+      any notice of progress or blocking, i wouldn't even wait for the end of
+      the gsoc
+    <braunr> you're confronted with difficult issues
+    <braunr> tls, context switching, thread
+    <braunr> ing
+    <braunr> they're all complicated
+    <braunr> unless you're very experienced and/or gifted, don't assume you can
+      solve it on your own
+    <braunr> and the biggest concern for me is that it's not even the main
+      focus of your project
+    <braunr> you should be working on go
+    <braunr> on porting
+    <braunr> any side issues should be solved as quickly as possible
+    <braunr> and we're now in september ...
+    <nlightnfotis> go is working quite alright. It's goroutines that have
+      issues.
+    <braunr> nlightnfotis: same thing
+    <braunr> goroutines are part of go as far as i'm concerned
+    <braunr> and they're working too, something in the hurd isn't
+    <braunr> so it's a side issue
+    <braunr> you're very much entitled to ask as much help as you need for side
+      issues
+    <braunr> and i strongly feel you didn't
+    <nlightnfotis> yeah, you're right. I failed on that aspect, mainly because
+      of the way I work. I wanted to show some progress on my own, and not be
+      here and spam all day. I felt that spamming questions all day would
+      demonstrate incompetence from my side
+    <nlightnfotis> and I wanted to show that I am capable of solving my
+      problems on my own.
+    <braunr> well, in a sense it does, but that's not the skills we were
+      expecting from you so it's perfectly ok
+    <braunr> nlightnfotis: no development group, even in companies, in their
+      right mind, would expect you to grasp the low level dark details of an
+      operating system implementation in a few weeks ...
+    <nlightnfotis> braunr: ok, may I ask what you suggest to me that my next
+      course of action is?
+    <braunr> let me see
+    <braunr> nlightnfotis: your report mentions runtime_malg
+    <nlightnfotis> yes, I runtime malg always returns a new goroutine
+    <braunr> nlightnfotis: what's the problem ?
+    <nlightnfotis> a new m created is assigned a new goroutine via runtime_malg
+    <nlightnfotis> what happens to that goroutine? Is it destroyed? Because it
+      seems to be a bogus goroutine. Why isn't the kernel thread instantly
+      picking the one goroutine available at the global goroutine pool?
+    <braunr> let's see if it's that hard to figure out
+    <nlightnfotis> seeing as m's and g's have a 1:1 (in gccgo) relationship,
+      and a new kernel thread is created everytime there is a new goroutine
+      there to run.
+    <braunr> are you sure about that 1:1 relationship ?
+    <braunr> i hardly doubt it
+    <braunr> highly*
+    <nlightnfotis> yeah, that's what I thought too, but then again, my research
+      so far shows that when a new goroutine is created, a new kernel thread
+      creation follows suit
+    <nlightnfotis> what I have mentioned of course, happens in runtime_newm
+    <braunr> nlightnfotis: that's when you create a new m, not a new g
+    <nlightnfotis> yes, a new m is created when you create a new g. My issue is
+      that during m's creation, a new (bogus) g is created and assigned to the
+      m. I am looking into what happens to that.
+    <braunr> nlightnfotis: "a new m is created when you create a new g", can
+      you point me to the code ?
+    <nlightnfotis> braunr: matchmg line 1280 or close to that. Creates new m's
+      to run new g's up to (mcpumax)
+    <braunr> "Kick off new m's as needed (up to mcpumax)."
+    <braunr> so basically you have at most mcpumax m
+    <nlightnfotis> yeah. but for a small number of goroutines (as for example
+      in my experiments), a new m is created in order to run a new g.
+    <braunr> runtime_newm is called only if mget(gp)) == nil
+    <braunr> be rigorous please
+    <braunr> when i ask
+    <braunr> 11:01 < braunr> are you sure about that 1:1 relationship ?
+    <braunr> this conclusively proves it's *false*
+    <braunr> so don't answer yes to that
+    <braunr> it's true for a small number of goroutines, ok
+    <braunr> and at startup
+    <braunr> because then, mget returns an existing m
+    <braunr> nlightnfotis: this g0 goroutine is described in the struct as
+    <braunr> G       runtime_g0;     // idle goroutine for m0
+    <braunr> runtime_malg builds it with just a stack
+    <braunr> apparently, that's the goroutine an m runs when there are no g
+      left
+    <braunr> so yes, the idle one
+    <braunr> it's not bogus
+    <nlightnfotis> I thought m0 and g0 where the bootstrap m and g for the
+      scheduler. 
+    <nlightnfotis> *correction: runtime_m0 and runtime_g0
+    <braunr> hm i got a bit fast
+    <braunr> G*      g0;             // goroutine with scheduling stack
+    <nlightnfotis> braunr: scheduling stack with stacksize = -1?
+    <nlightnfotis> unless it's not used as a parameter
+    <nlightnfotis> let me investigate that
+    <nlightnfotis> yeah now that I am seeing it, it might make sense, if it
+      using a default stack size, #defined as StackMin
+    <braunr> g0 looks like a placeholder
+    <braunr> i think it's used to reuse switching code when there is only one
+      goroutine involved
+    <braunr> e.g. when starting
+    <braunr> anyway i don't think we should waste too much time with it
+    <braunr> nlightnfotis: try to make a real 1:1 mapping
+    <braunr> that's something else i suggested last time
+    <nlightnfotis> braunr: ok. Where do you suspect the problem lies?
+    <braunr> context switching
+    <nlightnfotis> inside the goruntime?
+    <braunr> in glibc
+    <braunr> try to use runtime.LockOSThread
+    <braunr> http://code.google.com/p/go-wiki/wiki/LockOSThread
+    <braunr> nlightnfotis: http://golang.org/pkg/runtime/ is probably better
+    <nlightnfotis> what exactly do you mean by `use runtime.LockOSThread`?
+      LockOSThread locks the very first m and goroutine as the main threads
+      during process initialisation
+    <nlightnfotis> in proc.c line 565 or something
+    <braunr> i'm not sure it will help, because the problem is likely to occur
+      before even switching to the goroutine that locks its m, but worth trying
+    <braunr> 11:28 < braunr> nlightnfotis: http://golang.org/pkg/runtime/ is
+      probably better
+    <braunr> the first example is specific to GUIs that have requirements on
+      the main thread
+    <braunr> whereas i want every goroutine to run in its own thread
+    <nlightnfotis> I have also noticed that some context switching happens in
+      the goruntime even with a low number of goroutines and kernel threads
+    <braunr> that's expected
+    <braunr> goroutines must be viewed as works, and ms as worker threads
+    <braunr> everytime a goroutine sleeps, its m should be switching to useful
+      work
+    <braunr> nlightnfotis: i'd make prints (probably using mach_print) of
+      contexts when saved and restored
+    <braunr> and try to see if it makes any sense
+    <braunr> that's not simple to setup but not overly complicated either
+    <braunr> don't hesitate to ask for help
+    <nlightnfotis> from inside glibc, right?
+    <braunr> yes
+    <braunr> well
+    <braunr> no from go
+    <braunr> don't touch glibc from now
+    <braunr> put these prints near calls to makecontext/swapcontext
+    <braunr> and setcontext/getcontext
+    <braunr> wel
+    <braunr> you'll be using getcontext i think
+    <nlightnfotis> noted it all. I also have the gdb output you asked me for
+      http://pastebin.com/LdnMQDh1
+    <braunr> i don't see main
+    <nlightnfotis> some notes first: The main thread is the one with id 4, and
+      the output on the top is its backtrace.
+    <braunr> and main.main is run in thread 6
+    <nlightnfotis> Remember that main when it comes to go is in the file
+      go-main.c
+    <braunr> so main becomes runtime_MHeap_Scavenger
+    <nlightnfotis> yeah, main.main is the code of the program, (the one the
+      user wrote, not the runtime)
+    <nlightnfotis> yeah, it becomes a gc thread
+    <nlightnfotis> seeing as runtime_starttheworld reports that there is
+      already one gc thread
+    <braunr> and how much are __pthread_total and __pthread_num_threads for
+      that trace ?
+    <nlightnfotis> they were: __pthread_total = 2, and __pthread_num_threads =
+      4
+    <braunr> can you paste the assertion again please, just to make sure
+    <nlightnfotis> a.out: ./pthread/pt-create.c:167: __pthread_create_internal:
+      Assertion `({ mach_port_t ktid = __mach_thread_self (); int ok =
+      thread->kernel_thread == ktid;
+    <nlightnfotis> __mach_port_deallocate ((__mach_task_self + 0), ktid); ok;
+      })' failed.
+    <braunr> btw, install the -dbg packages too
+    <nlightnfotis> dbg for which one? gccgo?
+    <braunr> libc0.3
+    <braunr> pthread/pt-create.c:167 is __pthread_sigstate (_pthread_self (),
+      0, 0, &sigset, 0); here :/
+    <braunr> that assertion should be in __pthread_thread_start
+    <braunr> let's just say gdb is confused
+    <pinotree> braunr: apt-get source eglibc ; cd eglibc-* ; debian/rules patch
+    <braunr> pinotree: i have
+    <braunr> and that assertion can only trigger if __pthread_total is 1
+    <braunr> so let's say it just got to 2
+    <nlightnfotis> it does from very early on in process initialisation
+    <nlightnfotis> let me check this out again
+    <braunr> hm
+    <braunr> actually, both __pthread_total and __pthread_num_threads must be 1
+    <braunr> the context functions might be fine actually
+    <nlightnfotis> braunr: __pthread_num_threads = 2 right from the start of
+      the program
+    <nlightnfotis> 0x01da48ec is in mach_msg_trap
+    <braunr> something happened with libpthreads recently ..
+    <braunr> i can't even start iceweasel
+    <pinotree> braunr: what's the error?
+    <braunr> iceweasel: ./pthread/../sysdeps/generic/pt-mutex-timedlock.c:70:
+      __pthread_mutex_timedlock_internal: Assertion `__pthread_threads' failed.
+
+But not the [[open_issues/libpthread_dlopen]] issue?
+
+    <braunr> considering __pthread_threads is a global variable, this is tough
+    <braunr> i wonder if that's the issue with nlightnfotis's work
+    <braunr> wrong symbol resolution, leading libpthread to consider there is
+      only one thread running
+    <pinotree> try with LD_PRELOAD=/lib/i386-gnu/libpthread.so.0 iceweasel
+    <braunr> same
+    <braunr> maybe the switch to glibc 2.17
+    <braunr> this assertion is triggered by __pthread_self, assert
+      (__pthread_threads);
+    <braunr> __pthread_threads being the array of thread pointers
+    <braunr> so either corrupted (but we hardly changed anything ...) or wrong
+      resolution
+    <braunr> __pthread_num_threads includes the signal thread, __pthread_total
+      doesn't
+    <nlightnfotis> braunr: I recompiled with the libc debugging symbols and I
+      have new information
+    <nlightnfotis> the threads block at mach_msg_trap
+    <braunr> again, almost everything blocks there
+    <braunr> mach_msg is mach ipc, the way hurd system calls are implemented
+    <nlightnfotis> and the next calls (if it didn't block, from what I can see
+      from eip) are mach_reply_port and mach_thread_self
+    <braunr> please paste it
+    <nlightnfotis> yes give me 2 mins plz, brb
+    <braunr> pinotree: looks different for firefox
+    <braunr> it seems it calls pthread_key_create before pthread_create
+    <braunr> something our libpthread doesn't handle correctly
+    <nlightnfotis> braunr: http://pastebin.com/yNbT7nLn
+    <pinotree> braunr: what do you mean?
+    <braunr> pinotree: i mean libpthread needs to be fixed so thread-specific
+      data can be set even without a call to pthread_create
+    <braunr> nlightnfotis: hum, we already knew it was blocking in a semaphore
+    <braunr> nlightnfotis: ok forget the other things i told you to test
+    <braunr> nlightnfotis: track __pthread_total and __pthread_num_threads
+    <braunr> add prints (again, with mach_print) to see when (and why) they
+      change and go back to 1
+    <pinotree> braunr: i see that pthread_key_create uses a mutex which in
+      turns needs _pthread_self(), but shouldn't at least one pthread_create be
+      done (directly by libc for the main thread)?
+    <braunr> pinotree: no :)
+    <braunr> well
+    <braunr> it should have been for the signal thread indeed
+    <braunr> and the signal thread exists
+    <pinotree> and the main thread?
+    <braunr> not the main, no
+    <pinotree> how so?
+    <braunr> a simple test program shows it does indeed work ..
+    <braunr> so this is again another problem in firefox too
+    <nlightnfotis> braunr: I don't think I understand this. I mean  how can
+      pthread_total and __pthread_num_thread turn to 1, when , right before and
+      right after the crash they have numbers between 2, 3, and 4?
+    <braunr> how did you get their values "right before" the crash ?
+    <nlightnfotis> I have set a breakpoint to a printing function right before
+      the go statement
+    <nlightnfotis> (right before in this context, in the application code, not
+      the runtime code, but then again, I don't really think they are too far
+      each other)
+    <braunr> well, that's the mystery
+    <nlightnfotis> I am not challenging what you said, I will of course do,
+      just asking to understand some things
+    <braunr> they may either turn to 1, or there is some mess with symbol
+      resolution leading threads to see a value of 1
+    <nlightnfotis> *do it
+    <braunr> there*
+    <nlightnfotis> braunr: ping
+    <teythoon> just ask ;)
+    <nlightnfotis> teythoon: have you used mach_print?
+    <teythoon> no
+    <nlightnfotis> I have some questions about it
+    <teythoon> ask them
+    <nlightnfotis> I was told to use them inside go's runtime, to print the
+      values of __pthread_total and __pthread_num_threads. The thing is, these
+      values (I believe) are unknown to the runtime, they are only known to the
+      executable (linking time and later)
+    <teythoon> so? if the requested information is bound to a symbol that is
+      resolved at link time, you can print it from within the runtime
+    <teythoon> the same way any function from the libc is not known to the
+      executable until linking against it, but you can still "use" it in your
+      executable
+    <nlightnfotis> yeah, ok I understand that, but these are references that
+      are resolved at link time. The values I want to print are totally unknown
+      to the runtime (0 references to them)
+    <teythoon> if the value you are interested in is bound to the symbol
+      __pthread_total at link time, then you've got a reference you can use
+    <teythoon> doesn't printing __pthread_total work? did you try that?
+    <nlightnfotis> no, whenever I printed these values I did it from gdb. I am
+      trying to do what you suggested atm
+    <braunr> nlightnfotis: im here
+    <braunr> printing those values from libgo will tell us what value libgo
+      actually sees
+    <nlightnfotis> I am trying to use mach_print. Could you give me some
+      pointers on its usage (inside the goruntime?) (I have already read your
+      document here
+      http://www.gnu.org/software/hurd/microkernel/mach/gnumach/interface/syscall/mach_print.html
+      and the example code)
+    <braunr> and symbol resolution may depend on where it's done from
+    <braunr> nlightnfotis: first, it only work with -dbg kernels
+    <braunr> so make sure you're running one
+    <braunr> actually, i'll write you a patch
+    <braunr> including a mach_printf function with argument parsing
+    <nlightnfotis> isn't it on by default? I read that on the document you are
+      discussing mach_printf
+    <nlightnfotis> ahh ok
+    <braunr> it's on by default on -dbg kernels
+    <braunr> i'll make a repository on darnassus too
+    <braunr> better store it there
+    <braunr> nlightnfotis:
+      http://darnassus.sceen.net/gitweb/rbraun/mach_print.git/
+    <braunr> nlightnfotis: i suggest you implement mach_print with inline asm
+      statement in a C file, so that you don't need to alter the build system
+      configuration
+    <braunr> i'll make an example of that too
+    <nlightnfotis> braunr: that wasn't a problem. My only real problem atm is
+      that __atomic_t isn't recognised as a type, and I can not find the header
+      file for it on Hurd
+    <nlightnfotis> it was pt-internal.h in libpthread
+    <braunr> ah
+    <braunr> nlightnfotis: just in case, i updated the repository with an
+      inline assembly version
+    <braunr> let's see about __atomic_t
+    <braunr> sysdeps/i386/bits/pt-atomic.h:typedef __volatile int __atomic_t;
+    <braunr> nlightnfotis: just redeclare it as this locally
+    <braunr> nlightnfotis: ok ?
+    <nlightnfotis> I am working on it, because I still haven't found what
+      __atomic_t is typedefed from. Thinking of typedefing an int to it and see
+      how it goes
+    <nlightnfotis> braunr: found it just now: __volatile int 
+    <braunr> "just now" ?
+    <braunr> 14:19 < braunr> sysdeps/i386/bits/pt-atomic.h:typedef __volatile
+      int __atomic_t;
+    <nlightnfotis> I was using cscope all this time
+    <braunr> why use cscope at all when i tell you where it is ?
+    <nlightnfotis> because I didn't notice it: your discussion was between
+      pino's and srs' and I wasn't tagged and thought it had something to do
+      with their discussion
+    <pinotree> (sorry)
+    <nlightnfotis> no it was my bad
+    <braunr> ok
+    <braunr> pinotree: there is indeed a special call to
+      __pthread_create_internal for the main thread
+    <pinotree> yeah
+    <pinotree> braunr: if there wouldn't be that libc→pthread bridge, things
+      like pthread_self() or so wouldn't work for the main thread
+    <braunr> pinotree: right
+    <pinotree> braunr: weird thing is that the error you got is usually a sign
+      that pthread is not linked in explicitly
+    <braunr> pinotree: yes
+    <braunr> pinotree: with firefox, gdb can't locate pthread symbols before a
+      call to a pthread function
+    <braunr> so yes, libpthread is loaded after main is called
+    <braunr> nlightnfotis: can you give me a quick procedure to build gcc with
+      go support from your repository, and then test a go program please ?
+    <braunr> to i can have a better look at it myself
+    <braunr> so*
+    <nlightnfotis> braunr: sure you want access to my go repo? If you already
+      have gcc repo add my github repo as a remote and checkout
+      fotisk/goruntime_hurd
+    <braunr> i have your github repo
+    <nlightnfotis> git checkout fotisk/goruntime_hurd (You may need to revert a
+      commit or two, because of my latest endeavour with mach_print
+    <nlightnfotis> braunr: check it out now, I reverted some messy commits for
+      you to rebuild
+    <braunr> nlightnfotis: i won't work on it right now, i'm building glibc to
+      check some things in libpthread
+    <braunr> since it seems to be the source of your problems and many others
+    <nlightnfotis> oh ok then. btw, it compiles ok, but when I try to compile
+      another program with gccgo collect2 cries about undefined references to
+      __pthread_num_threads and __pthread_total
+    <braunr> Oo
+    <braunr> another program ?
+    <nlightnfotis> braunr: will I get the same result if I slowly go through it
+      with gdb
+    <nlightnfotis> yep
+    <braunr> i don't understand
+    <braunr> what compiles ok, what fails ?
+    <nlightnfotis> gccgo compiles without errors (which is strange) but when I
+      use it to compile goroutine.go it fails with the errors I reported
+    <pinotree> (missing linking to pthread?)
+    <braunr> since when ?
+    <nlightnfotis> pinotree: perhaps braunr: since I made the changes with
+      mach_print
+    <nlightnfotis> pinotree: but what could be missing the link? GCC compiled
+      programs are getting linked automatically to the shared objects of the
+      headers they include right?
+    <nlightnfotis> (assuming it's not a huge program, only a tiny 10 liner for
+      instance)
+    <braunr> uh
+    <braunr> did you declare them as extern 
+    <braunr> ?
+    <nlightnfotis> yes
+    <braunr> do you see -lpthread on the link line ?
+    <nlightnfotis> during gcc's compilation? I will have to rerun it again and
+      see.
+    <braunr> log the compilation output somewhere once
+    <braunr> nlightnfotis: why did you remove volatile from the definition of
+      __atomic_t ??
+    <nlightnfotis> just for testing purposes, because I thought that the GNU
+      version is volatile with no __ in front of it and that might cause some
+      issues.
+    <braunr> i don't understand
+    <nlightnfotis> it was just an experiment gone wrong
+    <braunr> nlightnfotis: keep volatile there
+    <nlightnfotis> just did
+    <nlightnfotis> braunr: there is -lpthread on some lines. For instance when
+      libtool is invoked.
+    <youpi> braunr: the pthread assertion usually happens when libpthread gets
+      loaded from a plugin, I guess mozilla got rid of libpthread in the main
+      application recently, simply
+    <pinotree> youpi: he said that the LD_PRELOAD trick (which used to
+      workaround the issue in older iceweasel) does not work, though
+    <youpi> ah? it does work for me
+    <pinotree> dunno then...
+    <braunr> youpi: aouch, ok
+    <braunr> nlightnfotis: what about the specific gcc invocation that fails ?
+    <braunr> pinotree: /lib/i386-gnu/libpthread.so.0: ERROR: cannot open
+      `/lib/i386-gnu/libpthread.so.0' (No such file or directory)
+    <braunr> trying with a working path this time
+    <braunr> better
+    <pinotree> sorry, i typed it by hand :p
+    <braunr> Segmentation fault
+    <braunr> but no assertion
+    <nlightnfotis> braunr: gccgo hello.go
+    <braunr> nlightnfotis: ?
+    <pinotree> <braunr> nlightnfotis: what about the specific gcc invocation
+      that fails ?
+    <braunr> nlightnfotis: i'm asking if -lpthread is present when you have
+      these undefined reference errors
+    <nlightnfotis> it is. it seems so
+    <nlightnfotis> I wrote above that it is present when libtool is called
+    <nlightnfotis> I don't know what libtool is doing sadly
+    <braunr> you said some lines
+    <nlightnfotis> but I from what I've seen I believe it does some kind of
+      linking
+    <braunr> paste it somewhere please
+    <nlightnfotis> yeah it doesn't fail though
+    <braunr> that's far too vague ...
+    <braunr> it doesn't fail ?
+    <nlightnfotis> give me a second
+    <braunr> i thought it did
+    <nlightnfotis> no it doesn't
+    <braunr> 14:53 < nlightnfotis> gccgo compiles without errors (which is
+      strange) but when I use it to compile goroutine.go it fails with the
+      errors I reported
+    <nlightnfotis> yeah gccgo compiles.
+    <nlightnfotis> when I use the compiler, it fails
+    <braunr> so it fails running
+    <braunr> is gccgo built with -lpthread itself ?
+    <nlightnfotis> http://pastebin.com/1TkFrDcG
+    <nlightnfotis> check it out
+    <nlightnfotis> I think it does, but I would take an extra opinion
+    <nlightnfotis> line 782
+    <nlightnfotis> and 784
+    <braunr> (are you building as root ?)
+    <nlightnfotis> yes. for now
+    <pinotree> baaad :p
+    <nlightnfotis> I never had any particular problems...except that one time
+      that I rm -rf the source tree :P
+    <nlightnfotis> I know it's bad d/w
+    <nlightnfotis> braunr: I found something interesting (I don't know if it's
+      expected or not; probably not): If I set GOMAXPROCS to 2, and run the
+      goroutine program, it seems to be running for a while (with the
+      goroutines!) and then it segfaults. Will look more into it
+    <braunr> it's interesting, yes
+    <braunr> nlightnfotis: have you tried the preload trick too ?
+    <nlightnfotis> ldpreload? no. Could you tell me how to do it? export
+      LDPRELOAD and a path to libpthread?
+    <braunr> nlightnfotis: LD_PRELOAD=/lib/i386-gnu/libpthread.so.0.3 ...
+    <nlightnfotis> braunr: it also produces a very different backtrace. This
+      one heavily involves mig functions
+    <tschwinge> braunr, nlightnfotis: Thanks for working together, and sorry
+      for my lack of time.
+    <braunr> nlightnfotis: paste please
+    <nlightnfotis> tschwinge, Hello. It's ok, I am sorry for not showing good
+      amounts of progress from my part.
+    <nlightnfotis> braunr: http://pastebin.com/J4q2NN9p
+    <braunr> nlightnfotis: thread apply all bt full please
+    <nlightnfotis> braunr: http://pastebin.com/tbRkNzjw
+    <braunr> looks like an infinite loop of
+      __mach_port_mod_refs/__mig_dealloc_reply_port
+    <braunr> ...
+    <nlightnfotis> yes that's what I got from it too. Keep in mind these
+      results are with GOMAXPROCS=2 and they result in segmentation fault
+    <nlightnfotis> and I also can not understand the corrupted stack at the
+      beginning of the backtrace
+    <braunr> no please
+    <nlightnfotis> ?
+    <braunr> test LD_PRELOAD=/lib/i386-gnu/libpthread.so.0.3 without
+      GOMAXPROCS=2
+    <nlightnfotis> braunr: LD_PRELOAD without GOMAXPROCS results in the usual
+      assertion failure and abortion of execution after it
+    <braunr> nlightnfotis: ok
+    <braunr> nlightnfotis: im sorry, i thought you couldn't launch a test since
+      you added mach_print
+    <nlightnfotis> I am not using mach_print, I couldn't fix the issue with the
+      references and thought I was losing time, so I went back to debugging
+      with gdb until I can't get anything more out of it
+    <nlightnfotis> braunr: should I focuse on mach_print? Will it produce very
+      different results than gdb?
+    <nlightnfotis> *focus
+    <nlightnfotis> (btw I didn't delete mach print or anything, it's still
+      there, in another branch)
+    <nlightnfotis> braunr: Now I stepped through the program in gdb, and got
+      something really really weird. Some close to a full execution
+    <nlightnfotis> Number of gorountines and machine threads according to
+      runtime was 3, __pthread_num_threads was 4
+    <nlightnfotis> it did get SIGILL (illegal instruction some times though)
+    <nlightnfotis> and it exited with code 02
+    <braunr> uh
+    <braunr> nlightnfotis: try with mach_print yes, it will show the values
+      from the real execution context, and be as close as what we can get
+    <braunr> i'm not sure about how gdb finds the values
+    <nlightnfotis> braunr: ok, will spend the rest of the day to find a way to
+      make mach_print and the other values work. Did you see my last messages,
+      with the goroutines that worked under gdb?
+    <braunr> yes
+    <nlightnfotis> it seemed to run. Didn't get the expected output, but also
+      didn't get any errors other than illegal instruction either
+    <nlightnfotis> braunr: I still have not found an easy way to do what you
+      asked me to from go's runtime. Would it be ok if I do it from inside
+      libpthread?
+    <braunr> nlightnfotis: do what ?
+    <nlightnfotis> print the values of __pthread_total and
+      __pthread_num_threads with mach_print.
+    <braunr> how ?
+    <braunr> oh wait
+    <braunr> well yes ofc, they're not exported :/
+    <braunr> nlightnfotis: have you been able to use mach_print ?
+    <nlightnfotis> braunr: not really because of the problems I shared
+      earlier. I can try to use with in-gcc structures if you want me to, it's
+      nothing hard to do
+    <nlightnfotis> actually I will. Hang on
+    <braunr> proceed with debugging inside libpthread instead
+    <braunr> using mach_print to avoid deadlocks this time
+    <braunr> (mach_print was purposely built for debugging such low level code
+      parts)
+    <nlightnfotis> ok, I will patch this, but can I build it tomorrow?
+    <braunr> yes
+    <braunr> just keep us informed
+    <nlightnfotis> ok, thanks, and sorry for everything I have done. I want you
+      to know that I really appreciate that you are helping me.
+    <braunr> remember: the goal here is to understand why __pthread_total and
+      __pthread_num_threads have inconsistent values
+    <nlightnfotis> braunr: whenever you see it, mach_print works as expected
+      inside gcc.
+
+
+# IRC, freenode, #hurd, 2013-09-03
+
+    <nlightnfotis> braunr: I have made the changes I want to glibc. After I
+      build it, how do I install it? make install or is it more involved?
+    <braunr> nlightnfotis: use LD_LIBRARY_PATH
+    <braunr> never install an experimental glibc unless you have backups or are
+      certain of what you're doing
+    <braunr> nlightnfotis: i didn't understand what you meant about mach_print
+      yesterday
+    <nlightnfotis> it works in gcc.
+    <braunr> what do you mean "in gcc" ?
+    <braunr> why would you put mach_print in gcc ?
+    <braunr> we want it in go programs ..
+    <nlightnfotis> yes, I understand it. gcc was the fastest way to test it's
+      usage at that moment (for me) and I just wanted to confirm it works. I
+      only had to change its signature to const char * because gcc wouldn't
+      accept it otherwise
+    <braunr> doesn't my example include const ?
+    <braunr> nlightnfotis: why did you rebuild glibc ?
+    <nlightnfotis> braunr: I have not started yet, will do now, to apply the
+      changes to libpthread
+    <braunr> you mean add the print calls there ?
+    <nlightnfotis> yes
+    <braunr> ok
+    <braunr> use debian/rules build, interrupt when you see gcc invocations
+    <braunr> then switch to the build directory (hurd-libc-i386 iirc), and make
+      others
+    <braunr> nlightnfotis: did you send me the instructions to build and test
+      your work ?
+    <braunr> so i can reproduce these weird threading problems at my side
+    <nlightnfotis> braunr: sorry, I was in the toilet, where would you like me
+      to send the instructions?
+    <braunr> nlightnfotis: i should be fine i guess, let's check here
+    <braunr> nlightnfotis: i simply used configure
+      --enable-languages=c,c++,go,lto
+    <braunr> and i'll see how it goes
+    <nlightnfotis> I configure with --enable-languages=go (it automatically
+      builds c and c++ for that as go depends on them), --disable-bootstrap,
+      and use a custom prefix to install at a custom location
+    <braunr> yes
+    <braunr> ok
+    <braunr> nlightnfotis: how long does it take you ?
+    <nlightnfotis> complete non-bootstrap build about 45 minutes. With a build
+      tree ready and only simple changes, about 2-3 minutes
+    <nlightnfotis> braunr: In an hour I will go offline for 2-3 hours, I am
+      gonna move back to my other home in the other city. It won't take long,
+      the whole process will be about 4 hours, and I will compensate for the
+      time lost by staying up late up until 3 o clock in the morning
+    <braunr> i'd prefer you didn't "compensate"
+    <nlightnfotis> ?
+    <braunr> work if you want to
+    <braunr> noone if forcing you to work late at night for gsoc, unless you
+      want to
+    <nlightnfotis> no, I do it because I want to. I **really** really want to
+      succeed, and time is off the essence for me at this point
+    <braunr> then ok
+    <braunr> nlok i have a gccgo compiler
+    <pinotree> nlok?
+    <braunr> nl being nlightnfotis but he's gone
+    <pinotree> oh
+    * pinotree was trying to parse that as "now" or "look" or the like
+    <nlightnfotis> braunr: 08:19:56< braunr> use debian/rules build, interrupt
+      when you see gcc invocations: Are gcc invocations related to
+      i486-gnu-gcc-4.7?
+    <nlightnfotis> nvm I'm good now :)
+    <gnu_srs> of course not, that's only for compiling applications using the
+      newly built libc
+    <nlightnfotis> gnu_srs: I didn't exactly understand what you said? Care to
+      elaborate? which one is for compiling applications using the newly build
+      libc? -486-gnu-gcc-4.7?
+    <gnu_srs> when you see gcc ... -llibc.so you know libc.so is built, and
+      that is sufficient to use it. 
+    <gnu_srs> with LD_PRELOAD or LD_LIBRARY_PATH (after cding and building
+      others)
+    <nlightnfotis> gnu_srs: thanks for the tip :)
+    <gnu_srs> :-D
+    <nlightnfotis> is anyone else getting glibc build problems? (from apt-get
+      source glibc, at cxa-finalize.c)?
+    <gnu_srs> apt-get source eglibc; apt-get build-dep eglibc (as root);
+      dpkg-buildpackage -b ...
+    <braunr> nlightnfotis: just debian/rules build
+    <braunr> to start the glibc build
+    <nlightnfotis> braunr: oh I have now, it's building without issues so far
+    <braunr> when you see gcc processes, it means the build process has
+      switched from configuring to making
+    <braunr> then interrupt (ctrl-c)
+    <braunr> cd build-tree/hurd-i386-libc
+    <braunr> make others
+    <braunr> or make lib others
+    <braunr> lib is glibc, others is some addons which include our libpthread
+    <nlightnfotis> thanks for the tip braunr.
+    <nlightnfotis> braunr: I have managed to get a working version of glibc and
+      libpthread with mach_print working. I have also run 2 test programs and
+      it works as expected. Will continue researching tomorrow if that's ok
+      with you, I am too tired to keep on now.
+    <nlightnfotis> for the record compilation of glibc right from the start was
+      about 1 hour and 20 - 30 minutes
+
+
+# IRC, freenode, #hurd, 2013-09-04
+
+    <braunr> i've taken a deeper look at this assertion failure
+    <braunr> and ...
+    <braunr> it has nothing to do with pthread_create
+    <braunr> i assumed it was the one in sysdeps/mach/pt-thread-start.c
+    <nlightnfotis> pthread_self ()?
+    <braunr> but it's actually from sysdeps/mach/hurd/pt-sysdep.h, in
+      _pthread_self()
+    <braunr> and looking there :
+    <braunr> thread = *(struct __pthread **)__hurd_threadvar_location
+      (_HURD_THREADVAR_THREAD);
+    <braunr> so simply put, context switching doesn't fix up thread specific
+      data ...
+    <braunr> it's that simple
+    <nlightnfotis> wow
+    <nlightnfotis> today I was running programs all day long with mach_print on
+      to print __pthread_total and __pthread_num_threads to see when both
+      become 1 and couldn't find anything
+    <nlightnfotis> I was nearly desperate. You just made my day! :)
+    <braunr> now the problem is
+    <braunr> thread specific data is highly dependent on the stack
+    <braunr> it's illegal to make a thread switch stack and expect it to keep
+      working on the hurd
+    <nlightnfotis> unless split stack is activated?
+    <nlightnfotis> no wait
+    <braunr> split stack is completely unsupported on the hurd
+    <teythoon> uh, why would that be?
+    <braunr> teythoon: about split stack ?
+    <teythoon> yes
+    <braunr> i'm not sure
+    <nlightnfotis> at least now we do know what the problem is and I can start
+      working on a solution.
+    <nlightnfotis> braunr: we should tell tschwinge and youpi about it.
+    <braunr> nlightnfotis: sure but
+    <braunr> nlightnfotis: you can also start looking at a workaround
+    <braunr> nlightnfotis: also, let's makre sure that's the reason first
+    <braunr> nlightnfotis: use mach_print to display the stack pointer when
+      switching
+    <braunr> nlightnfotis:
+      http://stackoverflow.com/questions/1880262/go-forcing-goroutines-into-the-same-thread
+    <braunr> " I believe runtime.LockOSThread() is necessary if you are
+      creating a library binding from C code which uses thread-local storage"
+    <braunr> oh, a paper about the go runtime scheduler
+    <braunr> let's have a look ..
+    <teythoon> braunr: have you seen the high level overview presented in that
+      blog post I once posted here?
+    <braunr> no
+    <nlightnfotis> braunr, just came back, and read the log. Which paper are
+      you reading? The one from columbia university?
+    <braunr> but i need to know about details here, specifically, if threads do
+      change stack
+    <braunr> nlightnfotis: yes
+    <teythoon> braunr: ok
+    <braunr> this could be caused either by true stack switching, or by "stack
+      segmentation" as implemented by go
+    <braunr> it is interesting that there are stack related members per
+      goroutine
+    <braunr> nlightnfotis: in particular, pthread_attr_setstacksize() doesn't
+      work on the hurd
+    <nlightnfotis> <braunr> it is interesting that there are stack related
+      members per goroutine -> I think that's go's policy. All goroutines run
+      on a shared address space (that is the kernel thread's address space)
+    <braunr> nlightnfotis: that's obvious
+    <braunr> and not the problem
+    <braunr> and yes, it's "stack segmentation"
+    <braunr> and on linux, and probably other archs, switching stack may be
+      perfectly legit
+    <braunr> on the hurd, we still have threadvars
+    <braunr> which are the hurd specific thread local storage mechanism
+    <braunr> it means 1/ all stacks in a process must have the same size
+    <braunr> 2/ stack size must be a power of two
+    <braunr> 3/ threads can't switch stack
+    <braunr> this hardly prevents goroutines from being run by just any thread
+    <braunr> i see there already hard hurd specific changes about stack
+      handling
+    <nlightnfotis> so we should only make changes to the specific gccgo
+      scheduler as a workaround under the Hurd right?
+    <braunr> i don't know
+    <braunr> this might also push the switch to tls
+    <nlightnfotis> this sounds better as a long term fix
+    <nlightnfotis> but it must also involve a great amount of work, right?
+    <braunr> most of it has already been done
+    <braunr> by youpi and tschwinge 
+    <nlightnfotis> with the changes to tls early in the summer?
+    <braunr> maybe
+    <braunr> 14:36 < braunr> nlightnfotis: also, let's makre sure that's the
+      reason first
+    <braunr> 14:36 < braunr> nlightnfotis: use mach_print to display the stack
+      pointer when switching
+    <braunr> check what goes wrong with the stack
+    <braunr> then we'll see
+    <braunr> as a very simple workaround, i expect locking g's on m's to be a
+      good first step
+    <nlightnfotis> braunr: noted everything. that's my work for tonight. I
+      expect myself to stay up late like yesterday and have this all figured
+      out by tomorrow.
+    <braunr> nlightnfotis: why not now ?
+    <nlightnfotis> I am starting from now, but I expect myself to stop about 6
+      o clock here (2 hours) because I have an appointment with a doctor.
+    <nlightnfotis> and keep on when I come back home
+    <braunr> well adding a few printfs to track the stack should be doable
+      before 2 hours
+    <nlightnfotis> braunr: I am doing it now. Will report as soon as I have
+      results :)
+    <nlightnfotis> braunr: have I messed up with the way I read esp's value?
+      https://github.com/NlightNFotis/glibc/commit/fdab1f5d45a43db5c5c288c4579b3d8251ee0f64#L1R67
+    <braunr> nlightnfotis: +unsigned
+    <braunr> nlightnfotis: using gdb :
+    <braunr> (gdb) info registers 
+    <braunr> esp            0x203ff7c0       0x203ff7c0
+    <braunr> (gdb) print thread->stackaddr
+    <braunr> $2 = (void *) 0x2000000
+    <nlightnfotis> oh yes, I know about gdb, I thought you wanted me to use
+      mach_print
+    <braunr> nlightnfotis: yes
+    <braunr> this is just my own attempt
+    <braunr> and it does show the stack pointer is completely outside the
+      thread stack
+    <braunr> nlightnfotis: in your code, i suggest using
+      __builtin_frame_address()
+    <braunr> well __builtin_frame_address(0)
+    <braunr> see
+      http://gcc.gnu.org/onlinedocs/gcc-4.7.3/gcc/Return-Address.html#Return-Address
+    <braunr> it's not exactly the stack pointer but close enough, unless of
+      course the stack is changed in the middle of the function
+    <nlightnfotis> I see. I am gonna try one more time with esp the way I
+      worked it and if it fails to work, I am gonna use return address
+    <braunr> nlightnfotis: be very careful about signed/unsigned and type
+      widths
+    <braunr> not return address, frame address
+    <braunr> return address is code, frame address is data (stack)
+    <nlightnfotis> ah, I see, thanks for the correction.
+    <braunr> youpi: not sure you catched it earlier, the problem fotis has been
+      having with goroutines is about threadvars
+    <braunr> simply put, threads use setcontext functions to save/restore
+      goroutines state, which make them switch stack, rendering the location of
+      threadvars invalid, and making _pthread_self() choke
+
+
+# IRC, freenode, #hurd, 2013-09-05
+
+    <nlightnfotis> I am having very weird behavior with my code, something that
+      I can not explain and seems likely to be a bug, could someone else take a
+      look?
+    <nlightnfotis> pinotree are you available at the moment to take a look at
+      something?
+    <pinotree> nlightnfotis: dont ask to ask, just ask
+    <nlightnfotis> I have made some modifications to pthread_self as also
+      suggested by braunr to see if the stack pointer is within the bounds of
+      the frame address after context switching. I can get the values of both
+      esp and frame_address to be shown before the context switch, but I can
+      only get the value of esp to be shown after the context switch, and it
+      always results to the program getting killed
+    <nlightnfotis>
+      https://github.com/NlightNFotis/glibc/blob/7e72da09a42b1518865f6f4882d68689e681f25b/libpthread/sysdeps/mach/hurd/pt-sysdep.h#L97
+    <nlightnfotis> thing is a dummy print value I have right after the code
+      that was supposed to print the frame_address after the context switching
+      is executing without any issues.
+    <pinotree> oh assembler... cannot help, sorry :/
+    <nlightnfotis> oh no, I am not asking for assembler help, that part works
+      quite alright. I am asking why from the 4 identical pieces of code that
+      print debugging values the last one doesn't work. I am on it all day, and
+      still have not found an answer
+    <braunr> nlightnfotis: i can
+    <nlightnfotis> hello braunr,
+    <braunr> nlightnfotis: do you have a backtrace ?
+    <braunr> uh
+    <nlightnfotis> nope, it crashes right after I execute something. Let me
+      compile glibc once again and see if a fix I attempted works
+    <braunr> malloc and free use locks
+    <braunr> so they probably use _pthread_self
+    <braunr> don't use them
+    <braunr> for debugging, a simple statically allocated buffer on the stack
+      will do
+    <braunr> nlightnfotis: so ?
+    <nlightnfotis> Ι got past my original problem, but now I am trying to get
+      past the sigkills that kill the program at the beginning
+    <nlightnfotis> i remember not having this problem, so I am compiling my
+      master branch to see if it is reproducible. If it is, it means something
+      is very wrong. If it's not, it means I screwed up somewhere
+    <braunr> i don't understand, how do you know if you get past the problem if
+      you still have trouble reaching that code ?
+    <nlightnfotis> braunr: I fixed all my problems now. I can see that both esp
+      and the frame_address are the same after context switching though?
+    <braunr> always ?
+    <braunr> for all goroutines ?
+    <nlightnfotis> for all kernel threads, not go routines. We are in
+      libpthread
+    <braunr> if they're the same after a context switch, it usually means the
+      scheduler didn't switch
+    <braunr> well obviously
+    <braunr> but what i asked you was to trace calls to setcontext functions
+    <nlightnfotis> I will run some tests again. May I show you my code to see
+      if there is anything wrong with it?
+    <braunr> what address do you have ?
+    <braunr> not yet
+    <braunr> i'm not sure you understand what i want to check
+    <braunr> do you see how threadvars work basically ?
+    <nlightnfotis> I think so yes, they keep in the stack the local variables
+      of a thread right?
+    <nlightnfotis> and the globals
+    <nlightnfotis> or
+    <nlightnfotis> wait a minute...
+    <braunr> yes but do you see how the thread specific data are fetched ?
+    <nlightnfotis> with __hurd_threadvar_location_from_sp?
+    <braunr> yes but "basically", what does it do ?
+    <nlightnfotis> it get's a stack pointer as a parameter, and returns the
+      location of that specific data based on that stack pointer, right?
+    <braunr> and how ?
+    <nlightnfotis> I believe it must compare the base value of the stack and
+      the value of the end of the stack, and if the results are consistent, it
+      returns a pointer to the data?
+    <braunr> and how does it determine the start and end of the stack ?
+    <nlightnfotis> stack_pointer must be pointing at the base of the
+      stack. That + stack_size must be the stack limit I guess.
+    <braunr> so you're saying the caller of __hurd_threadvar_location_from_sp
+      knows the stack base ?
+    <nlightnfotis> I am not so sure I understand this question.
+    <braunr> i want to know if you understand how threadvars work
+    <braunr> apparently you don't
+    <braunr> the caller only has its current stack pointer
+    <braunr> which does *not* point to the stack base
+    <braunr> threadvars work by assuming a *fixed* stack size, power of two,
+      aligned (obviously)
+    <braunr> in our case, 2MiB (except in hurd servers where a kludge reduces
+      that to 64k)
+    <braunr> this is why stack size can't be changed
+    <braunr> this is also why the stack pointer can't ever point outside the
+      initial stack
+    <braunr> i want you to make sure go violates this last assumption
+    <braunr> so 1/ show the initial stack boundaries of your threads, then show
+      that, after loading a goroutine, the stack pointer is outside
+    <braunr> which is what, if i'm right, triggers the assertion
+    <braunr> ask if there is anything confusing
+    <braunr> this is important, it should already have been done
+    <nlightnfotis> ok, I noted it all, I am starting to work on it right now. I
+      only have one question. My results, the ones with the stack pointer and
+      the frame address, are expected or unexpected?
+    <braunr> i don't know
+    <braunr> show me the code again please
+    <braunr> and explain your intent
+    <nlightnfotis>
+      https://github.com/NlightNFotis/glibc/blob/7fe202317db4c3947f8ae1d1a4e52f7f0642e9ed/libpthread/sysdeps/mach/hurd/pt-sysdep.h
+    <nlightnfotis> At first I print the value of esp and the frame_address
+      before the context switching and after the context switching.
+    <nlightnfotis> The different variables were introduced as part of a test to
+      see if my results were consistent,
+    <braunr> what context switch ?
+    <nlightnfotis> in hurd_threadvar_location
+    <braunr> what makes you think this is a context switch ?
+    <nlightnfotis> in threadvar.h, it calls __hurd_threadvar_location_from_sp.
+    <nlightnfotis> the full path for it is glibc/hurd/hurd/threadvar.h
+    <braunr> i don't see how giving me the path will explain why it's a context
+      switch
+    <braunr> and i can tell you right away it's not
+    <braunr> hurd_threadvar_location is basically a lookup returning the
+      address of the thread specific data
+    <nlightnfotis> wait a minute...does this mean that
+      hurd_threadvar_location_from_sp is also a lookup function for the same
+      reason
+    <nlightnfotis> ?
+    <braunr> yes
+    <braunr> isn't the name meaningful enough ?
+    <braunr> "location of the threadvars from stack pointer"
+    <nlightnfotis> I guess I made wrong deductions from when you originally
+      shared your findings...
+    <nlightnfotis> <braunr> thread = *(struct __pthread
+      **)__hurd_threadvar_location (_HURD_THREADVAR_THREAD);
+    <nlightnfotis> <braunr> so simply put, context switching doesn't fix up
+      thread specific data ...
+    <nlightnfotis> I thought that hurd_threadvar_location was doing the context
+      switching
+    <braunr> nlightnfotis: by context switching, i mean setcontext functions
+    <nlightnfotis> braunr: You mean the one in sysdeps/mach/hurd/i386?
+    <braunr> yes
+    <braunr> but
+    <braunr> do you understand what i want you to check now ?
+    <nlightnfotis> I think I got this time: Let me explain it:
+    <nlightnfotis> You suggested that stack sizes are fixed. That is the main
+      reason that the stack pointer should not be able to point outside of it.
+    <braunr> no
+    <braunr> locating threadvars is done by applying a mask, computed from the
+      stack size, on the stack pointer, to determine its base
+    <nlightnfotis> yeah, what __hurd_threadvar_location_from_sp is doing
+    <braunr> if size is a power of two, size - 1 is a mask that, if
+      complemented, aligns the address
+    <braunr> yes
+    <braunr> so, threadvars expect the stack pointer to always point to the
+      initial stack
+    <nlightnfotis> and we wanna prove that go violates this rule right? That
+      the stack pointer is not pointing at the initial stack
+    <braunr> yes

@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2010, 2011, 2012 Free Software Foundation,
+[[!meta copyright="Copyright © 2010, 2011, 2012, 2013 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -14,12 +14,13 @@ License|/fdl]]."]]"""]]
 [[!toc]]
 
 
-# Miscellaneous
+# `/proc/version`
 
-IRC, #hurd, around September 2010
+[[!taglink open_issue_documentation]]: edit and move to [[FAQ]].
 
-    <youpi> jkoenig: is it not possible to provide a /proc/self which points at
-      the client's pid?
+
+## IRC, freenode, #hurd, around 2010-09
+
     <pinotree> (also, shouldn't /proc/version say something else than "Linux"?)
     <youpi> to make linux tools work, no :/
     <youpi> kfreebsd does that too
@@ -33,10 +34,103 @@ IRC, #hurd, around September 2010
     <youpi> Linux version 2.6.16 (des@freebsd.org) (gcc version 4.3.5) #4 Sun
       Dec 18 04:30:00 CET 1977
     <pinotree> k
-    <giselher> I had some problems with killall5 to read the pid from /proc, Is
-      this now more reliable?
-    <youpi> I haven't tested with jkoenig's implementation
-    [...]
+
+
+## IRC, freenode, #hurd, 2013-06-04
+
+    <safinaskar> ?@?#@?$?@#???!?!?!?!??!?!?!?! why /proc/version on gnu system
+      reports "Linux version 2.6.1 (GNU 0.3...)"?
+    <braunr> safinaskar: because /proc/version is a linux thing
+    <braunr> applications using it don't expect to see anything else than linux
+      when parsing
+    <braunr> think of it as your web brower allowing you to set the user-agent
+    <safinaskar> braunr: yes, i just thought about user-agent, too
+    <safinaskar> braunr: but freebsd doesn't report it is linux (as well as i
+      know)
+    <braunr> their choice
+    <braunr> we could change it, but frankly, we don't care
+    <safinaskar> so why "uname" says "GNU" and not "Linux"?
+    <braunr> uname is posix
+    <braunr> note that /proc/version also includes GNU and GNU Mach/Hurd
+      versions
+    <safinaskar> if some program read the word "Linux" from /proc/version, it
+      will assume it is linux. so, i think it is bad idea
+    <braunr> why ?
+    <safinaskar> there is no standard /proc across unixen
+    <braunr> if a program reads /proc/version, it expects to be run on linux
+    <safinaskar> every unix implement his own /proc
+    <safinaskar> so, we don't need to create /proc which is fully compatible
+      with linux
+    <braunr> procfs doesn't by default
+    <safinaskar> instead, we can make /proc, which is partially compatible with
+      linux
+    <braunr> debiansets the -c compatibility flag
+    <braunr> that's what we did
+    <safinaskar> but /proc/version should really report kernel name and its
+      version
+    <braunr> why ?
+    <braunr> (and again, it does)
+    <safinaskar> because this is why /proc/version created
+    <pinotree> no?
+    <braunr> on linux, yes
+    <braunr> pinotree: hm ?
+    <safinaskar> and /proc/version should not contain the "Linux" word, because
+      this is not Linux
+    <braunr> pinotree: no to what ? :)
+    <braunr> safinaskar: *sigh*
+    <braunr> i explained the choice to you
+    <pinotree> safinaskar: if you are using /proc/version to get the kernel
+      name and version, you're doing bad already
+    <braunr> disagree if you want
+    <braunr> but there is a point to using the word Linux there
+    <pinotree> safinaskar: there's the proper aposix api for that, which is
+      uname
+    <safinaskar> pinotree: okey. so why we ever implement /proc/version?
+    <braunr> it's a linux thing
+    <braunr> they probably wanted more than what the posix api was intended to
+      do
+    <safinaskar> okey, so why we need this linux thing?   there is a lot of
+      linux thing which is useful in hurd.  but not this thing.   because this
+      is not linux.    if we support /proc/version, we should not write "Linux"
+      to it
+    <pinotree> and even on freebsd their linprocfs (mounted on /proc) is not
+      mounted by default
+    <braunr> 10:37 < braunr> applications using it don't expect to see anything
+      else than linux when parsing
+    <braunr> 10:37 < braunr> think of it as your web brower allowing you to set
+      the user-agent
+    <braunr> safinaskar: the answer hasn't changed
+    <safinaskar> pinotree: but they don't export /proc/version with "Linux"
+      word in it anyway
+    <pinotree> safinaskar: they do
+    <safinaskar> pinotree: ??? their /proc/version contain Linux?
+    <pinotree> Linux version 2.6.16 (des@freebsd.org) (gcc version 4.6.3) #4
+      Sun Dec 18 04:30:00 CET 1977
+    <kilobug> safinaskar: it's like all web browsers reporting "mozilla" in
+      their UA, it may be silly, but it's how it is for
+      compatibility/historical reasons, and it's just not worth the trouble of
+      changing it
+    <pinotree> that's on a debian gnu/kfreebsd machine
+    <pinotree> and on a freebsd machine it is the same
+    <braunr> safinaskar: you should understand that parsing this string allows
+      correctly walking the rest of the /proc tree
+    <pinotree> and given such filesystem on freebsd is called "linprocfs", you
+      can already have a guess what it is for
+    <kilobug> safinaskar: saying "Linux version 2.6.1" just means "I'm
+      compatible with Linux 2.6.1 interfaces", like saying "Mozilla/5.0 (like
+      Gecko)" in the UA means "I'm a modern browser"
+    <safinaskar> so, is there really a lot of programs which expect "Linux"
+      word in /proc/version even on non-linux platforms?
+    <braunr> no
+    <braunr> but when they do, they do
+
+
+# `/proc/self`
+
+## IRC, freenode, #hurd, around 2010-09
+
+    <youpi> jkoenig: is it not possible to provide a /proc/self which points at
+      the client's pid?
     <pinotree> looks like he did 'self' too, see rootdir_entries[] in rootdir.c
     <youpi> but it doesn't point at self
     <antrik> youpi: there is no way to provide /proc/self, because the server
@@ -56,10 +150,12 @@ IRC, #hurd, around September 2010
     <youpi> it "just" needs to be commited :)
     <antrik> in either case, it can't hurt to bring this up again :-)
 
+[[mtab/discussion]], *IRC, freenode, #hurd, 2013-09-07*.
+
 
 # root group
 
-IRC, #hurd, around October 2010
+## IRC, freenode, #hurd, around October 2010
 
     <pinotree> the only glitch is that files/dirs have the right user as
       owner, but always with root group
@@ -67,7 +163,7 @@ IRC, #hurd, around October 2010
 
 # `/proc/[PID]/stat` being 400 and not 444, and some more
 
-IRC, freenode, #hurd, 2011-03-27
+## IRC, freenode, #hurd, 2011-03-27
 
     <pochu> is there a reason for /proc/$pid/stat to be 400 and not 444 like on
       Linux?
@@ -112,7 +208,8 @@ IRC, freenode, #hurd, 2011-03-27
       /proc uses rather than rely on CLK_TCK
     <jkoenig> (so we can choose whatever reasonable value we want)
 
-IRC, freenode, #hurd, 2011-03-28
+
+## IRC, freenode, #hurd, 2011-03-28
 
     <antrik> jkoenig: does procfs expose any information that is not available
       to everyone through the proc server?...
@@ -165,7 +262,8 @@ IRC, freenode, #hurd, 2011-03-28
     <antrik> (though I never got around to look at his buggy code...)
     <jkoenig> ok
 
-IRC, freenode, #hurd, 2011-07-22
+
+## IRC, freenode, #hurd, 2011-07-22
 
     <pinotree> hm, why /proc/$pid/stat is 600 instead of 644 of linux?
     <jkoenig> pinotree, it reveals information which, while not that sensitive,
@@ -186,7 +284,7 @@ IRC, freenode, #hurd, 2011-07-22
 
 # `/proc/mounts`, `/proc/[PID]/mounts`
 
-IRC, freenode, #hurd, 2011-07-25
+## IRC, freenode, #hurd, 2011-07-25
 
     < pinotree> jkoenig: btw, what do you think about providing empty
       /proc/mounts and /proc/$pid/mounts files?
@@ -206,17 +304,34 @@ IRC, freenode, #hurd, 2011-07-25
       i don't remember)
     < pinotree> not a strict need
 
+A [[mtab]] translator now exists.
 
-# `/proc/[PID]/auxv`, `/proc/[PID]/exe`, `/proc/[PID]/mem`
+
+## IRC, freenode, #hurd, 2013-09-20
+
+    <pinotree> teythoon: should procfs now have $pid/mounts files pointing to
+      ../mounts?
+    <teythoon> pinotree: probably yes
+
+
+# `/proc/[PID]/auxv`
 
 Needed by glibc's `pldd` tool (commit
 11988f8f9656042c3dfd9002ac85dff33173b9bd).
 
 
-# `/proc/self/exe`
+# `/proc/[PID]/exe`
+
+Needed by glibc's `pldd` tool (commit
+11988f8f9656042c3dfd9002ac85dff33173b9bd).
+
+
+## `/proc/self/exe`
 
 [[!message-id "alpine.LFD.2.02.1110111111260.2016@akari"]].  Needed by glibc's
 `stdlib/tst-secure-getenv.c`.
+`HAVE_PROC_SELF_EXE` in `[GCC]/libjava/configure.ac`.
+Also used in `[GCC]/libgfortran/runtime/main.c`:`store_exe_path`.
 
 Is it generally possible to use something like the following instead?
 Disadvantage is that every program using this needs to be patched.
@@ -314,32 +429,25 @@ This is used in `[LLVM]/lib/Support/Unix/Path.inc`.
       report why the test suite failed
 
 
+## `/proc/self/maps`
+
+`HAVE_PROC_SELF_MAPS` in `[GCC]/libjava/configure.ac`.
+Also used in `[GCC]/intl/relocatable.c`:`find_shared_library_fullname` for
+`#ifdef __linux__`.
+
+
+# `/proc/[PID]/mem`
+
+Needed by glibc's `pldd` tool (commit
+11988f8f9656042c3dfd9002ac85dff33173b9bd).
+
+
 # `/proc/[PID]/cwd`
 
 ## IRC, freenode, #hurd, 2012-06-30
 
     * pinotree has a local work to add the /proc/$pid/cwd symlink, but relying
         on "internal" (but exported) glibc functions
-
-
-# "Unusual" PIDs
-
-Not actually related to procfs, but here seems to be a convenient place for
-filing these:
-
-
-## IRC, freenode, #hurd, 2012-08-10
-
-    <braunr> too bad the proc server has pid 0
-    <braunr> top & co won't show it
-
-
-## IRC, OFTC, #debian-hurd, 2012-09-18
-
-    <pinotree> youpi: did you see
-      https://enc.com.au/2012/09/careful-with-pids/'
-    <pinotree> ?
-    <youpi> nope
 
 
 # CPU Usage

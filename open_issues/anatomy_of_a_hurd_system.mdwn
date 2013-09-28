@@ -323,7 +323,9 @@ Actually, the Hurd has never used an M:N model. Both libthreads (cthreads) and l
     <braunr> etc..
 
 
-# IRC, freenode, #hurd, 2012-12-06
+# Service Directory
+
+## IRC, freenode, #hurd, 2012-12-06
 
     <spiderweb> what is the #1 feature that distinguished hurd from other
       operating systems. the concept of translators. (will read more when I get
@@ -331,6 +333,132 @@ Actually, the Hurd has never used an M:N model. Both libthreads (cthreads) and l
     <braunr> yes, translators
     <braunr> using the VFS as a service directory
     <braunr> and the VFS permissions to control access to those services
+
+
+## IRC, freenode, #hurd, 2013-05-23
+
+    <gnu_srs> Hi, is there any efficient way to control which backed
+      translators are called via RPC with a user space program?
+    <gnu_srs> Take for example io_stat: S_io_stat is defined in boot/boot.c,
+      pfinet/io-ops.c and pflocal/io.c
+    <gnu_srs> And the we have libdiskfs/io-stat.c:diskfs_S_io_stat,
+      libnetfs/io-stat.c:netfs_S_io_stat, libtreefs/s-io.c:treefs_S_io_stat,
+      libtrivfs/io-stat.c:trivfs_S_io_stat
+    <gnu_srs> How are they related?
+    <braunr> gnu_srs: it depends on the server (translator) managing the files
+      (nodes) you're accessing
+    <braunr> so use fsysopts to know the server, and see what this server uses
+    <gnu_srs> fsysopts /hurd/pfinet and fsysopts /hurd/pflocal gives the same
+      answer: ext2fs --writable --no-inherit-dir-group --store-type=typed
+      device:hd0s1
+    <braunr> of course
+    <braunr> the binaries are regular files
+    <braunr> see /servers/socket/1 and /servers/socket/2 instead
+    <braunr> which are the nodes representing the *service*
+    <braunr> again, the hurd uses the file system as a service directory
+    <braunr> this usage of the file system is at the core of the hurd design
+    <braunr> files are not mere files, they're service names
+    <braunr> it happens that, for most files, the service behind them is the
+      same as for regular files
+    <braunr> gnu_srs: this *must* be obvious for you to do any tricky work on
+      the hurd
+
+    <gnu_srs> Anyway, if I create a test program calling io_stat I assume
+      S_io_stat in pflocal is called.
+    <gnu_srs> How to make the program call S_io_stat in pfinet instead? 
+    <braunr> create a socket managed by pfinet
+    <braunr> i.e. an inet or inet6 socket
+    <braunr> you can't assume io_stat is serviced by pflocal
+    <braunr> only stats on unix sockets of pipes will be
+    <braunr> or*
+    <gnu_srs> thanks, what about the *_S_io_stat functions?
+    <braunr> what about them ?
+    <gnu_srs> How they fit into the picture, e.g. diskfs_io_stat?
+    <gnu_srs> *diskfs_S_io_stat
+    <braunr> gnu_srs: if you open a file managed by a server using libdiskfs,
+      e.g. ext2fs, that one will be called
+    <gnu_srs> Using the same user space call: io_stat, right?
+    <braunr> it's all userspace
+    <braunr> say rather, client-side
+    <braunr> the client calls the posix stat() function, which is implemented
+      by glibc, which converts it into a call to io_stat, and sends it to the
+      server managing the open file
+    <braunr> the io_stat can change depending on the server
+    <braunr> the remote io_stat implementation, i mean
+    <braunr> identify the server, and you will identify the actual
+      implementation
+
+
+## IRC, freenode, #hurd, 2013-06-30
+
+    <hacklu> hi, what is the replacer of netname_check_in? 
+
+    <hacklu> I want to ask another question. in my opinion, the rpc is the
+      mach's way, and the translator is the hurd's way. so somebody want to
+      lookup a service, it should not need to ask the mach kernel know about
+      this query. the hurd will take the control. 
+    <hacklu> am I right?
+    <braunr> no
+    <braunr> that's nonsense
+    <braunr> service lookups has never been in mach
+    <braunr> first mach based systems used a service directory, whereas the
+      hurd uses the file system for that
+    <braunr> you still need mach to communicate with either of those
+    <hacklu> how to understand the term of service directory here?
+    <braunr> a server everyone knows
+    <braunr> which gives references to other servers
+    <braunr> usually, depending on the name
+    <braunr> e.g. name_lookup("net") -> port right to network server
+    <hacklu> is that people use netname_check_in to register service in the
+      past? now used libtrivfs?
+    <braunr> i don't know about netname_check_in
+    <braunr> old mach (not gnumach) documentation might mention this service
+      directory
+    <braunr> libtrivfs doesn't have much to do with that
+    <braunr> on the hurd, the equivalent is the file system
+    <hacklu> maybe that is outdate, I just found that exist old doc, and old
+      code which can't be build.
+    <braunr> every process knows /
+    <braunr> the file system is the service directory
+    <braunr> nodes refer to services
+    <hacklu> so the file system is the nameserver, any new service should
+      register in it before other can use
+    <braunr> and the file system is distributed, so looking up a service may
+      require several queries
+    <braunr> setting a translator is exactly that, registering a program to
+      service requests on a node
+    <braunr> the file system isn't one server though
+    <braunr> programs all know about /, but then, lookups are recursive
+    <braunr> e.g. if you have / and /home, and are looking for
+      /home/hacklu/.profile, you ask / which tells you about /home, and /home
+      will give you a right to /home/hacklu/.profile
+    <hacklu> even in the past, the mach don't provide name register service,
+      there must be an other server to provide this service?
+    <braunr> yes
+    <braunr> what's nonsense in your sentence is comparing RPCs and translators
+    <braunr> translators are merely servers attached to the file system, using
+      RPCs to communicate with the rest of the system
+    <hacklu> I know yet, the two just one thing.
+    <braunr> no
+    <braunr> two things :p
+    <braunr> completely different and unrelated except for one using the other
+    <hacklu> ah, just one used aonther one.
+    <hacklu> is exist anyway to anounce service except settrans with file node?
+    <braunr> more or less
+    <braunr> tasks can have special ports
+    <braunr> that's how one task knows about / for example
+    <braunr> at task creation, a right to / is inserted in the new task
+    <hacklu> I think this is also a file node way.
+    <braunr> no
+    <braunr> if i'm right, auth is referenced the same way
+    <braunr> and there is no node for auth
+    <hacklu> how the user get the port of auth with node?
+    <braunr> it's given when a task is created
+    <hacklu> pre-set in the creation of one task?
+    <braunr> i'm unconfortable with "pre-set"
+    <braunr> inserted at creation time
+    <braunr> auth is started very early
+    <braunr> then tasks are given a reference to it
 
 
 # IRC, freenode, #hurd, 2012-12-10
@@ -380,3 +508,298 @@ Actually, the Hurd has never used an M:N model. Both libthreads (cthreads) and l
     <braunr> if you're looking for how to do it for a non-translator
       application, the answer is probably somewhere in glibc
     <braunr> _hurd_startup i'd guess
+
+
+# IRC, freenode, #hurd, 2013-06-15
+
+    <damo22> ive been reading a little about exokernels or unikernels, and i
+      was wondering if it might be relevant to the GNU/hurd design.  I'm not
+      too familiar with hurd terminology so forgive me.  what if every
+      privileged service was compiled as its own mini "kernel" that handled (a)
+      any hardware related to that service (b) any device nodes exposed by that
+      service etc...
+    <braunr> yes but not really that way
+    <damo22> under the current hurd model of the operating system, how would
+      you talk to hardware that required specific timings like sound hardware?
+    <braunr> through mapped memory
+    <damo22> is there such a thing as an interrupt request in hurd?
+    <braunr> obviously
+    <damo22> ok
+    <damo22> is there any documentation i can read that involves a driver that
+      uses irqs for hurd?
+    <braunr> you can read the netdde code
+    <braunr> dde being another project, there may be documentation about it
+    <braunr> somewhere else
+    <braunr> i don't know where
+    <damo22> thanks
+    <damo22> i read a little about dde, apparently it reuses existing code from
+      linux or bsd by reimplementing parts of the old kernel like an api or
+      something
+    <braunr> yes
+    <damo22> it must translate these system calls into ipc or something
+    <damo22> then mach handles it?
+    <braunr> exactly
+    <braunr> that's why i say it's not the exokernel way of doing things
+    <damo22> ok
+    <damo22> so does every low level hardware access go through mach?'
+    <braunr> yes
+    <braunr> well no
+    <braunr> interrupts do
+    <braunr> ports (on x86)
+    <braunr> everything else should be doable through mapped memory
+    <damo22> seems surprising that the code for it is so small
+    <braunr> 1/ why surprising ? and 2/ "so small" ?
+    <damo22> its like the core of the OS, and yet its tiny compared to say the
+      linux kernel
+    <braunr> it's a microkenrel
+    <braunr> well, rather an hybrid
+    <braunr> the size of the equivalent code in linux is about the same
+    <damo22> ok
+    <damo22> with the model that privileged instructions get moved to
+      userspace, how does one draw the line between what is OS and what is user
+      code
+    <braunr> privileged instructions remain in the kernel
+    <braunr> that's one of the few responsibilities of the kernel
+    <damo22> i see, so it is an illusion that the user has privilege in a sense
+    <braunr> hum no
+    <braunr> or, define "illusion"
+    <damo22> well the user can suddenly do things never imaginable in linux
+    <damo22> that would have required sudo
+    <braunr> yes
+    <braunr> well, they're not unimaginable on linux
+    <braunr> it's just not how it's meant to work
+    <damo22> :)
+    <braunr> and why things like fuse are so slow
+    <braunr> i still don't get "i see, so it is an illusion that the user has
+      privilege in a sense"
+    <damo22> because the user doesnt actually have the elevated privilege its
+      the server thing (translator)?
+    <braunr> it does
+    <braunr> not at the hardware level, but at the system level
+    <braunr> not being able to do it directly doesn't mean you can't do it
+    <damo22> right
+    <braunr> it means you need indirections
+    <braunr> that's what the kernel provides
+    <damo22> so the user cant do stuff like outb 0x13, 0x1
+    <braunr> he can
+    <braunr> he also can on linux
+    <damo22> oh
+    <braunr> that's an x86 specifity though
+    <damo22> but the user would need hardware privilege to do that
+    <braunr> no
+    <damo22> or some kind of privilege
+    <braunr> there is a permission bitmap in the TSS that allows userspace to
+      directly access some ports
+    <braunr> but that's really x86 specific, again
+    <damo22> i was using it as an example
+    <damo22> i mean you wouldnt want userspace to directly access everything
+    <braunr> yes
+    <braunr> the only problem with that is dma reall
+    <braunr> y
+    <braunr> because dma usually access physical memory directly
+    <damo22> are you saying its good to let userspace access everything minus
+      dma?
+    <braunr> otherwise you can just centralize permissions in one place (the
+      kernel or an I/O server for example)
+    <braunr> no
+    <braunr> you don't let userspace access everything
+    <damo22> ah
+    <damo22> yes
+    <braunr> userspace asks for permission to access one specific part (a
+      memory range through mapping)
+    <braunr> and can't access the rest (except through dma)
+    <damo22> except through dma??  doesnt that pose a large security threat?
+    <braunr> no
+    <braunr> you don't give away dma access to anyone
+    <braunr> only drivers
+    <damo22> ahh
+    <braunr> and drivers are normally privileged applications anyway
+    <damo22> so a driver runs in userspace?
+    <braunr> so the only effect is that bugs can affect other address spaces
+      indirectly
+    <braunr> netdde does
+    <damo22> interesting
+    <braunr> and they all should but that's not the case for historical reasons
+    <damo22> i want to port ALSA to hurd userspace :D
+    <braunr> that's not so simple unfortunately
+    <braunr> one of the reasons it's hard is that pci access needs arbitration
+    <braunr> and we don't have that yet
+    <damo22> i imagine that would be difficult
+    <braunr> yes
+    <braunr> also we're not sure we want alsa
+    <braunr> alsa drivers, maybe, but probably not the interface itself
+    <damo22> its tangled spaghetti
+    <damo22> but the guy who wrote JACK for audio hates OSS, and believes it is
+      rubbish due to the fact it tries to read and write to a pcm device node
+      like a filesystem with no care for timing
+    <braunr> i don't know audio well enough to tell you anything about that
+    <braunr> was that about oss3 or oss4 ?
+    <braunr> also, the hurd isn't a real time system
+    <braunr> so we don't really care about timings
+    <braunr> but with "good enough" latencies, it shouldn't be a problem
+    <damo22> but if the audio doesnt reach the sound card in time, you will get
+      a crackle or a pop or a pause in the signal
+    <braunr> yep
+    <braunr> it happens on linux too when the system gets some load
+    <damo22> some users find this unnacceptable
+    <braunr> some users want real time systems
+    <braunr> using soft real time is usually plenty enough to "solve" this kind
+      of problems
+    <damo22> will hurd ever be a real time system?
+    <braunr> no idea
+    <youpi> if somebody works on it why not
+    <youpi> it's the same as linux
+    <braunr> it should certainly be simpler than on linux though
+    <damo22> hmm
+    <braunr> microkernels are well suited for real time because of the well
+      defined interfaces they provide and the small amount of code running in
+      kernel
+    <damo22> that sounds promising
+    <braunr> you usually need to add priority inheritance and take care of just
+      a few corner cases and that's all
+    <braunr> but as youpi said, it still requires work
+    <braunr> and nobody's working on it
+    <braunr> you may want to check l4 fiasco.oc though
+
+
+# System Personality
+
+## IRC, freenode, #hurd, 2013-07-29
+
+    <teythoon> over the past few days I gained a new understanding of the Hurd
+    <braunr> teythoon: really ? :)
+    <tschwinge> teythoon: That it's a complex and distributed system?  ;-)
+    <tschwinge> And at the same time a really simple one?
+    <tschwinge> ;-D
+    <teythoon> it's just a bunch of mach programs and some do communicate and
+      behave in a way a posix system would, but that is more a convention than
+      anything else
+    <teythoon> tschwinge: yes, kind of simple and complex :)
+    <braunr> the right terminology is "system personality"
+    <braunr> 11:03 < teythoon> over the past few days I gained a new
+      understanding of the Hurd
+    <braunr> teythoon: still no answer on that :)
+    <teythoon> braunr: ah, I spent lot's of time with the core servers and
+      early bootstrapping and now I gained the feeling that I've seen the Hurd
+      for what it really is for the first time
+
+
+# RPC Interfaces
+
+## IRC, freenode, #hurd, 2013-09-03
+
+    <rekado> I'm a little confused by the hurd and incubator git repos.
+    <rekado> DDE is only found in the dde branch in incubator, but not in the
+      hurd repo.
+    <rekado> Does this mean that DDE is not ready for master yet?
+    <braunr> yes
+    <rekado> If DDE is not yet used in the hurd (except in the dde branch in
+      the incubator repo), does pfinet use some custom glue code to use the
+      Linux drivers?
+    <braunr> this has nothing to do with pfinet
+    <braunr> pfinet is the networking stack, netdde are the networking drivers
+    <braunr> the interface between them doesn't change, whether drivers are in
+      kernel or not
+    <rekado> I see
+
+
+# IRC, freenode, #hurd, 2013-09-20
+
+    <giuscri> HI there, I have no previous knowledge about OS's. I'm trying to
+      undestand the structure of the Hurd and the comparison between, say,
+      Linux way of managing stuff ...
+    <giuscri> for instance, I read: "Unlike other popular kernel software, the
+      Hurd has an object-oriented structure that allows it to evolve without
+      compromising its design."
+    <giuscri> that means that while for adding feature to the Linux-kernel you
+      have to add some stuff `inside` a procedure, whilst in the Hurd kernel
+      you can just, in principle at least, add an object and making the kernel
+      using it?...
+    <giuscri> Am I making stuff too simple?
+    <giuscri> Thanks
+    <braunr> not exactly
+    <braunr> unix historically has a "file-oriented" structure
+    <braunr> the hurd allows servers to implement whatever type they want,
+      through the ability to create custom interfaces
+    <braunr> custom interfaces means custom calls, custom semantics, custom
+      methods on objects
+    <braunr> you're not restricted to the set of file interfaces (open, seek,
+      read, write, select, close, etc..) that unix normally provides
+    <giuscri> braunr: uhm ...some example?
+    <braunr> see processes for example
+    <braunr> see
+      http://darnassus.sceen.net/gitweb/savannah_mirror/hurd.git/tree/HEAD:/hurd
+    <braunr> this is the collection of interfaces the hurd provides
+    <braunr> most of them map to unix calls, because gnu aims at posix
+      compatibility too
+    <braunr> some are internal, like processes
+    <braunr> or authentication
+    <braunr> but most importantly, you're not restricted to that, you can add
+      your own interfaces
+    <braunr> on a unix, you'd need new system calls
+    <braunr> or worse, extending through the catch-all ioctl call
+    <giuscri> braunr: mhn ...sorry, not getting that.
+    <braunr> what part ?
+    <kilobug> ioctl has become such a mess :s
+    <giuscri> braunr: when you say that Unix is `file-oriented` you're
+      referring to the fact that sending/receiving data to/from the kernel is
+      designed like sending/receiving data to/from a file ...?
+    <braunr> not merely sending/receiving
+    <braunr> note how formatted your way of thinking is
+    <braunr> you directly think in terms of sending/receiving (i.e. read and
+      write)
+    <giuscri> braunr: (yes)
+    <braunr> that's why unix is file oriented, access to objects is done that
+      way
+    <braunr> on the hurd, the file interface is one interface
+    <braunr> there is nothing preventing you from implementing services with a
+      different interface
+    <braunr> as a real world example, people interested in low latency
+      profesionnal audio usually dislike send/recv
+    <braunr> see
+      http://lac.linuxaudio.org/2003/zkm/slides/paul_davis-jack/unix.html for
+      example
+    <kilobug> braunr: how big and messy ioctl has become is a good proof that
+      the Unix way, while powerful, does have its limits
+    <braunr> giuscri: keep in mind the main goal of the hurd is extensibility
+      without special privileges
+    <giuscri> braunr: privileges?
+    <braunr> root
+    <giuscri> braunr: what's wrong with privileges?
+    <braunr> they allow malicious/buggy stuff to happne
+    <braunr> and have dramatic effects
+    <giuscri> braunr: you're obviously *not* referring to the fact that once
+      one have the root privileges could change some critical-data
+    <giuscri> ?
+    <braunr> i'm referring to why privilege separation exists in the first
+      place
+    <braunr> if you have unprivileged users, that's because you don't want them
+      to mess things up
+    <braunr> on unix, extending the system requires privileges, giving those
+      who do it the ability to destroy everything
+    <giuscri> braunr: yes, I think the same
+    <braunr> the hurd is designed to allow unprivileged users to extend their
+      part of the system, and to some extent share that with other users
+    <braunr> although work still remains to completely achieve that
+    <giuscri> braunr: mhn ...that's the `server`-layer between the
+      single-application and kernel ?
+    <braunr> the multi-server based approach not only allows that, but
+      mitigates damage even when privileged servers misbehave
+    <braunr> one aspect of it yes
+    <braunr> but as i was just saying, even root servers can't mess things too
+      much
+    <braunr> for example, our old (sometimes buggy) networking stack can be
+      restarted when it behaves wrong
+    <braunr> the only side effect being some applications (ssh and exim come to
+      mind) which need to be restarted too because they don't expect the
+      network stack to be restarted
+    <giuscri> braunr: ...instead?
+    <braunr> ?
+    <kilobug> giuscri: on Linux, if the network stack crash/freezes, you don't
+      have any other option than rebooting the system - usually with a nice
+      "kernel pani"
+    <kilobug> giuscri: and you may even get filesystem corruption "for free" in
+      the bundle
+    <braunr> and hoping it didn't corrupt something important like file system
+      caches before being flushed
+    <giuscri> kilobug, braunr : mhn, ook

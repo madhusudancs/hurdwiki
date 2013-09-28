@@ -1,0 +1,240 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_gnumach]]
+
+
+# IRC, freenode, #hurd, 2013-05-10
+
+    <braunr> what code have you used if any (or is it your own implementation)
+      ?
+    <youpi> I ended up writing my own implementation
+    <braunr> eh :)
+    <youpi> the libahci/ahci code from linux is full of linux-specific stuff
+    <youpi> it would mean working on gluing that
+    <youpi> which woudl rather be just done in block-dde
+    <youpi> I was told at fosdem that ahci is not actually very difficult
+    <youpi> and it isn't indeed
+    <braunr> that's why i usually encourage to use netbsd code
+
+    <braunr> any chance using ahci might speed up our virtual machines ?
+    <youpi> they are already using DMA, so probably no
+    <youpi> (with the driver I've pushed)
+    <youpi> adding support for tagged requests would permit to submit several
+      requests at a time
+    <youpi> _that_ could improve it
+    <youpi> (it would make it quite more complex too)
+    <youpi> but not so much actually
+
+    <anatoly> What about virtio? will it speed up?
+
+[[open_issues/virtio]].
+
+    <youpi> probably not so much
+    <youpi> because in the end it works the same
+    <youpi> the guest writes the physical addresse in mapped memory
+    <youpi> kvm performs the read into th epointed memory, triggers an irq
+    <youpi> the guest takes the irq, marks as done, starts the next request,
+      etc.
+    <youpi> most enhancements that virtio could bring can already be achieved
+      with ahci
+    <youpi> one can probably go further with virtio, but doing it with ahci
+      will also benefit bare hardware
+
+    <pinotree> http://en.wikipedia.org/wiki/AHCI
+    <youpi> anatoly: aka SATA
+    <anatoly> some sort of general protocol to work with any SATA drive via
+      AHCI-compatible host controller?
+    <braunr> yes
+
+    <youpi> braunr: I may be mistaken, but it does seem ahci is faster than ide
+    <youpi> possibly because the ide driver is full of hardcoded wait loops
+    <braunr> interesting :)
+    <youpi> usleeps here and there
+    <braunr> oh right
+    <braunr> i wonder how they're actually implemented
+    <youpi> so it would make sense to use that on shattrath
+    <youpi> a nasty buggy busy-loop
+    <braunr> yes but ending when ?
+    <youpi> when a given number of loops have elapsed
+    <youpi> that's where "buggy" applies :)
+    <braunr> ok so buggy implies the loop isn't correctly calibrated
+    <youpi> it isn't calibrated at all actually
+    <braunr> ew
+    <youpi> it was probably calibrated on some 486 or pentium hardware :)
+    <braunr> yeah that's what i imagined too
+    <braunr> we'll need some measurements but if it's actually true, it's even
+      better news
+
+
+## IRC, freenode, #hurd, 2013-05-11
+
+    <youpi> ah, also, worth mentioning: the AHCI driver supports up to 2TiB
+      disks
+    <youpi> (as opposed to our IDE driver which supports only LBA28, 128GiB)
+    <youpi> supporting more than 2TiB would require an RPC change, or using
+      bigger sectors
+    <youpi> (which wouldn't be a bad idea anyway)
+    <braunr> i think we should switch to uint64_t addressable vm_objects
+    <braunr> which would allow to support large files too
+    <youpi> braunr: yep
+
+
+## IRC, freenode, #hurd, 2013-05-13
+
+    <braunr> the hurd, running on vbox, with a sata controler :)
+    <braunr> hum, problem with an extended partition
+    <anatoly_> qemu/kbm doesn't have sata controller, am I right?
+    <braunr> anatoly: recent versions might
+    <braunr> http://wiki.qemu.org/Features/AHCI
+    <braunr> www.linux-kvm.org/wiki/images/7/73/2011-forum-ahci.pdf
+    <anatoly> braunr: found first link, too. Thanx for the second one
+    <braunr>
+      http://git.qemu.org/?p=qemu.git;a=blob;f=hw/ide/ahci.c;h=eab60961bd818c22cf819d85d0bd5485d3a17754;hb=HEAD
+    <braunr> looks ok in recent versions
+    <braunr> looks useful to have virtio drivers though
+
+[[open_issues/virtio]].
+
+    <anatoly> virtio is shown as fastest way for IO in the presentation
+    <anatoly> Hm, failed to run qemu with AHCI enabled
+    <anatoly> qemu 1.1 from debian testing
+    <anatoly> youpi how do run qemu with AHCI enabled?
+
+
+## IRC, freenode, #hurd, 2013-05-14
+
+    <anatoly> can somebody ask youpi how he runs qemu with AHCI please?
+    <gnu_srs> I think he used vbox?  Did not find any AHCI option for kvm
+      (1.1.2-+dfsg-6)
+    <anatoly> gnu_srs: http://wiki.qemu.org/ChangeLog/0.14#IDE_.2F_AHCI
+    <anatoly> but it doesn't work for me the same version of kvm
+    <braunr_> anatoly: have you checked how the debian package builds it ?
+    <anatoly> braunr: mach sees AHCI device
+    <braunr> oh :)
+    <anatoly> the problem is in last option "-device
+      ide-drive,drive=disk,bus=ahci.0"
+    <anatoly> lvm says 'invalid option'
+    <braunr> anatoly: can you give more details please ?
+    <braunr> lvm ?
+    <anatoly> s/lvm/kvm
+    <braunr> i don't understand
+    <braunr> how can mach probe an ahci drive if you can't start kvm ?
+    <anatoly> I ran it without last option
+    <braunr> then why do you want that option ?
+    <anatoly> But, actually I entered command with mistake. I retried it and it
+      works. But got "start ext2fs: ext2fs: device:hd0s2: No such device or
+      address"
+    <anatoly> Sorry for confusing
+    <braunr> that's normal
+    <braunr> it should be sd0s2
+    <bddebian2> Right because the device names are different
+    <braunr> be aware that gnumach couln't see my extended partitions when i
+      tried that yesterday
+    <braunr> i don't know what causes the problem
+    <anatoly> Yeah, I understand, I just note about it to show that it works
+    <braunr> :)
+    <anatoly> And I was wring
+    <anatoly> s/wring/wrong
+    <braunr> is that the version in wheezy ?
+    <anatoly> I'm using testing, but it's same
+    <braunr> great
+    <braunr> the sceen.net VMs will soon use that then
+    <anatoly> I don't have extended partions
+    <anatoly> Booted with AHCI! :-)
+    <anatoly> It freezes while downloading packages for build-essential
+      fake-root dependencies with AHCI enabled
+    <youpi> anatoly: is the IRQ of the ahci controller the same as for your
+      ethernet device? (you can see that in lspci -v)
+    <anatoly> youpi: will check
+    <anatoly> youpi both uses IRQ 111
+    <anatoly> s/111/11
+    <braunr> aw
+    <youpi> anatoly: ok, that might be why
+    <youpi> is this kvm?
+    <youpi> if so, you can set up a second ahci controler
+    <youpi> and attach devices to it
+    <youpi> so the irq is not the same
+    <youpi> basically, the issue is about dde disabling the irq
+    <youpi> during interrupt handler
+    <youpi> which conflicts with ahci driver needs
+
+
+## IRC, freenode, #hurd, 2013-05-15
+
+    <anatoly> youpi: yes, it's kvm. Will try a second ahci controller
+
+    <Slex> I read recentrly was added ahci driver, is it in userland or
+      kernel-land?
+    <gnu_srs> kernel-land the change was in gnumach
+
+
+## IRC, freenode, #hurd, 2013-05-18
+
+    <youpi> about the IRQ conflict, it's simply that both dde and the ahci
+      driver need to disable it
+    <youpi> it needs to be coherent somehow
+
+
+## IRC, freenode, #hurd, 2013-05-20
+
+    <anatoly> gnu_srs: kvm -m 1G -drive
+      id=disk,file=<path_hurd_disk_img>,if=none,cache=writeback -device
+      ahci,id=ahci-1 -device ahci,id=ahci-2 -device
+      ide-drive,drive=disk,bus=ahci-2.0
+    <anatoly> who knows what does "ich9-ahci.multifunction=on/off" parameter
+      for kvm's ahci device mean?
+    <anatoly> well, I was a bit incorrect :-) The options is relative to PCI
+      miltifunction devices
+    <anatoly> s/options is relative/options relates
+
+
+## IRC, freenode, #hurd, 2013-05-24
+
+    <anatoly> I don't see freezes anymore while downloading packages with AHCI
+      enabled
+    <youpi> anatoly: by fixing the shared IRQ ?
+    <anatoly> youpi: yes, I added second AHCI as you suggested
+    <youpi> ok
+    <youpi> so it's probably the shared IRQ issue
+    <anatoly> NIC and AHCI have similar IRQ when only one AHCI is enabled
+    <anatoly> according lspci output
+    <youpi> yes
+
+
+## IRC, freenode, #hurd, 2013-06-18
+
+    <braunr> youpi: is there a simple way from hurd to check interrupts ?
+    <youpi> what do you mean by "check interrupts" ?
+    <braunr> if they're shared
+    <youpi> I still don't understand :)
+    <braunr> i'm setting up sata
+    <youpi> ah, knowing the number
+    <braunr> yes
+    <youpi> you can read that from lspci -v
+    <braunr> ok
+    <braunr> thanks
+    <braunr> hum
+    <braunr> i get set root='hd-49,msdos1' in grub.cfg when changing the
+      device.map file to point to sd0
+    <youpi> hum
+    <braunr> i wonder if it's necessary
+    <braunr> i guess i just have to tell gnumach to look for sd0, not grub
+    <braunr> youpi: the trick you mentioned was to add another controler, right
+      ?
+    <youpi> yes
+    <braunr> ok
+    <braunr> youpi: looks fine :)
+    <braunr> and yes, i left hd0 in grub's device.map
+    <braunr> although i have lots of errors on hd0s6 (/home)
+    <braunr> youpi: there must be a bug with large sizes
+    <braunr> i'll stick with ide for now, but at least setting sata with
+      libvirt was quite easy to do
+    <braunr> so we can easily switch later

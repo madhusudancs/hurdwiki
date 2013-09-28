@@ -1,0 +1,118 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+[[!toc]]
+
+
+# Argument Parsing
+
+## IRC, freenode, #hurd, 2013-06-27
+
+    <teythoon> the arg parsing in libdiskfs and libnetfs differ :/
+    <teythoon> afaics libdiskfs gets it right, libnetfs does not
+    <pinotree> what do you mean?
+    <teythoon> wrt to *_std_{runtime,startup}_argp
+    <teythoon> see eg netfs.h
+    <teythoon> libdiskfs/opts-std-runtime.c:const struct argp
+      diskfs_std_runtime_argp =
+    <teythoon> libdiskfs/opts-std-runtime.c-{
+    <teythoon> libdiskfs/opts-std-runtime.c-  std_runtime_options, parse_opt,
+      0, 0, children
+    <teythoon> libdiskfs/opts-std-runtime.c-};
+    <teythoon> but
+    <teythoon> libnetfs/std-runtime-argp.c:const struct argp
+      netfs_std_runtime_argp = { 0 };
+    <pinotree> well there are no common startup/runtime options provided by
+      netfs
+    <pinotree> usually netfs-based translators put netfs_std_startup_argp as
+      child as their options, so if netfs starts providing options they would
+      work
+    <teythoon> ah
+    <pinotree> if you have a test showing issues, we can certainly look it :)
+    <teythoon> ok, m/b I was confused...
+    <pinotree> no worries, feel free to ask anytime
+    <teythoon> I thought about providing --update as common runtime flag, like
+      diskfs does, you think it's the right thing to do?
+    <pinotree> what would it do?
+    <teythoon> or should it be left for each translator to implement?
+    <teythoon> nothing by default I guess
+    <pinotree> options provided in libdiskfs are implemented and handled mostly
+      in libdiskfs itself
+    <pinotree> so imho a new option for libnetfs would be there because its
+      behaviour is implemented mostly within libnetfs itself
+    <teythoon> libdiskfs calls diskfs_reload_global_state
+    <teythoon> libnetfs could do the same, allowing translators to plug in
+      anything they wish
+    <teythoon> but I'll implement it in procfs for the time being
+    <pinotree> ah, its alias is remount
+    <teythoon> yes
+    <teythoon> I need that working for procfs
+    <teythoon> btw, I think I got your mount confusion thing figured out
+    <pinotree> but procfs has nothing to update/flush, all the information are
+      fetched at every rpc
+    <teythoon> yes
+    <teythoon> but we still need to ignore the flag
+    <teythoon> otherwise the set_options rpc fails
+    <teythoon> http://paste.debian.net/12938/
+    <teythoon> whee, remounting proc works :)
+    <braunr> :)
+
+
+# IRC, freenode, #hurd, 2013-07-29
+
+    <teythoon> so, what do you folks think about refactoring libdiskfs and
+      libnetfs to be more alike?
+    <pinotree> what do you mean?
+    <teythoon> ah, I mentioned that in the context of my mtab prototype
+      1374247519-26589-1-git-send-email-4winter@informatik.uni-hamburg.de
+    <teythoon> they are hard to diff against each other b/c they differ in file
+      names and identifier names
+    <teythoon> while working on the mtab stuff I encountered stuff that was
+      implemented in libdiskfs, but never in libnetfs
+    <teythoon> mostly support for binding translators to libnetfs nodes
+    <braunr> teythoon: sure, but looks a little out of scope
+    <teythoon> braunr: I do not mean now, more in general
+    <braunr> ok
+    <tschwinge> teythoon: I wondered about this, too.  I don't know if it's
+      possible to literally merge them (and build the backend-based (libdiskfs)
+      vs. volatile-backend one (libnetfs) based on a pre-processor define or
+      similar), or just structure the source code (files) in a way such that
+      »diff -ru libdiskfs/ libnetfs/« gives meaningful results, figuratively
+      spoken.
+    <teythoon> tschwinge: my thoughts exactly
+
+
+# IRC, freenode, #hurd, 2013-08-28
+
+    <teythoon> braunr: do you think another lib*fs would be frowned uppon? I
+      like the way procfs is structured and that could be refactored and
+      generalized into a library
+    <braunr> i think we need more lib*fs libraries
+    <braunr> and better integration
+    <braunr> that's one of the strengths in linux
+    <braunr> it makes writing file systems very easy
+    <teythoon> cool :)
+    <teythoon> now we only need a snappy name, any suggestions?
+    <braunr> i don't know what you like specificlaly in procfs
+    <braunr> libpseudofs ?
+    <teythoon> well, it's not perfect, but i like the way you just have to
+      implement a function for a node and it magically gains the ability to
+      being read
+    <teythoon> for example
+    <braunr> yes i see
+    <pinotree> lacks a bit of caching though
+    <braunr> no caching for such file systems
+    <teythoon> indeed
+    <braunr> why would you want caching ?
+    <pinotree> you might have files that don't change at all, or rarely do
+    <braunr> the premise is that it's meant for files generated on the fly
+    <braunr> but are they big ?

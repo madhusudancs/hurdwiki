@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2007, 2008, 2010, 2011 Free Software Foundation,
-Inc."]]
+[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2013 Free Software
+Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -40,6 +40,22 @@ using [[Debian_GNU/Hurd|running/debian]], the easiest is probably to use
 [[running/debian/crosshurd]], which you can run directly from your main Hurd to
 set up another Hurd on a different partition, without ever rebooting.  (You can
 run the `native-install` step from a chroot or already in a subhurd.)
+
+
+### IRC, freenode, #hurd, 2013-09-15
+
+    <gnu_srs> Never dared to try a subhurd, any link to the howto? 
+    <teythoon> gnu_srs: I followed
+      http://www.gnu.org/software/hurd/hurd/subhurd.html though using crosshurd
+      didn't work for me, I just used debootstrap
+    <teythoon> gnu_srs: and you need a separate filesystem translator (i.e. not
+      /) for that
+    <teythoon> the easiest way is to add another virtual disk to you qemu setup
+    <braunr> use the qemu image directly
+    <braunr> simplest way to set up a subhurd
+    <braunr> just change fstab from the host before the first boot to avoid
+      making the subhurd use the same hd0 drive as the host
+    <teythoon> braunr: nice idea :)
 
 
 ## Booting
@@ -86,7 +102,8 @@ it!
 practice [that doesn't work at the
 moment](http://savannah.gnu.org/bugs/?17341).)
 
-You can provide the subhurd with a network card by passing a -f option to `boot`.
+You can provide the subhurd with a network card by passing a `-f` option to
+`boot`.
 
 Now the subhurd should boot just like a normal Hurd started directly from GRUB,
 finally presenting a login prompt.  The `boot` program serves as proxy for the
@@ -118,6 +135,362 @@ find out which process is which, you can simply compare the order -- while the
 numbers are different, the order should usually match.  Often it also helps to
 look at the number of threads (e.g. using `ps -l`), as many servers have very
 characteristic thread counts.
+
+
+### IRC, freenode, #hurd, 2013-08-09
+
+    <teythoon> btw, is there a way to get dde-based networking into a subhurd?
+    <teythoon> the wiki instructions look like they're for the mach driver
+    <teythoon> and starting the dde translator inside the subhurd does not work
+      for me
+    <teythoon> that's probably a good thing though
+    <youpi> the netdde process will need privileged access to mach
+    <youpi> for hardware access
+    <braunr> you can't easily use netdde from a subhurd, unless with a
+      different nic
+    <braunr> i usually rebuild mach with in kernel devices so both the main and
+      subhurd can share on nic
+    <braunr> one*
+    <youpi> could a port to netdde perhaps forwarded to the subhurd?
+    <braunr> zengh da wrote the eth-multiplexer for that iirc
+    <youpi> it's a matter of making it appear as an eth0 device on the master
+      port aiui
+    <braunr> zheng*
+    <teythoon> yes, I looked at that
+    <teythoon> what is the master port?
+    <youpi> on a plain hurd system it's the port that privileged processes can
+      use to access mach devices
+    <youpi> in a subhurd, it's the same for the subhurd, to access some devices
+      that you choose to give access to
+    <braunr> its real name is the "device master port"
+    <teythoon> ah yes
+
+
+#### IRC, freenode, #hurd, 2013-08-10
+
+    <antrik> teythoon: use eth-multiplexer to use the NIC within a
+      subhurd. that's exactly what it was created for.
+    <antrik> I don't remember whether it's even possible to share a "raw"
+      netdde device... I don't think I ever tried that; and I don't remember
+      enough of the theory to tell whether it should be possible
+    <antrik> but I really don't see the reason to, when eth-multiplexer is
+      available
+    <antrik> (IMHO running an eth-multiplexer on top of netdde should be the
+      default setup in fact)
+    <antrik> as for actually passing on the device, that should be perfectly
+      possible with zhengda's modified subhurd... but I don't remember whether
+      that was ever merged upstream
+    <antrik> (you will definitely need that for using netdde in a subhurd,
+      regardless whether through eth-multiplexer or directly)
+
+
+#### IRC, freenode, #hurd, 2013-09-15
+
+    <teythoon> I wonder if we can modify the boot program so that it passes
+      ports from the mother hurd to the subhurd
+    <teythoon> so that we could pass in a port to the eth-multiplexer
+    <teythoon> or use like /hurd/remap as the root translator for the subhurd
+    <braunr> eth-multiplexer was created exactly for that iirc,
+    <braunr> so it's probably already done somewhere
+
+
+#### IRC, freenode, #hurd, 2013-09-16
+
+    <gnu_srs> braunr: regarding subhurd did you mean to install
+      sthibault/hurd-i386/debian-hurd.img.tar.gz
+    <gnu_srs> on a separate partition and booting using the instructions for
+      subhurds on the web.
+    <braunr> gnu_srs: yes
+    <braunr> be careful that the subhurd doesn't use the same partition as the
+      main hurd, that's all
+    <gnu_srs> what about changing fstab?
+    <braunr> 12:17 < braunr> be careful that the subhurd doesn't use the same
+      partition as the main hurd, that's all
+    <teythoon> gnu_srs: yes, you need to change the fstab
+    <teythoon> currently it is used for fscking stuff, so if it points to your
+      main partition it will cause severe corruption
+    <teythoon> gnu_srs: you also have to specify the right partition in the
+      servers.boot file
+    <gnu_srs> fstab of the subhurd image?
+    <teythoon> yes
+    <gnu_srs> how to unpack the .img file (just to be sure)?
+    <teythoon> gnu_srs: you don't need to, just use the img file as secondary
+      hard disk image
+    <gnu_srs> Then how should I be able to change fstab of the image?
+    <teythoon> boot your hurd box, mount the partition and change it
+    <gnu_srs> I missed something here: on my partition /my_chroot I have have
+      the file debian-hurd-20130504.img
+    <teythoon> gnu_srs: ah, you copied it to the partition, braunr meant to use
+      it as the secondary disk, e.g. qemu ... -hdb debian-hurd-20130504.img ...
+    <gnu_srs> That is the same as installing another cd image, where does the
+      subhurd come into play?
+    <teythoon> mount the partition on the secondary hd, fix the fstab there,
+      mount it r/o, get the servers.boot file from the wiki, modify it so that
+      it points to the right partition, execute boot servers.boot /dev/<your
+      partition>, probably /dev/hd1s1
+    <gnu_srs> BTW: unpacking was problematic: tar: debian-hurd-20130504.img:
+      Cannot seek to 2147696640 (2G limitations)
+    <teythoon> I wonder why you did this on your hurd system in the first
+      place...
+    <gnu_srs> I thought I could use that partition, /my_chroot as a chroot
+      place. So it won't work for subhurds?
+    <teythoon> well, there are several ways to setup a subhurd. one is to
+      already have a spare partition for that and use crosshurd or as I did
+      debootstrap to install a debian system there
+    <teythoon> braunr suggested an even easier way, download the .img file and
+      use it as secondary hard disk
+    <teythoon> you ended up doing kind of both
+    <gnu_srs> I tried once with debootstrap and that created a disaster...
+    <teythoon> how so?
+    <gnu_srs> The install errored out, and the whole filesystem (including /)
+      was left in a broken state. Maybe I tried 
+    <gnu_srs> that without using a separate partition. Don't remember any
+      longer. So you say it's safe now?
+    <teythoon> I used it successfully to setup my subhurd
+    <gnu_srs> and you have your subhurd in a separate partition, installed from
+      there too, as root?
+    <gnu_srs> the web page only mentions crosshurd, and that failed for you?
+    <teythoon> yes, having a separate partition is (currently) necessary to run
+      a subhurd
+    <teythoon> yes, I used debootstrap as root, afaics that is necessary
+    <teythoon> and yes, as I said the other day, I tried crosshurd first and it
+      failed
+    <teythoon> then again, I fail to see any reason to use crosshurd these days
+    <teythoon> it's only a wrapper around debootstrap anyway, using it with
+      --foreign and fixing up stuff later
+    <teythoon> one has more control over the process if one uses debootstrap
+      directly
+    <gnu_srs> I still don't dare to do it yet. I'll create another image using
+      netinst with a separate partition and try out first.
+    <gnu_srs> When installing a new image using netinst.iso (2013-06-30) and
+      rebooting /proc does not get mounted?
+    <teythoon> gnu_srs: is that a statement or a question?
+    <gnu_srs> A statement.
+    <teythoon> it's not customary to end statements with question marks ;)
+    <gnu_srs> s/mounted?/mounted, why?/
+    <teythoon> well, you seem to be the last person to perform such an
+      installation, so you are in the perfect position to answer this question.
+    <gnu_srs> cat /var/log/dmesg?
+    <gnu_srs> On other images I have: fsysopts /proc; /hurd/procfs
+      --clk-tck=100 --stat-mode=444 --fake-self=1
+    <youpi> gnu_srs: no, check the installation log
+    <youpi> gnu_srs: and what does showtrans say?
+    <gnu_srs> showtrans /proc; <empty>
+    <gnu_srs> which log file to look for?
+    <youpi> the installation log, somewhere in /var/log probably
+    <gnu_srs> I only find /proc in /var/log/installer/syslog, mainly printing
+      out errors not finding /proc/mounts
+    <youpi> iirc the /proc translator should be set during the hurd package
+      configuration
+    <youpi> you should probably look for that part in the log
+    <youpi> Setting up translators: /hurd/exec /hurd/proxy-defpager
+      /hurd/pflocal (+link) /hurd/pfinet (+link) (+link) /hurd/procfs -c
+      /hurd/password crash-kill crash-suspend crash-dump-core crash.
+    <youpi> that part
+    <gnu_srs>  debootstrap:  /hurd/procfs -c and in-target:  /hurd/procfs -c No
+      errors
+    <youpi> I don't understand what that means
+    <youpi> please explain in more details
+    <gnu_srs> see: http://paste.debian.net/41195/
+    <youpi> makes much more sense :)
+    <gnu_srs> Where is the 'Setting up translators' done? I cannot find
+      anything in /var/lib/dpkg/info/hurd* or /etc/init.d/...
+    <pinotree> /usr/lib/hurd/setup-translators, called in hurd.postinst
+    <gnu_srs> tks:)
+    <gnu_srs> Hi, when installing a new image with debootstrap to /chroot the
+      script boot/servers.boot is already there (as well as in /boot/ + grub)
+    <gnu_srs> Is it OK to use that file to boot the subhurd? 
+    <gnu_srs> using /boot/servers.boot or /chroot/boot/servers.boot (if the
+      /chroot partition is unmounted it cannot be used?)
+    <gnu_srs> and how to unmount /chroot: umount does not work?
+    <gnu_srs> braunr: I'm also trying to find out what's wrong with glibc, when
+      my subhurd is up and running 2.13-39 (if possible)
+    <gnu_srs> I know I should issue settrans command, but I'm not yet fluent in
+      translators.
+    <gnu_srs> sorry:-/
+    <gnu_srs> Now this, after a reboot: unknown code P 30 while trying to open
+      /dev/hd0s3 (/chroot)
+    <gnu_srs> Disk write protected: use the -n option to do a read-only check
+      of the device.
+    <gnu_srs> fsysopts /dev/&hd0s1 --writable: Operation not supported??
+    <gnu_srs> OK, I'm giving up for now, no subhurd:-( and a broken install.
+    <gnu_srs> Which terminal to use in rescue mode, TERM is not set,
+      dumb,mach,hurd does not work with nano?
+    <gnu_srs> e2fsck /dev/ho0s3; e2fsck: Unknown code P 2 while trying to open
+      /dev/ho0s3; Possibly non-existent device?
+    <gnu_srs> mke2fs /dev/hd0s3; /dev/hd0s3 is not a block special device.;
+      Proceed anyway? (y,n) n: What's going on (hd0s3 not mounted)??
+    <gnu_srs> anybody, help?
+    <gnu_srs> after removing and creating the partition again:mke2fs
+      /dev/hd0s3, <same>, mke2fs: Unknown code P 13 while trying to determine
+      filesystem size: What's going on?
+    <gnu_srs> Where to find the glibc-2.13 versions which used to be at
+      debian-ports?.
+    <gnu_srs> seems they can be found on snapshot.debian.org
+
+
+#### IRC, freenode, #hurd, 2013-09-17
+
+    <gnu_srs> teythoon: Installing subhurd via debootstrap on partition
+      /chroot fails miserably. Install hangs, and after reboot \rm -r
+      /chroot/* fails for dev and proc
+    <gnu_srs> Are there translators running there already? I have not
+      booted the subhurd. 
+    <gnu_srs> translators for hd0s3 (/chroot) are storeio and
+      ex2fs.static. Do I have to stop them to be able to clean out
+      /chroot?
+    <gnu_srs>  mount -v /chroot; settrans -a /chroot /hurd/ext2fs
+      /dev/hd0s3;
+    <gnu_srs> ext2fs: /dev/hd0s3: panic: main: device too small for
+      superblock (0 bytes);
+    <gnu_srs> mount: cannot start translator /hurd/ext2fs: Translator
+      died
+    <gnu_srs> Please, somebody!
+    <gnu_srs> don't ask to ask, just ask, right?
+    <braunr> we've already told you everything you need
+    <braunr> just get it right
+    <braunr> for example, i told you to be careful about fstab so that
+      the subhurd wouldn't use the main hurd partition
+    <braunr> but you managed to screw that
+    <braunr> good job
+    <gnu_srs> I installed the subhurd in a partition /chroot /dev/hd0s3
+      using debootstrap
+    <braunr> i don't know deboostrap, it may be broken, use the disk
+      image youpi maintains
+    <gnu_srs> ant the install screwed up with debootstrap
+    <gnu_srs> ok; then I cannot use a partition, but another disk in
+      kvm, e.g. hdb?
+    <braunr> gnu_srs: hd1
+    <gnu_srs> something is fishy with glibc, definitely, that's why I'm
+      trying to set up a subhurd to revert to 2.13-39
+    <gnu_srs> hi, when trying to boot a subhurd: /hurd/ext2fs.static:
+      hd0s3: Gratuitous error; bye
+    <braunr> gnu_srs: why hd0s3 ?
+    <braunr> it should be hd1s1
+    <gnu_srs> I'm still using a separate partition /my_chroot
+      /hd0s3. Will switch to hd1 next. teythoon?
+    <gnu_srs> the servers.boot script use absolute
+      paths:/hurd/ext2fs.static and /lib/ld.so.1 /hurd/exec, 
+    <gnu_srs> shouldn't they be relative to /my_chroot?
+    <braunr> no
+    <braunr> they're actually from your host
+    <gnu_srs> teythoon: please, how did you succeed to boot a subhurd
+      in a partition?
+    <gnu_srs> using debootstrap
+    <teythoon> gnu_srs: from my shell history:
+    <teythoon> : 1374672426:0;debootstrap sid /mnt
+      http://http.debian.net/debian/
+    <teythoon> : 1374673020:0;cp /etc/hosts /etc/resolv.conf /mnt/etc
+    <teythoon> : 1374673048:0;cp /etc/passwd /etc/shadow /mnt/etc
+    <braunr> teythoon: so it does work fine ?
+    <braunr> great
+    <teythoon> yes, why wouldn't it?
+    <teythoon> gnu_srs: I then remounted that partition r/o and used
+      the servers.boot file from the wiki to boot it
+    <teythoon> braunr: why wouldn't it? (you do mean the debootstrap
+      part, don't you?)
+    <braunr> teythoon: i don't know
+    <braunr> i've heard it wasn't maintained any more
+    <braunr> not being maintained is a good reason for something to
+      become unusable/untrustable with time
+    <teythoon> o_O it is at the heart of d-i, isn't it?
+    <teythoon> I actually do most Debian installations using
+      debootstrap directly
+    <braunr> ah
+    <braunr> ok :)
+    <braunr> teythoon: even hurd ones ?
+    <teythoon> braunr: well, just the subhurd installation, but that
+      went as expected
+    <braunr> good
+    <gnu_srs> Finally: I found the reason for Gratuitous error, I used
+      the /boot/servers.boot script, 
+    <gnu_srs> that being different to the one on the wiki:-/
+    <gnu_srs> Is it possible to copy files between a host hurd and
+      subhurd, what about access to eth0? 
+    <gnu_srs> Hi, when starting the subhurd I see some warnings/error:
+      http://paste.debian.net/41963/
+    <gnu_srs> 1) A spelling error execunable-> executable
+    <gnu_srs> 2) libports: invalid destination port
+    <gnu_srs> 3) mach-defpager: another already running
+    <pinotree> "execunable" is not a typo, but just "exec" and "unable
+      ..." without a space-type character
+    <gnu_srs> OK, sounds more plausible
+    <gnu_srs> Ah, the printouts are mixed, no bug
+    <gnu_srs> When setting up nework in the subhurd: /hurd/pfinet:
+      file_name_lookup /dev/eth0: Translator died
+    <gnu_srs> /hurd/pfinet: device_open(/dev/eth0): (os/device) no such
+      device
+    <gnu_srs> settrans: /hurd/pfinet: Translator died
+
+
+#### IRC, freenode, #hurd, 2013-09-18
+
+    <youpi> priority does not matter much
+    <youpi> memory manager is not really surprising, there's indeed already one
+    <youpi> what is actually the problem?
+    <gnu_srs> So these are merely warnings?
+    <youpi> gnu_srs: yes
+    <gnu_srs> Real problems are I cannot set up networking, e.g. wget ...:
+      Connecting to ... failed: Address family not supported by protocol.
+    <youpi> gnu_srs: did you give the subhurd a network card?
+    <gnu_srs> How?
+    <gnu_srs> and do I need to set up fstab, for now it's empty.
+    <gnu_srs> I just installed the base with dbootstrap
+    <youpi> gnu_srs: -f option of boot
+    <youpi> e2fsck will need fstab for sure
+    <youpi> otherwise it can't divine what should be checked
+    <gnu_srs> Why is the /boot/servers.boot different from the subhurd one on
+      the wiki? Is it used at all, I thought grub was in charge.
+    <youpi> it's not used at all
+    <gnu_srs> maybe better to put in the subhurd one there then, with a
+      comment?
+    <youpi> no, since /boot/servers.boot is supposed to be used for machine
+      boot
+    <youpi> not subhurd boot
+    <gnu_srs> what about putting a copy of the suhurd one there, with a
+      different name?
+    <youpi> probably a good idea, yes
+    <youpi> matter of making it happen
+    <gnu_srs> the wiki page on subhurd does not say how to set up networking,
+      only that you can do it.
+    <youpi> matter of adding the information
+    <youpi> I remember it's the -f option of boot
+    <youpi> make it work, and add the information for others
+    <gnu_srs> I could try, but don't know how to add a network card to the
+      subhurd, and e.g. how to set up swap
+    <youpi> see -f option
+    <gnu_srs> of boot?
+    <youpi> "gnu_srs: -f option of boot"
+    <youpi> if you could read what we write, that'd make things happen way
+      faster
+    <gnu_srs> yes I saw your comment above, it was just to be 100% sure:-D
+    <gnu_srs> device_file=/dev/eth0 or something else?
+    <gnu_srs> eth0 is used by the host already
+    <youpi> did you read boot --help ?
+    <youpi> iirc it's not a problem, both will receive all frames
+    <gnu_srs> yes I did
+    <youpi> then I don't see where you took device_file from
+    <youpi> at least in that form
+    <youpi> --device=device_name=device_file
+    <youpi> that means rather something like --device=foo=bar
+    <gnu_srs> so -f /dev/eth0 is correct usage then?
+    <youpi> didn't you see that in what I wrote, there was a "=" in there?
+    <gnu_srs> -f is the short option, --device is the long, I don't see the
+      need for = in the short option?
+    <youpi> in the long option there are *two* =
+    <gnu_srs> yes, but in the short no?
+    <youpi> why not?
+    <youpi> long -> short usually drops one =
+    <gnu_srs> to summarize: -f=/dev/eth0 or --device=eth_sub=/dev/eth0?
+    <youpi> why shouldn't there be a eth_sub in the short version?
+    <gnu_srs> 10:15:49) youpi: long -> short usually drops one =
+    <youpi> yes, it drops the =
+    <youpi> but  nothing else
+    <youpi> if the long option needs some information, the short needs it too?
+    <youpi> -?
+    <gnu_srs> correct now? -f eth_sub=/dev/eth0 or --device=eth_sub=/dev/eth0?
+    <youpi> yes
+    <gnu_srs> k!
 
 
 # Further Info

@@ -260,9 +260,9 @@ License|/fdl]]."]]"""]]
       solve a number of problems... I just wonder how many others it would open
 
 
-# IRC, freenode, #hurd, 2012-09-04
+# X15
 
-X15
+## IRC, freenode, #hurd, 2012-09-04
 
     <braunr> it was intended as a mach clone, but now that i have better
       knowledge of both mach and the hurd, i don't want to retain mach
@@ -767,3 +767,1620 @@ In context of [[open_issues/multithreading]] and later [[open_issues/select]].
     <braunr> imo, a rewrite is more appropriate
     <braunr> sometimes, things done in x15 can be ported to the hurd
     <braunr> but it still requires a good deal of effort
+
+
+## IRC, freenode, #hurd, 2013-04-26
+
+    <bddebian> braunr: Did I see that you are back tinkering with X15?
+    <braunr> well yes i am
+    <braunr> and i'm very satisfied with it currently, i hope i can maintain
+      the same level of quality in the future
+    <braunr> it can already handle hundreds of processors with hundreds of GB
+      of RAM in a very scalable way
+    <braunr> most algorithms are O(1)
+    <braunr> even waking up multiple threads is O(1) :)
+    <braunr> i'd like to implement rcu this summer
+    <bddebian> Nice.  When are you gonna replace gnumach? ;-P
+    <braunr> never
+    <braunr> it's x15, not x15mach now
+    <braunr> it's not meant to be compatible
+    <bddebian> Who says it has to be compatible? :)
+    <braunr> i don't know, my head
+    <braunr> the point is, the project is about rewriting the hurd now, not
+      just the kernel
+    <braunr> new kernel, new ipc, new interfaces, new libraries, new everything
+    <bddebian> Yikes, now that is some work. :)
+    <braunr> well yes and no
+    <braunr> ipc shouldn't be that difficult/long, considering how simple i
+      want the interface to be
+    <bddebian> Cool.
+    <braunr> networking and drivers will simply be reused from another code
+      base like dde or netbsd
+    <braunr> so besides the kernel, it's a few libraries (e.g. a libports like
+      library), sysdeps parts in the c library, and a file system
+    <bddebian> For inclusion in glibc or are you not intending on using glibc?
+    <braunr> i intend to use glibc, but not for upstream integration, if that's
+      what you meant
+    <braunr> so a private, local branch i assume
+    <braunr> i expect that part to be the hardest
+
+
+## IRC, freenode, #hurd, 2013-05-02
+
+    <zacts> braunr: also, will propel/x15 use netbsd drivers or netdde linux
+      drivers?
+    <zacts> or both?
+    <braunr> probably netbsd drivers
+    <zacts> and if netbsd, will it utilize rump?
+    <braunr> i don't know yet
+    <zacts> ok
+    <braunr> device drivers and networking will arrive late
+    <braunr> the system first has to run in ram, with a truely configurable
+      boot process
+    <braunr> (i.e. a boot process that doesn't use anything static, and can
+      boot from either disk or network)
+    <braunr> rump looks good but it still requires some work since it doesn't
+      take care of messaging as well as we'd want
+    <braunr> e.g. signal relaying isn't that great
+    <zacts> I personally feel like using linux drivers would be cool, just
+      because linux supports more hardware than netbsd iirc..
+    <mcsim> zacts: But it could be problematic as you should take quite a lot
+      code from linux kernel to add support even for a single driver.
+    <braunr> zacts: netbsd drivers are far more portable
+    <zacts> oh wow, interesting. yeah I did have the idea that netbsd would be
+      more portable.
+    <braunr> mcsim: that doesn't seem to be as big a problem as you might
+      suggest
+    <braunr> the problem is providing the drivers with their requirements
+    <braunr> there are a lot of different execution contexts in linux (hardirq,
+      softirq, bh, threads to name a few)
+    <braunr> being portable (as implied in netbsd) also means being less
+      demanding on the execution context
+    <braunr> which allows reusing code in userspace more easily, as
+      demonstrated by rump
+    <braunr> i don't really care about extensive hardware support, since this
+      is required only for very popular projects such as linux
+    <braunr> and hardware support actually comes with popularity (the driver
+      code base is related with the user base)
+    <zacts> so you think that more users will contribute if the projects takes
+      off?
+    <braunr> i care about clean and maintainable code
+    <braunr> well yes
+    <zacts> I think that's a good attitude
+    <braunr> what i mean is, there is no need for extensive hardware support
+    <mcsim> braunr: TBH, I did not really got idea of rump. Do they try to run
+      the whole kernel or some chosen subsystems as user tasks? 
+    <braunr> mcsim: some subsystems
+    <braunr> well
+    <braunr> all the subsystems required by the code they actually want to run
+    <braunr> (be it a file system or a network stack)
+    <mcsim> braunr: What's the difference with dde?
+    <braunr> it's not kernel oriented
+    <mcsim> what do you mean?
+    <braunr> it's not only meant to run on top of a microkernel
+    <braunr> as the author named it, it's "anykernel"
+    <braunr> if you remember at fosdem, he run code inside a browser
+    <braunr> ran*
+    <braunr> and also, netbsd drivers wouldn't restrict the license
+    <braunr> although not a priority, having a (would be) gnu system under
+      gplv3+ would be nice
+    <zacts> that would be cool
+    <zacts> x15 is already gplv3+
+    <zacts> iirc
+    <braunr> yes
+    <zacts> cool
+    <zacts> yeah, I would agree netbsd drivers do look more attractive in that
+      case
+    <braunr> again, that's clearly not the main reason for choosing them
+    <zacts> ok
+    <braunr> it could also cause other problems, such as accepting a bsd
+      license when contributing back
+    <braunr> but the main feature of the hurd isn't drivers, and what we want
+      to protect with the gpl is the main features
+    <zacts> I see
+    <braunr> drivers, as well as networking, would be third party code, the
+      same way you run e.g. firefox on linux
+    <braunr> with just a bit of glue
+    <zacts> braunr: what do you think of the idea of being able to do updates
+      for propel without rebooting the machine? would that be possible down the
+      road?
+    <braunr> simple answer: no
+    <braunr> that would probably require persistence, and i really don't want
+      that
+    <zacts> does persistence add a lot of complexity to the system?
+    <braunr> not with the code, but at execution, yes
+    <zacts> interesting
+    <braunr> we could add per-program serialization that would allow it but
+      that's clearly not a priority for me
+    <braunr> updating with a reboot is already complex enough :)
+
+
+## IRC, freenode, #hurd, 2013-05-09
+
+    <braunr> the thing is, i consider the basic building blocks of the hurd too
+      crappy to build anything really worth such effort over them
+    <braunr> mach is crappy, mig is crappy, signal handling is crappy, hurd
+      libraries are ok but incur a lot of contention, which is crappy today
+    <bddebian> Understood but it is all we have currently.
+    <braunr> i know
+    <braunr> and it's good as a prototype
+    <bddebian> We have already had L4, viengoos, etc and nothing has ever come
+      to fruition. :(
+    <braunr> my approach is compeltely different
+    <braunr> it's not a new design
+    <braunr> a few things like ipc and signals are redesigned, but that's minor
+      compared to what was intended for hurdng 
+    <braunr> propel is simply meant to be a fast, scalable implementation of
+      the hurd high level architecture
+    <braunr> bddebian: imagine a mig you don't fear using
+    <braunr> imagine interfaces not constrained to 100 calls ...
+    <braunr> imagine per-thread signalling from the start
+    <bddebian> braunr: I am with you 100% but it's vaporware so far.. ;-)
+    <braunr> bddebian: i'm just explaining why i don't want to work on large
+      scale projects on the hurd
+    <braunr> fixing local bugs is fine
+    <braunr> fixing paging is mandatory
+    <braunr> usb could be implemented with dde, perhaps by sharing the pci
+      handling code
+    <braunr> (i.e. have one big dde server with drivers inside, a bit ugly but
+      straightforward compared to a full fledged pci server)
+    <bddebian> braunr: But this is the problem I see.  Those of you that have
+      the skills don't have the time or energy to put into fixing that kind of
+      stuff.
+    <bddebian> braunr: That was my thought.
+    <braunr> bddebian: well i have time, and i'm currently working :p
+    <braunr> but not on that
+    <braunr> bddebian: also, it won't be vaporware for long, i may have ipc
+      working well by the end of the year, and optimized and developer-friendly
+      by next year)
+
+
+## IRC, freenode, #hurd, 2013-06-05
+
+    <braunr> i'll soon add my radix tree with support for lockless lookups :>
+    <braunr> a tree organized based on the values of the keys thmselves, and
+      not how they relatively compare to each other
+    <braunr> also, a tree of arrays, which takes advantage of cache locality
+      without the burden of expensive resizes
+    <arnuld> you seem to be applying good algorithmic teghniques
+    <arnuld> that is nice
+    <braunr> that's one goal of the project
+    <braunr> you can't achieve performance and scalability without the
+      appropriate techniques
+    <braunr> see http://git.sceen.net/rbraun/librbraun.git/blob/HEAD:/rdxtree.c
+      for the existing userspace implementation
+    <arnuld> in kern/work.c I see one TODO "allocate numeric IDs to better
+      identify worker threads"
+    <braunr> yes
+    <braunr> and i'm adding my radix tree now exactly for that
+    <braunr> (well not only, since radix tree will also back VM objects and IPC
+      spaces, two major data structures of the kernel)
+
+
+## IRC, freenode, #hurd, 2013-06-11
+
+    <braunr> and also starting paging anonymous memory in x15 :>
+    <braunr> well, i've merged my radix tree code, made it safe for lockless
+      access (or so i hope), added generic concurrent work queues
+    <braunr> and once the basic support for anonymous memory is done, x15 will
+      be able to load modules passed from grub into userspace :>
+    <braunr> but i've also been thinking about how to solve a major scalability
+      issue with capability based microkernels that noone else seem to have
+      seen or bothered thinking about
+    <braunr> for those interested, the problem is contention at the port level
+    <braunr> unlike on a monolithic kernel, or a microkernel with thread-based
+      ipc such as l4, mach and similar kernels use capabilities (port rights in
+      mach terminology) to communicate
+    <braunr> the kernel then has to "translate" that reference into a thread to
+      process the request
+    <braunr> this is done by using a port set, putting many ports inside, and
+      making worker threads receive messages on the port set
+    <braunr> and in practice, this gets very similar to a traditional thread
+      pool model
+    <braunr> one thread actually waits for a message, while others sit on a
+      list
+    <braunr> when a message arrives, the receiving thread wakes another from
+      that list so it receives the next message
+    <braunr> this is all done with a lock
+    <bddebian> Maybe they thought about it but couldn't or were to lazy to find
+      a better way? :)
+    <mcsim> braunr: what do you mean under "unlike .... a microkernel with
+      thread-based ipc such as l4, mach and similar kernels use capabilities"?
+      L4 also has capabilities.
+    <braunr> mcsim: not directly
+    <braunr> capabilities are implemented by a server on top of l4
+    <braunr> unless it's OKL4 or another variant with capabilities back in the
+      kernel
+    <braunr> i don't know how fiasco does it
+    <braunr> so the problem with this lock is potentially very heavy contention
+    <braunr> and contention in what is the equivalent of a system call ..
+    <braunr> it's also hard to make it real-time capable
+    <braunr> for example, in qnx, they temporarily apply priority inheritance
+      to *every* server thread since they don't know which one is going to be
+      receiving next
+    <mcsim> braunr: in fiasco you have capability pool for each thread and this
+      pool is stored in tread control block. When one allocates capability
+      kernel just marks slot in a pool as busy
+    <braunr> mcsim: ok but, there *is* a thread for each capability
+    <braunr> i mean, when doing ipc, there can only be one thread receiving the
+      message
+    <braunr> (iirc, this was one of the big issue for l4-hurd)
+    <mcsim> ok. i see the difference. 
+    <braunr> well i'm asking
+    <braunr> i'm not so sure about fiasco
+    <braunr> but that's what i remember from the generic l4 spec
+    <mcsim> sorry, but where is the question?
+    <braunr> 16:04 < braunr> i mean, when doing ipc, there can only be one
+      thread receiving the message
+    <mcsim> yes, you specify capability to thread you want to send message to
+    <braunr> i'll rephrase:
+    <braunr> when you send a message, do you invoke a capability (as in mach),
+      or do you specify the receiving thread ?
+    <mcsim> you specify a thread
+    <braunr> that's my point
+    <mcsim> but you use local name (that is basically capability)
+    <braunr> i see
+    <braunr> from wikipedia: "Furthermore, Fiasco contains mechanisms for
+      controlling communication rights as well as kernel-level resource
+      consumption"
+    <braunr> not certain that's what it refers to, but that's what i understand
+      from it
+    <braunr> more capability features in the kernel
+    <braunr> but you still send to one thread
+    <mcsim> yes
+    <braunr> that's what makes it "easily" real time capable
+    <braunr> a microkernel that would provide mach-like semantics
+      (object-oriented messaging) but without contention at the messsage
+      passing level (and with resource preallocation for real time) would be
+      really great
+    <braunr> bddebian: i'm not sure anyone did
+    <bddebian> braunr: Well you can be the hero!! ;)
+    <braunr> the various papers i could find that were close to this subject
+      didn't take contention into account
+    <braunr> exception for network-distributed ipc on slow network links
+    <braunr> bddebian: eh
+    <braunr> well i think it's doable acctually
+    <mcsim> braunr: can you elaborate on where contention is, because I do not
+      see this clearly?
+    <braunr> mcsim: let's take a practical example
+    <braunr> a file system such as ext2fs, that you know well enough
+    <braunr> imagine a large machine with e.g. 64 processors
+    <braunr> and an ignorant developer like ourselves issuing make -j64
+    <braunr> every file access performed by the gcc tools will look up files,
+      and read/write/close them, concurrently
+    <braunr> at the server side, thread creation isn't a problem
+    <braunr> we could have as many threads as clients
+    <braunr> the problem is the port set
+    <braunr> for each port class/bucket (let's assume they map 1:1), a port set
+      is created, and all receive rights for the objects managed by the server
+      (the files) are inserted in this port set
+    <braunr> then, the server uses ports_manage_port_operations_multithread()
+      to service requests on that port set
+    <braunr> with as many threads required to process incoming messages, much
+      the same way a work queue does it
+    <braunr> but you can't have *all* threads receiving at the same time
+    <braunr> there can only be one
+    <braunr> the others are queued
+    <braunr> i did a change about the queue order a few months ago in mach btw
+    <braunr> mcsim: see ipc/ipc_thread.c in gnumach
+    <braunr> this queue is shared and must be modified, which basically means a
+      lock, and contention
+    <braunr> so the 64 concurrent gcc processes will suffer from contenion at
+      the server while they're doing something similar to a system call
+    <braunr> by that, i mean, even before the request is received
+    <braunr> mcsim: if you still don't understand, feel free to ask
+    <mcsim> braunr: I'm thinking on it :) give me some time
+    <braunr> "Fiasco.OC is a third generation microkernel, which evolved from
+      its predecessor L4/Fiasco. Fiasco.OC is capability based"
+    <braunr> ok
+    <braunr> so basically, there are no more interesting l4 variants strictly
+      following the l4v2 spec any more
+    <braunr> "The completely redesigned user-land environment running on top of
+      Fiasco.OC is called L4 Runtime Environment (L4Re). It provides the
+      framework to build multi-component systems, including a client/server
+      communication framework"
+    <braunr> so yes, client/server communication is built on top of the kernel
+    <braunr> something i really want to avoid actually
+    <mcsim> So when 1 core wants to pull something out of queue it has to lock
+      it, and the problem arrives when other 63 cpus are waiting in the same
+      lock. Right?
+    <braunr> mcsim: yes
+    <mcsim> could this be solved by implementing per cpu queues? Like in slab
+      allocator
+    <braunr> solved, no
+    <braunr> reduced, yes
+    <braunr> by using multiple port sets, each with their own thread pool
+    <braunr> but this would still leave core problems unsolved
+    <braunr> (those making real-time hard)
+    <mcsim> to make it real-time is not really essential to solve this problem
+    <braunr> that's the other way around
+    <mcsim> we just need to guarantee that locking protocol is fair
+    <braunr> solving this problem is required for quality real-time
+    <braunr> what you refer to is similar to what i described in qnx earlier
+    <braunr> it's ugly
+    <braunr> keep in mind that message passing is the equivalent of system
+      calls on monolithic kernels
+    <braunr> os ideally, we'd want something as close as possible to an
+      actually system call
+    <braunr> so*
+    <braunr> mcsim: do you see why it's ugly ?
+    <mcsim> no i meant exactly opposite, I meant to use some deterministic
+      locking protocol
+    <braunr> please elaborate
+    <braunr> because what qnx does is deterministic
+    <mcsim> We know in what sequences threads will acquire the lock, so we will
+      not have to apply inheritance to all threads
+    <braunr> hwo do you know ?
+    <mcsim> there are different approaches, like you use ticket system or MCS
+      lock (http://portal.acm.org/citation.cfm?id=103729)
+    <braunr> that's still locking
+    <braunr> a system call has 0 contention
+    <braunr> 0 potential contention
+    <mcsim> in linux?
+    <braunr> everywhere i assume
+    <mcsim> than why do they need locks?
+    <braunr> they need locks after the system call
+    <braunr> the system call itself is a stupid trap that makes the thread
+      "jump" in the kernel
+    <braunr> and the reason why it's so simple is the same as in fiasco:
+      threads (clients) communicate directly with the "server thread"
+      (themselves in kernel mode)
+    <braunr> so 1/ they don't go through a capability or any other abstraction
+    <braunr> and 2/ they're even faster than on fiasco because they don't need
+      to find the destination, it's implied by the trap mechanism)
+    <braunr> 2/ is only an optimization that we can live without
+    <braunr> but 1/ is a serious bottleneck for microkernels
+    <mcsim> Do you mean that there system call that process without locks or do
+      you mean that there are no system calls that use locks? 
+    <braunr> this is what makes papers such as
+      https://www.kernel.org/doc/ols/2007/ols2007v1-pages-251-262.pdf valid
+    <braunr> i mean the system call (the mechanism used to query system
+      services) doesn't have to grab any lock
+    <braunr> the idea i have is to make the kernel transparently (well, as much
+      as it can be) associate a server thread to a client thread at the port
+      level
+    <braunr> at the server side, it would work practically the same
+    <braunr> the first time a server thread services a request, it's
+      automatically associated to a client, and subsequent request will
+      directly address this thread
+    <braunr> when the client is destroyed, the server gets notified and
+      destroys the associated server trhead
+    <braunr> for real-time tasks, i'm thinking of using a signal that gets sent
+      to all servers, notifying them of the thread creation so that they can
+      preallocate the server thread
+    <braunr> or rather, a signal to all servers wishing to be notified
+    <braunr> or perhaps the client has to reserve the resources itself
+    <braunr> i don't know, but that's the idea
+    <mcsim> and who will send this signal?
+    <braunr> the kernel
+    <braunr> x15 will provide unix like signals
+    <braunr> but i think the client doing explicit reservation is better
+    <braunr> more complicated, but better
+    <braunr> real time developers ought to know what they're doing anyway
+    <braunr> mcsim: the trick is using lockless synchronization (like rcu) at
+      the port so that looking up the matching server thread doesn't grab any
+      lock
+    <braunr> there would still be contention for the very first access, but
+      that looks much better than having it every time
+    <braunr> (potential contention)
+    <braunr> it also simplifies writing servers a lot, because it encourages
+      the use of a single port set for best performance
+    <braunr> instead of burdening the server writer with avoiding contention
+      with e.g. a hierarchical scheme
+    <mcsim> "looking up the matching server" -- looking up where?
+    <braunr> in the port
+    <mcsim> but why can't you just take first?
+    <braunr> that's what triggers contention
+    <braunr> you have to look at the first
+    <mcsim> > (16:34:13) braunr: mcsim: do you see why it's ugly ?
+    <mcsim> BTW, not really
+    <braunr> imagine serveral clients send concurrently
+    <braunr> mcsim: well, qnx doesn't do it every time
+    <braunr> qnx boosts server threads only when there are no thread currently
+      receiving, and a sender with a higher priority arrives
+    <braunr> since qnx can't know which server thread is going to be receiving
+      next, it boosts every thread
+    <braunr> boosting priority is expensive, and boosting everythread is linear
+      with the number of threads
+    <braunr> so on a big system, it would be damn slow for a system call :)
+    <mcsim> ok
+    <braunr> and grabbing "the first" can't be properly done without
+      serialization
+    <braunr> if several clients send concurrently, only one of them gets
+      serviced by the "first server thread"
+    <braunr> the second client will be serviced by the "second" (or the first
+      if it came back)
+    <braunr> making the second become the first (i call it the manager) must be
+      atomic
+    <braunr> that's the core of the problem
+    <braunr> i think it's very important because that's currently one of the
+      fundamental differences wih monolithic kernels
+    <mcsim> so looking up for server is done without contention. And just
+      assigning task to server requires lock, right? 
+    <braunr> mcsim: basically yes
+    <braunr> i'm not sure it's that easy in practice but that's what i'll aim
+      at
+    <braunr> almost every argument i've read about microkernel vs monolithic is
+      full of crap
+    <mcsim> Do you mean lock on the whole queue or finer grained one?
+    <braunr> the whole port
+    <braunr> (including the queue)
+    <mcsim> why the whole port?
+    <braunr> how can you make it finer ?
+    <mcsim> is queue a linked list?
+    <braunr> yes
+    <mcsim> than can we just lock current element in the queue and elements
+      that point to current
+    <braunr> that's two lock
+    <braunr> and every sender will want "current"
+    <braunr> which then becomes coarse grained
+    <mcsim> but they want different current
+    <braunr> let's call them the manager and the spare threads
+    <braunr> yes, that's why there is a lock
+    <braunr> so they don't all get the same
+    <braunr> the manager is the one currently waiting for a message, while
+      spare threads are available but not doing anything
+    <braunr> when the manager finally receives a message, it takes the first
+      spare, which becomes the new manager
+    <braunr> exactly like in a common thread pool
+    <braunr> so what are you calling current ?
+    <mcsim> we have in a port queue of threads that wait for message: t1 -> t2
+      -> t3 -> t4; kernel decided to assign message to t3, than t3 and t2 are
+      locked.
+    <braunr> why not t1 and t2 ?
+    <mcsim> i was calling t3 in this example as current
+    <mcsim> some heuristics
+    <braunr> yeah well no
+    <braunr> it wouldn't be deterministic then
+    <mcsim> for instance client runs on core 3 and wants server that also runs
+      on core 3
+    <braunr> i really want the operation as close as a true system call as
+      possible, so O(1)
+    <braunr> what if there are none ?
+    <mcsim> it looks up forward up to the end of queue: t1->t2->t4; takes t4
+    <mcsim> than it starts from the beginning
+    <braunr> that becomes linear in the worst case
+    <mcsim> no
+    <braunr> so 4095 attempts on a 4096 cpus machine
+    <braunr> ?
+    <mcsim> you're right
+    <braunr> unfortunately :/
+    <braunr> a per-cpu scheme could be good
+    <braunr> and applicable
+    <braunr> with much more thought
+    <braunr> and the problem is that, unlike the kernel, which is naturally a
+      one thread per cpu server, userspace servers may have less or more
+      threads than cpu
+    <braunr> possibly unbalanced too
+    <braunr> so it would result in complicated code
+    <braunr> one good thing with microkernels is that they're small
+    <braunr> they don't pollute the instruction cache much
+    <braunr> keeping the code small is important for performance too
+    <braunr> so forgetting this kind of optimization makes for not too
+      complicated code, and we rely on the scheduler to properly balance
+      threads
+    <braunr> mcsim: also note that, with your idea, the worst cast is twice
+      more expensive than a single lock
+    <braunr> and on a machine with few processors, this worst case would be
+      likely
+    <mcsim> so, you propose every time try to take first server from the queue?
+    <mcsim> braunr: ^
+    <braunr> no
+    <braunr> that's what is done already
+    <braunr> i propose doing that the first time a client sends a message
+    <braunr> but then, the server thread that replied becomes strongly
+      associated to that client (it cannot service requests from other clients)
+    <braunr> and it can be recycled only when the client dies
+    <braunr> (which generates a signal indicating the server it can now recycle
+      the server thread)
+    <braunr> (a signal similar to the no-sender or dead-name notifications in
+      mach)
+    <braunr> that signal would be sent from the kernel, in the traditional unix
+      way (i.e. no dedicated signal thread since it would be another source of
+      contention)
+    <braunr> and the server thread would directly receive it, not interfering
+      with the other threads in the server in any way
+    <braunr> => contention on first message only
+    <braunr> now, for something like make -j64, which starts a different
+      process for each compilation (itself starting subprocesses for
+      preprocessing/compiling/assembling)
+    <braunr> it wouldn't be such a big win
+    <braunr> so even this first access should be optimized
+    <braunr> if you ever get an idea, feel free to share :)
+    <mcsim> May mach block thread when it performs asynchronous call?
+    <mcsim> braunr: ^
+    <braunr> sure
+    <braunr> but that's unrelated
+    <braunr> in mach, a sender is blocked only when the message queue is full
+    <mcsim> So we can introduce per cpu queues at the sender side
+    <braunr> (and mach_msg wasn't called in non blocking mode obviously)
+    <braunr> no
+    <braunr> they need to be delivered in order
+    <mcsim> In what order?
+    <braunr> messages can't be reorder once queued
+    <braunr> reordered
+    <braunr> so fifo order
+    <braunr> if you break the queue in per cpu queues, you may break that, or
+      need work to rebuild the order
+    <braunr> which negates the gain from using per cpu queues
+    <mcsim> Messages from the same thread will be kept in order
+    <braunr> are you sure ?
+    <braunr> and i'm not sure it's enough
+    <mcsim> thes cpu queues will be put to common queue once context switch
+      occurs
+    <braunr> *all* messages must be received in order
+    <mcsim> these*
+    <braunr> uh ?
+    <braunr> you want each context switch to grab a global lock ?
+    <mcsim> if you have parallel threads that send messages that do not have
+      dependencies than they are unordered 
+    <mcsim> always
+    <braunr> the problem is they might
+    <braunr> consider auth for example
+    <braunr> you have one client attempting to authenticate itself to a server
+      through the auth server
+    <braunr> if message order is messed up, it just won't work
+    <braunr> but i don't have this problem in x15, since all ipc (except
+      signals) is synchronous
+    <mcsim> but it won't be messed up. You just "send" messages in O(1), but
+      than you put these messages that are not actually sent in queue all at
+      once
+    <braunr> i think i need more details please
+    <mcsim> you have lock on the port as it works now, not the kernel lock
+    <mcsim> the idea is to batch these calls
+    <braunr> i see
+    <braunr> batching can be effective, but it would really require queueing
+    <braunr> x15 only queues clients when there is no receiver
+    <braunr> i don't think batching can be applied there
+    <mcsim> you batch messages only from one client
+    <braunr> that's what i'm saying
+    <mcsim> so client can send several messages during his time slice and than
+      you put them into queue all together 
+    <braunr> x15 ipc is synchronous, no more than 1 message per client at any
+      time
+    <braunr> there also are other problems with this strategy
+    <braunr> problems we have on the hurd, such as priority handling
+    <braunr> if you delay the reception of messages, you also delay priority
+      inheritance to the server thread
+    <braunr> well not the reception, the queueing actually
+    <braunr> but since batching is about delaying that, it's the same
+    <mcsim> if you use synchronous ipc than there is no sence in batching, at
+      least as I see it.
+    <braunr> yes
+    <braunr> 18:08 < braunr> i don't think batching can be applied there
+    <braunr> and i think sync ipc is the only way to go for a system intended
+      to provide messaging performance as close as possible to the system call
+    <mcsim> do you have as many server thread as many cores you have?
+    <braunr> no
+    <braunr> as many server threads as clients
+    <braunr> which matches the monolithic model
+    <mcsim> in current implementation?
+    <braunr> no
+    <braunr> currently i don't have userspace :>
+    <mcsim> and what is in hurd atm?
+    <mcsim> in gnumach
+    <braunr> asyn ipc
+    <braunr> async
+    <braunr> with message queues
+    <braunr> no priority inheritance, simple "handoff" on message delivery,
+      that's all
+    <anatoly> I managed to read the conversation :-)
+    <braunr> eh
+    <braunr> anatoly: any opinion on this ?
+    <anatoly> braunr: I have no opinion. I understand it partially :-) But
+      association of threads sounds for me as good idea
+    <anatoly> But who am I to say what is good or what is not in that area :-)
+    <braunr> there still is this "first time" issue which needs at least one
+      atomic instruction
+    <anatoly> I see. Does mach do this "first time" thing every time?
+    <braunr> yes
+    <braunr> but gnumach is uniprocessor so it doesn't matter
+    <mcsim> if we have 1:1 relation for client and server threads we need only
+      per-cpu queues
+    <braunr> mcsim: explain that please
+    <braunr> and the problem here is establishing this relation
+    <braunr> with a lockless lookup, i don't even need per cpu queues
+    <mcsim> you said: (18:11:16) braunr: as many server threads as clients
+    <mcsim> how do you create server threads?
+    <braunr> pthread_create
+    <braunr> :)
+    <mcsim> ok :)
+    <mcsim> why and when do you create a server thread?
+    <braunr> there must be at least one unbound thread waiting for a message
+    <braunr> when a message is received, that thread knows it's now bound with
+      a client, and if needed wakes up/spawns another thread to wait for
+      incoming messages
+    <braunr> when it gets a signal indicating the death of the client, it knows
+      it's now unbound, and goes back to waiting for new messages
+    <braunr> becoming either the manager or a spare thread if there already is
+      a manager
+    <braunr> a timer could be used as it's done on the hurd to make unbound
+      threads die after a timeout
+    <braunr> the distinction between the manager and spare threads would only
+      be done at the kernel level
+    <braunr> the server would simply make unbound threads wait on the port set
+    <anatoly> How client sends signal to thread about its death (as I
+      understand signal is not message) (sorry for noob question)
+    <mcsim> in what you described there are no queues at all
+    <braunr> anatoly: the kernel does it
+    <braunr> mcsim: there is, in the kernel
+    <braunr> the queue of spare threads
+    <braunr> anatoly: don't apologize for noob questions eh
+    <anatoly> braunr: is that client is a thread of some user space task?
+    <braunr> i don't think it's a newbie topic at all
+    <braunr> anatoly: a thread
+    <mcsim> make these queue per cpu
+    <braunr> why ?
+    <braunr> there can be a lot less spare threads than processors
+    <braunr> i don't think it's a good idea to spawn one thread per cpu per
+      port set
+    <braunr> on a large machine you'd have tons of useless threads
+    <mcsim> if you have many useless threads, than assign 1 thread to several
+      core, thus you will have twice less threads
+    <mcsim> i mean dynamically
+    <braunr> that becomes a hierarchical model
+    <braunr> it does reduce contention, but it's complicated, and for now i'm
+      not sure it's worth it
+    <braunr> it could be a tunable though
+    <mcsim> if you want something fast you should use something complicated.
+    <braunr> really ?
+    <braunr> a system call is very simple and very fast
+    <braunr> :p
+    <mcsim> why is it fast?
+    <mcsim> you still have a lot of threads in kernel
+    <braunr> but they don't interact during the system call
+    <braunr> the system call itself is usually a simple instruction with most
+      of it handled in hardware
+    <mcsim> if you invoke "write" system call, what do you do in kernel?
+    <braunr> you look up the function address in a table
+    <mcsim> you still have queues
+    <braunr> no
+    <braunr> sorry wait
+    <braunr> by system call, i mean "the transition from userspace to kernel
+      space"
+    <braunr> and the return
+    <braunr> not the service itself
+    <braunr> the equivalent on a microkernel system is sending a message from a
+      client, and receiving it in a server, not processing the request
+    <braunr> ideally, that's what l4 does: switching from one thread to
+      another, as simply and quickly as the hardware can
+    <braunr> so just a context and address space switch
+    <mcsim> at some point you put something in queue even in monolithic kernel
+      and make request to some other kernel thread
+    <braunr> the problem here is the indirection that is the capability
+    <braunr> yes but that's the service
+    <braunr> i don't care about the service here
+    <braunr> i care about how the request reaches the server
+    <mcsim> this division exist for microkernels
+    <mcsim> for monolithic it's all mixed
+    <anatoly> What does thread do when it receive a message?
+    <braunr> anatoly: what it wants :p
+    <braunr> the service
+    <braunr> mcsim: ?
+    <braunr> mixed ?
+    <anatoly> braunr: hm, is it a thread of some server?
+    <mcsim> if you have several working threads in monolithic kernel you have
+      to put request in queue
+    <braunr> anatoly: yes
+    <braunr> mcsim: why would you have working threads ?
+    <mcsim> and there is no difference either you consider it as service or
+      just "transition from userspace to kernel space"
+    <braunr> i mean, it's a good thing to have, they usually do, but they're
+      not implied
+    <braunr> they're completely irrelevant to the discussion here
+    <braunr> of course there is
+    <braunr> you might very well perform system calls that don't involve
+      anything shared
+    <mcsim> you can also have only one working thread in microkernel 
+    <braunr> yes
+    <mcsim> and all clients will wait for it
+    <braunr> you're mixing up work queues in the discussion here
+    <braunr> server threads are very similar to a work queue, yes
+    <mcsim> but you gave me an example with 64 cores and each core runs some
+      server thread
+    <braunr> they're a thread pool handling requests
+    <mcsim> you can have only one thread in a pool
+    <braunr> they have to exist in a microkernel system to provide concurrency
+    <braunr> monolithic kernels can process concurrently without them though
+    <mcsim> why?
+    <braunr> because on a monolithic system, _every client thread is its own
+      server_
+    <braunr> a thread making a system call is exactly like a client requesting
+      a service
+    <braunr> on a monolithic kernel, the server is the kernel
+    <braunr> and it *already* has as many threads as clients
+    <braunr> and that's pretty much the only thing beautiful about monolithic
+      kernels
+    <mcsim> right
+    <mcsim> have to think about it :)
+    <braunr> that's why they scale so easily compared to microkernel based
+      systems
+    <braunr> and why l4 people chose to have thread-based ipc
+    <braunr> but this just moves the problems to an upper level
+    <braunr> and is probably why they've realized one of the real values of
+      microkernel systems is capabilities
+    <braunr> and if you want to make them fast enough, they should be handled
+      directly by the kernel
+
+
+## IRC, freenode, #hurd, 2013-06-13
+
+    <bddebian> Heya Richard.  Solve the worlds problems yet? :)
+    <kilobug> bddebian: I fear the worlds problems are NP-complete ;)
+    <bddebian> heh
+    <braunr> bddebian: i wish i could solve mine at least :p
+    <bddebian> braunr: I meant the contention thing you were discussing the
+      other day :)
+    <braunr> bddebian: oh
+    <braunr> i have a solution that improves the behaviour yes, but there is
+      still contention the first time a thread performs an ipc
+    <bddebian> Any thread or the first time there is contention?
+    <braunr> there may be contention the first time a thread sends a message to
+      a server
+    <braunr> (assuming a server uses a single port set to receive requests)
+    <bddebian> Oh aye
+    <braunr> i think it's as much as can be done considering there is a
+      translation from capability to thread
+    <braunr> other schemes are just too heavy, and thus don't scale well
+    <braunr> this translation is one of the two important nice properties of
+      microkernel based systems, and translations (or indrections) usually have
+      a cost
+    <braunr> so we want to keep them
+    <braunr> and we have to accept that cost
+    <braunr> the amount of code in the critical section should be so small it
+      should only matter for machines with several hundreds or thousands
+      processors
+    <braunr> so it's not such a bit problem
+    <bddebian> OK
+    <braunr> but it would have been nice to have an additional valid
+      theoretical argument to explain how ipc isn't that slow compared to
+      system calls
+    <braunr> s/bit/big/
+    <braunr> people keep saying l4 made ipc as fast as system calls without
+      taking that stuff into account
+    <braunr> which makes the community look lame in the eyes of those familiar
+      with it
+    <bddebian> heh
+    <braunr> with my solution, persistent applications like databases should
+      perform as fast as on an l4 like kernel
+    <braunr> but things like parallel builds, which start many different
+      processes for each file, will suffer a bit more from contention
+    <braunr> seems like a fair compromise to me
+    <bddebian> Aye
+    <braunr> as mcsim said, there is a lot of contention about everywhere in
+      almost every application
+    <braunr> and lockless stuff is hard to correctly implement
+    <braunr> os it should be all right :)
+    <braunr> ... :)
+    <mcsim> braunr: What if we have at least 1 thread for each core that stay
+      in per-core queue.  When we decide to kill a thread and this thread is
+      last in a queue we replace it with load balancer. This is still worse
+      than with monolithic kernel, but it is simplier to implement from kernel
+      perspective.
+    <braunr> mcsim: it doesn't scale well
+    <braunr> you end up with one thread per cpu per port set
+    <mcsim> load balancer is only one thread
+    <mcsim> why would it end up like you said?
+    <braunr> remember the goal is to avoid contention
+    <braunr> your proposition is to set per cpu queues
+    <braunr> the way i understand what you said, it means clients will look up
+      a server thread in these queues
+    <braunr> one of them actually, the one for the cpu they're currently
+      running one
+    <braunr> so 1/ it disables migration
+    <braunr> or 2/ you have one server thread per client per cpu
+    <braunr> i don't see what a "load balancer" would do here
+    <mcsim> client either finds server thread without contention or it sends
+      message to load balancer, that redirects message to thread from global
+      queue. Where global queue is concatenation of local ones.
+    <braunr> you can't concatenate local queues in a global one
+    <braunr> if you do that, you end up with a global queue, and a global lock
+      again
+    <mcsim> not global
+    <mcsim> load balancer is just one
+    <braunr> then you serialize all remote messaging through a single thread
+    <mcsim> so contention will be only among local thread and load balancer
+    <braunr> i don't see how it doesn't make the load balancer global
+    <mcsim> it makes
+    <mcsim> but it just makes bootstraping harder
+    <braunr> i'm not following
+    <braunr> and i don't see how it improves on my solution
+    <mcsim> in your example with make -j64 very soon there will be local
+      threads at any core
+    <braunr> yes, hence the lack of scalability
+    <mcsim> but that's your goal: create as many server thread as many clients
+      you have, isn't it?
+    <braunr> your solution may create a lot more
+    <braunr> again, one per port set (or server) per cpu
+    <braunr> imagine this worst case: you have a single client with one thread
+    <braunr> which gets migrated to every cpu on the machine
+    <braunr> it will spawn one thread per cpu at the server side
+    <mcsim> why would it migrate all the time?
+    <braunr> it's a worst case
+    <braunr> if it can migrate, consider it will
+    <braunr> murphy's law, you know
+    <braunr> also keep in mind contention doesn't always occur with a global
+      lock
+    <braunr> i'm talking about potential contention
+    <braunr> and same things apply: if it can happen, consider it will
+    <mcsim> than we can make load balancer that also migrates server threads
+    <braunr> ok so in addition to worker threads, we'll add an additional per
+      server load balancer which may have to lock several queues at once
+    <braunr> doesn't it feel completely overkill to you ?
+    <mcsim> load balancer is global, not per-cpu 
+    <mcsim> there could be contention for it
+    <braunr> again, keep in mind this problem becomes important for several
+      hundreds processors, not below
+    <braunr> yes but it has to balance
+    <braunr> which means it has to lock cpu queues
+    <braunr> and at least two of them to "migrate" server threads
+    <braunr> and i don't know why it would do that
+    <braunr> i don't see the point of the load balancer
+    <mcsim> so, you start make -j64. First 64 invocations of gcc will suffer
+      from contention for load balancer, but later on it will create enough
+      server threads and contention will disappear 
+    <braunr> no
+    <braunr> that's the best case : there is always one server thread per cpu
+      queue
+    <braunr> how do you guarantee your 64 server threads don't end up in the
+      same cpu queue ?
+    <braunr> (without disabling migration)
+    <mcsim> load balancer will try to put some server thread to the core where
+      load balancer was invoked
+    <braunr> so there is no guarantee
+    <mcsim> LB can pin server thread 
+    <braunr> unless we invoke it regularly, in a way similar to what is already
+      done in the SMP scheduler :/
+    <braunr> and this also means one balancer per cpu then
+    <mcsim> why one balance per cpu?
+    <braunr> 15:56 < mcsim> load balancer will try to put some server thread to
+      the core where load balancer was invoked
+    <braunr> why only where it was invoked ?
+    <mcsim> because it assumes that if some one asked for server at core x, it
+      most likely will ask for the same service from the same core
+    <braunr> i'm not following
+    <mcsim> LB just tries to prefetch were next call will be
+    <braunr> what you're describing really looks like per-cpu work queues ...
+    <braunr> i don't see how you make sure there aren't too many threads
+    <braunr> i don't see how a load balancer helps
+    <braunr> this is just an heuristic
+    <mcsim> when server thread is created?
+    <mcsim> who creates it?
+    <braunr> and it may be useless, depending on how threads are migrated and
+      when they call the server
+    <braunr> same answer as yesterday
+    <braunr> there must be at least one thread receiving messages on a port set
+    <braunr> when a message arrives, if there aren't any spare threads, it
+      spawns one to receive messages while it processes the request
+    <mcsim> at the moment server threads are killed by timeout, right?
+    <braunr> yes
+    <braunr> well no
+    <braunr> there is a debian patch that disables that
+    <braunr> because there is something wrong with thread destruction
+    <braunr> but that's an implementation bug, not a design issue
+    <mcsim> so it is the mechanism how we insure that there aren't too many
+      threads
+    <mcsim> it helps because yesterday I proposed to hierarchical scheme, were
+      one server thread could wait in cpu queues of several cores
+    <mcsim> but this has to be implemented in kernel
+    <braunr> a hierarchical scheme would help yes
+    <braunr> a bit
+    <mcsim> i propose scheme that could be implemented in userspace
+    <braunr> ?
+    <mcsim> kernel should not distinguish among load balancer and server thread
+    <braunr> sorry this is too confusing
+    <braunr> please start describing what you have in mind from the start
+    <mcsim> ok
+    <mcsim> so my starting point was to use hierarchical management
+    <mcsim> but the drawback was that to implement it you have to do this in
+      kernel
+    <mcsim> right?
+    <braunr> no
+    <mcsim> so I thought how can this be implemented in user space
+    <braunr> being in kernel isn't the problem
+    <braunr> contention is
+    <braunr> on the contrary, i want ipc in kernel exactly because that's where
+      you have the most control over how it happens
+    <braunr> and can provide the best performance
+    <braunr> ipc is the main kernel responsibility
+    <mcsim> but if you have few clients you have low contention
+    <braunr> the goal was "0 potential contention"
+    <mcsim> and if you have many clients, you have many servers 
+    <braunr> let's say server threads
+    <braunr> for me, a server is a server task or process
+    <mcsim> right
+    <braunr> so i think 0 potential contention is just impossible
+    <braunr> or it requires too many resources that make the solution not
+      scalable
+    <mcsim> 0 contention is impossible, since you have disbalance in numbers of
+      client threads and server threads
+    <braunr> well no
+    <braunr> it *canù be achieved
+    <braunr> imagine servers register themselves to the kernel
+    <braunr> and the kernel signals them when a client thread is spawned
+    <braunr> you'd effectively have one server thread per client
+    <braunr> (there would be other problems like e.g. when a server thread
+      becomes the client of another, etc..)
+    <braunr> so it's actually possible
+    <braunr> but we clearly don't want that, unless perhaps for real time
+      threads
+    <braunr> but please continue
+    <mcsim> what does "and the kernel signals them when a client thread is
+      spawned" mean?
+    <braunr> it means each time a thread not part of a server thread is
+      created, servers receive a signal meaning "hey, there's a new thread out
+      there, you might want to preallocate a server thread for it"
+    <mcsim> and what is the difference with creating thread on demand?
+    <braunr> on demand can occur when receiving a message
+    <braunr> i.e. during syscall
+    <mcsim> I will continue, I just want to be sure that I'm not basing on
+      wrong assumtions.
+    <mcsim> and what is bad in that?
+    <braunr> (just to clarify, i use the word "syscall" with the same meaning
+      as "RPC" on a microkernel system, whereas it's a true syscall on a
+      monolithic one)
+    <braunr> contention
+    <braunr> whether you have contention on a list of threads or on map entries
+      when allocating a stack doesn't matter
+    <braunr> the problem is contention
+    <mcsim> and if we create server thread always?
+    <mcsim> and do not keep them in queue?
+    <braunr> always ?
+    <mcsim> yes
+    <braunr> again
+    <braunr> you'd have to allocate a stack for it
+    <braunr> every time
+    <braunr> so two potentially heavy syscalls to allocate/free the stac
+    <braunr> k
+    <braunr> not to mention the thread itself, its associations with its task,
+      ipc space, maintaining reference counts
+    <braunr> (moar contention)
+    <braunr> creating threads was considered cheap at the time the process was
+      the main unit of concurrency
+    <mcsim> ok, than we will have the same contention if we will create a
+      thread when "the kernel signals them when a client thread is spawned"
+    <braunr> now we have work queues / thread pools just to avoid that
+    <braunr> no
+    <braunr> because that contention happens at thread creation
+    <braunr> not during a syscall
+    <braunr> i'll redefine the problem: the problem is contention during a
+      system call / IPC
+    <mcsim> ok
+    <braunr> note that my current solution is very close to signalling every
+      server
+    <braunr> it's the lazy version
+    <braunr> match at first IPC time
+    <mcsim> so I was basing my plan on the case when we create new thread when
+      client makes syscall and there is not enough server threads
+    <braunr> the problem exists even when there is enough server threads
+    <braunr> we shouldn't consider the case where there aren't enough server
+      threads
+    <braunr> real time tasks are the only ones which want that, and can
+      preallocate resources explicitely
+    <mcsim> I think that real time tasks should be really separated
+    <mcsim> For them resource availability as much more important that good
+      resource utilisation.
+    <mcsim> So if we talk about real time tasks we should apply one police and
+      for non-real time another
+    <mcsim> So it shouldn't be critical if thread is created during syscall
+    <braunr> agreed
+    <braunr> that's what i was saying :
+    <braunr> :)
+    <braunr> 16:23 < braunr> we shouldn't consider the case where there aren't
+      enough server threads
+    <braunr> in this case, we spawn a thread, and that's ok
+    <braunr> it will live on long enough that we really don't care about the
+      cost of lazily creating it
+    <braunr> so let's concentrate only on the case where there already are
+      enough server threads
+    <mcsim> So if client makes a request to ST (is it ok to use abbreviations?)
+      there are several cases:
+    <mcsim> 1/ There is ST waiting on local queue (trivial case)
+    <mcsim> 2/ There is no ST, only load balancer (LB). LB decides to create a
+      new thread
+    <mcsim> 3/ Like in previous case, but LB decides to perform migration
+    <braunr> migration of what ?
+    <mcsim> migration of ST from other core
+    <braunr> the only case effectively solving the problem is 1
+    <braunr> others introduce contention, and worse, complex code
+    <braunr> i mean a complex solution
+    <braunr> not only code
+    <braunr> even the addition of a load balancer per port set
+    <braunr> thr data structures involved for proper migration
+    <mcsim> But 2 and 3 in long run will lead to having enough threads on all
+      cores
+    <braunr> then you end up having 1 per client per cpu
+    <mcsim> migration is needed in any case 
+    <braunr> no
+    <braunr> why would it be ?
+    <mcsim> to balance load
+    <mcsim> not only for this case
+    <braunr> there already is load balancing in the scheduler
+    <braunr> we don't want to duplicate its function
+    <mcsim> what kind of load balancing?
+    <mcsim> *has scheduler
+    <braunr> thread weight / cpu
+    <mcsim> and does it perform migration?
+    <braunr> sure
+    <mcsim> so scheduler can be simplified if policy "when to migrate" will be
+      moved to user space
+    <braunr> this is becoming a completely different problem
+    <braunr> and i don't want to do that
+    <braunr> it's very complicated for no real world benefit
+    <mcsim> but all this will be done in userspace
+    <braunr> ?
+    <braunr> all what ?
+    <mcsim> migration decisions 
+    <braunr> in your scheme you mean ?
+    <mcsim> yes
+    <braunr> explain how
+    <mcsim> LB will decide when thread will migrate
+    <mcsim> and LB is user space task
+    <braunr> what does it bring ?
+    <braunr> imagine that, in the mean time, the scheduler then decides the
+      client should migrate to another processor for fairness
+    <braunr> you'd have migrated a server thread once for no actual benefit
+    <braunr> or again, you need to disable migration for long durations, which
+      sucks
+    <braunr> also
+    <braunr> 17:06 < mcsim> But 2 and 3 in long run will lead to having enough
+      threads on all cores
+    <braunr> contradicts the need for a load balancer
+    <braunr> if you have enough threads every where, why do you need to balance
+      ?
+    <mcsim> and how are you going to deal with the case when client will
+      migrate all the time?
+    <braunr> i intend to implement something close to thread migration
+    <mcsim> because some of them can die because of timeout
+    <braunr> something l4 already does iirc
+    <braunr> the thread scheduler manages scheduling contexts
+    <braunr> which can be shared by different threads
+    <braunr> which means the server thread bound to its client will share the
+      scheduling context
+    <braunr> the only thing that gets migrated is the scheduling context
+    <braunr> the same way a thread can be migrated indifferently on a
+      monolithic system, whether it's in user of kernel space (with kernel
+      preemption enabled ofc)
+    <braunr> or*
+    <mcsim> but how server thread can process requests from different clients?
+    <braunr> mcsim: load becomes a problem when there are too many threads, not
+      when they're dying
+    <braunr> they can't
+    <braunr> at first message, they're *bound*
+    <braunr> => one server thread per client
+    <braunr> when the client dies, the server thread is ubound and can be
+      recycled
+    <braunr> unbound*
+    <mcsim> and you intend to put recycled threads to global queue, right?
+    <braunr> yes
+    <mcsim> and I propose to put them in local queues in hope that next client
+      will be on the same core
+    <braunr> the thing is, i don't see the benefit
+    <braunr> next client could be on another
+    <braunr> in which case it gets a lot heavier than the extremely small
+      critical section i have in mind
+    <mcsim> but most likely it could be on the same
+    <braunr> uh, no
+    <mcsim> becouse on this load on this core is decreased 
+    <mcsim> *because
+    <braunr> well, ok, it would likely remain on the same cpu
+    <braunr> but what happens when it migrates ?
+    <braunr> and what about memory usage ?
+    <braunr> one queue per cpu per port set can get very large
+    <braunr> (i understand the proposition better though, i think)
+    <mcsim> we can ask also "What if random access in memory will be more usual
+      than sequential?", but we still optimise sequential one, making random
+      sometimes even worse. The real question is "How can we maximise benefit
+      of knowledge where free server thread resides?"
+    <mcsim> previous was reply to: "(17:17:08) braunr: but what happens when it
+      migrates ?"
+    <braunr> i understand
+    <braunr> you optimize for the common case
+    <braunr> where a lot more ipc occurs than migrations
+    <braunr> agreed
+    <braunr> now, what happens when the server thread isn't in the local queue
+      ?
+    <mcsim> than client request will be handled to LB
+    <braunr> why not search directly itself ?
+    <braunr> (and btw, the right word is "then")
+    <mcsim> LB can decide whom to migrate
+    <mcsim> right, sorry
+    <braunr> i thought you were improving on my scheme
+    <braunr> which implies there is a 1:1 mapping for client and server threads
+    <mcsim> If job of LB is too small than it can be removed and everything
+      will be done in kernel
+    <braunr> it can't be done in userspace anyway
+    <braunr> these queues are in the port / port set structures
+    <braunr> it could be done though
+    <braunr> i mean
+    <braunr> using per cpu queues
+    <braunr> server threads could be both in per cpu queues and in a global
+      queue as long as they exist
+    <mcsim> there should be no global queue, because there again will be
+      contention for it
+    <braunr> mcsim: accessing a load balancer implies contention
+    <braunr> there is contention anyway
+    <braunr> what you're trying to do is reduce it in the first message case if
+      i'm right
+    <mcsim> braunr: yes
+    <braunr> well then we have to revise a few assumptions
+    <braunr> 17:26 < braunr> you optimize for the common case
+    <braunr> 17:26 < braunr> where a lot more ipc occurs than migrations
+    <braunr> that actually becomes wrong
+    <braunr> the first message case occurs for newly created threads
+    <mcsim> for make -j64 this is actually common case
+    <braunr> and those are usually not spawn on the processor their parent runs
+      on
+    <braunr> yes
+    <braunr> if you need all processors, yes
+    <braunr> i don't think taking into account this property changes many
+      things
+    <braunr> per cpu queues still remain the best way to avoid contention
+    <braunr> my problem with this solution is that you may end up with one
+      unbound thread per processor per server
+    <braunr> also, i say "per server", but it's actually per port set
+    <braunr> and even per port depending on how a server is written
+    <braunr> (the system will use one port set for one server in the common
+      case but still)
+    <braunr> so i'll start with a global queue for unbound threads
+    <braunr> and the day we decide it should be optimized with local (or
+      hierarchical) queues, we can still do it without changing the interface
+    <braunr> or by simply adding an option at port / port set creation
+    <braunr> whicih is a non intrusive change
+    <mcsim> ok. your solution should be simplier. And TBH, what I propose is
+      not clearly much mory gainful.
+    <braunr> well it is actually for big systems
+    <braunr> it is because instead of grabbing a lock, you disable preemption
+    <braunr> which means writing to a local, uncontended variable
+    <braunr> with 0 risk of cache line bouncing
+    <braunr> this actually looks very good to me now
+    <braunr> using an option to control this behaviour
+    <braunr> and yes, in the end, it gets very similar to the slab allocator,
+      where you can disable the cpu pool layer with a flag :)
+    <braunr> (except the serialized case would be the default one here)
+    <braunr> mcsim: thanks for insisting
+    <braunr> or being persistent
+    <mcsim> braunr: thanks for conversation :)
+    <mcsim> and probably I had to start from statement that I wanted to improve
+      common case
+
+
+## IRC, freenode, #hurd, 2013-06-20
+
+    <congzhang> braunr: how about your x15, it is impovement for mach or
+      redesign? I really want to know that:)
+    <braunr> it's both largely based on mach and now quite far from it
+    <braunr> based on mach from a functional point of view
+    <braunr> i.e. the kernel assumes practically the same functions, with a
+      close interface
+    <congzhang> Good point:)
+    <braunr> except for ipc which is entirely rewritten
+    <braunr> why ? :)
+    <congzhang> for from a functional point of view:)  I think each design has
+      it intrinsic advantage and disadvantage
+    <braunr> but why is it good ?
+    <congzhang> if redesign , I may need wait more time to a new function hurd
+    <braunr> you'll have to wait a long time anyway :p
+    <congzhang> Improvement was better sometimes, although redesign was more
+      attraction sometimes :)
+    <congzhang> I will wait :)
+    <braunr> i wouldn't put that as a reason for it being good
+    <braunr> this is a departure from what current microkernel projects are
+      doing
+    <braunr> i.e. x15 is a hybrid
+    <congzhang> Sure, it is good from design too:)
+    <braunr> yes but i don't see why you say that
+    <congzhang> Sorry, i did not show my view clear, it is good from design
+      too:)
+    <braunr> you're just saying it's good, you're not saying why you think it's
+      good
+    <congzhang> I would like to talk hybrid, I want to talk that, but I am a
+      litter afraid that you are all enthusiasm microkernel fans 
+    <braunr> well no i'm not
+    <braunr> on the contrary, i'm personally opposed to the so called
+      "microkernel dogma"
+    <braunr> but i can give you reasons why, i'd like you to explain why *you*
+      think a hybrid design is better
+    <congzhang> so, when I talk apple or nextstep, I got one soap :)
+    <braunr> that's different
+    <braunr> these are still monolithic kernels
+    <braunr> well, monolithic systems running on a microkernel
+    <congzhang> yes, I view this as one type of hybrid
+    <braunr> no it's not
+    <congzhang> microkernel wan't to divide process ( task ) from design view,
+      It is great
+    <congzhang> as implement view or execute view, we have one cpu and some
+      physic memory, as the simplest condition, we can't change that
+    <congzhang> that what resource the system has
+    <braunr> what's your point ?
+    <congzhang> I view this as follow
+    <congzhang> I am cpu and computer
+    <congzhang> application are the things I need to do
+    <congzhang> for running  the program and finish the job, which way is the
+      best way for me
+    <congzhang> I need keep all the thing as simple as possible,  divide just
+      from application design view, for me no different
+    <congzhang> desgin was microkernel , run just for one cpu and these
+      resource.
+    <braunr> (well there can be many processors actually)
+    <congzhang> I know,  I mean hybrid at some level, we can't escape that 
+    <congzhang> braunr: I show my point?
+    <braunr> well l4 systems showed we somehow can
+    <braunr> no you didn't
+    <congzhang> x15's api was rpc, right?
+    <braunr> yes
+    <braunr> well a few system calls, and mostly rpcs on top of the ipc one
+    <braunr> jsu tas with mach
+    <congzhang> and you hope the target logic run locally just like in process
+      function call, right?
+    <braunr> no
+    <braunr> it can't run locally
+    <congzhang> you need thread context switch 
+    <braunr> and address space context switch
+    <congzhang> but you cut down the cost
+    <braunr> how so ?
+    <congzhang> I mean you do it, right?
+    <congzhang> x15
+    <braunr> yes but no in this way
+    <braunr> in every other way :p
+    <congzhang> I know, you remeber performance anywhere :p
+    <braunr> i still don't see your point
+    <braunr> i'd like you to tell, in one sentence, why you think hybrids are
+      better
+    <congzhang> balance the design and implement problem :p
+    <braunr> which is ?
+    <congzhang> hybird for kernel arc
+    <braunr> you're stating the solution inside the problem
+    <congzhang> you are good at mathmatics 
+    <congzhang> sorry, I am not native english speaker
+    <congzhang> braunr: I will  find some more suitable sentence to show my
+      point some day,  but I can't find one if you think I did not show my
+      point:)
+    <congzhang> for today
+    <braunr> too bad
+    <congzhang> If i am computer I hope the arch was monolithic, If  i am
+      programer I hope the arch was microkernel,  that's my idea
+    <braunr> ok let's get a bit faster
+    <braunr> monolithic for performance ?
+    <congzhang> braunr: sorry for that,  and thank you for the talk:)
+    <braunr> (a computer doesn't "hope")
+    <congzhang> braunr: you need very clear answer, I can't give you that,
+      sorry again
+    <braunr> why do you say "If i am computer I hope the arch was monolithic" ?
+    <congzhang> I know you can slove any single problem
+    <braunr> no i don't, and it's not about me
+    <braunr> i'm just curious
+    <congzhang> I do the work for myself,  as my own view, all the resource
+      belong to me, I does not think too much arch related divide was need, if
+      I am the computer :P
+    <braunr> separating address spaces helps avoiding serious errors like
+      corrupting memory of unrelated subsystems
+    <braunr> how does one not want that ?
+    <braunr> (except for performance)
+    <congzhang> braunr: I am computer when I say that words!
+    <braunr> a computer doesn't want anything
+    <braunr> users (including developers) on the other way are the point of
+      view you should have
+    <congzhang> I am engineer other time
+    <congzhang> we create computer, but they are lifeable just my feeling, hope
+      not talk this topic 
+    <braunr> what ?
+    <congzhang> I mark computer as life things
+    <braunr> please don't
+    <braunr> and even, i'll make a simple example in favor of isolating
+      resources
+    <braunr> if we, humans, were able to control all of our "resources", we
+      could for example shut down our heart by mistake
+    <congzhang> back to the topic, I think monolithic was easy to understand,
+      and cut the combinatorial problem count for the perfect software
+    <braunr> the reason the body have so many involuntary functions is probably
+      because those who survived did so because these functions were
+      involuntary and controlled by separated physiological functions
+    <braunr> now that i've made this absurd point, let's just not consider
+      computers as life forms
+    <braunr> microkernels don't make a system that more complicated
+    <congzhang> they does
+    <braunr> no
+    <congzhang> do
+    <braunr> they create isolation
+    <braunr> and another layer of indirection with capabilities
+    <braunr> that's it
+    <braunr> it's not that more complicated
+    <congzhang> view the kernel function from more nature view, execute some
+      code
+    <braunr> what ?
+    <congzhang> I know the benefit of the microkernel and the os
+    <congzhang> it's complicated
+    <braunr> not that much
+    <congzhang> I agree with you
+    <congzhang> microkernel was the idea of organization
+    <braunr> yes
+    <braunr> but always keep in mind your goal when thinking about means to
+      achieve them
+    <congzhang> we do the work at diferent view
+    <kilobug> what's quite complicated is making a microkernel design without
+      too much performances loss, but aside from that performances issue, it's
+      not really much more complicated
+    <congzhang> hurd do the work at os level
+    <kilobug> even a monolithic kernel is made of several subsystems that
+      communicated with each others using an API
+    <core-ix> i'm reading this conversation for some time now 
+    <core-ix> and I have to agree with braunr 
+    <core-ix> microkernels simplify the design
+    <braunr> yes and no
+    <braunr> i think it depends a lot on the availability of capabilities
+    <core-ix> i have experience mostly with QNX and i can say it is far more
+      easier to write a driver for QNX, compared to Linux/BSD for example ...
+    <braunr> which are the major feature microkernels usually add
+    <braunr> qnx >= 5 do provide capabilities
+    <braunr> (in the form of channels)
+    <core-ix> yeah ... it's the basic communication mechanism 
+    <braunr> but my initial and still unanswered question was: why do people
+      think a hybrid kernel is batter than a true microkernel, or not
+    <braunr> better*
+    <congzhang> I does not say what is good or not, I just say hybird was
+      accept
+    <braunr> core-ix: and if i'm right, they're directly implemented by the
+      kernel, and not a userspace system server
+    <core-ix> braunr: evolution is more easily accepted than revolution :)
+    <core-ix> braunr: yes, message passing is in the QNX kernel
+    <braunr> not message passing, capabilities
+    <braunr> l4 does message passing in kernel too, but you need to go through
+      a capability server
+    <braunr> (for the l4 variants i have in mind at least)
+    <congzhang> the operating system evolve for it's application.
+    <braunr> congzhang: about evolution, that's one explanation, but other than
+      that ?
+    <braunr> core-ix: ^
+    <core-ix> braunr: by capability you mean (for the lack of a better word
+      i'll use) access control mechanisms?
+    <braunr> i mean reference-rights
+    <core-ix> the "trusted" functionality available in other OS? 
+    <braunr> http://en.wikipedia.org/wiki/Capability-based_security
+    <braunr> i don't know what other systems refer to with "trusted"
+      functionnality
+    <core-ix> yeah, the same thing
+    <congzhang> for now, I am searching one way to make hurd arm edition
+      suitable for Raspberry Pi
+    <congzhang> I hope design or the arch itself cant scale
+    <congzhang> can be scale
+    <core-ix> braunr: i think (!!!) that those are implemented in the Secure
+      Kernel (http://www.qnx.com/products/neutrino-rtos/secure-kernel.html)
+    <core-ix> never used it though ...
+    <congzhang> rpc make intercept easy :)
+    <braunr> core-ix: regular channels are capabilities
+    <core-ix> yes, and by extensions - they are in the kenrel
+    <braunr> that's my understanding too
+    <braunr> and that one thing that, for me, makes qnx an hybrid as well
+    <congzhang> just need intercept in kernel,
+    <core-ix> braunr: i would dive the academic aspects of this ... in my mind
+      a microkernel is system that provides minimal hardware abstraction,
+      communication primitives (usually message passing), virtual memory
+      protection 
+    <core-ix> *wouldn't ...
+    <braunr> i think it's very important on the contrary
+    <braunr> what you describe is the "microkernel dogma"
+    <braunr> precisely
+    <braunr> that doesn't include capabilities
+    <braunr> that's why l4 messaging is thread-based
+    <braunr> and that's why l4 based systems are so slow
+    <braunr> (except okl4 which put back capabilities in the kernel)
+    <core-ix> so the compromise here is to include capabilities implementation
+      in the kernel, thus making the final product hybrid? 
+    <braunr> not only
+    <braunr> because now that you have them in kernel
+    <braunr> the kernel probably has to manage memory for itself
+    <braunr> so you need more features in the virtual memory system
+    <core-ix> true ... 
+    <braunr> that's what makes it a hybrid
+    <braunr> other ways being making each client provide memory, but that's
+      when your system becomes very complicated
+    <core-ix> but I believe this is true for pretty much any "general OS" case
+    <braunr> and some resources just can't be provided by a client
+    <braunr> e.g. a client can't provide virtual memory to another process
+    <braunr> okl4 is actually the only pragmatic real-world implementation of
+      l4
+    <braunr> and they also added unix-like signals
+    <braunr> so that's an interesting model
+    <braunr> as well as qnx
+    <braunr> the good thing about the hurd is that, although it's not kernel
+      agnostic, it doesn't require a lot from the underlying kernel
+    <core-ix> about hurd?
+    <braunr> yes
+    <core-ix> i really need to dig into this code at some point :)
+    <braunr> well you may but you may not see that property from the code
+      itself
+
+
+## IRC, freenode, #hurd, 2013-06-28
+
+    <teythoon> so tell me about x15 if you are in the mood to talk about that
+    <braunr> what do you want to know ?
+    <teythoon> well, the high level stuff first
+    <teythoon> like what's the big picture
+    <braunr> the big picture is that x15 is intended to be a "better mach for
+      the hurd
+    <braunr> "
+    <braunr> mach is too general purpose
+    <braunr> its ipc mechanism too powerful
+    <braunr> too complicated, error prone, and slow
+    <braunr> so i intend to build something a lot simpler and faster :p
+    <teythoon> so your big picture includes actually porting hurd? i thought i
+      read somewhere that you have a rewrite in mind
+    <braunr> it's a clone, yes
+    <braunr> x15 will feature mostly sync ipc, and no high level types inside
+      messages
+    <braunr> the ipc system call will look like what qnx does
+    <braunr> send-recv from the client, recv/reply/reply-recv from the server
+    <teythoon> but doesn't sync mean that your context switch will have to be
+      quite fast?
+    <braunr> how does that differ from the async approach ?
+    <braunr> (keep in mind that almost all hurd RPCs are synchronous)
+    <teythoon> yes, I know, and it also affects async mode, but a slow switch
+      is worse for the sync case, isn't it?
+    <teythoon> ok so your ipc will be more agnostic wrt to what it transports?
+      unlike mig I presume?
+    <braunr> no it's the same
+    <braunr> yes
+    <braunr> input will be an array, each entry denoting either memory or port
+      rights
+    <braunr> (or directly one entry for fast ipcs)
+    <teythoon> memory as in pointers?
+    <braunr> (well fast ipc when there is only one entry to avoid hitting a
+      table)
+    <braunr> pointer/size yes
+    <teythoon> hm, surely you want a way to avoid copying that, right?
+    <braunr> the only operation will be copy (i.e. unlike mach which allows
+      sharing)
+    <braunr> why ?
+    <braunr> copy doesn't exclude zero copy
+    <braunr> (zero copy being adjusting page tables with copy on write
+      techniques)
+    <teythoon> right
+    <teythoon> but isn't that too coarse, like in cow a whole page?
+    <braunr> depends on the message size
+    <braunr> or options provided by the caller, i don't know yet
+    <teythoon> oh, you are going to pack the memory anyway?
+    <braunr> depends on the caller
+    <braunr> i'm not yet sure about these details
+    <braunr> ideally, i'd like to avoid serialization altogether
+    <teythoon> wouldn't that be like cheating b/c it's the first copy?
+    <braunr> directly pass pointers/sizes from the sender address space, and
+      either really copy or use zero copy
+    <teythoon> right, but then you're back at the page size issue
+    <braunr> yes
+    <braunr> it's not a real issue
+    <braunr> the kernel must support both ways
+    <braunr> the minor issue is determining which way to choose
+    <braunr> it's not a critical issue
+    <braunr> my current plan is to always copy, unless the caller has
+      explicitely set a flag and is passing properly aligned buffers
+    <teythoon> u sure? I mean the caller is free to arange the stuff he intends
+      to send anyway he likes, how are you going to cow that then?
+    <teythoon> ok
+    <teythoon> right
+    <braunr> properly aligned buffers :)
+    <braunr> otherwise the kernel rejects the request
+    <teythoon> that's reasonable, yes
+    <braunr> in addition to being synchronous, ipc will also take a special
+      path in the scheduler to directly use the client scheduling context
+    <braunr> avoiding the sleep/wakeup overhead, and providing priority
+      inheritence by side effect
+    <teythoon> uh, but wouldn't dropping serialization create security and
+      reliability issues? if the receiver isn't doing a proper job sanitizing
+      its stuff
+    <braunr> why would the client not sanitize ?
+    <braunr> err
+    <braunr> server
+    <braunr> it has to anyway
+    <teythoon> sure, but a proper parser written once might be more robust,
+      even if it adds overhead
+    <teythoon> the serialization i mean
+    <braunr> it's just a layer
+    <braunr> even with high level types, you still need to sanitize
+    <braunr> the real downside is loosing cross architecture portability
+    <braunr> making the potential implementation of a single system image a lot
+      more restricted or difficult
+    <braunr> but i don't care about that much
+    <braunr> mach was built with this in mind though
+    <teythoon> it's a nice idea, but i don't believe anyone does ssi anymore
+    <braunr> i don't know
+    <teythoon> and certainly not across architectures
+    <braunr> there are few projects
+    <braunr> anyway it's irrelevant currently
+    <braunr> and my interface just restricts it, it doesn't prevent it
+    <braunr> so i consider it an acceptable compromise
+    <teythoon> so, does it run? what does it do?
+    <teythoon> it certainly is, yes
+    <braunr> for now, it manages memory (physical, virtual, kernel, and soon,
+      anonymous)
+    <braunr> support multiple processors with the required posix scheduling
+      policies
+    <braunr> (it uses a cute proportionally fair time sharing algorithm)
+    <braunr> there are locks (spin locks, mutexes, condition variables) and
+      lockless stuff (à la rcu)
+    <braunr> both x86 and x86_64 are supported
+    <braunr> (even pae)
+    <braunr> work queues
+    <teythoon> sounds impressive :)
+    <braunr> :)
+    <braunr> i also added basic debugging
+    <braunr> stack trace (including getting the symbol table) handling
+    <braunr> so yes, it's much much better than what i previously did
+    <braunr> and on the right track
+    <braunr> it already scales a lot better than mach for what it does
+    <braunr> there are generic data structures (linked list, red-black tree,
+      radix tree)
+    <braunr> the radix tree supports lockless lookups, so looking up both the
+      page cache and the ipc spaces is lockless)
+    <teythoon> that's nice :)
+    <braunr> there are a few things using global locks, but there are TODOs
+      about them
+    <braunr> even with that, it should be scalable enough for a start
+    <braunr> and improving those parts shouldn't be too difficult
+
+
+## IRC, freenode, #hurd, 2013-07-10
+
+    <nlightnfotis> braunr: From what I have understood you aim for x15 to be a
+      production ready μ-kernel for usage in the Hurd? Or is it unrelated to
+      the Hurd?
+    <braunr> nlightnfotis: it's for a hurd clone
+    <nlightnfotis> braunr: I see. Is it close to any of the existing
+      microkernels as far as its design is concerned (L4, Viengoos) or is it
+      new research? 
+    <braunr> it's close to mach
+    <braunr> and qnx
+
+
+## IRC, freenode, #hurd, 2013-07-29
+
+    <braunr> making progress on x15 pmap module
+    <braunr> factoring code for mapping creation/removal on current/kernel and
+      remote processes
+    <braunr> also started "swap emulation" by reserving some physical memory to
+      act as swap backing store
+    <braunr> which will allow creating memory pressure very early in the
+      development process
+
+
+## IRC, freenode, #hurd, 2013-08-23
+
+    < nlightnfotis> braunr: something a little bit irrelevant: how many things
+      are missing from mach to be considered a solid base for the Hurd? Is it
+      only SMP and x86_64 support?
+    < braunr> define "solid base for the hurd"
+    < nlightnfotis> solid enough to not look for a replacement for it
+    < braunr> then i'd say, from my very personal point of view, that you want
+      x15
+    < nlightnfotis> I didn't understand this. Are you planning for x15 to be a
+      better mach?
+    < braunr> with a different interface, so not compatible
+    < braunr> and thus, not mach
+    < nlightnfotis> is the source code for it available? Can I read it
+      somewhere?
+    < braunr> the implied answer being: no, mach isn't a solid base for the
+      hurd considering your definition
+    < braunr> http://git.sceen.net/rbraun/x15.git/
+    < nlightnfotis> thanks. for that. So it's definite that mach won't stay for
+      long as the Hurd's base, right?
+    < braunr> it will, for long
+    < braunr> my opinion is that it needs to be replaced
+    < nlightnfotis> is it possible that it (slowly) gets rearchitected into
+      what's being considered a second generation microkernel, or is it
+      hopeless?
+    < braunr> it would require a new interface
+    < braunr> you can consider x15 to be a modern mach, with that new interface
+    < braunr> from a high level view, it's very similar (it's a hybrid, with
+      both scheduling and virtual memory management in the kernel)
+    < braunr> ipc change a lot
+
+
+## IRC, freenode, #hurd, 2013-09-23
+
+    <braunr> for those of us interested in x15 and scalability in general:
+      http://darnassus.sceen.net/~rbraun/radixvm_scalable_address_spaces_for_multithreaded_applications.pdf
+    <braunr> finally an implementation allowing memory mapping to occur
+      concurrently
+    <braunr> (which is another contention issue when using mach-like ipc, which
+      often do need to allocate/release virtual memory)

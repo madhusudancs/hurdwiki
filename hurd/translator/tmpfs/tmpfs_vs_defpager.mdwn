@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2011, 2013 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -270,3 +271,129 @@ See also: [[open_issues/resource_management_problems/pagers]].
     <antrik> only problem is that the current defpager implementation can't
       really handle that...
     <antrik> at least that's my understanding of the situation
+
+
+# IRC, freenode, #hurd, 2013-07-05
+
+    <teythoon> btw, why does the tmpfs translator have to talk to the pager?
+    <teythoon> to get more control about how the memory is paged out?
+    <teythoon> read lot's of irc logs about tmpfs on the wiki, but I couldn't
+      find the answer to that
+    <mcsim> teythoon: did you read this?
+      http://www.gnu.org/software/hurd/hurd/translator/tmpfs/tmpfs_vs_defpager.html
+    <teythoon> mcsim: I did
+    <mcsim> teythoon: Last discussion, i think has very good point.
+    <mcsim> To provide memory objects you should implement pager interface
+    <mcsim> And if you implement pager interface you are the one who is asked
+      to write data to backing storage to evict them
+    <mcsim> But tmpfs doesn't do this
+    <teythoon> mmm, clients doing mmap...
+    <mcsim> teythoon: You don't have mmap
+    <mcsim> teythoon: mmap is implemented on top of mach interface
+    <mcsim> teythoon: I mean you don't have mmap at this level
+    <teythoon> mcsim: sure, but that's close enough for me at this point
+    <mcsim> teythoon: diskfs interface requires implementor to provide a memory
+      object port (send right)
+    <mcsim> Guest8183: Why tmpfs requires defpager
+    <Guest8183> how did you get to talk about that ?
+    <mcsim> I was just asked
+    <teythoon> Guest8183: it's just so unsettling that tmpfs has to be started
+      as root :/
+    <Guest8183> teythoon: why ?
+    *** Guest8183 (~rbraun@dalaran.sceen.net) is now known as braunr_
+    <teythoon> braunr_: b/c starting translators isn't a privileged operation,
+      and starting a tmpfs translator that doesn't even access any device but
+      "just" memory shouldn't require any special privileges as well imho
+    <teythoon> so why is tmpfs not based on say libnetfs? b/c it is used for
+      d-i and someone (apt?) mmaps stuff?
+    <pinotree> being libdiskfs-based isn't much the issue, iirc
+    <pinotree> http://lists.gnu.org/archive/html/bug-hurd/2013-03/msg00014.html
+      too
+    <kilobug> teythoon: AFAIK apt uses mmap, yes
+    <braunr_> teythoon: right
+    <braunr_> a ramfs is actually tricky to implement well
+    <mcsim> braunr_: What do you mean under "to implement well"?
+    <braunr_> as efficiently as possible
+    <braunr_> i.e. being as close as possible to the page cache for minimum
+      overhead
+    <mcsim> braunr: AFAIK ramfs should not use swap partition, so page cache
+      shouldn't be relevant for it.
+    <braunr> i'm talking about a ramfs in general
+    <braunr> not the specific linux ramfs
+    <braunr> in linux, what they call ramfs is the tiny version of tmpfs that
+      doesn't use swap
+    <braunr> i actually don't like "tmpfs" much
+    <braunr> memfs may be more appropriate
+    <braunr> anyway
+    <mcsim> braunr: I see. And do you consider defpager variant as "close as
+      possible to the page cache"?
+    <braunr> not far at least
+    <braunr> if we were able to use it for memory obects, it would be nice
+    <braunr> but defpager only gets attached to objects when they're evicted
+    <braunr> before that, anonymous (or temporary, in mach terminology) objects
+      have no backing store
+    <braunr> this was probably designed without having tmpfs in mind
+    <braunr> i wonder if it's possible to create a memory object without a
+      backing store
+    <mcsim> what should happen to it if kernel decides to evict it?
+    <braunr> it sets the default pager as its backing store and pushes it out
+    <mcsim> that's how it works now, but you said "create a memory object
+      without a backing store"
+    <braunr> mach can do that
+    <braunr> i was wondering if we could do that too from userspace
+    <mcsim> mach does not evict such objects, unless it bound a defpager to
+      them
+    <mcsim> but how can you handle this in userspace?
+    <braunr> i mean, create a memory object with a null control port
+    <braunr> mcsim: is that clearer ?
+    <mcsim> suppose you create such object, how kernel will evict it if kernel
+      does not know who is responsible for eviction of this object?
+    <braunr> it does
+    <braunr> 16:41 < braunr> it sets the default pager as its backing store and
+      pushes it out
+    <braunr> that's how i intend to do it on x15 at least
+    <braunr> but it's much simpler there because uvm provides better separation
+      between anonymous and file memory
+    <braunr> whereas they're much too similar in mach vm
+    <mcsim> than what the difference between current situation, when you
+      explicitly invoke defpager to create object and implicit method you
+      propose?
+    <braunr> you don't need a true defpager unless you actually have swap
+    <mcsim> ok
+    <mcsim> now I see
+    <braunr> it also saves the communication overhead when initializing the
+      object
+    <mcsim> thank you
+    <braunr> which may be important since we use ramfs for speed mostly
+    <mcsim> agree
+    <braunr> it should also simplify the defpager implementation, since it
+      would only have a single client, the kernel
+    <braunr> which may also be important with regard to global design
+    <braunr> one thing which is in my opinion very wrong with mach is that it
+      may be a client
+    <braunr> a well designed distributed system should normally not allow on
+      component to act as both client and server toward another
+    <braunr> i.e. the kernel should only be a server, not a client
+    <braunr> and there should be a well designed server hierarchy to avoid
+      deadlocks
+    <braunr> (such as the one we had in libpager because of that)
+    <mcsim> And how about filesystem? It acts both as server and as client
+    <braunr> yes
+    <braunr> but not towards the same other component
+    <braunr> application -> file system -> kernel
+    <braunr> no "<->"
+    <braunr> the qnx documentation explains that quite well
+    <braunr> let me see if i can find the related description
+    <mcsim> Basically, I've got your point. And I would rather agree that
+      kernel should not act as client
+    <braunr> mcsim:
+      http://www.qnx.com/developers/docs/6.4.0/neutrino/sys_arch/ipc.html#Robust
+    <braunr> one way to implement that (and qnx does that too) is to make
+      pagers act as client only
+    <braunr> they sleep in the kernel, waiting for a reply
+    <braunr> and when the kernel needs to evict something, a reply is sent
+    <braunr> (qnx doesn't actually do that for paging, but it's a general idea)
+    <mcsim> braunr: how hierarchy of senders is enforced?
+    <braunr> it's not
+    <braunr> developers must take care
+    <braunr> same as locking, be careful about it

@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2013 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -22,6 +22,43 @@ Could add a toggle to `$(stamp)build_%` in `debian/rules.d/build.mk` to skip
 locale stuff.
 
 `--disable-compatible-utmp`?
+
+
+## IRC, freenode, #hurd, 2013-08-28
+
+    <youpi> uh, the i686 profiles have much more progression than i386
+    <youpi> it seems they don't actually run these
+    <pinotree> youpi: what do you mean with "we don't run those"?
+    <pinotree> iirc there are three build profiles done, but there are 4
+      regression test files
+    <youpi> yes, but some failing tests are not run in the three build profiles
+    <youpi> even if they are built for all of them
+    <pinotree> not even run? which ones?
+    <youpi> see for instance test-ifloat.out
+    <youpi> test-ifloat is built in all profiles, but only run in the libc one
+    <pinotree> don't have a glibc built tree around atm, sorry :/
+    <youpi> perhaps because glibc thinks it's not useful to run it again if it
+      fails on i386
+    <youpi> you can check the logs
+    <pinotree> do you think glibc's build system is that smart? :)
+    <pinotree> all the builds are done in separate builddirs, so theorically
+      they should not touch each other...
+    <youpi> yes
+    <youpi> that's why I'm surprised
+    <pinotree> could it be they get not run in optimized/particular builds?
+    <pinotree> what about linux/kfreebsd i386?
+    <youpi> I don't see what  makes them not run
+    <youpi> or at least be treated particularly by th eMakefile
+    <youpi> not run on kfreebsd either
+    <youpi> pinotree: also, most of the tests now working have been marked as
+      failing by your patches for 2.17, would it be possible to retry them on
+      the box you used at that time?
+    <pinotree> that's the vm on my machine
+    <youpi> which kind of vm?
+    <youpi> kvm?
+    <pinotree> y
+    <youpi> they are working here
+    <youpi> with kvm
 
 
 # Building
@@ -62,3 +99,70 @@ apter applying patches.
 If the Debian symbol versioning file is not up to date and the build of Debian
 packages fails due to this, putting `DPKG_GENSYMBOLS_CHECK_LEVEL=0` in the
 environment \`\`helps''; see `man dpkg-gensymbols`.
+
+
+# IRC, freenode, #hurd, 2013-07-01
+
+    <braunr> something seems to have changed with regard to patch handling in
+      eglibc 2.17
+    <braunr> pinotree: when i add a patch to series and use dpkg-buildpackage,
+      i'm told there are local modifications and the build stops :/
+    <braunr> any idea what i'm doing wrong ?
+    <pinotree> which steps do you do?
+    <braunr> i extract the sources, copy the patch to debian/patches/hurd-i386,
+      add the appropriate line to debian/patches/series, call dch -i, then
+      dpkg-buildpackage
+    <pinotree> eglibc is a "3.0 (quilt)" format source package
+    <pinotree> this means its default patches are in a quilt-style system, and
+      they are applied on extraction
+    <braunr> ok
+    <braunr> and it can't detect new patches ?
+    <pinotree> so if you add a new patch to the global serie, you have to push
+      it manually
+    <braunr> i have to revert them all ?
+    <braunr> ok
+    <braunr> how do i do that ?
+    <pinotree> quilt push -a
+    <braunr> ok
+    <braunr> thanks
+    <pinotree> remember to do that before starting the build, since the rest
+      assumes the quilt-style patches are fully applied
+    <bddebian> No push applies them, quilt pop -a reverts them
+    <pinotree> yeah, and he has to push the new over the dpkg-applied ones
+    <bddebian> Oh, aye
+    <braunr> does quilt change series ?
+    <pinotree> no
+    <braunr> ok
+    <pinotree> i mean, some commands do that
+    <braunr> so i do everything i did, with an additional push, right ?
+    <pinotree> ok, screw me, i didn't get your question above :P
+    <braunr> does that change your answer ?
+    <pinotree> <braunr> does quilt change series ?
+    <braunr> yes
+    <pinotree> if you import or create a new patch, it changes series indeed
+    <braunr> ok
+    <pinotree> push or pop of patches does not
+    <braunr> i'm doing it wron
+    <braunr> g
+    <pinotree> btw, in a quilt patch stack you can easily import a new patch
+      using the import command
+    <pinotree> so for example you could do
+    <pinotree> apt-get source eglibc # or get it somehow else
+    <pinotree> cd eglibc-*
+    <pinotree> quilt import /location/of/my/patch
+    <pinotree> quilt push # now your patch is applied
+    <braunr> ah thanks
+    <pinotree> dpkg-buildpackage as usual
+    <braunr> that's what i was looking for
+    <bddebian> quilt new adds a new entry in series
+    <pinotree> y
+    <bddebian> or import, aye
+    <pinotree> braunr: if you want to learn quilt, a very good doc is its own,
+      eg /usr/share/doc/quilt/quilt.txt.gz
+    * bddebian has never actually used import
+    <braunr> ok
+    <pinotree> it is basically a simple stack of patches
+
+    <youpi> braunr: yes, patch handling is a bit different
+    <youpi> the arch-independant patches are applied by dpkg-source -x
+    <youpi> and the arch-dependent patches are applied during build

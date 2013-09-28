@@ -1,0 +1,2122 @@
+[[!meta copyright="Copyright © 2008, 2009, 2013 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_documentation]] The following text needs to be updated.
+
+# Original Project Description
+
+As a consequence, there is currently no easy way to obtain a listing of all
+mounted file systems. This also means that commands like `df` can only work on
+explicitly specified mountpoints, instead of displaying the usual listing.
+
+One possible solution to this would be for the translator startup mechanism to
+update the `mtab` on any `mount`/`unmount`, like in traditional systems.
+However, there are some problems with this approach.  Most notably: what to do
+with passive translators, i.e., translators that are not presently running, but
+set up to be started automatically whenever the node is accessed?  Probably
+these should be counted among the mounted filesystems; but how to handle the
+`mtab` updates for a translator that is not started yet?  Generally, being
+centralized and event-based, this is a pretty inelegant, non-hurdish solution.
+
+A more promising approach is to have `mtab` exported by a special translator,
+which gathers the necessary information on demand.  This could work by
+traversing the tree of translators, asking each one for mount points attached
+to it.  (Theoretically, it could also be done by just traversing *all* nodes,
+checking each one for attached translators.  That would be very inefficient,
+though.  Thus a special interface is probably required, that allows asking a
+translator to list mount points only.)
+
+There are also some other issues to keep in mind.  Traversing arbitrary
+translators set by other users can be quite dangerous -- and it's probably not
+very interesting anyways what private filesystems some other user has mounted.
+But what about the global `/etc/mtab`?  Should it list only root-owned
+filesystems?  Or should it create different listings depending on what user
+contacts it?...
+
+That leads to a more generic question: which translators should be actually
+listed?  There are different kinds of translators: ranging from traditional
+filesystems ([[disks|hurd/libdiskfs]] and other actual
+[[stores|hurd/translator/storeio]]), but also purely virtual filesystems like
+[[hurd/translator/ftpfs]] or [[hurd/translator/unionfs]], and even things that
+have very little to do with a traditional filesystem, like a
+[[gzip_translator|hurd/translator/storeio]],
+[[mbox_translator|hurd/translator/mboxfs]],
+[[xml_translator|hurd/translator/xmlfs]], or various device file translators...
+Listing all of these in `/etc/mtab` would be pretty pointless, so some kind of
+classification mechanism is necessary.  By default it probably should list only
+translators that claim to be real filesystems, though alternative views with
+other filtering rules might be desirable.
+
+After taking decisions on the outstanding design questions, the student will
+implement both the actual mtab translator, and the
+necessary interface(s) for gathering the data.  It requires getting a good
+understanding of the translator mechanism and Hurd interfaces in general.
+
+
+# IRC, freenode, #hurd, 2013-04-17
+
+    <kuldeepdhaka> thinking how to get the listing. traversing would be
+      ineffecient,   trying to come up with something better
+    <braunr> what listing ?
+    <braunr> and traversing what ?
+    <kuldeepdhaka> mtab
+    <braunr> well i assumed so
+    <braunr> be more precise please
+    <kuldeepdhaka> when the translator is done initalized      <translation
+      info> are written to /etc/mtab      <translation info> will be provided
+      by the translator, and when some one want to read the info just read it
+      this way if their is some credentials like ftp sites pass username can be
+      masked by the translator
+    <kuldeepdhaka> if some trans dont want to list them, no need to write to
+      file    | while unmounting (sorry i couldnt find the right word) , it
+      will pass the mount node address | <translation info> will have special
+      structure to remove/add mounts example "a /mount-to /mount-from" = add
+      , "r /mount-to" = remove    here "/mount-to" will be unique for every
+      mount
+    <kuldeepdhaka> this have a draw back , we would have to trust trans for the
+      listed data  | also "/mount-to" + "/mount-from" could be used a
+      combination for making sure that other trans unable remove others trans
+      mount data
+    <kuldeepdhaka> sorry but "also "/mount-to" + "/mount-from" could be used a
+      combination for making sure that other trans unable remove others trans
+      mount data"  this is a bad idea if we had to print the whole thing
+    <kuldeepdhaka> braunr, whats ur opinion?
+    <pinotree> you don't need a mtab to "unmount" things on hurd
+    <braunr> kuldeepdhaka: hum, have you read the project idea ?
+
+    <braunr> A more promising approach is to have mtab exported by a special
+      translator, which gathers the necessary information on demand. This could
+      work by traversing the tree of translators, asking each one for mount
+      points attached to it.
+    <kuldeepdhaka> pinotree, not to unmount, i mean is to remove the
+      <translation data>
+    <braunr> for a first implementation, i'd suggest a recursive traversal of
+      root-owned translators
+    <kuldeepdhaka> braunr, hum, but it did stated it as inefficient
+    <braunr> where ?
+    <kuldeepdhaka> para 5 , line 3
+    <kuldeepdhaka> and line 6
+    <braunr> no
+    <braunr> traversing "all" nodes would be inefficient
+    <braunr> translators which host the nodes of other translators could
+      maintain a simple list of active translators
+    <braunr> ext2fs, e.g. (if that's not already the case) could keep the list
+      of the translators it started
+    <braunr> we can already see that list with pstree for example
+    <braunr> but this new list would only retain those relevant for mtab
+    <braunr> i.e. root-owned ones
+    <pinotree> i would not limit to those though
+    <braunr> and then filter on their type (e.g. file system ones)
+    <braunr> pinotree: why ?
+    <pinotree> this way you could have proper per-user /proc/$pid/mounts info
+    <braunr> we could also very easily have a denial of service
+    <kuldeepdhaka> but how will the mount point and source point will be
+      listed?
+    <braunr> they're returned by the translator
+    <kuldeepdhaka> k
+    <braunr> you ask /, it returns its store and its options, and asks its
+      children recursively 
+    <braunr> a /home translator would return its store and its options
+    <braunr> etc..
+    <braunr> each translator would build the complete path before returning it
+    <braunr> sort of, it's very basic
+    <braunr> but that would be a very hurdish way to do it
+    <kuldeepdhaka> shall /etc/mtab should be made seek-able and what should be
+      the filesize?  content are generated on demand so, it could arise problem
+      (fsize:0 , seek-able:no), ur opinions?
+    <braunr> kuldeepdhaka: it should have all the properties of a regular file
+    <braunr> the filesize would be determined after it's generated
+    <braunr> being empty doesn't imply it's not seekable
+    <kuldeepdhaka> content is generated on demand so, could cause problem while
+      seeking and filesize, shall i still program as regular file?
+    <kuldeepdhaka> in two different read, it could generate different content,
+      though same seek pos is used...
+    <braunr> what ?
+    <braunr> the content is generated on open
+    <kuldeepdhaka> ooh, ok
+
+
+# IRC, freenode, #hurd, 2013-06-04
+
+    <safinaskar> how to see list of all connected translators?
+    <braunr> you can't directly
+    <braunr> you can use ps to list processes and guess which are translators
+    <braunr> (e.g. everything starting with /hurd/)
+    <braunr> a recursive call to obtain such a list would be useful
+    <braunr> similar to what's needed to implement /proc/mounts
+
+
+# IRC, freenode, #hurd, 2013-06-25
+
+In context of [[open_issues/mig_portable_rpc_declarations]].
+
+    <teythoon> should I go for an iterator like interface instead?
+    <teythoon> btw, what's the expected roundtrip time?
+    <braunr> don't think that way
+    <braunr> consider the round trip delay as varying
+    <teythoon> y, is it that bad?
+    <braunr> no
+    <braunr> but the less there is the better
+    <braunr> we think the same with system calls even if they're faster
+    <braunr> the delay itself isn't the real issue
+    <braunr> look at how proc provides information
+    <braunr> (in procfs for example)
+
+
+## IRC, freenode, #hurd, 2013-06-26
+
+    <teythoon> so tell me about the more hurdish way of dealing with that issue
+    <teythoon> creating a specialized translator for this?
+
+    <braunr> you need to avoid thinking with centralization in mind
+    <braunr> the hurd is a distributed system in practice
+    <braunr> i think proc is the only centralized component in there
+    <teythoon> braunr: would having an mtab translator and having fs
+      translators register to thae be acceptable?
+    <teythoon> that*
+    <braunr> teythoon: why do you want to centralize it ?
+    <braunr> translators already register themselves when they get attached to
+      a node
+    <braunr> we don't want an additional registration
+    <braunr> have you read the link we gave you ?
+    <teythoon> I did and I got the message, but isn't the concept of
+      /proc/mounts or a mtab file already a centralized one?
+    <braunr> that doesn't mean the implementation has to be
+    <braunr> and no, i don't think it's centralized actually
+    <braunr> it's just a file
+    <braunr> you can build a file from many sources
+    <teythoon> or if we do it your way recursing on fs translators *but*
+      restricting this to root owned translators also suffering from
+      centralization wrt to the root user? I mean the concept of all mounted
+      filesystems does not apply cleanly to the hurd
+    <braunr> i don't understand
+    <braunr> restricting to the root user doesn't mean it's centralized
+    <braunr> trust has nothing to do with being centralized
+    <teythoon> I guess I'm not used to thinking this way
+    <braunr> teythoon: i guess that's the main reason why so few developers
+      work on the hurd
+    <teythoon> also the way fs notification is done is also centralized, that
+      could also be done recursively
+    <braunr> what doyou call fs notification ?
+    <teythoon> and the information I need could just be stuffed into the same
+      mechanism
+    <teythoon> fs translators being notified of system shutdown
+    <braunr> right
+    <braunr> that gets a bit complicated because the kernel is also a
+      centralized component
+    <braunr> it knows every memory object and their pagers
+    <braunr> it manages all virtual memory
+    <braunr> there are two different issues here
+    <braunr> syncing memory and shutting down file systems
+    <braunr> the latter could be done recursively, yes
+    <braunr> i wonder if the former could be delegated to external pagers as
+      well
+    <braunr> teythoon: but that's not the focus of your work aiui, it would
+      take much time
+    <teythoon> sure, but missing an mtab file or better yet /proc/mounts could
+      be an issue for me, at least a cosmetic one, if not a functional one
+    <braunr> i understand
+    <teythoon> and hacking up a quick solution for that seemed like a good
+      exercise
+    <braunr> i suggest you discuss it with your mentors
+    <braunr> they might agree to a temporary centralized solution
+    <braunr> although i don't think it's much simpler than the recursive one
+    <teythoon> braunr: would that be implemented in libdiskfs and friends?
+    <braunr> teythoon: i'm not sure, it might be a generic fs operation
+    <braunr> libnetfs etc.. are also mount points
+    <teythoon> so where would it go if it was generic?
+    <braunr> libfshelp perhaps
+    <teythoon> translator startup is handled in start-translator-long.c, so in
+      case a startup is successful, I'd add it to a list?
+    <braunr> i'd say so, yes
+    <teythoon> would that cover all cases, passive and active translators?
+    <braunr> that's another question
+    <braunr> do we consider passive translators as mounted ?
+    <teythoon> ah, that was not what i meant
+    <braunr> i know
+    <braunr> but it's related
+    <teythoon> start b/c of accessing a passive one vs. starting an active one
+      using settrans
+    <braunr> start_translator_xxx only spawn active translators
+    <braunr> it's the same
+    <teythoon> ok
+    <braunr> the definition of a passive translator is that it starts the
+      active translator on access
+    <teythoon> yeah I can see how that wouldn't be hard to implement
+    <braunr> i think we want to include passive translators in the mount table
+    <braunr> so registration must happen before starting the active one
+    <teythoon> so it's a) keeping a list of active translators and b) add an
+      interface to query fs translators for this list and c) an interface to
+      query mtab style information?
+    <braunr> keeping a list of all translators attached
+    <braunr> and yes
+    <braunr> well
+    <braunr> a is easy
+    <braunr> b is the real work
+    <braunr> c would be procfs using b
+    <teythoon> oh? I thought recursing on the translators and querying info
+      would be separate operations?
+    <braunr> why so ?
+    <braunr> the point is querying recursively :)
+    <braunr> and when i say recursively, it's only a logical view
+    <teythoon> ok, yes, it can be implemented this way, so we construct the
+      list while recursing on the translators
+    <braunr> i think it would be better to implement it the way looking up a
+      node is done
+    <teythoon> in a loop, using a stack?
+    <braunr> iteratively
+    <braunr> a translator would provide information about itself (if
+      supported), and referrences to translators locally registered to it
+    <teythoon> could you point me to the node lookup?
+    <teythoon> ah, yes
+    <braunr> eg., you ask /, it tells you it's on /dev/hd0, read-write, with
+      options, and send rights to /home, /proc, etc..
+    <braunr> well rights, references
+    <braunr> it could be the path itself
+    <teythoon> rights as in a port to the translators?
+    <braunr> i think the path would be better but i'm not sure
+    <braunr> it would also allow you to check the permissions of the node
+      before querying
+    <teythoon> path would be nicer in the presence of stacked translators
+    <braunr> and obviously you'd have the path right away, no need to provide
+      it in the reply
+    <teythoon> true
+
+    <teythoon> braunr: if we want to list passive translators (and I agree, we
+      should), it isn't sufficient to touch libfshelp, as setting a passive
+      translator is not handled there, only the startup
+    <braunr> teythoon: doesn't mean you can't add something there that other
+      libraries will use
+    <braunr> so yes, not sufficient
+
+
+## IRC, freenode, #hurd, 2013-06-29
+
+    <teythoon> braunr: diskfs_S_fsys_set_options uses diskfs_node_iterate to
+      recurse on active translators if do_children is given
+    <teythoon> braunr: I wonder how fast that is in practice
+    <teythoon> braunr: if it's fast enough, there might not even be a need for
+      a new function in fsys.defs
+    <teythoon> and no need to keep a list of translators for that reason
+    <teythoon> braunr: if it's not fast enough, then diskfs_S_fsys_set_options
+      could use the list to speed this up
+    <braunr> teythoon: on all nodes ?
+    <teythoon> braunr: i believe so, yes, see libdiskfs/fsys-options.c
+    <braunr> teythoon: well, if it really is all node, you clearly don't want
+      that
+
+
+## IRC, freenode, #hurd, 2013-07-01
+
+    <teythoon> I've ment to ask, the shiny new fsys_get_translators interface,
+      should it return the options for the queried translator or not?
+    <braunr> i don't think it should
+    <teythoon> ok
+    <braunr> let's walk through why it shouldn't
+    <teythoon> may I assume that the last argument returned by fsys_get_options
+      is the "source"?
+    <braunr> how would you know these options ?
+    <braunr> the source ?
+    <teythoon> I wouldn't actually
+    <braunr> yes, you wouldn't
+    <braunr> you'd have to ask the translators for that
+    <braunr> so the only thing you can do is point to them
+    <teythoon> well, the device to include in the mtab file
+    <braunr> and the client asks
+    <braunr> i don't know fsys_get_options tbh
+    <teythoon> well, both tmpfs and ext2fs print an appropriate value for
+      "device" as last argument
+    <braunr> looks like a bad interface to me
+    <braunr> options should be options
+    <braunr> there should be a specific call for the device
+    <braunr> but if everyone agrees with the options order, you can do it that
+      way for now i guess
+    <teythoon> one that could be used to recreate the "mount" using either
+      mount or settrans
+    <braunr> just comment it where appropriate
+    <teythoon> I thought that'd be the point?
+    <braunr> ?
+    <teythoon> % fsysopts tmp
+    <teythoon> /hurd/tmpfs --writable --no-inherit-dir-group --no-sync 48K
+    <braunr> where is the device ?
+    <teythoon> % settrans -ca tmp $(fsysopts tmp)
+    <braunr> 15:56 < teythoon> well, both tmpfs and ext2fs print an appropriate
+      value for "device" as last argument
+    <teythoon> 48K
+    <braunr> i don't see it
+    <braunr> really ?
+    <teythoon> yes
+    <braunr> what about ext2fs ?
+    <braunr> hm ok i see
+    <teythoon> % fsysopts /
+    <teythoon> ext2fs --writable --no-inherit-dir-group --sync=10
+      --store-type=typed device:hd0s1
+    <braunr> i don't think you should consider that as devices
+    <braunr> but really translator specific options
+    <pinotree> agree
+    <teythoon> I don't ;)
+    <teythoon> b/c the translator calling convention is hardcoded in the mount
+      utility
+    <braunr> ?
+    <teythoon> I think it's reasonable to assume that this mapping can be
+      reversed
+    <pinotree> theorically you can write a translator that takes no arguments,
+      but just options
+    <braunr> the 48K string for tmpfs is completely meaningless
+    <braunr> in fstab, it should be none
+    <pinotree> "tmpfs"
+    <braunr> the linux equivalent is the size option
+    <braunr> no, none
+    <braunr> it's totally ignored
+    <braunr> and it's recommended to set none rather than the type to avoid
+      confusion
+    <teythoon> u sure?
+    <teythoon> % settrans -cga tmp /hurd/tmpfs --mode=666 6M          
+    <teythoon> % settrans -cga tmp /hurd/tmpfs --mode=666 6M          
+    <teythoon> % fsysopts tmp
+    <teythoon> /hurd/tmpfs --writable --no-inherit-dir-group --no-sync 6M
+    <braunr> i've not explained myself clearly
+    <braunr> it's not ignored by the translator
+    <braunr> but in fstab, it should be in the options field
+    <braunr> it's not the source
+    <braunr> clearly not
+    <teythoon> ah
+    <braunr> now i'm talking about fstab, but iirc the format is similar in
+      mtab/mounts
+    <pinotree> close, but not the same
+    <braunr> yes, close
+    <teythoon> ok, so I'll put a method into libfshelp so that translators can
+      explicitly set a device and patch all existing translators to do so?
+    <braunr> teythoon: what i meant is that, for virtual vile systems (actually
+      file systems with no underlying devices), the device field is normally
+      ignored
+    <braunr> teythoon: why do you need that for exactly
+    <teythoon> right
+    <pinotree> do they even have a "device" field?
+    <braunr> (i can see why but i'd like more visibility)
+    <braunr> pinotree: not yet
+    <braunr> pinotree: that's what he wants to add
+    <braunr> but i'd like to see if there is another way to get the information
+    <braunr> 16:05 < braunr> teythoon: why do you need that for exactly
+    <teythoon> well if I'm constructing a mtab entry I need a value for the
+      device field
+    <braunr> do we actually need it to be valid ?
+    <teythoon> not necessarily I guess
+    <braunr> discuss it with your mentors then
+    <youpi> it has to be valid for e2fsck checks etc.
+    <braunr> doesn't e2fsck check fstab actually ?
+    <youpi> i.e. actually for the cases where it's trivial
+    <youpi> fstab doesn't tell it whether it's mounted
+    <youpi> I mean fsck checking whether it's mounted
+    <youpi> not fsck -a
+    <braunr> oh
+    <braunr> couldn't we ask the device instead ?
+    <braunr> looks twisted too
+    <youpi> that'd mean patching a lot of applications which do similar checks
+    <braunr> yes
+    <braunr> teythoon: propose an interface for that with your mentors then
+    <teythoon> yeah, but couldn't you lay it out a little, I mean would it be
+      one procedure or like three?
+    <braunr> 16:04 < teythoon> ok, so I'll put a method into libfshelp so that
+      translators can explicitly set a device and patch all existing
+      translators to do so?
+    <teythoon> ok
+    <braunr> why three ?
+    <teythoon> no, I mean when adding stuff to fsys.defs
+    <braunr> i understood that
+    <braunr> but why three ? :)
+    <teythoon> it'd be more generic
+    <braunr> really ?
+    <braunr> please show a quick example of what you have in mind
+    <teythoon> i honestly don't know, thus I'm asking ;)
+    <braunr> well first, this device thing bothers me
+    <braunr> when you look at how we set up our ext2fs translators, you can see
+      they use device:xxx
+    <braunr> and not /dev/xxx
+    <braunr> but ok, let's assume it's harmless
+    <teythoon> ok, but isn't the first way actually better?
+    <braunr> i think it ends up being the same
+    <braunr> ideally, that's what we want to use as device path
+    <teythoon> but you can recreate a storeio translator using the device:xxx
+      info, the node is useless for that
+    <braunr> so that we don't need to explicitely set it
+    <braunr> ?
+    <braunr> what do you mean ?
+    <teythoon> well, fsysopts / tells currently tells me device:hd0s1
+    <braunr> for /, there isn't much choice
+    <braunr> /dev isn't there yet
+    <teythoon> ah, got it
+    <teythoon> that's why it differs...
+    <braunr> differs ?
+    <braunr> from what ?
+    <braunr> other ext2fs translators are set the same way by the debian
+      installer for example
+    <teythoon> % fsysopts /media/scratch
+    <teythoon> /hurd/ext2fs --writable --no-inherit-dir-group /dev/hd1s1
+    <teythoon> here it uses the path to the node
+    <braunr> that's weird
+    <braunr> was that done by the debian installer ?
+    <teythoon> ah no, that was me
+    <braunr> :p
+    <braunr> $ fsysopts /home
+    <braunr> /hurd/ext2fs --writable --no-inherit-dir-group --store-type=device
+      hd0s6
+    <braunr> so as you can see, it's not that simple to infer the device path
+    <teythoon> oho, yet another way ;)
+    <teythoon> right then
+    <pinotree> isn't device:hd0s1 as shortcut for specifying the store type, as
+      done with --store-type=device hd0s1?
+    <braunr> but perhaps we don't need to
+    <braunr> yes it is
+    <pinotree> iirc it's something libstore does, per-store prefixes
+    <braunr> ah that sucks
+    <braunr> teythoon: you may need to normalize those strings
+    <braunr> so that they match what's in fstab
+    <braunr> i.e. unix /dev paths
+    <braunr> otherwise e2fsck still won't be able to find the translators
+      mounting the device
+    <braunr> well, if it's mounted actually
+    <braunr> it just needs to find the matching line in mtab aiui
+    <braunr> so perhaps a libfshelp function for that, yes
+    <teythoon> braunr: so you suggest adding a normalizing function to
+      libfshelp that creates a /dev/path?
+    <braunr> yes
+    <braunr> used by the call you intend to add, which returns that device
+      string as found in fstab
+    <teythoon> found in fstab? so this would only work for translators managed
+      by fstab?
+    <braunr> no
+    <teythoon> ah
+    <teythoon> a string like the ones found in fstab?
+    <braunr> yes
+    <braunr> so that fsck and friends are able to know whether a device is
+      mounted or not
+    <braunr> i don't see any other purpose for that string in mtab
+    <braunr> you'd take regular paths as they are, convert device:xxx to
+      /dev/xxx, and return "none" for the rest i suppose
+    <teythoon> ok
+    <braunr> i'm not even sure it's right
+    <braunr> youpi: are you sure it's required ?
+    <teythoon> well it's a start and I think it's not too much work
+    <braunr> aiui, e2fsck may simply find the mount point in fstab, and ask the
+      translator if it's mounted
+    <teythoon> we can refine this later on maybe?
+    <braunr> or rather, init scripts, using mountpoint, before starting e2fsck
+    <braunr> teythoon: sure
+    <teythoon> there's this mountpoint issue... I need to run fsysopts /
+      --update early in the boot process
+    <teythoon> otherwise the device ids returned by stat(2)ing / are wrong and
+      mountpoint misbehaves
+    <teythoon> i guess b/c it's the rootfs
+    <braunr> device ids ?
+    <teythoon> % stat / | grep Device
+    <teythoon> Device: 3h/3d     Inode: 2           Links: 22
+    <braunr> do you mean the major/minor identifiers ?
+    <teythoon> I do. if I don't do the --update i get seemingly random values
+    <braunr> i guess that's expected
+    <braunr> we don't have major/minor values
+    <braunr> well, they're emulated
+    <teythoon> well, if that's fixable, that'd be really nice ;)
+    <braunr> we'll never have major/minor values
+    <teythoon> yeah, I understand that
+    <braunr> but they could be fixed by MAKEDEV when creating device nodes
+    <teythoon> but not having to call fsys_set_options on the rootfs to get the
+      emulation up to speed
+    <braunr> try doing it from grub
+    <braunr> not sure it's possible
+    <braunr> but worth checking
+    <teythoon> by means of an ext2fs flag?
+    <braunr> yes
+    <braunr> if there is one
+    <braunr> i don't know the --update flag, is it new from your work ?
+    <teythoon> braunr: no, it's been there before. -oremount gets mapped to
+      that
+    <braunr> it's documented by fsysopts, but not by the ext2fs translators
+    <teythoon> libdiskfs source says something about flushing buffers iirc
+    <braunr> -s
+    <braunr> what does it do ?
+    <braunr> teythoon: ok
+    <teythoon> braunr: so the plan is to automatically generate a device path
+      from the translators argz vector but to provide the functionality so
+      translators can set a more appropriate value? did I get the last part of
+      the discussion right?
+    <braunr> not set, return
+    <teythoon> yeah return from the procedure but settable using libfshelp?
+    <braunr> why settable ?
+    <braunr> you'd have a fsys call to obtain the dev string, and the server
+      side would call libfshelp on the fly to obtain a normalized value and
+      return it
+    <teythoon> ah, make a function overrideable that returns an appropriate
+      response?
+    <braunr> overrideable ?
+    <teythoon> like netfs_append_args
+    <braunr> you wouldn't change the command line, no
+    <teythoon> isn't that done using weak references or something?
+    <teythoon> no I know
+    <braunr> sorry i'm lost then
+    <teythoon> never mind, I'll propose a patch early to get your feedback
+    <youpi> braunr: am I sure that _what_ is required?
+    <youpi> the device?
+    <youpi> e2fsck surely needs it, yes
+    <braunr> a valid device path, yes
+    <youpi> it can't rely only on fstab
+    <braunr> yes
+    <youpi> since users may mount things by hand
+    <braunr> i've used strace on it and it does perform lookups there
+    <braunr> (although i also saw uuid magic that i guess wouldn't work yet on
+      the hurd)
+
+
+## IRC, freenode, #hurd, 2013-07-03
+
+    <teythoon> I added a procedure to fsys.defs, added a server stub to my
+      tmpfs translator and wrote a simple client, but something hasn't picked
+      up the new message yet
+    <teythoon> % ./mtab tmp
+    <teythoon> ./mtab: get_translator_info: (ipc/mig) bad request message ID
+    <teythoon> I guess it's libhurduser.so from glibc, not sure though...
+    <braunr> glibc would only have the client calls
+    <braunr> what is "% ./mtab tmp" ?
+    <teythoon> mtab is my mtab tool/soon to be a translator testing thing, tmp
+      is an active tmpfs with the appropriate server stub
+    <braunr> so mtab has the client call, right ?
+    <teythoon> yes
+    <braunr> then tmpfs doesn't
+    <teythoon> so what to do about it?
+    <teythoon> i set LD_LIBRARY_PATH to my hurd builds lib dir, is that
+      preserved by settrans -a?
+    <pinotree> not really
+    <braunr> not at all
+    <braunr> there is a wiki entry about that iirc
+    <pinotree> http://darnassus.sceen.net/~hurd-web/hurd/debugging/translator/
+    <teythoon> yeah, I read it too once
+    <teythoon> ah
+    <braunr> on the other hand, using export to set the environment should do
+      the work
+    <teythoon> yes, that did the trick, thanks :)
+    * teythoon got his EOPNOPSUPP... *nomnomnom
+    <braunr> ?
+    <braunr> same error ?
+    <teythoon> well I stubbed it out
+    <braunr> oh
+    <teythoon> no, that's what I've been expecting ;)
+    <pinotree> great
+    <braunr> :)
+    <braunr> yes that's better than "mig can't find it"
+    <teythoon> braunr: in that list of active and passive translators that will
+      have to be maintained, do you expect it should carry more information
+      other than the relative path to that translator?
+    <braunr> like what ?
+    <teythoon> dunno, maybe like a port to any active translator there
+    <teythoon> should we care if any active translator dies and remove the
+      entry if there's no passive translator that could restart it again?
+    <braunr> don't add anything until you see it's necessary or really useful
+    <braunr> yes
+    <braunr> think of something like sshfs
+    <braunr> when you kill it, it's not reported by mount any more
+    <teythoon> well, for a dynamically allocated list of strings I could use
+      the argz stuff, but if we'd ever add anything else, we'd need a linked
+      list or something, maybe a hash table
+    <teythoon> yes, I thought that'd be useful
+    <braunr> use libihash for no
+    <braunr> now
+    <teythoon> braunr: but what would I use as keys? the relative path should
+      be unique (unless translators are stacked... hmmm), but that's the value
+      I'd like to store and ihash keys are pointers
+    <teythoon> stacked translators are an kinda interesting case for mtab
+      anyways...
+    <braunr> why not store the string address ?
+    <braunr> i suppose that, for stacked translators, the code querying
+      information would only return the topmost translator
+    <braunr> since this is the one which matters for regular clients (if i'm
+      right)
+    <teythoon> wouldn't that map strings that are equal but stored at different
+      locations to different values?
+    <teythoon> that'd defeat the point
+    <teythoon> I suppose so, yes
+    <braunr> then add a layer that looks for existing strings before adding
+    <braunr> the list should normally be small so a linear lookup is fine
+    <teythoon> yeah sure, but then there's little advantage of using ihash in
+      the first place, isn't it?
+    <braunr> over what ?
+    <teythoon> over not using it at all
+    <braunr> how would you store the list then ?
+    <teythoon> it's either ll or ll+ihash
+    <braunr> uh no
+    <braunr> let me check
+    <braunr> there is ihash_iterate
+    <braunr> so you don't need a linked list
+    <teythoon> so how do I store my list of strings to deduplicate the keys?
+    <braunr> you store pointers
+    <braunr> and on addition, you iterate over all entries, making sure none
+      matches the new one
+    <braunr> and if it does, you replace it i guess
+    <braunr> depending on how you design the rest
+    <teythoon> in an dynamically allocated region of memory?
+    <braunr> i don't understand
+    <braunr> your strings should be dynmaically allocate, yes
+    <teythoon> no the array of char *
+    <braunr> your data structure being managed by libihash, you don't care
+      about allocation
+    <braunr> what array ?
+    <teythoon> ah, got it...
+    <teythoon> right.
+    <braunr> there is only one structure here, an ihash of char *
+    <teythoon> yes, I got the picture ;)
+    <braunr> goo
+    <braunr> d
+    <braunr> actually, the lookup wouldn't be linear since usually, hash tables
+      have stale entries
+    <teythoon> heh... what forest?!?
+    <braunr> but that's ok
+    <braunr> teythoon: ?
+    <teythoon> the one I couldn't make out b/c of all the trees...
+    <braunr> ?
+    <teythoon> ah, it's not important. there is this saying over here, not sure
+      if there's an english equivalent
+    <braunr> ok got it
+    <braunr> we have the same in french
+    <teythoon> I ran into a problem with my prototype
+    <teythoon> if an translator is set in e. g. diskfs_S_file_set_translator,
+      how do I get the path to that node?
+    <teythoon> I believe there cannot be a way to do that, b/c the mapping is
+      not bijective
+    <braunr> it doesn't have to be
+    <teythoon> ok, so how do I get *a* path for this node?
+    <braunr> that's another question
+    <braunr> do you see how the node is obtained ?
+    <braunr> np = cred->po->np;
+    <teythoon> yes
+    <braunr> the translation occurred earlier
+    <braunr> you need to find where
+    <braunr> then perhaps, you'll need to carry the path along
+    <braunr> or if you're lucky, it will still be there somewhere
+    <teythoon> the translation from path to node?
+    <braunr> yes
+    <teythoon> doesn't that happen in the client? and the client hands a file_t
+      to the file_set_translator routine?
+    <braunr> the relative lookup can't happen in the client
+    <braunr> the server can (and often does) retain information between two
+      RPCs
+    <teythoon> uh, I can access information from a previous rpc? is that
+      considered safe?
+    <braunr> think of open() then read()
+    <braunr> a simple int doesn't carry enough information
+    <braunr> that's why it's a descriptor
+    <teythoon> ah, the server retains some state, sure
+    <braunr> what it refers to is the state retained between several calls
+    <braunr> the object being invoked by clients
+    <braunr> teythoon: what is the "passive" parameter passed to
+      diskfs_S_file_set_translator ?
+    <teythoon> braunr: argz vector of the passive translator
+    <braunr> so it is a name
+    <braunr> but we also want active translators
+    <braunr> and what is active ?
+    <teythoon> not the name of the node though
+    <teythoon> active is the port (?) to the active translator
+    <teythoon> I guess
+    <braunr> fsys_t, looks that way yes
+    <braunr> i suppose you could add the path to the peropen structure
+    <teythoon> ok
+    <braunr> see diskfs_make_peropen
+    <teythoon> braunr: but translation happens in dir_lookup
+    <teythoon> in all places I've seen diskfs_make_peropen used, the path is
+      not available
+    <teythoon> why did you point me to diskfs_make_peropen?
+    <teythoon> s/dir_lookup/diskfs_lookup/
+    <teythoon> diskfs_lookup operates on struct node, so the path would have to
+      be stored there, right?
+    <braunr> teythoon: dir_lookup should call diskfs_make_peropen
+    <braunr> at least diskfs_S_dir_lookup does
+    <braunr> and the path is present there
+    <teythoon> braunr: right
+
+    <teythoon> hrm... I added a path field to struct peropen and initialize it
+      properly in diskfs_make_peropen, but some bogus values keep creeping in
+      :/
+    <braunr> first of all, make it a dynamically allocated string
+    <teythoon> it is
+    <braunr> not a fixed sized embedded array
+    <braunr> good
+    <teythoon> yes
+    <braunr> if you really need help debugging what's happening, feel free to
+      post your current changes somewhere
+    <teythoon> there is a struct literal in fsys-getroot.c, but i fixed that as
+      well
+    <teythoon> % ./mtab tmp 
+    <teythoon> none tmp ../tmpfs/tmpfs writable,no-inherit-dir-group,no-sync 0
+      0
+    <teythoon> none tmp/bar ../tmpfs/tmpfs
+      writable,no-inherit-dir-group,no-sync 0 0
+    <teythoon> none tmp/foo ../tmpfs/tmpfs
+      writable,no-inherit-dir-group,no-sync 0 0
+    <teythoon> none tmp/foo/bar ../tmpfs/tmpfs
+      writable,no-inherit-dir-group,no-sync 0 0
+    <teythoon> :)
+
+
+## IRC, freenode, #hurd, 2013-07-10
+
+    <teythoon> btw, I read getcwd.c and got the idea
+    <teythoon> however this situation is different afaict
+    <teythoon> getcwd has a port to the current working directory, right?
+    <teythoon> so they can do open_dir with .. as relative path
+    <teythoon> but all I've got is a port referencing the node the translator
+      is being attached to
+    <teythoon> s/open_dir/dir_lookup/
+    <teythoon> and that is not necessarily a directory, so dir_lookup fails
+      with not a directory
+    <teythoon> as far as I can see it is not possible to get the directory a
+      node is in from a port referencing that node
+    <teythoon> dir_lookup has to be handled by all nodes, not just directories
+    <teythoon> but file nodes only support "looking up" the empty string
+    <teythoon> not empty, but null:
+    <teythoon> This call is required to be supported by all files (even
+      non-directories) if the filename is null, and should function in that
+      case as a re-open of the file.  */
+    <braunr> why do you want the directory ?
+    <braunr> 10:40 < teythoon> as far as I can see it is not possible to get
+      the directory a node is in from a port referencing that node
+    <teythoon> to readdir(3) it and figure out the name of the node the
+      translator is bound to
+    <teythoon> similar to what getcwd does
+    <braunr> that's out of the question
+    <teythoon> wasn't that was youpi was suggesting?
+    <braunr> you may have a lot of nodes in there, such a lookup shouldn't be
+      done
+    <braunr> i didn't see that detail
+    <teythoon> "│   Concerning storing the path, it's a bit sad to have to do
+      that, and
+    <teythoon> │   it'll become wrong if one moves the mount points.  Another
+      way would
+    <teythoon> │   be to make the client figure it out by itself from a port to
+      the mount
+    <teythoon> │   point, much like glibc/sysdeps/mach/hurd/getcwd.c. It'll be
+      slower, but
+    <teythoon> │   should be safer.  The RPC would thus return an array of
+      ports to the
+    <teythoon> │   mount points instead of an array of strings.
+    <braunr> yes i remember that
+    <braunr> but i didn't understand well how getcwd work
+    <braunr> s
+    <braunr> another scalability issue
+    <braunr> not a big one though, we rarely have translators in directories
+      with thousands of nodes
+    <braunr> so why not
+    <braunr> teythoon: do it as youpi suggested
+    <braunr> well if you can
+    <braunr> eh
+    <braunr> if not, i don't know
+    <braunr> 10:47 < teythoon> │   it'll become wrong if one moves the mount
+      points.  Another way would
+    <teythoon> yes, I know... :/
+    <teythoon> well, I'm not even sure it is possible to get the directory a
+      node is in from the port referencing the node
+    <teythoon> as in, I'm not sure if the information is even there
+    <teythoon> b/c a filesystem is a tree, directories are nodes and files are
+      leafs
+    <teythoon> all non-leaf nodes reference their parent to allow traversing
+      the tree starting from any directory
+    <teythoon> but why would a leaf reference its parent(s - in case of
+      hardlinks)?
+    <braunr> uh, for the same reason ?
+    <teythoon> sure, it would be nice to do that, but I dont think this is
+      possible on unixy systems
+    <braunr> ?
+    <teythoon> you cannot say fchdir(2) to a fd that references a file
+    <braunr> do you mean /path/to/file/../ ?
+    <teythoon> yes
+    <teythoon> only that /path/to/file is given as fd or port
+    <braunr> when i pasted
+    <braunr> 10:49 < braunr> 10:47 < teythoon> │   it'll become wrong if one
+      moves the mount points.  Another way would
+    <braunr> i was actually wondering if it was true
+    <teythoon> ah
+    <braunr> why can't the path be updated at the same time ?
+    <braunr> it's a relative path anyway
+    <braunr> completely managed by the parent translator
+    <teythoon> ah
+    <teythoon> right
+    <teythoon> it's still kind of hacky, but I cannot see how to do this
+      properly
+    <braunr> hacky ?
+    <teythoon> but yes, updating the path should work I guess
+    <teythoon> or sad
+    <braunr> what i find hacky is to set translators in two passes
+    <braunr> otherwise we'd only keep the translator paths
+    <braunr> not all paths
+    <teythoon> true
+    <braunr> but then, it only concerns open nodes
+    <braunr> and again, there shouldn't be too many of them
+    <braunr> so actually it's ok
+    <teythoon> braunr: I understand the struct nodes are cached in libdiskfs,
+      so wouldn't it be easier to attach the path to that struct instead of
+      struct peropen so that all peropen objects reference the same node
+      object?
+    <teythoon> so that the path can be updated if anyone dir_renames it
+    <teythoon> *all peropen objects derived from the same file name that is
+    <braunr> teythoon: i'm not sure
+    <braunr> nodes could be real nodes (i.e. inodes)
+    <braunr> there can be several paths for the same inode
+    <teythoon> braunr: I'm aware of that, but didn't we agree the other day
+      that any path would do?
+    <braunr> i don't remember we did
+    <braunr> i don't know the details well, but i don't think setting a
+      translator on a hard link should set the translator at the inode level
+    <braunr> on the other hand, if a new inode is created to replace the
+      previous one (or stack over it), then storing the path there should be
+      fine
+    <teythoon> braunr: I don't think I can update the paths if they're stored
+      in the peropen struct
+    <teythoon> how would I get a reference to all those peropen objects?
+    <braunr> ?
+    <braunr> first, what's the context when you talkb about updating paths ?
+    <teythoon> well, youpi was concerned about renaming a mount point
+    <teythoon> and you implied that this could be managed
+    <braunr> can we actually do that btw ?
+    <teythoon> what?
+    <braunr> renaming a mount point
+    <teythoon> yep, just tried
+    <braunr> i mean, on a regular unix system like linux
+    <braunr> $ mv test blah
+    <braunr> mv: cannot move `test' to `blah': Device or resource busy
+    <braunr> (using sshfs so YMMV)
+    <pinotree> do you have anything (shells, open files, etc) inside it?
+    <braunr> no
+    <braunr> i'll try with an empty loop-mounted ext4
+    <teythoon> I was testing on the Hurd, worked fine there even with a shell
+      inside
+    <braunr> same thing
+    <braunr> i consider it a bug
+    <braunr> we may want to check what posix says about it
+    <teythoon> o_O
+    <braunr> and decide not to support renaming
+    <teythoon> why?
+    <pinotree> start a discussion in ml, maybe roland can chime in
+    <braunr> it complicates things
+    <braunr> ah yes
+    <teythoon> sure, but I can move or rename a directory, why should it be
+      different with a mount point?
+    <braunr> because it's two of them
+    <braunr> they're stacked
+    <braunr> if we do want to support that, we must be very careful about
+      atomically updating all the stack
+    <teythoon> ok
+    <teythoon> braunr: I'm trying to detect dying translators to remove them
+      from the list of translators
+    <teythoon> what port can I use for that purpose?
+    <teythoon> if I use the bootstrap port, can I then use the same method as
+      init/init.c uses? just defining a do_mach_notify_dead_name function and
+      the multiplexer will call this?
+    <braunr> teythoon: possibly
+    <teythoon> braunr: we'll see shortly...
+    <teythoon> I get KERN_INVALID_CAPABILITY indicating that my bootstrap port
+      is invalid
+    <teythoon> when calling mach_port_request_notification to get the dead name
+      notification I mean
+    <braunr> is the translator already started when you do that ?
+    <teythoon> yes, at least I think so, I'm hooking into
+      diskfs_S_file_set_translator and that gets an active translators port
+    <teythoon> also the mach docs suggests that the notification port is
+      invalid, not the name port referencing the translator
+    <braunr> i guess it shouldn't
+    <braunr> oh
+    <braunr> please show the code
+    <braunr> but beware, if the translator is started, assume it could die
+      immediately
+    <teythoon> braunr: http://paste.debian.net/15371/ line 87
+    <braunr> teythoon: notify can't be bootstrap
+    <braunr> what do you have in mind when writing this ?
+    <braunr> i'm not sure i follow
+    <teythoon> I want to be notified if an active translator goes away to
+      remove it from the list of translators
+    <braunr> ok but then
+    <braunr> create a send-once right
+    <braunr> and wait on it
+    <braunr> also, why do you want to be notified ?
+    <braunr> isn't this already done ?
+    <braunr> or can't do it lazily on access attempt ?
+    <braunr> +you
+    <teythoon> in the client?
+    <braunr> in the parent server
+    <braunr> what happens currently when a translator dies
+    <braunr> is the parent notified ?
+    <braunr> or does it give an invalid right ?
+    <teythoon> ah, i think so
+    <braunr> then you don't need to do it again
+    <teythoon> right, I overlooked that
+
+
+## IRC, freenode, #hurd, 2013-07-12
+
+    <teythoon> recursively traversing all translators from / turns out to be
+      more dangerous than I expected
+    <teythoon> ... if done by a translator bound somewhere below /...
+    <teythoon> my interpretation is that the mtab translator tries to talk to
+      itself and deadlocks
+    <teythoon> (and as a side effect the whole system kinda just stops...)
+
+
+## IRC, freenode, #hurd, 2013-07-15
+
+    <youpi> teythoon: did you discuss with braunr about returning port vs path
+      in fsys_get_children?
+    <teythoon> youpi: we did
+    <teythoon> as I wrote I looked at the getcwd source you pointed me at
+    <teythoon> and I started to code up something similar
+    <teythoon> but as far as I can see there's no way to tell from a port
+      referencing a file the directory this file is located in
+    <youpi> ah, right, there was a [0] mail
+    <youpi> teythoon: because it doesn't have a "..", right
+    <teythoon> about Neals concerns, he's right about not covering passive
+      translators very well
+    <teythoon> but the solution he proposed was similar to what I tried to do
+      first
+    <youpi> I don't like half-covering passive translators at all, to be honest
+      :)
+    <youpi> either covering them completely, or not at all, would be fine
+    <teythoon> and then braunr convinced me that the "recursive" approach is
+      more elegant and hurdish, and I came to agree with him
+    <teythoon> youpi: one could scan the filesystem at translator startup and
+      populate the list
+    <youpi> by "Neal's solution", you mean an mtab registry?
+    <teythoon> yes
+    <braunr> so, let's see what linux does when renaming parent directories
+    <teythoon> mount points you mean?
+    <youpi> teythoon: browsing the whole filesystem just to find passive
+      translators is costly
+    <youpi> teythoon, braunr: and that won't prevent the user from unexpectedly
+      starting other translators at will
+    <braunr> scary
+    <teythoon> youpi: but that requires the privilege to open the device
+    <youpi> the fact that a passive translator is set is nothing more than a
+      user having the intent of starting a translator
+    <braunr> linux retains the original path in the mount table
+    <youpi> heh
+    <teythoon> youpi: any unprivileged user can trigger a translator startup
+    <youpi> sure, but root can do that too
+    <youpi> and expect the system to behave nicely
+    <teythoon> but if I'm root and want to fsck something, I won't start
+      translators accessing the device just before that
+    <teythoon> but if there's a passive translator targetting the device,
+      someone else might do that
+    <youpi> root does not always completely control what he's doing
+    <youpi> linux for instance does prevent from mounting a filesystem being
+      checked
+    <teythoon> but still, including passive translators in the list would at
+      least prevent anyone starting an translator by accident, isn't that worth
+      doing then?
+    <youpi> if there's a way to prevent root too, that's better than having a
+      half-support for something which we don't necessarily really want
+    <youpi> (i.e. an exclusive lock on the underlying device)
+    <teythoon> right, that would also do the trick
+    <teythoon> btw, some programs or scripts seem to hardcode /proc/mounts and
+      procfs and I cannot bind a translator to /proc/mounts since it is
+      read-only and the node does not exist
+    <kilobug> IMHO automatically starting translators is a generic feature, and
+      passive translator is just a specific instance of it; but we could very
+      well have, like an "autofs" that automatically start translators in tar
+      archives and iso images, allowing to cd into any tar/iso on the system;
+      implementing such things is part of the Hurd flexibility, the "core
+      system" shouldn't be too aware on how translators are started
+    <youpi> so in the end, storing where the active translator was started
+      first seems okayish according to what linux has been exposing for decades
+    <youpi> kilobug: indeed
+    <teythoon> it could serve a mounts with a passive translator by default, or
+      a link to /run/mtab, or an simple file so we could bind a translator to
+      that node
+    <youpi> I'd tend to think that /proc/mounts should be a passive translator
+      and /run/mtab / /etc/mtab a symlink to it
+    <youpi> not being to choose the translator is a concern however
+    <teythoon> ok, I'll look into that
+    <youpi> it could be an empty file, and people be able to set a translator
+      on it
+    <teythoon> if it had a passive translator, people still could bind their
+      own translator to it later on, right?
+    <teythoon> afaics the issue currently is mostly, that there is no mounts
+      node and it is not possible to create one
+    <youpi> right
+    <teythoon> cool
+    <youpi> so with the actual path, you can even check for caller's permission
+      to read the path
+    <youpi> i.e. not provide any more information than the user would be able
+      to get from browsing by hand
+    <teythoon> sure, that concern of Neil's is easy to address
+    <youpi> I'm not so much concerned by stale paths being shown in mtab
+    <youpi> the worst that can happen is a user not being able to umount the
+      path
+    <youpi> but he can settrans -g it
+    <youpi> (which he can't on linux ;) )
+    <teythoon> yes, and the device information is still valid
+    <youpi> yes
+    <braunr> despite the parent dir being renamed, linux is still able to
+      umount the new path
+    <teythoon> and so is our current umount
+    <braunr> good
+    <teythoon> (if one uses the mount point as argument)
+    <braunr> what's the current plan concerning /proc/mounts ?
+    <teythoon> serving a node with a passive translator record
+    <braunr> ?
+    <teythoon> so that /hurd/mtab / is started on access
+    <braunr> i mean, still planning on using the recursive approach instead of
+      a registry ?
+    <teythoon> ah
+    <teythoon> I do not feel confident enough to decide this, but I agree with
+      you, it feels elegant
+    <teythoon> and it works :)
+    <teythoon> modulo the translator deadlocking if it talks to itself, any
+      thoughts on that?
+    <youpi> it is a non-threaded translator I guess?
+    <teythoon> currently yes
+    <youpi> making it threaded should fix the issue
+    <teythoon> I tried to make the mtab translator multithreaded but that
+      didn't help
+    <youpi> that's odd
+    <teythoon> maybe I did it wrong
+    <braunr> i don't find it surprising
+    <braunr> well, not that surprising :p
+    <braunr> on what lock does it block ?
+    <teythoon> as far as i can see the only difference of hello and hellot-mt
+      is that it uses a different dispatcher and has lot's of locking, right?
+    <teythoon> braunr: I'm not sure, partly because that wrecked havoc on the
+      whole system
+    <teythoon> it just freezes
+    <teythoon> but it wasn't permanent. once i let it running and it recovered
+    <braunr> consider using a subhurd
+    <teythoon> ah right, I ment to set up one anyway, but my first attempts
+      were not successful, not sure why
+    <teythoon> anyway, is there a way to prevent this in the first place?
+    <teythoon> if one could compare ports that'd be helpful
+    <youpi> Mmm, did you try to simply compare the number?
+    <teythoon> with the bootstrap port I presume?
+    <youpi> Mmm, no, the send port and the receive port would be different
+    <youpi> no, with the receive port
+    <teythoon> ah
+    <braunr> comparing the numbers should work
+    <braunr> youpi: no they should be the same
+    <youpi> braunr: ah, then it should work yes
+    <braunr> that's why there are user ref counts
+    <youpi> ok
+    <braunr> only send-once rights have their own names
+    <teythoon> btw, I'll push my work to darnassus from now on,
+      e.g. http://darnassus.sceen.net/gitweb/?p=teythoon/hurd.git;a=shortlog;h=refs/heads/feature-mtab-translator-v3-wip
+
+
+## [[open_issues/libnetfs_passive_translators]]
+
+
+## IRC, freenode, #hurd, 2013-07-16
+
+    <teythoon> which port is the receive port of a translator? I mean, how is
+      it called in the source, there is no port in sight named receive anywhere
+      I looked.
+    <braunr> teythoon: what is the "receive port of a translator" ?
+    <teythoon> braunr: we talked yesterday about preventing the mtab deadlock
+      by comparing ports
+    <teythoon> I asked which one to use for the comparison, youpi said the
+      receive port
+    <braunr> i'm not sure what he meant
+    <braunr> it could be the receive port used for the RPC
+    <braunr> but i don't think it's exported past mig stub code
+    <teythoon> weird, I just reread it. I asked if i should use the bootstrap
+      port, and he said receive port, but it might have been addressed to you?
+    <teythoon> you were talking about send and receive ports being singletons
+      or not
+    <teythoon> umm
+    <braunr> no i answered him
+    <braunr> he was wondering if the receive port could actually be used for
+      comparison
+    <braunr> i said it can
+    <braunr> but still, i'm not sure what port
+    <braunr> if it's urgent, send him a mail
+    <teythoon> no, my pipeline is full of stuff I can do instead ;)
+    <braunr> :)
+
+
+## IRC, freenode, #hurd, 2013-07-17
+
+    <teythoon> braunr: btw, comparing ports solved the deadlock in the mtab
+      translator rather easily
+    <braunr> :)
+    <braunr> which port then ?
+    <teythoon> currently I'm stuck though, I'm not sure how to address Neals
+      concern wrt to access permission checks
+    <teythoon> I believe it's called control port
+    <braunr> ok
+    <teythoon> the one one gets from doing the handshake with the parent
+    <braunr> i thought it was the bootstrap port
+    <braunr> but i don't know the details so i may be wrong
+    <braunr> anyway
+    <teythoon> yes
+    <braunr> what is the permission problem again ?
+    <teythoon> 871u73j4zp.wl%neal@walfield.org
+    <braunr> well, you could perform a lookup on the stored path
+    <braunr> as if opening the node
+    <teythoon> if I look at any server implementation of a procedure from
+      fs.defs (say libtrivfs/file-chmod.c [bad example though, that looks wrong
+      to me]), there is permission checking being done
+    <teythoon> any server implementation of a procedure from fsys.defs lacks
+      permission checks, so I guess it's being done somewhere else
+    <braunr> i must say i'm a bit lost in this discussion
+    <braunr> i don't know :/
+    <braunr> can *you* sum up the permission problem please ?
+    <braunr> i mean here, now, in just a few words ?
+    <teythoon> ok, so I'm extending the fsys api with the get_children
+      procedure
+    <teythoon> that one should not return any children x/y if the user doing
+      the request has no read permissions on x
+    <braunr> really ?
+    <braunr> why so ?
+    <teythoon> the same way ls x would not reveal the existence of y
+    <braunr> i could also say unlike cat /proc/mounts
+    <braunr> i can see why we would want that
+    <braunr> i also can see why we could let this behaviour in place
+    <braunr> let's admit we do want it
+    <teythoon> true, but I thought this could easily be addressed
+    <braunr> what you could do is
+    <teythoon> now I'm not sure b/c I cannot even find the permission checking
+      code for any fsys_* function
+    <braunr> for each element in the list of child translators
+    <braunr> perform a lookup on the stored path on behalf of the user
+    <braunr> and add to the returned list if permission checks pass
+    <braunr> teythoon: note that i said lookup on the path, which is an fs
+      interface
+    <braunr> i assume there is no permission checking for the fsys interface
+      because it's done at the file (fs) level
+    <teythoon> i think so too, yes
+    <teythoon> sure, if I only knew who made the request in the first place
+    <teythoon> the file-* options have a convenient credential handle passed in
+      as first parameter
+    <teythoon> s/options/procedures/
+    <teythoon> surely the fsys-* procedures also have a means of retrieving
+      that information, I just don't know how
+    <braunr> mig magic
+    <braunr> teythoon: see file_t in hurd_types.defs
+    <braunr> there is the macro FILE_INTRAN which is defined in subdirectories
+      (or not)
+    <teythoon> ah, retrieving the control port requires permissions, and the
+      fsys-* operations then operate on the control port?
+    <braunr> see libdiskfs/fsmutations.h for example
+    <braunr> uh yes but that's for < braunr> i assume there is no permission
+      checking for the fsys interface because it's done at the file (fs) level
+    <braunr> i'm answering < teythoon> sure, if I only knew who made the
+      request in the first place
+    <braunr> teythoon: do we understand each other or is there still something
+      fuzzy ?
+    <teythoon> braunr: thanks for the pointers, I'll read up on that a bit
+      later
+    <braunr> teythoon: ok
+
+
+## IRC, freenode, #hurd, 2013-07-18
+
+    <teythoon> braunr: back to the permission checking problem for the
+      fsys_get_children interface
+    <teythoon> I can see how this could be easily implemented in the mtab
+      translator, it asks the translator for the list of children and then
+      checks if the user has permission to read the parent dir
+    <teythoon> but that is pointless, it has to be implemented in the
+      fsys_get_children server function
+    <braunr> yes
+    <braunr> why is it pointless ?
+    <teythoon> because one could circumvent the restriction by doing the
+      fsys_get_children call w/o the mtab translator
+    <braunr> uh no
+    <braunr> you got it wrong
+    <braunr> what i suggested is that fsys_get_children does it before
+      returning a list
+    <braunr> the problem is that the mtab translator has a different identity
+      from the users accessing it
+    <teythoon> yes, but I cannot see how to do this, b/c at this point I do not
+      have the user credentials
+    <braunr> get them
+    <teythoon> how?
+    <braunr> 16:14 < braunr> mig magic
+    <braunr> 16:15 < braunr> teythoon: see file_t in hurd_types.defs
+    <braunr> 16:16 < braunr> there is the macro FILE_INTRAN which is defined in
+      subdirectories (or not)
+    <braunr> 16:16 < braunr> see libdiskfs/fsmutations.h for example
+    <teythoon> i saw that
+    <braunr> is there a problem i don't see then ?
+    <braunr> i suppose you should define FSYS_INTRAN rather
+    <braunr> but the idea is the same
+    <teythoon> won't that change all the function signatures of the fsys-*
+      family?
+    <braunr> that's probably the only reason not to implement this feature
+      right now
+    <teythoon> then again, that change is probably easy and mechanic in nature,
+      might be an excuse to play around with coccinelle
+    <braunr> why not
+    <braunr> if you have the time
+    <teythoon> right, if this can be done, the mtab translator (if run as root)
+      could get credentials matching the users credentials to make that
+      request, right?
+    <braunr> i suppose
+    <braunr> i'm not sure it's easy to make servers do requests on behalf of
+      users on the hurd
+    <braunr> which makes me wonder if the mtab functionality shouldn't be
+      implemented in glibc eheheh ....
+    <braunr> but probably not
+    <teythoon> well, I'll try out the mig magic thing and see how painful it is
+      to fix everything ;)
+    <braunr> good luck
+    <braunr> honestly, i'm starting to think it's deviating too much from your
+      initial goal
+    <braunr> i'd be fine with a linux-like /proc/mounts
+    <braunr> with a TODO concerning permissions
+    <teythoon> ok, fine with me :)
+    <braunr> confirm it with the other mentors please
+    <braunr> we have to agree quickly on this
+    <teythoon> y?
+
+    <teythoon> braunr: I actually believe that the permission issue can be
+      addressed cleanly and unobstrusively
+    <teythoon> braunr: would you still be opposed to the get_children approach
+      if that is solved?
+    <teythoon> the filesystem is a tree and the translators "creating" that
+      tree are a more coarse version of that tree
+    <teythoon> having a method to traverse that tree seems natural to me
+    <braunr> teythoon: it is natural
+    <braunr> i'm just worried it's a bit too complicated, unnecessary, and
+      out-of-scope for the problem at hand
+    <braunr> (which is /proc/mounts, not to forget it)
+
+
+## IRC, freenode, #hurd, 2013-07-19
+
+    <teythoon> braunr: I think you could be a bit more optimistic and
+      supportive of the decentralized approach
+    <teythoon> I know the dark side has cookies and strong language and it's
+      mighty tempting
+    <teythoon> but both are bad for you :p
+
+
+## IRC, freenode, #hurd, 2013-07-22
+
+    <youpi> teythoon: AIUI, you should be able to run the mtab translator as
+      no-user (i.e. no uid)
+    <teythoon> youpi: yes, that works fine
+
+    <youpi> teythoon: so there is actually no need to define FSYS_INTRAN, doing
+      it by hand as you did is fine, right?
+    <youpi> (/me backlogs mails...)
+    <teythoon> youpi: yes, the main challenge was to figure out what mig does
+      and how the cpp is involved
+    <youpi> heh :)
+    <teythoon> my patch does exactly the same, but only for this one server
+      function
+    <teythoon> youpi: I'm confused by your mail, why are read permissions on
+      all path components necessary?
+    <braunr> teythoon: only execution normally
+    <youpi> teythoon: to avoid letting a user discover a translator running on
+      a hidden directory
+    <teythoon> braunr: exactly, and that is tested
+    <youpi> e.g. ~/home/foo is o+x, but o-r
+    <youpi> and I have a translator running on ~/home/foo/aZeRtYuyU
+    <youpi> I don't want that to show up on /proc/mounts
+    <braunr> youpi: i don't understand either: why isn't execution permission
+      enough ?
+    <teythoon> youpi: but that requires testing for read on the *last*
+      component of the *dirname* of your translator, and that is tested
+    <youpi> let me take another example :)
+    <youpi> e.g. ~/home/foo/aZeRtYuyU is o+x, but o-r
+    <youpi> and I have a translator running on ~/home/foo/aZeRtYuyU/foo
+    <youpi> ergl sorry, I meant this actually:
+    <teythoon> yes, that won't show up then in the mtab for users that are not
+      you and not root
+    <youpi> e.g. ~/home/foo is o+x, but o-r
+    <youpi> and I have a translator running on ~/home/foo/aZeRtYuyU/foo
+    <teythoon> ah
+    <teythoon> hmm, good point
+    <braunr> ?
+    * braunr still confused
+    <teythoon> well, qwfpgjlu is the secret
+    <teythoon> and that is revealed by the fsys_get_children procedure
+    <braunr> then i didn't understand the description of the call right
+    <braunr> > +  /* check_access performs the same permission check as is
+      normally                                                                                                                    
+    <braunr> > +     done, i.e. it checks that all but the last path components
+      are                                                                                                                    
+    <braunr> > +     executable by the requesting user and that the last
+      component is                                                                                                                  
+    <braunr> > +     readable.       */                                                                                                                                                                
+    <teythoon> braunr: youpi argues that this is not enough in this case
+    <braunr> from that, it looks ok to me
+    <youpi> the function and the documentation agree, yes
+    <youpi> but that's not what we want
+    <braunr> and that's where i fail to understand
+    <youpi> again, see my example
+    <braunr> i am
+    <braunr> 10:43 < youpi> e.g. ~/home/foo is o+x, but o-r
+    <braunr> ok
+    <youpi> so the user is not supposed to find out the secret
+    <braunr> then your example isn't enough to describe what's wron
+    <braunr> g
+    <youpi> checking read permission only on ~/home/foo/aZeRtYuyU will not
+      garantee that
+    <braunr> ah
+    <braunr> i thought foo was the last component
+    <youpi> no, that's why I changed my example
+    <braunr> hum
+    <braunr> 10:43 < youpi> e.g. ~/home/foo is o+x, but o-r
+    <braunr> 10:43 < youpi> and I have a translator running on
+      ~/home/foo/aZeRtYuyU/foo
+    <braunr> i meant, the last foo
+    <teythoon> still, this is easily fixed
+    <youpi> sure
+    <youpi> just has to be :)
+    <teythoon> youpi, braunr: so do you think that this approach will work?
+    <youpi> I believe so
+    <braunr> i still don't see the problem, so don't ask me :)
+    <braunr> i've been sick all week end and hardly slept, which might explain
+    <braunr> in the example, "all but the last path components" is
+      "~/home/foo/aZeRtYuyU"
+    <braunr> right ?
+    <youpi> braunr: well, I haven't looked at the details
+    <youpi> but be it the last, or but-last  doesn't change the issue
+    <youpi> if my ~/hidden is o-r,o+x
+    <youpi> and I have a translator on ~/hidden/a/b/c/d/e
+    <youpi> checking only +x on hidden is not ok
+    <braunr> but won't the call also check a b c d ?
+    <youpi> yes, but that's not what matters
+    <youpi> what matters is that hidden is o-r
+    <braunr> hm
+    <youpi> so the mtab translator is not supposed to reveal that there is an
+      "a" in there
+    <braunr> ok i'm starting to understand
+    <braunr> so r must be checked on all components too
+    <youpi> yes
+    <braunr> right
+    <youpi> to simulate the user doing ls, cd, ls, cd, etc.
+    <braunr> well, not cd
+    <braunr> ah
+    <youpi> for being able to do ls, you have to be able to do cd
+    <braunr> as an ordered list of commands
+    <braunr> ok
+    <teythoon> agreed. can you think of any more issues?
+    <braunr> so both x and r must be checked
+    <youpi> so in the end this RPC is really a shortcut for a find + fsysopts
+      script
+    <youpi> teythoon: I don't see any
+    <braunr> teythoon: i couldn't take a clear look at the patch but
+    <braunr> do you perform a lookup on all nodes ?
+    <teythoon> yes, all nodes on the path from the root to the one specified by
+      the mount point entry in the active translator list
+    <braunr> let me rephrase
+    <braunr> do you at some point do a lookup, similar to a find, on all nodes
+      of a translator ?
+    <teythoon> no
+    <braunr> good
+    <teythoon> yes
+    <braunr> iirc, neal raised that concern once
+    <teythoon> and I'll also fix settrans --recursive not to iterate over *all*
+      nodes either
+    <braunr> great
+    <braunr> :)
+    <teythoon> fsys_set_options with do_children=1 currently does that (I've
+      only looked at the diskfs version)
+
+
+## IRC, freenode, #hurd, 2013-07-27
+
+    <teythoon> youpi: ah, I just found msg_get_init_port, that should make the
+      translator detection feasible
+
+
+## IRC, freenode, #hurd, 2013-07-31
+
+    <teythoon> braunr: can I discover the sender of an rpc message?
+    <braunr> teythoon: no
+    <braunr> teythoon: what do you mean by "sender" ?
+    <teythoon> braunr: well, I'm trying to do permission checks in the
+      S_proc_mark_essential server function
+    <braunr> ok so, the sending user
+    <braunr> that should be doable
+    <teythoon> I've got a struct proc *p courtesy of a mig intran mutation and
+      a port lookup
+    <teythoon> but that is not necessarily the sender, right?
+    <braunr> proc is really the server i know the least :/
+    <braunr> there is permission checking for signals
+    <braunr> it does work
+    <braunr> you should look there
+    <teythoon> yes, there are permission checks there
+    <teythoon> but the only argument the rpc has is a mach_port_t refering to
+      an object in the proc server
+    <braunr> yes
+    <teythoon> anyone can obtain such a handle for any process, no?
+    <braunr> can you tell where it is exactly please ?
+    <braunr> i don't think so, no
+    <teythoon> what?
+    <braunr> 14:42 < teythoon> but the only argument the rpc has is a
+      mach_port_t refering to an object in the proc server
+    <teythoon> ah
+    <braunr> the code you're referring to
+    <braunr> a common way to give privileges to public objects is to provide
+      different types of rights
+    <braunr> a public (usually read-only) right
+    <braunr> and a privileged one, like host_priv which you may have seen
+    <braunr> acting on (modifying) a remote object normally requires the latter
+    <teythoon> http://paste.debian.net/20795/
+    <braunr> i thought you were referring to existing code
+    <teythoon> well, there is existing code doing permission checks the same
+      way I'm doing it there
+    <braunr> where is it please ?
+    <braunr> mgt.c ?
+    <teythoon> proc/mgt.c (S_proc_setowner) for example
+    <teythoon> yes
+    <braunr> that's different
+    <teythoon> but anyone can obtain such a reference by doing proc_pid2proc
+    <braunr> the sender is explicitely giving the new uid
+    <braunr> yes but not anyone is already an owner of the target process
+    <braunr> (although it may look like anyone has the right to clear the owner
+      oO)
+    <teythoon> see, that's what made me worry, it is not checked who's the
+      sender of the message
+    <teythoon> unless i'm missing something here
+    <teythoon> ah
+    <teythoon> I am
+    <teythoon> pid2proc returns EPERM if one is not the owner of the process in
+      question
+    <teythoon> all is well
+    <braunr> ok
+    <braunr> it still requires the caller process though
+    <teythoon> what?
+    <braunr> see check_owner
+    <braunr> the only occurrence i find in the hurd is in libps/procstat.c
+    <braunr> MGET(PSTAT_PROCESS, PSTAT_PID, proc_pid2proc (server, ps->pid,
+      &ps->process));
+    <braunr> server being the proc server AIUI
+    <teythoon> yes, most likely
+    <braunr> but pid2proc describes this first argument to be the caller
+      process
+    <teythoon> ah but it is
+    <braunr> ?
+    <teythoon> mig magic :p
+    <teythoon> MIGSFLAGS="-DPROCESS_INTRAN=pstruct_t reqport_find (process_t)"
+      \
+    <teythoon> MIGSFLAGS="-DPROCESS_INTRAN=pstruct_t reqport_find (process_t)"
+      \
+    <braunr> ah nice
+    <braunr> hum no
+    <braunr> this just looks up the proc object from a port name, which is
+      obvious
+    <braunr> what i mean is
+    <braunr> 14:53 < braunr> MGET(PSTAT_PROCESS, PSTAT_PID, proc_pid2proc
+      (server, ps->pid, &ps->process));
+    <braunr> this is done in libps
+    <braunr> which can be used by any process
+    <braunr> server is the proc server for this process (it defines the process
+      namespace)
+    <teythoon> yes, but isn't the port to the proc server different for each
+      process?
+    <braunr> no, the port is the same (the name changes only)
+    <braunr> ports are global non-first class objects
+    <teythoon> and the proc server can thus tell with the lookup which process
+      it is talking to?
+    <braunr> that's the thing
+    <braunr> from pid2proc :
+    <braunr> S_proc_pid2proc (struct proc *callerp
+    <braunr> [...]
+    <braunr> if (! check_owner (callerp, p))
+    <braunr> check_owner (struct proc *proc1, struct proc *proc2)
+    <braunr> "Returns true if PROC1 has `owner' privileges over PROC2 (and can
+      thus get its task port &c)."
+    <braunr> callerp looks like it should be the caller process
+    <braunr> but in libps, it seems to be the proc server
+    <braunr> this looks strange to me
+    <teythoon> yep, to me too, hence my confusion
+    <braunr> could be a bug that allows anyone to perform pid2proc
+    <teythoon> braunr: well, proc_pid2proc (getproc (), 1, ...) fails with
+      EPERM as expected for me
+    <braunr> ofc it does with getproc()
+    <braunr> but what forces a process to pass itself as the first argument ?
+    <teythoon> braunr: nothing, but what else would it pass there?
+    <braunr> 14:53 < braunr> MGET(PSTAT_PROCESS, PSTAT_PID, proc_pid2proc
+      (server, ps->pid, &ps->process));
+    <braunr> everyone knows the proc server
+    <braunr> ok now, that's weird
+    <braunr> teythoon: does getproc() return the proc server ?
+    <teythoon> I think so, yes
+    <teythoon> damn those distributed systems, all of their sources are so
+      distributed too
+    <braunr> i suspect there is another layer of dark glue in the way
+    <teythoon> I cannot even find getproc :/
+    <braunr> hurdports.c:GETSET (process_t, proc, PROC)
+    <braunr> that's the dark glue :p
+    <teythoon> ah, so it must be true that the ports to the proc server are
+      indeed process specific, right?
+    <braunr> ?
+    <teythoon> well, it is not one port to the proc server that everyone knows
+    <braunr> it is
+    <braunr> what makes you think it's not ?
+    <teythoon> proc_pid2proc (getproc (), 1, ...) fails with EPERM for anyone
+      not being root, but succeeds for root
+    <braunr> hm right
+    <teythoon> if getproc () were to return the same port, the proc server
+      couldn't distinguish these
+    <braunr> indeed
+    <braunr> in which case getproc() actually returns the caller's process
+      object at its proc server
+    <teythoon> yes, that is better worded
+    <braunr> teythoon: i'm not sure it's true actually :/
+    <teythoon> braunr: well, exploit or it didn't happen
+    <braunr> teythoon: getproc() apparently returns a bootstrap port
+    <braunr> we must find the code that sets this port
+    <braunr> i have a hard time doing that :/
+    <pinotree> isn't part of the stuff which is passed to a new process by
+      exec?
+    <teythoon> braunr: I know that feeling
+    <braunr> pinotree: probably
+    <braunr> still hard to find ..
+    <pinotree> search in glibc
+    <teythoon> braunr: exec/exec.c:1654 asks the proc server for the proc
+      object to use for the new process
+    <teythoon> so how much of hurd do I have to rebuild once i changed struct
+      procinfo in hurd_types.h?
+    <teythoon> oh noez, glibc uses it too :/
+
+
+## IRC, freenode, #hurd, 2013-08-01
+
+    <teythoon> I need some pointers on building the libc, specifically how to
+      point libcs build system to my modified hurd headers
+    <teythoon> nlightnfotis: hi
+    <teythoon> nlightnfotis: you rebuild the libc right? do you have any hurd
+      specific pointers for doing so?
+    <nlightnfotis> teythoon, I have not yet rebuild the libc (I was planning
+      to, but I followed other courses of action) Thomas had pointed me to some
+      resources on the Hurd website. I can look them up for you
+    <nlightnfotis> teythoon, here are the instructions
+      http://darnassus.sceen.net/~hurd-web/open_issues/glibc/debian/
+    <nlightnfotis> and the eglibc snapshot is here
+      http://snapshot.debian.org/package/eglibc/
+    <teythoon> nlightnfotis: yeah, I found those. the thing is I changed a
+      struct in the hurd_types.h header, so now I want to rebuild the libc with
+      that header
+    <teythoon> and I cannot figure out how to point libcs build system to my
+      hurd headers
+    <teythoon> :/
+    <nlightnfotis> can you patch eglibc and build that one instead?
+    <pochu> teythoon: put your header in the appropriate /usr/include/ dir
+    <teythoon> pochu: is there no other way?
+    <pinotree> iirc nope
+    <pochu> teythoon: you may be able to pass some flag to configure, but I
+      don't know if that will work in this specific case
+    <teythoon> ouch >,< that explains why I haven't found one
+    <pochu> check ./configure --help, it's usually FOO_CFLAGS (so something
+      like HURD_CFLAGS maybe)
+    <pochu> but then you may need _LIBS as well depending on how you changed
+      the header... so in the end it's just easier to put the header in
+      /usr/include/
+    <braunr> teythoon: did you find the info for your libc build ?
+    <teythoon> braunr: well, i firmlinked my hurd_types.h into /usr/include/...
+    <braunr> ew
+    <braunr> i recommend building debian packages
+    <teythoon> but the build was not successful, looks unrelated to my changes
+      though
+    <teythoon> I tried that last week and the process took more than eight
+      hours and did not finish
+    <braunr> use darnassus
+    <braunr> it takes about 6 hours on it
+    <teythoon> I shall try again and skip the unused variants
+    <braunr> i also suggest you use ./debian/rules build
+    <braunr> and then interrupt the build process one you see it's building
+      object files
+    <braunr> go to the hurd-libc-i386 build dir, and use make lib others
+    <braunr> make lib builds libc, others is for companion libraries lik
+      libpthread
+    <braunr> actually building libc takes less than an hour
+    <braunr> so once you validate your build this way, you know building the
+      whole debian package will succedd
+    <braunr> succeed*
+    <teythoon> so how do I get the build system to pick up my hurd_types.h?
+    <braunr> sorry if this is obvious to you, you might be more familiar with
+      debian than i am :)
+    <braunr> patch the hurd package
+    <braunr> append your own version string like +teythoon.hurd.1
+    <braunr> install it
+    <braunr> then build libc
+    <braunr> i'll reboot darnassus so you have a fresh and fast build env
+    <braunr> almost a month of uptime without any major issue :)
+    <teythoon> err, but I cannot install my hurd package on darnassus, can I? I
+      don't think that'd be wise even if it were possible
+    <braunr> teythoon: rebooted, enjoy
+    <braunr> why not ?
+    <braunr> i often do it for my own developments
+    <braunr> teythoon: screen is normally available
+    <braunr> teythoon: be aware that fakeroot-tcp is known to hang when pfinet
+      is out of ports (that's a bug)
+    <braunr> it takes more time to reach that bug since a patch that got in
+      less than a year ago, but it still happens
+    <braunr> the hurd packages are quick to build, and they should only provide
+      the new header, right ?
+    <braunr> you can include the functionality too in the packages if you're
+      confident enough
+    <teythoon> but my latest work on the killing of essential processes issues
+      involves patching hurd_types.h and that in a way that breaks the ABI,
+      hence the need to rebuild the libc (afaiui)
+    <braunr> teythoon: yes, this isn't uncommon
+    <teythoon> braunr: this is much more intrusive than anything I've done so
+      far, so I'm not so confident in my changes for now
+    <braunr> teythoon: show me the patch please
+    <teythoon> braunr: it's not split up yet, so kind of messy:
+      http://paste.debian.net/21403/
+    <braunr> teythoon: did you make sure to add RPCs at the end of defs files ?
+    <teythoon> yes, I got burned by this one on my very first attempt, you
+      pointed out that mistake
+    <braunr> :)
+    <braunr> ok
+    <braunr> you're changing struct procinfo
+    <braunr> this really breaks the abi
+    <teythoon> yes
+    <braunr> i.e. you can't do that
+    <teythoon> I cannot put it at the end b/c of that variable length array
+    <braunr> you probably should add another interface
+    <teythoon> that'd be easier, sure, but this will slow down procfs even
+      more, no?
+    <braunr> that's secondary
+    <braunr> it won't be easier, breaking the abi may break updates
+    <braunr> in which case it's impossible
+    <braunr> another way would be to ues a new procinfo struct
+    <braunr> like struct procinfo2
+    <braunr> but then you need a transition step so that all users switch to
+      that new version
+    <braunr> which is the best way to deal with these issues imo, but this time
+      not the easiest :)
+    <teythoon> ok, so I'll introduce another rpc and make sure that one is
+      extensible
+    <braunr> hum no
+    <braunr> this usually involves using a version anyway
+    <teythoon> no? but it is likely that we need to save more addresses of this
+      kind in the future
+    <braunr> in which case it will be hanlded as an independant problem with a
+      true solution such as the one i mentioned
+    <teythoon> it could return an array of vm_address_ts with a length
+      indicating how many items were returned
+    <braunr> it's ugly
+    <braunr> the code is already confusing enough
+    <braunr> keep names around for clarity
+    <teythoon> ok, point taken
+    <braunr> really, don't mind additional RPCs when first adding new features
+    <braunr> once the interface is stable, a new and improved version becomes a
+      new development of its own
+    <braunr> you're invited to work on that after gsoc :)
+    <braunr> but during gsoc, it just seems like an unnecessary burden
+    <teythoon> ok cool, I really like that way of extending Hurd, it's really
+      easy
+    <teythoon> and feels so natural
+    <braunr> i share your concern about performances, and had a similar problem
+      when adding page cache information to gnumach
+    <braunr> in the end, i'll have to rework that again
+    <braunr> because i tried to extend it beyond what i needed
+    <teythoon> true, I see how that could happen easily
+    <braunr> the real problem is mig
+    <braunr> mig limits subsystems to 100 calls
+    <braunr> it's clearly not enough
+    <braunr> in x15, i intend to use 16 bits for subsystems and 16 bits for
+      RPCs, which should be plenty
+    <teythoon> that limit seems rather artificial, it's not a power of two
+    <braunr> yes it is
+    <teythoon> so let's fix it
+    <braunr> mach had many artificial static limits
+    <braunr> eh :D
+    <braunr> not easy
+    <braunr> replies are encoded by taking the request ID and adding 100
+    <teythoon> uh
+    <braunr> "uh" indeed
+    <teythoon> so we need an intermediate version of mig that accepts both
+      id+100 and dunno id+2^x as replies for id
+    <teythoon> or -id - 1
+    <braunr> that would completely break the abi
+    <teythoon> braunr: how so? the change would be in the *_server functions
+      and be compatible with the old id scheme
+    <braunr> how do you make sure id+2^x doesn't conflict with another id ?
+    <teythoon> oh, the id is added to the subsystem id?
+    <teythoon> to obtain a global message id?
+    <braunr> yes
+    <teythoon> ah, I see
+    <teythoon> ah, but the hurd subsystems are 1000 ids apart
+    <teythoon> so id+100 or id +500 would work
+    <braunr> we need to make sure it's true
+    <braunr> always true
+    <teythoon> so how many bits do we have for the message id in mach?
+    <teythoon> (mig?)
+    <braunr> mach shouldn't care, it's entirely a mig thing
+    <braunr> well yes and no
+    <braunr> mach defines the message header, which includes the message id
+    <braunr> see mach/message.h
+    <braunr>     mach_msg_id_t       msgh_id;
+    <braunr> typedef integer_t mach_msg_id_t;
+    <teythoon> well, if that is like a 32 bit integer, then allow -id-1 as
+      reply and forbid ids > 2^x / 2
+    <braunr> yes
+    <braunr> seems reasonable
+    <teythoon> that'd give us an smooth upgrade path, no?
+    <braunr> i think so
+
+
+## IRC, freenode, #hurd, 2013-08-28
+
+    <youpi> teythoon: Mmm, your patch series does not make e.g. ext2fs provide
+      a diskfs_get_source, does it?
+
+
+## IRC, freenode, #hurd, 2013-08-29
+
+    <teythoon> youpi: that is correct
+    <youpi> teythoon: Mmm, I must be missing something then: as such the patch
+      series introduces an RPC, but only EOPNOTSUPP is ever returned in all
+      cases for now?
+    <youpi> ah
+    <youpi>  /* Guess based on the last argument. */
+    <youpi> since ext2fs & such report their options with store last, it seems
+      ok indeed
+    <youpi> it still seems a bit lame not to return that information in
+      get_source
+    <teythoon> yes
+    <teythoon> well, if it had been just for me, I would not have created that
+      rpc, but only guessing was frowned uppon iirc
+    <teythoon> then again, maybe this should be used and then the mtab
+      translator could skip any translators that do not provide this
+      information to filter out non-"filesystem" translators
+    <youpi> guessing is usually trap-prone, yes
+    <youpi> if it is to be used by mtab, then maybe it should be documented as
+      being used by mtab
+    <youpi> otherwise symlink would set a source, for instance
+    <youpi> while we don't really want it here
+    <teythoon> why would the symlink translator answer to such requests? it is
+      not a filesystem-like translator
+    <youpi> no, but the name & documentation of the RPC doesn't tell it's only
+      for filesystem-like translators
+    <youpi> well, the documentation does say "filesystem"
+    <youpi> but it does not clearly specify that one shouldn't implement
+      get_source if one is not a filesystme
+    <youpi> "If the concept of a source is applicable" works for a symlink
+    <youpi> that could be the same for eth-filter, etc.
+    <teythoon> right
+    <youpi> Mmm, that said it's fsys.defs
+    <youpi> not io.defs
+    <youpi> teythoon: it is the fact that we get EOPNOTSUPP (i.e. fsys
+      interface supported, just not that call), and not MIG_BAD_ID (i.e. fsys
+      interface not supported), that filters out symlink & such, right?
+    <teythoon> that's what I was thinking, but that's based on my
+      interpretation of EOPNOPSUPP of course ;)
+    <youpi> teythoon: I believe that for whatever is a bit questionable, even
+      if you put yourself on the side that people will probably agree on, the
+      discussion will still take place so we make sure it's the right side :)
+    <youpi> (re: start/end_code)
+    <teythoon> I'm not sure I follow
+    <teythoon> youpi: /proc/pid/stat seems to be used a lot:
+      http://codesearch.debian.net/search?q=%22%2Fproc%2F.*%2Fstat%22
+    <teythoon> that does not mean that start/endcode is used, but still it
+      seems like a good thing to mimic Linux closely
+    <youpi> stat is used a lot for cpu usage for instance, yes
+    <youpi> start/endcode, I really wonder who is using it
+    <youpi> using it for kernel thread detection looks weird to me :)
+    <youpi> (questionable): I mean that even if you take the time to put
+      yourself on the side that people will probably agree on, the discussion
+      will happen
+    <youpi> it has to happen so people know they agree on it
+    <youpi> I've seen that a lot in various projects (not only CS-related)
+    <teythoon> ok, I think I got it
+    <teythoon> it's to document the reasons for (not) doing something?
+    <youpi> something like this, yes
+    <youpi> even if you look right, people will try to poke holes
+    <youpi> just to make sure :)
+    <teythoon> btw, I think it's rather unusual that our storeio experiments
+      would produce such different results
+    <teythoon> you're right about the block device, no idea why I got a
+      character file there
+    <teythoon> I used settrans -ca /tmp/hello.unzipped /hurd/storeio -T
+      gunzip:file /tmp/hello
+    <teythoon> also I tried stacking the translator on /tmp/hello directly,
+      from what I've gathered that should be possible, but I failed
+    <teythoon> ftr I use the exec server with all my patches, so the unzipping
+      code has been removed from it
+    <youpi> ah, I probably still have it
+    <youpi> it shouldn't matter here, though
+    <teythoon> I agree
+    <youpi> how would you stack it?
+    <youpi> I've never had a look at that
+    <youpi> I'm not sure attaching the translator to the node is done before or
+      after the translator has a change to open its target
+    <teythoon> right
+    <teythoon> but it could be done, if storeio used the reference to the
+      underlying node, no?
+    <youpi> yes
+    <youpi> btw, you had said at some point that you had issues with running
+      remap. Was the issue what you fixed with your patches?
+    * youpi realizes that he should have shown the remap.c source code during
+        his presentation
+    <teythoon> well, I tried to remap /servers/exec (iirc) and that failed
+    <teythoon> then again, I recently played with remap and all seemed fine
+    <teythoon> but I'm sure it has nothing to do with my patches
+    <youpi> ok
+    <teythoon> those I came up with investigating fakeroot-hurd
+    <teythoon> and I saw that this also aplies to remap.sh
+    <teythoon> *while
+    <youpi> yep, they're basically the same
+    <teythoon> btw, I somehow feel settrans is being abused for chroot and
+      friends, there is no translator setting involved
+    <youpi> chroot, the command? or the settrans option?
+    <youpi> I don't understand what you are pointing at
+    <teythoon> the settrans option being used by fakeroot, remap and (most
+      likely) our chroot
+    <youpi> our chroot is just a file_reparent call
+    <youpi> fakeroot and remap do start a translator
+    <teythoon> yes, but it is not being bound to a node, which is (how I
+      understand it) what settrans does
+    <teythoon> the point being that if settrans is being invoked with --chroot,
+      it does something completely different (see the big if (chroot) {...}
+      blocks)
+    <teythoon> to a point that it might be better of in a separate command
+    <youpi> Mmm, indeed, a lot of the options don't make sense for chroot
+
+
+## IRC, freenode, #hurd, 2013-09-06
+
+    <braunr> teythoon: do you personally prefer /proc being able to implement
+      /proc/self on its own, or using the magic server to tell clients to
+      resolve those specific cases themselves ?
+    <pinotree> imho solving the "who's the sender of an rpc" could solve both
+      the SCM_CREDS implementation and the self case in procfs
+
+[[open_issues/SENDMSG_SCM_CREDS]],
+[[hurd/translator/procfs/jkoenig/discussion]], *`/proc/self`*.
+
+    <braunr> pinotree: yes
+    <braunr> but that would require servers impersonating users to some extent
+    <braunr> and this seems against the hurd philosophy
+    <pinotree> and there was also the fact that you could create a
+      fake/different port when sending an rpc
+    <braunr> to fake what ?
+    <pinotree> the sender identiy
+    <pinotree> *identity
+    <braunr> what ?
+    <braunr> you mean intermediate servers can do that
+    <teythoon> braunr: I don't know if I understand all the implications of
+      your question, but the magic server is the only hurd server that actually
+      implements fsys_forward (afaics), so why not use that?
+    <braunr> teythoon: my question was rather about the principle
+    <braunr> do people find it acceptable to entrust a server with their
+      authority or not
+    <braunr> on the hurd, it's clearly wrong
+    <braunr> but then it means you need special cases everywhere, usually
+      handled by glibc
+    <braunr> and that's something i find wrong too
+    <braunr> it restricts extensibility
+    <braunr> the user can always change its libc at runtime, but in practice,
+      it's harder to perform than simply doing it in the server
+    <teythoon> braunr: then I think I didn't get the question at all
+    <braunr> teythoon: it's kind of the same issue that you had with the mtab
+      translator
+    <braunr> about showing or not some entries the user normally doesn't have
+      access to
+    <braunr> this problem occurs when there is more than one server on the
+      execution path and the servers beyond the first one need credentials to
+      reply something meaningful
+    <braunr> the /proc/self case is a perfect one
+    <braunr> (conceptually, it's client -> procfs -> symlink)
+    <braunr> 1/ procfs tells the client it needs to handle this specially,
+      which is what the hurd does with magic
+    <braunr> 2/ procfs assumes the identity of the client and the symlink
+      translator can act as expected because of that
+    <braunr> teythoon: what way do you find better ?
+    <teythoon> braunr: by "procfs assumes the identity" you mean procfs
+      impersonating the user?
+    <braunr> yes
+    <teythoon> braunr: tbh I still do not see how this can be implemented at
+      all b/c the /proc/self symlink is not about identity (which can be
+      derived from the peropen struct initially created by fsys_getroot) but
+      the pid of the callee (which afaics is nowhere to be found)
+    <teythoon> s/callee/caller/
+    <teythoon> the one doing the rpc
+    <braunr> impersonating the user isn't only about identity
+    <braunr> actually, it's impersonating the client
+    <teythoon> yes, client is the term >,<
+    <braunr> so basically, asking proc about the properties of the process
+      being impersonated
+    <teythoon> proc o_O
+    <braunr> it's not hard, it's just a big turn in the way the system would
+      function
+    <braunr> teythoon: ?
+    <teythoon> you lost me somewhere
+    <braunr> the client is the process
+    <braunr> not the user
+    <teythoon> in order to implement /proc/self properly, one has to get the
+      process id of the process doing the /proc/self lookup, right?
+    <braunr> yes
+    <braunr> actually, we would even slice it more and have the client be a
+      thread
+    <teythoon> so how do you get to that piece of information at all?
+    <braunr> the server inherits a special port designating the client, which
+      allows it to query proc about its properties, and assume it's identity in
+      servers such as auth
+    <braunr> its*
+    <teythoon> ah, but that kind of functionality isn't there at the moment, is
+      it?
+    <braunr> it's not, by design
+    <teythoon> right, hence my confusion
+    <braunr> instead, servers use the magic translator to send a "retry with
+      special handling" message to clients
+    <teythoon> right, so the procfs could bounce that back to the libc handler
+      that of course knows its pid
+    <braunr> yes
+    <teythoon> right, so now at last I got the whole question :)
+    <braunr> :)
+    <teythoon> ugh, I just found the FS_RETRY_MAGICAL handler in the libc :-/
+    <braunr> ?
+    <braunr> why "ugh" ?
+    <teythoon> well, I'm inclined to think this is the bad kind of magic ;)
+    <braunr> do i need to look at the code to understand ?
+    <teythoon> ok, so I think option 1/ is easily implemented, option 2/ has
+      consequences that I cannot fully comprehend
+    <braunr> same for me
+    <teythoon> no, but you yourself said that you do not like that kind of
+      logic being implemented in the libc
+    <braunr> well
+    <braunr> easily
+    <braunr> i'm not so sure
+    <braunr> it's easy to code, but i assume checking for magic replies has its
+      cost
+    <teythoon> why not? the code is doing a big switch over the retryname
+      supplied by the server
+    <teythoon> we could stuff getpid() logic in there
+    <braunr> 14:50 < braunr> it's easy to code, but i assume checking for magic
+      replies has its cost
+    <teythoon> what kind of cost? computational cost?
+    <braunr> yes
+    <braunr> the big switch you mentioned
+    <braunr> run every time a client gets a reply
+    <braunr> (unless i'm mistaken)
+    <teythoon> a only for RETRY_MAGICAL replies
+    <braunr> but you need to test for it
+    <teythoon> 	  switch (retryname[0])
+    <teythoon> 	    {
+    <teythoon> 	    case '/':
+    <teythoon> ...
+    <teythoon> that should compile to a jump table, so the cost of adding
+      another case should be minimal, no?
+    <braunr> yes
+    <braunr> but
+    <braunr> it's even less than that
+    <braunr> the real cost is checking for RETRY_MAGICAL
+    <braunr> 14:55 < teythoon> a only for RETRY_MAGICAL replies
+    <braunr> so it's basically a if
+    <braunr> one if, right ?
+    <teythoon> no, it's switch'ing over doretry
+    <teythoon> you should pull up the code and see for yourself. it's in
+      hurd/lookup-retry.c
+    <braunr> ok
+    <braunr> well no, that's not what i'm looking for
+    <teythoon> it's not o_O
+    <braunr> i'm looking for what triggers the call to lookup_retry
+    <braunr> teythoon: hm ok, it's for lookups only, that's decent
+    <braunr> teythoon: 1/ has the least security implications
+    <teythoon> yes
+    <braunr> it could slightly be improved with e.g. a well defined interface
+      so a user could preload a library to extend it
+    <teythoon> extend the whole magic lookup thing?
+    <braunr> yes
+    <teythoon> but that is no immediate concern, you are trying to fix
+      /proc/self, right?
+    <braunr> no, i'm thinking about the big picture for x15/propel, keeping the
+      current design or doing something else
+    <teythoon> oh, okay
+    <braunr> solving /proc/self looks actually very easy
+    <teythoon> well, I'd say this depends a lot on your trust model then
+    <teythoon> do you consider servers trusted?
+    <teythoon> (btw, will there be mutual authentication of clients/servers in
+      propel?)
+    <braunr> there were very interesting discussions about that during the
+      l4hurd project
+    <braunr> iirc, shapiro insisted that using a server without trusting it
+      (and there were specific terminology about trusting/relying/etc..) is
+      nonsense
+    <braunr> teythoon: i haven't thought too much about that yet, for now it's
+      supposed to be similar to what the hurd does
+    <teythoon> hm, then again trust is not an on/off thing imho
+    <braunr> ?
+    <teythoon> trusting someone to impersonate yourself is a very high level of
+      trust
+    <teythoon> s/is/requires/
+    <teythoon> the mobile code paper suggests that mutual authentication might
+      be a good thing, and I tend to agree
+    <braunr> i'll have to read that again
+    <braunr> teythoon: for now (well, when i have time to work on it again
+      .. :))
+    <braunr> i'm focusing on the low level stuff, in a way that won't disturb
+      such high level features
+    <braunr> teythoon: have you found something related to a thread-specific
+      port in the proc server ?
+    <braunr> hurd/process.defs:297: /* You are not expected to understand
+      this. */
+    <braunr> \o/
+    <teythoon> braunr: no, why would I (the thread related question)
+    <teythoon> braunr: yes, that comment also cought my eye :/
+    <braunr> teythoon: because you read a lot of the proc code lately
+    <braunr> so maybe your view of it is better detailed than mine
+
+
+## IRC, freenode, #hurd, 2013-09-13
+
+    * youpi crosses fingers
+    <youpi> yay, still boots
+    <youpi> teythoon: I'm getting a few spurious entries in /proc/mounts
+    <youpi> none /servers/socket/26 /hurd/pfinet interface=/dev/eth0, etc.
+    <youpi> /dev/ttyp0 /dev/ttyp0 /hurd/term name,/dev/ptyp0,type,pty-master 0
+      0
+    <youpi> /dev/sd1 /dev/cons ext2fs
+      writable,no-atime,no-inherit-dir-group,store-type=typed 0 0
+    <youpi> fortunately mount drops most of them
+    <youpi> but not /dev/cons
+    <youpi> spurious entries in df are getting more and more common on linux
+      too anyway...
+    <youpi> ah, after a console restart, I don't have it any more
+    <youpi> I'm getting df: `/dev/cons': Operation not supported instead
+
+
+## IRC, freenode, #hurd, 2013-09-16
+
+    <youpi> teythoon: e2fsck does not seem to be seeing that a given filesystem
+      is mounted
+    <youpi> /dev/sd0s1 on /boot type ext2 (rw,no-inherit-dir-group)
+    <youpi> and still # e2fsck -C 0 /dev/sd0s1
+    <youpi> e2fsck 1.42.8 (20-Jun-2013)
+    <youpi> /dev/sd0s1 was not cleanly unmounted, check forced.
+    <youpi> (yes, both /etc/mtab and /run/mtab point to /proc/mounts)
+    <tschwinge> Yes, that is a "known" problem.
+    <youpi> tschwinge: no, it's supposed to be fixed by the mtab translator :)
+    <pinotree> youpi: glibc's paths.h points to /var/run/mtab (for us)
+    <tschwinge> youpi: Oh.  But this is by means of mtab presence, and not by
+      proper locking?  (Which is at least something, of course!)
+    <youpi>  /var/run points to /run
+    <youpi> tschwinge: yes
+    <youpi> anyway, got to run
+
+
+## IRC, freenode, #hurd, 2013-09-20
+
+    <braunr> teythoon: how come i see three mtab translators running ?
+    <braunr> 6 now oO
+    <braunr> looks like df -h spawns a few every time
+    <teythoon> yes, weird...
+    <braunr> accessing /proc/mounts does actually
+    <braunr> teythoon: more bug fixing for you :)
+
+
+## IRC, freenode, #hurd, 2013-09-23
+
+    <teythoon> so it might be a problem with either libnetfs (which afaics has
+      never supported passive translator records before) or procfs, but tbh I
+      haven't investigated this yet
+
+[[open_issues/libnetfs_passive_translators]].

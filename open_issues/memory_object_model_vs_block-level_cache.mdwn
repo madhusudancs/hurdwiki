@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2012, 2013 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -9,6 +9,8 @@ is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
 [[!tag open_issue_documentation open_issue_hurd open_issue_gnumach]]
+
+[[!toc]]
 
 
 # IRC, freenode, #hurd, 2012-02-14
@@ -271,3 +273,242 @@ License|/fdl]]."]]"""]]
     <mcsim> slpz: When mo_data_return is called, once the memory manager no
       longer needs supplied data, it should be deallocated using
       vm_deallocate. So this way pagers acknowledges the end of flush.
+
+
+# IRC, freenode, #hurd, 2013-08-26
+
+    < Spyro> Ok, so
+    < Spyro> idiot question:  in a nutshell, what is a memory object?
+    < Spyro> and how is swapping/paging handled?
+    < braunr> Spyro: a memory object is how the virtual memory system views a
+      file
+    < braunr> so it's a sequence of bytes with a length
+    < braunr> "swapping" is just a special case of paging that applies to
+      anonymous objects
+    < braunr> (which are named so because they're not associated with a file
+      and have no name)
+    < Spyro> Who creates a memory object, and when?
+    < braunr> pagers create memory objects when needed, e.g. when you open a
+      file
+    < Spyro> and this applies both to mmap opens as well as regular I/O opens
+      as in for read() and write()?
+    < braunr> basically, all file systems capable of handling mmap requests
+      and/or caching in physical memory are pagers
+    < braunr> yes
+    < braunr> read/write will go through the page cache when possible
+    < Spyro> and who owns the page cache?
+    < Spyro> also, who decides what pages ot evict to swap/file if physical
+      memory gets tight?
+    < braunr> the kernel
+    < braunr> that's one of the things that make mach a hybrid
+    < Spyro> so the kernel owns the page cage?
+    < Spyro> ...fml
+    < Spyro> cache!
+    < braunr> yes
+
+
+## IRC, freenode, #hurd, 2013-08-27
+
+    < Spyro> so braunr:  So, who creates the memory object, and how does it get
+      populated?
+    < Spyro> and how does a process accessing a file get hooked up to the
+      memory object?
+    < braunr> Spyro: i told you, pagers create memory objects
+    < braunr> memory objects are how the VM system views files, so they're
+      populated from the content of files
+    < braunr> either true files or virtual files such as in /proc
+    < braunr> Spyro: processes don't directly access memory objects unless
+      memory mapping them with vm_map()
+    < braunr> pagers (basically = file systems) do
+    <Spyro> ok, so how is a pager/fs involved in handling a fault?
+
+
+## IRC, freenode, #hurd, 2013-08-28
+
+    <braunr> Spyro: each object is linked to a pager
+    <braunr> Spyro: when a fault occurs, the kernel looks up the VM map (kernel
+      or a user one), and the address in this map, then the map entry, checks
+      access and lots of other details
+    <Spyro> ok, so it's pager -> object -> vmem
+    <Spyro> ?
+    <braunr> Spyro: then finds the object mapped at that address (similar to
+      how a file is mapped with mmap)
+    <braunr> from the object, it finds the pager
+    <Spyro> ok
+    <braunr> and asks the pager about the data at the appropriate offset
+    <Spyro> so how does a user process do normal file I/O?  is faulting just a
+      special case of it?
+    <braunr> it's completely separate
+    <Spyro> eww
+    <braunr> normal I/O is done with message passing
+    <braunr> the hurd io interface
+    <Spyro> ok
+    <Spyro> so who talks to who on a file I/O?
+    <braunr> a client (e.g. cat) talks to a file system server (e.g. ext2fs)
+    <Spyro> ok so
+    <Spyro> it's client to the pager for regular file I/O?
+    <braunr> Spyro: i don't understand the question
+    <braunr> Spyro: it's client to server, the server might not be a pager
+    <Spyro> ok
+    <Spyro> just trying to figure out the difference between paging/faulting
+      and regular I/O
+    <braunr> regular I/O is just message passing
+    <braunr> page fault handling is dealt with by pagers
+    <Spyro> and I have a hunch that the fs/pager is involved somehow in both,
+      because the server is the source of the data
+    <Spyro> I'm getting a headache
+    <braunr> nalaginrut: a server like ext2fs is both a file server and a pager
+    <Spyro> oh!
+    <Spyro> oh btw, does a file server make use of memory objects for caching?
+    <braunr> Spyro: yes
+    <Spyro> or rather, can it?
+    <Spyro> does it have to?
+    <braunr> memory objects are for caching, and thus for page faults
+    <braunr> Spyro: for caching, it's a requirement
+    <braunr> for I/O, it's not
+    <braunr> you could have I/O without memory objects
+    <Spyro> ok
+    <Spyro> so how does the pager/fileserver use memory objects for caching?
+    <Spyro> does it just map and write to them?
+    <braunr> basically yes but there is a complete protocol with the kernel for
+      that
+    <braunr>
+      http://www.gnu.org/software/hurd/gnumach-doc/External-Memory-Management.html#External-Memory-Management
+    <Spyro> heh, lucky guess
+    <Spyro> ty
+    <Spyro> I am in way over my head here btw
+    <Spyro> zero experience with micro kernels in practice
+    <braunr> it's not trivial
+    <braunr> that's not a microkernel thing at all
+    <braunr> that's how it works in monolithic kernels too
+    <braunr> i recommend netbsd uvm thesis
+    <braunr> there are nice pictures describing the vm system
+    <Spyro> derrr...preacious?
+    <Spyro> wow
+    <braunr> just ignore the anonymous memory handling part which is specific
+      to uvm
+    <Spyro> @_@
+    <braunr> the rest is common to practically all VM systems out there
+    <Spyro> I know about the linux page cache
+    <braunr> well it's almost the same
+    <Spyro> with memory objects being the same thing as files in a page cache?
+    <braunr> memory objects are linux "address spaces"
+    <braunr> and address spaces are how the linux mm views a file, yes
+    <Spyro> derp
+    <Spyro> ...
+    <Spyro> um...
+    <braunr> struvt vm_page == struct page
+    * Spyro first must learn what an address_space is
+    <braunr> struct vm_map == struct mm_struct
+    <braunr> struct vm_map_entry == struct vm_area_struct
+    * Spyro isn't a linux kernel vm expert either
+    <braunr> struct vm_object == struct address_space
+    <braunr> roughly
+    <braunr> details vary a lot
+    <Spyro> and what's an address_space ?
+    <braunr> 11:41 < braunr> and address spaces are how the linux mm views a
+      file, yes
+    <Spyro> ok
+    <braunr> see include/linux/fs.h
+    <braunr> struct address_space_operations is the pager interface
+    * Spyro should look at the linux kernel sources perhaps, unless you have an
+        easier reference
+    <Spyro> embarrassingly, RVR hired me as an editor for the linux-mm wiki
+    <Spyro> I should know this stuff
+    <braunr> see
+      http://darnassus.sceen.net/~rbraun/design_and_implementation_of_the_uvm_virtual_memory_system.pdf
+    <braunr> page 42
+    <braunr> page 66 for another nice view
+    <braunr> i wouldn't recommend using linux source as refernece
+    <braunr> it's very complicated, filled with a lot of code dealing with
+      details
+    <Spyro> lmao
+    <braunr> and linux guys have a habit of choosing crappy names
+    <Spyro> I was only going to 
+    <Spyro> stoppit
+    <braunr> except for "linux" and "git"
+    <Spyro> ...make me laugh any more and I'll need rib surgery
+    <braunr> laugh ?
+    <Spyro> complicated and crappy
+    <braunr> seriously, "address space" for a file is very very confusing
+    <Spyro> oh I agree with that
+    <braunr> yes, names are crappy
+    <braunr> and the code is very complicated
+    <braunr> it took me half an hour to find where readahead is done once
+    <braunr> and i'm still not sure it was the right code
+    <Spyro> so in linkern, there is an address_space for each cached file?
+    <braunr> takes me 30 seconds in netbsd ..
+    <braunr> yes
+    <Spyro> eww
+    <Spyro> yeah, BAD name
+    <Spyro> but thanks for the explanation
+    <Spyro> now I finally know what an address space is
+    <braunr> many linux core developers admit they don't care much about names
+    <Spyro> so, in hurd, a memory object is to hurd, what an address_space is
+      to linux?
+    <braunr> yes
+    <braunr> notto hurd
+    <Spyro> ok
+    <braunr> to mach
+    <Spyro> you know what I mean
+    <Spyro> :P
+    <Spyro> easier than for linux I can tell you that much
+    <braunr> and the bsd vm system is a stripped version of the mach vm
+    <Spyro> ok
+    <braunr> that's why i think it's important to note it
+    <Spyro> good, I learned something abou tthe linux vm...from the mach guys
+    <Spyro> this is funny
+    <braunr> linux did too
+    <braunr> there is a paper about linux page eviction that directly borrows
+      the mach algorithm and improves it
+    <braunr> mach is the historic motivation behind mmap on posix
+    <Spyro> oh nice!
+    <Spyro> but yes, linux picked a shitty name
+    <braunr> is all that clearer to you ?
+    <Spyro> I think that address_space connection was a magic bolt of
+      understanding
+    <braunr> and do you see how I/O and paging are mostly unrelated ?
+    <Spyro> almost
+    <Spyro> but how does a file I/O take advantage of caching by a memory
+      object?
+    <Spyro> does the file server just nudge the core for a hint?
+    <braunr> the file system copies from the memory object
+    * Spyro noddles
+    <Spyro> I think I understand a bit better now
+    <braunr> it's message passing
+    <Spyro> but I havfe too much to digest already
+    <braunr> memory copying
+    <braunr> if the memory is already there, good, if not, the kernel will ask
+      the file system to bring the data
+    <braunr> if message passing uses zero copy, data retrieval can be deferred
+      until the client actually accesses it
+    <Spyro> which is a fancy way of saying demand paging? :P
+    <braunr> it's always demand paging
+    <braunr> what i mean is that the file system won't fetch data as soon as it
+      copies memory
+    <braunr> but when this data is actually needed by the client
+    <Spyro> uh...
+    <Spyro> whta's a precious page?
+    <braunr> let me check quickly
+    <braunr> If precious is FALSE, the kernel treats the data as a temporary
+      and may throw it away if it hasn't been changed. If the precious value is
+      TRUE, the kernel treats its copy as a data repository and promises to
+      return it to the manager
+    <braunr> basically, it's used when you want the kernel to keep cached data
+      in memory
+    <braunr> the cache becomes a lossless container for such pages
+    <braunr> the kernel may flush them, but not evict them
+    <Spyro> what's the difference?
+    <braunr> imagine a ramfs
+    <Spyro> point made
+    <braunr> ok
+    <Spyro> would be pretty hard to flush something that doesn't have a backing
+      store
+    <braunr> that was quick :)
+    <braunr> well
+    <braunr> the normal backing store for anonymous memory is the default pager
+    <braunr> aka swap
+    <Spyro> eww
+    <braunr> but if you want your data *either* in swap or in memory and never
+      in both
+    <braunr> it may be useful

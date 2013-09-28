@@ -1,0 +1,216 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+
+# [[!message-id "20130625154749.17799.36923@thinkbox.jade-hamburg.de"]]
+
+
+## IRC, freenode, #hurd, 2013-07-22
+
+    <teythoon> ok, so back to the drawing board for the next big issue, the
+      potential proc and init merge
+    <teythoon> Roland had some harsh words for that proposal, but noone else
+      raised concerns
+    <youpi> noone else does not mean much
+    <youpi> I guess only Roland actually understands the matter
+    <youpi> so I'd tend to believe him
+    <teythoon> even though, his criticism was so superficial, he could at least
+      be a bit more specific...
+    <braunr> i agree that the argument, being simply based on vague principle,
+      isn't very convincing
+    <teythoon> so, what should I do?
+    <braunr> you can either keep them separate, or fight with roland
+    <teythoon> common braunr, I need a little more guidance in these kind of
+      social issues
+    <teythoon> a statement like this is of little use ;)
+    <braunr> that's the best i can give you
+    <teythoon> :/
+    <braunr> i have one patch "fixing" HZ on the hurd, and i even get to fight
+      about it
+    <teythoon> I understand Roland has been around forever and keeps an eye on
+      stuff
+    <teythoon> but could/would he block a patch for hurd if e.g. youpi would
+      accept it
+    <teythoon> i.e. how much control has he in practice?
+    <teythoon> me fighting with him over a patch is of little value for anyone
+      and I don't care to do so
+    <braunr> not much i suppose now
+    <braunr> but we also have to agree with the change
+    <braunr> with *real* arguments
+    <braunr> (well, if it was up to me, i'd even merge exec with proc so ..)
+    <teythoon> ok, so I whip up a patch to see how it goes in practice and
+      present it so we could talk about the issue with something to look at
+      first
+    <braunr> although maybe not ;p
+    <braunr> you'll hit the same reaction
+    <teythoon> from Roland?
+    <braunr> yes
+    <braunr> and youpi said he tends to trust what roland says
+    <braunr> so let's discuss the pros and cons a bit more
+    <teythoon> yes, but I'd honor his concerns if they were properly
+      presented. just telling me to hack on linux instead even though I think I
+      have demonstrated that I do want to work on Hurd is so childish in my
+      eyes that I do not consider that a valid argument at the moment
+    <teythoon> sure, shoot
+    <braunr> well, functionally, they're unrelated
+    <teythoon> head -n1 init/init.c
+    <teythoon> /* Start and maintain hurd core servers and system run state
+    <youpi> and thus it makes sense to make them separate, even if it does not
+      seem to bring anything useful now
+    <youpi> history has shown that it makes a bed for nice things later
+    <braunr> teythoon: that's not what proc is about
+    <teythoon> braunr: I know
+    <teythoon> braunr: that's what init is about in its own words ;)
+    <youpi> teythoon: also, "simplifying the code" is not necessarily an
+      argument that would be considered
+    <youpi> depending on the simplification
+    <youpi> linux made it all simple by using a monolithic kernel :)
+    <youpi> separating concerns is complex
+    <youpi> but in the end it usually pays off on the Hurd
+    <youpi> personally, I'd be fine with Guillem's solution, and renumbering
+      init's pid in Debian
+    <youpi> there's a pending question from Roland actually: what information
+      is exchanged between init and proc in the end?
+    <youpi> that's actually the point of the discussion: is that information
+      really big or not
+    <teythoon> I'm sorry, you lost me, where did he ask that question?
+    <pinotree> $ git grep proc_getmsgport | egrep '[0-9]' ← /hurd/init as pid 1
+      is hardcoded in few places
+    <youpi> teythoon: he didn't ask it this way, but that's the question I had
+      to be able to answer his
+    <youpi> Date: Mon, 15 Jul 2013 10:36:35 -0700 (PDT)
+    <youpi> > That's not what he said. He said there is a lot of information
+    <youpi> > propagated from init to proc, and thus the separation is
+      questionable.
+    <youpi> Are you talking about bootstrap, or what?
+    <youpi> as I haven't investigated much, I couldn't answer this
+    <youpi> pinotree: right. We could patch these in Debian
+    <teythoon> youpi: so, shall I refresh, test and refine Guillems patch and
+      resend it?
+    <youpi> it's probably an easier way
+    <teythoon> ok, I start by doing that
+
+
+## IRC, freenode, #hurd, 2013-07-25
+
+    <teythoon> pinotree: btw, there are two /sbin/init processes even with my
+      hacked up init/proc variant where /sbin/init gets to be pid 1
+    <pinotree> never seen that
+    <pinotree> what are their parents?
+    <teythoon> pinotree: well, pid 1 is /sbin/init now, pid 13 or something has
+      the parent 1
+    <teythoon> looks like init forks or something
+    <pinotree> i guess your sysvinit is compiled without INITDEBUG?
+    <pinotree> nothing in syslog either?
+    <teythoon> pinotree: it's compiled like the sysvinit shipped with debian
+    <pinotree> teythoon: do you have custom additions in inittab?
+    <teythoon> pinotree: a terminal for my serial console
+    <teythoon> *getty
+    <pinotree> are the getty started correctly for you, btw?
+    <teythoon> pinotree: yes
+    <pinotree> interesting
+    <pinotree> teythoon: back then, they were costantly respawning, with hurd's
+      getty's failing to start when exec'ed by (sysv)init
+    <pinotree> wonder what changed
+    <teythoon> pinotree: cool, magically went away then :)
+
+
+## IRC, freenode, #hurd, 2013-07-29
+
+    <teythoon> youpi: I need some feedback on the not freezing translators
+      issue, more specifically whether I understood you correctly in your mail
+      from wednesday (20130724131552.GG9576@type.bordeaux.inria.fr)
+    <teythoon> oh yeah, and I had some questions yesterday too, about rpctrace
+      and dead-name notifications, specifically why /hurd/init is not receiving
+      any for the root translator and the exec server
+    <braunr> teythoon: more details please
+    <teythoon> ok, so /hurd/init is registering for dead name notifications for
+      essential tasks
+    <teythoon> the rootfs and exec both register as essential tasks at init and
+      init requests successfully dead name notifications for them
+    <teythoon> if you e.g. kill the auth server, /hurd/init will notice and
+      crash the system
+    <teythoon> if you kill exec or the rootfs, /hurd/init does not get notified
+    <teythoon> I verified this with gdb and an subhurd
+    <teythoon> I'm puzzled by this, as the kernel is the one who sends the
+      notifications, right?
+    <braunr> yes
+    <braunr> teythoon: where is the problem ?
+    <teythoon> and it is not that the system is not sending any messages, it
+      is, I see the msgcount increase over time
+    <teythoon> braunr: dunno, as far as I can tell the kernel does not deliver
+      the notification for rootfs and exec
+    <braunr> oh
+    <teythoon> those are the two processes loaded by grub, maybe they are
+      different somehow
+    <braunr> is that affecting your work ?
+    <teythoon> no, not directly, I strayed around at the weekend, trying to
+      think of cool stuff hurd could do
+    <teythoon> youpi: I need some feedback on the not freezing translators
+      issue, more specifically whether I understood you correctly in your mail
+      from wednesday (20130724131552.GG9576@type.bordeaux.inria.fr)
+    <youpi> teythoon: ok, now I'm available for the not-freezing-translators
+      thing :)
+
+
+## IRC, freenode, #hurd, 2013-08-05
+
+    <teythoon> youpi: I'm in the process of producing a unified
+      sysvinit-as-pid1 and please-dont-kill-important-processes patch series
+    <teythoon> youpi: there is one issue with changing /hurd/inits pid, libcs
+      reboot() also assumes that it has the pid 1
+    <youpi> argl
+    <youpi> that's bad, because it's then an ABI, not just an internal thing
+    <teythoon> hardcoding the pid is the worst way of getting a handle of any
+      server :/
+    <teythoon> I've been thinking to make it explicit by binding it to
+      /servers/startup or something
+    <youpi> that would be more hurdish than using a pid, yes
+    <teythoon> yes, and not only does it break the abi, but in a bad way
+      too. if the libc is updated before the hurd, the shutdown sequence is
+      broken in a way that the translators aren't synced :/
+    <teythoon> youpi: as a workaround, we could make reboot() signal both pid 1
+      and 2
+    <youpi> at worse pid 1 shouldn't get harmed by receiving a startup_reboot
+      RPC indeed
+    <teythoon> yes
+
+
+## IRC, freenode, #hurd, 2013-08-16
+
+    <teythoon> grml, the procfs hardcodes the kernels pid :/
+    <teythoon> there's always one more thing to fix...
+    <teythoon> uh, and we made pids.h a private header, so no nice constant for
+      the procfs translator :/
+    <teythoon> server lookup by hardcoding the pid should be banned...
+
+
+## IRC, freenode, #hurd, 2013-09-16
+
+    <teythoon> youpi: I'm thinking about splitting /hurd/init into /hurd/init
+      and /hurd/startup
+    <teythoon> that way, you could also merge the init as pid1 patches
+    <teythoon> that should be doable within the week
+    <youpi> that would probably be better received by Roland than merging init
+      into proc :)
+    <teythoon> yes, I suppose so :D
+    <youpi> perhaps you should start the discussion on the list about it
+      already, with just a sketch of which would do what
+    <teythoon> ok
+    <teythoon> fwiw I like the name startup b/c it speaks the startup protocol
+    <braunr> teythoon: +1 startup
+
+
+## IRC, freenode, #hurd, 2013-09-23
+
+    <teythoon> I've been hacking on init/startup, I've looked into cleaning it
+      up
