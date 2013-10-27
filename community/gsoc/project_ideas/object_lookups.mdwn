@@ -69,3 +69,66 @@ In context of [[!message-id "20130918081345.GA13789@dalaran.sceen.net"]].
     <neal> braunr: That's called protected payload.
     <neal> braunr: The idea is that the kernel appends data to the message in
       flight.
+
+
+## IRC, freenode, #hurd, 2013-10-24
+
+    <teythoon> and, with some effort, getting rid of the hash table lookup by
+      letting the kernel provide the address of the object (iirc neil knew the
+      proper term for that)
+    <braunr> teythoon: that is a big interface change
+    <teythoon> how so
+    <braunr> optimizing libihash and libpthread should already be a good start
+    <braunr> well how do you intend to add this information ?
+    <braunr> ok, "big" is overstatement, but still, it's a low level interface
+      change that would probably break a lot of things
+    <teythoon> store a pointer in the port structure in gnumach, make that
+      accessible somehow
+    <braunr> yes but how ?
+    <teythoon> interesting question indeed
+    <braunr> my plan for x15 is to make this "label" part of received messages
+    <braunr> which means you need to change the format of messages
+    <braunr> that is what i call a big change
+    <teythoon> ok, so we need to provide an update path
+    <teythoon> but once done, the change to hurd will be minimal, patching
+      libports should cover most of that
+    <braunr> normally yes
+    <teythoon> so this amounts to messing with gnumach and mig and designing a
+      clever way to make the update process safe
+
+    <braunr> libihash is known to show high collision rates
+    <teythoon> right, libihash
+    <teythoon> it could use an integer hash function on the keys to distribute
+      them better
+    <braunr> i think that's already what it tries to do
+    <braunr> so merely using a better hash algorithm such as murmur should do
+      the job
+    <braunr> or use another data structure altogether
+    <teythoon> no, it does no hashing of its own on the keys
+    <braunr> are you sure ?
+    <teythoon> well, it uses only prime numbers as sizes, and computes key %
+      size
+    <braunr> well that's hashing .. :)
+    <teythoon> but this is not really a good hash
+    <braunr> yes
+    <braunr> isn't that what i said ?
+    <teythoon> right
+    <teythoon> ok, I didn't get that ;)
+    <teythoon> also, the sizes start quite small, 3, 7, 19...
+    <teythoon> and each time the hash table is grown, all items will have to be
+      updated
+    <braunr> which is why we could consider another data structure
+    <teythoon> or, for starters, to thin out that list of sizes
+    <braunr> my personal preference being radix trees
+    <teythoon> I assume you have an implementation handy?
+    <braunr> yes
+    <teythoon> cool :D
+    <braunr> but good hashing is excellent too
+    <braunr> radix trees have their own issues
+    <teythoon> braunr: http://burtleburtle.net/bob/hash/integer.html
+    <braunr> i use thomas wang's hashing function in x15
+    <braunr> or rather, my own personal c utility library, since x15 doesn't
+      hash anything currently
+    <braunr> but murmur is better
+    <braunr> we prefer distribution over hashing performances
+    <braunr> https://131002.net/siphash/

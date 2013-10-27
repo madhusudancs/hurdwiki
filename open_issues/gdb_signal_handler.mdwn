@@ -401,3 +401,74 @@ License|/fdl]]."]]"""]]
     <zyg> braunr: are you sure? there is minimal user-code run before the
       signal is going into the handler.
     <braunr> you "step out of the handler"
+
+
+# IRC, freenode, #hurd, 2013-10-24
+
+    <gnu_srs> how come some executables are not debuggable with gdb, e.g Cannot
+      access memory at address xxx. -fPIC flag?
+    <braunr> no
+    <braunr> i'm not sure but it's certainly not -fPIC
+    <gnu_srs> Another example is localedef: ./debian/tmp-libc/usr/bin/localedef
+      -i en_GB -c -f UTF-8 -A /usr/share/locale/locale.alias en_GB.UTF-8
+      segfailts
+    <gnu_srs> and in gdb hangs after creating a thread., after C-c no useful
+      info: stack ends with: Cannot access memory at address 0x8382c385
+    <braunr> if it's on the stack, it's probably a stack corruption
+    <nalaginrut> gnu_srs:  are u using 'x' command or 'print' in GDB? IIRC
+      print may throw such message, but x may not
+    <gnu_srs> bt
+    <braunr> x may too
+    <braunr> what you're showing looks like an utf-8 string
+    <braunr> c385 is Å
+    <braunr> 83 is a special f
+    <braunr> 82 is a comma
+    <gnu_srs> so the stack is corrupted:-(
+    <braunr> probably
+    <braunr> well, certainly
+    <braunr> but gdb should show you where the program counter is
+    <gnu_srs> is that: ECX: the count register 
+    <braunr> no
+    <braunr> eip
+    <braunr> program counter == instruction pointer
+    <gnu_srs> k!, the program counter is at first entry in bt: #0  0x01082612
+      in _hurd_intr_rpc_msg_in_trap () at intr-msg.c:133
+    <braunr> this is the hurd interruptible version of mach_msg
+    <braunr> so it probably means the corruption was made by a signal handler
+    <braunr> which is one of the reasons why gdb can't handle Ctrl-c
+    <gnu_srs> what to do in such a case, follow the source code
+      single-stepping?
+    <braunr> single stepping also uses signals
+    <braunr> and using printf will probably create an infinite recursion
+    <braunr> in those cases, i use mach_print
+    <braunr> as a first step, you could make sure a signal is actually received
+    <braunr> and which one
+    <braunr> hmm
+    <braunr> also, before rushing into conclusions, make sure you're looking at
+      the right thread
+    <braunr> i don't expect localedef to be multithreaded
+    <braunr> but gdb sometimes just doesn't get the thread where the segfault
+      actually occurred
+    <gnu_srs> two threads: 1095.4 and 1095.5 (created when starting localedef
+      in gdb)
+    <braunr> no, at the time of the crash
+    <braunr> the second thread is always the signal thread
+    <gnu_srs> OK,in gdb the program hangs, interrupted by C-c, outside it
+      segfaults
+    <braunr> when you use bt to get the corrupted stack, you can also use info
+      threads and thread apply all bt
+    <gnu_srs> I did: http://paste.debian.net/61170/
+    <braunr> ok so it confirms there is only one real application thread, the
+      main one
+    <braunr> and that the corruption probably occurs during signal handling
+    <gnu_srs> rpctrace (edited out non-printable characters):
+      http://paste.debian.net/61178/
+    <gnu_srs> Ah, have to do it again as root;-)
+    <braunr> yes .. :p
+    <gnu_srs> new last part: http://paste.debian.net/61181/
+    <braunr> so, there is a seek, then a stat, then a close perhaps (port
+      deallocation) and then a signal received (probably sigsegv)
+    <braunr> gnu_srs: when you try running it in gdb, do you get a sigkill ?
+    <braunr> damn, gdb on darnassus is bugged :-(
+    <gnu_srs> It hangs, interrupted with C-c.
+    <braunr> ok

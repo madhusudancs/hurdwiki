@@ -253,3 +253,115 @@ See [[glibc]], *Missing interfaces, amongst many more*, *`SOCK_CLOEXEC`*.
       to know how to find this sendmsg.c file?
     <pinotree> (it's in glibc, but otherwise the remark is valid)
     <pinotree> s/otherwise/anyway/
+
+
+# Emails
+
+# IRC, freenode, #hurd, 2013-10-16
+
+    <braunr> gnu_srs: how could you fail to understand credentials need to be
+      checked ?
+    <gnu_srs> braunr: If data is sent via sendmsg, no problem, right?
+    <braunr> gnu_srs: that's irrelevant
+    <gnu_srs> It's just to move the check to the receive side.
+    <braunr> and that is the whole problem
+    <braunr> it's not "just" doing it
+    <braunr> first, do you know what the receive side is ?
+    <braunr> do you know what it can be ?
+    <braunr> do you know where the corresponding source code is to be found ?
+    <gnu_srs> please, describe a scenario where receiving faulty ancillary data
+      could be a problem instead
+    <braunr> dbus
+    <braunr> a user starting privileged stuff although he's not part of a
+      privileged group of users for example
+    <braunr> gnome, kde and others use dbus to pass user ids around
+    <braunr> if you can't rely on these ids being correct, you can compromise
+      the whole system
+    <braunr> because dbus runs as root and can give root privileges
+    <braunr> or maybe not root, i don't remember but a system user probably
+    <pinotree> "messagebus"
+    <gnu_srs> k!
+    <braunr> see http://www.gnu.org/software/hurd/open_issues/dbus.html
+    <braunr> IRC, freenode, #hurd, 2013-07-17
+    <braunr> <teythoon> and the proper fix is to patch pflocal to query the
+      auth server and add the credentials?
+    <braunr> <pinotree> possibly
+    <braunr> <teythoon> that doesn't sound to bad, did you give it a try?
+
+
+# IRC, freenode, #hurd, 2013-10-22
+
+    <gnu_srs> I think I have a solution on the receive side for SCM_CREDS :)
+
+    <gnu_srs> A question related to SCM_CREDS: dbus use a zero data byte to get
+      credentials sent.
+    <gnu_srs> however, kfreebsd does not care which data (and credentials) is
+      sent, they report the credentials anyway
+    <gnu_srs> should the hurd implementation do the same as kfreebsd?
+    <youpi> gnu_srs: I'm not sure to understand: what happens on linux then?
+    <youpi> does it see zero data byte as being bogus, and refuse to send the
+      creds?
+    <gnu_srs> linux is also transparent, it sends the credentials independent
+      of the data (but data has to be non-null)
+    <youpi> ok
+    <youpi> anyway, what the sending application writes does not matter indeed
+    <youpi> so we can just ignore that
+    <youpi> and have creds sent anyway
+    <braunr> i think the interface normally requires at least a byte of data
+      for ancilliary data
+    <youpi> possibly, yes
+    <braunr>        To pass file descriptors or credentials over a SOCK_STREAM,
+      you need to  send  or
+    <braunr>        receive  at  least  one  byte  of  non-ancillary  data  in
+      the same sendmsg(2) or
+    <braunr>        recvmsg(2) call.
+    <braunr> but that may simply be linux specific
+    <braunr> gnu_srs: how do you plan on implementing right checking ?
+    <gnu_srs> Yes, data has to be sent, at least one byte, I was asking about
+      e.g. sending an integer 
+    <braunr> just send a zero
+    <braunr> well
+    <braunr> dbus already does that
+    <braunr> just don't change anything
+    <braunr> let applications pass the data they want
+    <braunr> the socket interface already deals with port rights correctly
+    <braunr> what you need to do is make sure the rights received match the
+      credentials
+    <gnu_srs> The question is to special case on a zero byte, and forbid
+      anything else, or allow any data.
+    <braunr> why would you forbid 
+    <braunr> ?
+    <gnu_srs> linux and kfreebsd does not special case on a received zero byte
+    <braunr> same question, why would you want to do that ?
+    <gnu_srs> linux sends credentials data even if no SCM_CREDENTIALS structure
+      is created, kfreebsd don't
+    <braunr> i doubt that
+    <gnu_srs> To be specific:msgh.msg_control = NULL; msgh.msg_controllen = 0;
+    <braunr> bbl
+    <gnu_srs> see the test code:
+      http://lists.debian.org/debian-hurd/2013/08/msg00091.html
+    <braunr> back
+    <braunr> why would the hurd include groups when sending a zero byte, but
+      only uid when not ?
+    <gnu_srs> ?
+    <braunr> 1) Sent credentials are correct:
+    <braunr> no flags: Hurd: OK, only sent ids
+    <braunr> -z Hurd: OK, sent IDs + groups
+    <braunr> and how can it send more than one uid and gid ?
+    <braunr> "sent credentials are not honoured, received ones are created"
+    <gnu_srs> Sorry, the implementation is changed by now. And I don't special
+      case on a zero byte.
+    <braunr> what does this mean ?
+    <braunr> then why give me that link ?
+    <gnu_srs> The code still applies for Linux and kFreeBSD. 
+    <gnu_srs> It means that whatever you send, the kernel emits does not read
+      that data: see
+    <gnu_srs> socket.h: before  struct cmsgcred: the sender's structure is
+      ignored ...
+    <braunr> do you mean receiving on a socket can succeed with gaining
+      credentials, although the sender sent wrong ones ?
+    <gnu_srs> Looks like it. I don't have a kfreebsd image available right now.
+    <gnu_srs> linux returns EPERM
+    <braunr> anyway
+    <braunr> how do you plan to implement credential checking ?
+    <gnu_srs> I'll mail patches RSN

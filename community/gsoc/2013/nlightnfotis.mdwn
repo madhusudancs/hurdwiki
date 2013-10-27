@@ -3035,3 +3035,18 @@ But not the [[open_issues/libpthread_dlopen]] issue?
     <nlightnfotis> and we wanna prove that go violates this rule right? That
       the stack pointer is not pointing at the initial stack
     <braunr> yes
+
+
+# IRC, freenode, #hurd, 2013-10-09
+
+    <gnu_srs> braunr: The crash is not in the assembly code, but in the called
+      function from it:
+    <gnu_srs> pthread_sigmask (how=2, set=0xf9cac <server_block_set>,
+      oset=oset@entry=0x0) at ./pthread/pt-sigmask.c:29
+    <gnu_srs> 29        struct __pthread *self = _pthread_self ();
+    <gnu_srs> Program received signal SIGSEGV, Segmentation fault.
+    <braunr> gnu_srs: ok so, same problem as in gcc go
+    <braunr> changing the stack pointer prevents libpthread from correctly
+      fetching thread-specific data (including _pthread_self()) correctly
+    <braunr> this will be fixed when threadvards are finally replaced with true
+      tls

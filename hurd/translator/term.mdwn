@@ -1,0 +1,207 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+The *term* translator implements POSIX termios discipline.
+
+
+# Open Issues
+
+## [[open_issues/Term_Blocking]]
+
+## Leaks/Not Re-used/Not Terminating
+
+[[!tag open_issue_hurd]]
+
+
+### IRC, freenode, #hurd, 2013-10-14
+
+    <braunr> good news
+    <braunr> the terminal leak is related to privilege separation
+    <atheia> I love how, as an unknowing by-stander, that is somehow good news
+      :-)
+    <braunr> :)
+    <braunr> it's a good news because 1/ we have more knowledge about the issue
+    <braunr> and 2/ it may not even be a hurd bug
+    <braunr> but rather an openssh-on-hurd bug
+    <braunr> this explains why i didn't see the issue on anything else
+      (mach/hurd consoles, x terminals)
+    <braunr> and this will also indirectly solve the screen lockup issue
+    <teythoon> braunr: good catch :)
+    <braunr> s/a good news/good news/
+    <atheia> ah, yes, both definitely good news. Congrats on the progress.
+    <braunr> i remember we used to disable privilege separation in the past
+    <braunr> i'll have to dig what made us use it
+    <braunr> interesting, screen seems to be affected nonetheless
+    <braunr> so it's something common to both screen and ssh privsep
+    <braunr> apparently, what sshd+privse and screen have in common is a fifo
+    <braunr> so it's probably a tricky hurd bug actually
+
+
+### IRC, freenode, #hurd, 2013-10-16
+
+    <braunr> pflocal is leaking ports ..
+    <braunr> this might be what blocks terminals
+    * pinotree gives braunr a stick of glue
+    <braunr> thanks
+
+    <braunr> pflocal leaks struct sock ..
+    <braunr> grmbl
+
+    <braunr> hm nice, pflocal leaks each time a socket is bound and/or accepted
+      on
+    <braunr> looks like a simple ref mess
+    <pinotree> braunr: really?
+    <braunr> yes
+    <pinotree> a leak in pflocal feels strange, never noticed it taking lots of
+      memory (and it's used a lot)
+    <braunr> it's a port leak
+    <braunr> well
+    <braunr> no it's both a memory and port leak
+    <braunr> not sure which one is the root cause yet
+    <braunr> i guess server sockets aren't automatically unbound
+    <braunr> if you want to see the leak, just disable priv separation in ssh
+      (to avoid the terminal leak ....) and write a shell loop to start ssh
+      your_server echo hello
+    <braunr> google shows mails about the leak in the past
+    <braunr> i also hope it fixes the terminal leak, although i'm really not
+      sure :(
+
+
+### IRC, freenode, #hurd, 2013-10-17
+
+    <braunr> hm nice, apparently, there is no pflocal leak
+    <braunr> but a libdiskfs one !
+    <braunr> since ext2fs enables the ifsock shortcut
+    <braunr> seems like it leaks a reference on sock node deletion
+    <teythoon> braunr: have you looked at libdiskfs/dead-name.c?
+    <teythoon> braunr: I think I'm hunting a very similar problem
+    <braunr> i'm doing it now
+    <teythoon> I had the problem of dead name notifications not being delivered
+    <braunr> wow
+    <teythoon> b/c I held no reference to the ports_info thing, so the dead
+      name handler in libports could no longer find the pi struct, so the
+      notification was silently dropped
+    <braunr> i see
+    <braunr> but it looks like dropping a node makes sure the associated
+      sockaddr has been deleted if any
+    <teythoon> are you sure the node is dropped in the first place?
+    <braunr> no
+    <braunr> well
+    <braunr> i see something happenning at the pflocal side when removing the
+      node
+    <braunr> but there is still a send right lingering somewhere
+    <braunr> (see why we need a global lsof :p)
+    <teythoon> indeed
+    <braunr> i'll try portinfo with that option we talked about
+    <teythoon> yes
+    <braunr>    121 =>   1682: send (refs: 1)
+    <braunr> yep, ext2fs still has it
+    <teythoon> (I wonder how portinfo does that...)
+    <braunr> i guess it imports rights from the target task
+    <braunr> and see if it gets the same name as a local right
+    <teythoon> makes sense
+    <braunr> easy to check
+    <teythoon> well, no, it cannot do that for receive rights
+    <braunr> it creates an empty task just for that purpose
+    <braunr> and uses mach_port_extract_right
+    <teythoon> but it works as you described, yes
+    <braunr> so yes it does work for receive rights too
+    <teythoon> yes
+    <teythoon> cool :)
+    <braunr> so it assumes identical port names are part of the ipc interface
+    <braunr> something neal said we shouldn't rely on
+    <braunr> iirc
+    <teythoon> yes, I remember something like that too
+    <braunr> here is the strange thing
+    <braunr> node->sockaddr is deallocated on a dead name notification
+    <braunr> drop_node checks that sockaddr is null
+    <braunr> so how can the dead name notification occur before the node is
+      dropped ?
+    <braunr> so maybe the node is still around indeed
+    <braunr> apparently, libdiskfs considers the address holds a reference on
+      the node
+    <braunr> on the other hand, the server socket won't get released unless the
+      address gets a no-sender notification ...
+    <braunr> this should probably be turned into a weak reference
+    <braunr> teythoon: indeed, the node is leaked
+
+    <braunr> pflocal crashes when removing correctly deallocating addresses and
+      removing server sockets :/
+
+    <braunr> ok, pflocal bug fixed
+    <braunr> still have to fix the libdiskfs leak
+    <braunr> and libdiskfs leak fixed too
+    <braunr> :)
+    <braunr> i'll build hurd packages with my changes to make sure i don't
+      break something before comitting
+    <braunr> and see if this fixes the term issue
+
+    <braunr> looks like my patches work just fine :)
+    <braunr> it doesn't solve the term issue though
+
+    <braunr> so, according to portinfo, pflocal has send rights to terminals oO
+
+    <braunr> mhhhmmmmmm
+    <braunr> openssh seems to pass terminal file descriptors through unix
+      sockets when using privilege separation
+    <pinotree> braunr: i a write(sock, &pid, sizeof int) (or the like)?
+    <pinotree> *ie
+    <braunr> not pid, file descriptors
+    <braunr> SCM_RIGHTS
+    <pinotree> ah ok
+    <braunr> the socket send/recv interface does support passing mach ports
+    <braunr> and the leaked ports do turn into dead names when i kill terminals
+    <pinotree> yes, we support with a patch pochu did few years ago
+    <braunr> so it seems the leak is related to libpipe this time
+    <braunr> ok got it :)
+    <braunr> pflocal used copy_send instead of move_send
+    <braunr> \o/
+    <braunr> that bug was such a pain
+    * braunr happy
+    <teythoon> :)
+    <pinotree> speaking of it, in pflocal' S_socket_recv is it correct the
+      "out_flags = 0;"?
+    <braunr> nice catch
+    <braunr> although i wonder why flags are returned
+    <braunr> it may have been set to null to tell us that we don't want to
+      return flags
+    <braunr> pfinet seems to use it
+    <pinotree> but you change a local variable anyway
+    <braunr> yes it's not useful
+    <braunr> hmm
+    <braunr> out_flags is what gets in struct msghdr -> msg_flags
+    <braunr> so i guess it makes sense to fix it to *out_flags = 0, just to be
+      safe
+    <braunr> pinotree: do you want me to push it tonight along with the others
+      ?
+    <pinotree> yes please
+    <braunr> ok
+    <pinotree> thanks!
+    <braunr> pflocal seems to not leak any memory or ports at all
+    <braunr> great :>
+
+    <braunr> there, patches pushed :)
+
+
+## `screen` Logout Hang
+
+[[!tag open_issue_hurd]]
+
+
+### IRC, freenode, #hurd, 2013-10-14
+
+    <braunr> i fixed term so that screen can shutdown properly
+    <braunr> read() wouldn't return EIO after terminal hangup
+
+
+### IRC, freenode, #hurd, 2013-10-17
+
+    <braunr> and the missing EOI prevented screen from correctly shutting down
+      windows

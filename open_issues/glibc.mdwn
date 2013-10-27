@@ -330,6 +330,33 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
               clearly not a priority
             <nalaginrut> ok
 
+        IRC, freenode, #hurd, 2013-09-26:
+
+            <nalaginrut> if I want to have epoll/kqueue like things, where
+              should it dwell? kernel or some libs?
+            <braunr> libs
+            <pinotree> userland
+            <braunr> that would be a good project to work on, something i
+              intended to do (so i can help) but it requires a lot of work
+            <braunr> you basically need to add a way to explicitely install and
+              remove polling requests (instead of the currently way that
+              implicitely remove polling requests when select/poll returns)
+            <braunr> while keeping the existing way working for some time
+            <braunr> glibc implements select
+            <braunr> the hurd io interface shows the select interface
+            <braunr> servers such as pfinet/pflocal implement it
+            <braunr> glibc implements the client-side of the call
+            <nalaginrut> where's poll? since epoll just added edge-trigger in
+              poll
+            <braunr> both select and poll are implemented on top of the hurd io
+              select call (which isn't exactly select)
+            <braunr>
+              http://darnassus.sceen.net/gitweb/savannah_mirror/hurd.git/blob/HEAD:/hurd/io.defs
+            <braunr> this is the io interface
+            <braunr>
+              http://darnassus.sceen.net/gitweb/savannah_mirror/glibc.git/blob/refs/heads/tschwinge/Roger_Whittaker:/hurd/hurdselect.c
+            <braunr> this is the client side implementation
+
       * `sys/eventfd.h`
 
       * `sys/inotify.h`
@@ -853,6 +880,298 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
             <braunr> that's what i suggested to gg0
             <braunr> to check where those locks are held and determine the
               right order
+
+        IRC, OFTC, #debian-hurd, 2013-09-28:
+
+            <gg0_> now we'd just need tls
+            <gg0_> http://bugs.ruby-lang.org/issues/8937
+            <gg0_> well, it would pass makecheck at least. makecheckall would
+              keep hanging on threads/pipes tests i guess, unless tls/thread
+              destruction patches fix them
+
+        IRC, OFTC, #debian-hurd, 2013-10-05:
+
+            <youpi> so what is missing for ruby2.0, only disabling use of
+              context for now, no?
+            <pinotree> i'm not tracking it closely, gg0_ is
+            <gg0_> maybe terceiro would accept a patch which only disables
+              *context, "maybe" because he rightly said changes must go
+              upstream
+            <gg0_> anyway with or without *context, many many tests in
+              makecheckall fail by making it hang, first with and without
+              assertion you removed, now they all simply hang
+            <gg0_> youpi: what do we want to do? if you're about finishing tls
+              migration (as i thought a couple of weeks ago), i won't propose
+              anything upstream. otherwise i could but that will have to be
+              reverted upstream once you finish
+            <gg0_> about tests, current ruby2.0 doesn't run makecheckall, only
+              makecheck which succeeds on hurd (w/o context)
+            <gg0_> if anyone wants to give it a try:
+              http://paste.debian.net/plain/51089
+            <gg0_> first hunk makes makecheck (not makecheckall) succeed and
+              has been upstreamed, not packaged yet
+            <pinotree> what about makecheckall for ruby2.0?
+            <gg0_> 16:58 < gg0_> anyway with or without *context, many many
+              tests in makecheckall fail by making it hang, first with and
+              without assertion you  removed, now they all simply hang
+            <pinotree> i for a moment thought it as for 1.9.1, ok
+            <pinotree> these hangs should be debugged, yes
+            <gg0_> nope, tests behavior doesn't change between 1.9 and 2.0. i
+              started suppressing tests onebyone on 2.0 as well and as happened
+              on 1.9, i gave up cause there were too many
+            <gg0_> yep a smart mind could start debugging them, starting from
+              patch above pasted by a lazy one owner
+            <gg0_> one problem is that one can't reproduce them by isolate
+              them, they don't fail. start makecheckall then wait for one fail
+            <gg0_> now after my stupid report, someone like pinotree could take
+              it over, play with it for half an hour/an hour (which equals to
+              half a gg0's year/a gg0's year
+            <gg0_> )
+            <gg0_> and fix them all
+
+            <gg0_> 17:05 < gg0_> youpi: what do we want to do? if you're about
+              finishing tls migration (as i thought a couple of weeks ago), i
+              won't propose  anything upstream. otherwise i could but that will
+              have to be reverted upstream once you finish
+            <youpi> gg0_: I don't really know what to answer
+            <youpi> that's why I didn't answer :)
+            <gg0_> youpi: well then we could upstream context disable and keep
+              it disabled even if you fix tls. ruby won't be as fast as it
+              would be with context but i don't think anyone will complain
+              about that. then once packaged, if terceiro doesn't enable
+              makecheckall, we will have ruby2.0 in main
+            <youpi> that can be a plan yes
+            <gg0_> btw reverting it upstream should not be a problem eventually
+            <youpi> sure, the thing is remembering to do it
+            <gg0_> filed http://bugs.ruby-lang.org/issues/8990
+            <gg0_> please don't fix tls too soon :)
+            <gg0_> s/makecheck/maketest/g
+
+        IRC, OFTC, #debian-hurd, 2013-10-08:
+
+            <gg0_> ok. *context disabled http://bugs.ruby-lang.org/issues/8990
+
+            <gg0> bt full of an attached stuck ruby test
+              http://paste.debian.net/plain/53788/
+            <gg0> anything useful?
+            <youpi> uh, is that really all?
+            <youpi> there's not much interesting unfortunately
+            <youpi> did you run thread apply all bt full ?
+            <youpi> (not just bt full)
+            <gg0> no just bt full
+            <gg0> http://paste.debian.net/plain/53790/
+            <gg0> wait, there's a child
+            <gg0> damn ctrl-c'ing while it was loading symbols made it crash :/
+            <gg0> restarted testsuite
+            <gg0> isn't it interesting that failed tests fail only if testsuite
+              runs from beginning, whereas if run singularly, they succeed?
+            <gg0> as it got out of whatever resources
+            <gg0> youpi: http://paste.debian.net/plain/53798/
+            <youpi> the interesting part is actually right at the top
+            <youpi> it's indeed stuck in the critical section spinlock
+            <youpi> question being what is keeping it
+            <youpi> iirc I had already checked in the whole glibc code that all
+              paths which lock  critical_section_lock actually release it in
+              all cases, but maybe I have missed some
+            <youpi> (I did find some missing paths, which I fixed)
+            <gg0> i guess the same check you and braunr talk about in
+              discussion just before this anchor
+              http://darnassus.sceen.net/~hurd-web/open_issues/glibc/#recvmmsg
+            <youpi> yes, but the issue we were discussing there is not what
+              happens here
+            <youpi> we would see another thread stuck in the other way roudn,
+              otherwise
+            <gg0> no way to get what is locking?
+            <youpi> no, that's not recorded
+            <gg0> and what about writing it somewhere right after getting the
+              lock?
+            <youpi> one will have to do that in all spots taking that lock
+            <youpi> but yes, that's the usual approach
+            <gg0> i would give it try but eglibc rebuild takes too much time,
+              that conflicts with my laziness
+            <gg0> i read even making locks timed would help
+
+        IRC, OFTC, #debian-hurd, 2013-10-09:
+
+            <gg0> so correct order would be:
+            <gg0> __spin_lock (&ss->lock); // locks sigstate
+            <gg0> __spin_lock (&ss->critical_section_lock);
+            <gg0> [do critical stuff]
+            <gg0> __spin_unlock (&ss->critical_section_lock);
+            <gg0> __spin_unlock (&ss->lock);  // unlocks sigstate
+            <gg0> ?
+
+            <gg0> 21:44 < gg0> terceiro: backported to 2.0 (backport to 1.9 is
+              waiting) https://bugs.ruby-lang.org/issues/9000
+            <gg0> 21:46 < gg0> that means that if you take a 2.0 snapshot,
+              it'll build fine on hurd (unless you introduce maketestall as in
+              1.9, that would make it get stuck like 1.9)
+            <gg0> 21:48 < terceiro> gg0: nice
+            <gg0> 21:48 < terceiro> I will try to upload a snapshot as soon as
+              I can
+            <gg0> 21:52 < gg0> no problem. you might break my "conditional
+              satisfaction" by adding maketestall. better if you do that on
+              next+1 upload so we'll have at least one 2.0 built :)
+
+            <gg0> would it be a problem granting me access to a porter box to
+              rebuild eglibc+ruby2.0?
+            <gg0> i'm already doing it on another vm but host often loses power
+            <pinotree> you cannot install random stuff on a porterbox though
+            <gg0> i know i'd just need build-deps of eglibc+ruby2.0 i guess
+            <gg0> (already accessed to porter machines in the past, account
+              lele, mips iirc)
+            <gg0> ldap should remember that
+            <gg0> don't want to disturb anyone else work btw. if it's not a
+              problem, nice. otherwise no problem
+            <pinotree> please send a request to admin@exodar.debian.net so it
+              is not forgotten
+            <gg0> following this one would be too "official"?
+              http://dsa.debian.org/doc/guest-account/
+            <pinotree> hurd is not a release architecture, so hurd machines are
+              not managed by DSA
+            <gg0> ok
+            <pinotree> the general procedure outlines is ok though, just need
+              to be sent to the address above
+            <gg0> sent
+            <gg0> (1st signed mail with mutt, in the worst case i've attached
+              passphrase :))
+            <youpi> gg0: could you send me an ssh key?
+            <pinotree> no alioth account?
+            <youpi> yes, but EPERM
+            <gg0> youpi: sent to youpi@
+            <youpi> youpi@ ?
+            <gg0> (... which doesn't exist :/)
+            <gg0> sthibault@
+            <youpi> please test gg0-guest@exodar.debian.net ?
+            <youpi> (I'd rather not adduser the ldap name, who knows what might
+              happen when you get your DD account)
+            <gg0> i'm in. thanks
+            <youpi> you're welcome
+            <gg0> ldap users need to be adduser'ed?
+            <youpi> I'm not getting your ldap user account from ud-replicate,
+              at least
+            <gg0> (btw i never planned to apply nm, i'd be honoured but i
+              simply think not to deserve it)
+            <youpi> never say never ;)
+            <gg0> bah i like failing. that would be a success. i can't :)
+            <gg0> gg0-guest@exodar:~$ dchroot   
+            <gg0> E: Access not authorised
+            <gg0> I: You do not have permission to access the schroot service.
+            <gg0> I: This failure will be reported.
+            <youpi> ah, right, iirc I need to add you somewhere
+            <youpi> gg0: please retry?
+            <gg0> works
+            <youpi> good
+            <gg0> are there already eglibc+ruby2.0 build-deps?
+            <youpi> yes
+            <gg0> oh that means i should do something myself now :)
+            <youpi> yep, that had to happen at some point :)
+            <gg0> my laziness thanks: "at some point" is better than "now" :)
+
+        IRC, freenode, #hurd, 2013-10-10:
+
+            <gg0> ok just reproduced the
+              former. ../sysdeps/mach/hurd/jmp-unwind.c:53 waits
+            <braunr> 20:37 < braunr> gg0: does ruby create and destroy threads
+              ?
+            <gg0> no idea
+            <gg0> braunr: days ago you and youpi talked about locking order
+              (just before this anchor
+              http://darnassus.sceen.net/~hurd-web/open_issues/glibc/#recvmmsg)
+            <braunr> oh right
+            <gg0> <youpi> could you submit the fix for jmp-unwind.c to
+              upstream?
+            <braunr> it didn't made it in the todo list
+            <gg0> so correct order is in hurd_thread_cancel, right?
+            <braunr> sorry about that
+            <braunr> we need to make a pass to make sure it is
+            <gg0> that means locking first ss->critical_section_lock _then_
+              ss->lock
+            <gg0> correct?
+            <braunr> but considering how critical hurd_thread_cancel is, i
+              expect so
+
+            <gg0> i get the same deadlock by swapping locks
+            <gg0> braunr: youpi: fyi ^
+            <gg0> 20:51 < braunr> 20:37 < braunr> gg0: does ruby create and
+              destroy threads ?
+            <gg0> how could i check it?
+            <braunr> gg0: ps -eflw
+            <youpi> gg0: that's not surprising, since in the b acktrace you
+              posted there isn't another thread locked in the other order
+            <youpi> so it's really that somehow the thread is already in
+              critical sesction
+            <braunr> youpi: you mean there is ?
+            <braunr> ah, it's not the same bug
+            <youpi> no, in what he posted, no other thread is stuck 
+            <youpi> so it's not a locking order
+            <youpi> just that the critical section is actually busy
+            <gg0> youpi: ack
+            <gg0> braunr: what's the other bug? ext2fs one?
+            <braunr> gg0: idk
+            <gg0> braunr: thanks. doesn't show threads (found -T for that) but
+              at least doesn't limit columns number if piped (thanks to -w)
+            <braunr> it does
+            <braunr> there is a TH column
+            <gg0> ok thread count. -T gives more info
+
+        IRC, freenode, #hurd, 2013-10-24:
+
+            <youpi> ruby2.0 builds fine with the to-be-uploaded libc btw
+            <gg0> youpi: without d-ports patches? surprise me :)
+            <youpi> gg0: plain main archive source
+            <gg0> you did it. surprised
+            <gg0> ah ok you just pushed your tls. great!
+            <braunr> tls will fix a lot of things
+
+      * `sigaltstack`
+
+        IRC, freenode, #hurd, 2013-10-09:
+
+            <gnu_srs1> Hi, is sigaltstack() really supported, even if it is
+              defined as well as SA_ONSTACK?
+            <braunr> probably not
+            <braunr> well,
+            <braunr> i don't know actually, mistaking with something else
+            <braunr> it may be supported
+            <pinotree> iirc no
+            <gnu_srs1> pinotree: are you sure?
+            <pinotree> this is what i remember
+            <pinotree> if you want to be sure that $foo works, just do the
+              usual way: test it yourself
+            <gnu_srs1> found it: hurd/TODO: *** does sigaltstack/sigstack
+              really work? -- NO
+            <pinotree> well TODO is old and there were signal-related patches
+              by jk in the meanwhile, although i don't think they would have
+              changed this lack
+            <pinotree> in any case, test it
+            <gnu_srs1> anybody fluent in assembly? Looks like this code
+              destroys the stack: http://paste.debian.net/54331/
+            <braunr> gnu_srs1: why would it ?
+            <braunr> it does something special with the stack pointer but it
+              just looks like it aligns it to 16 bytes, maybe because of sse2
+              restrictions (recent gcc align the stack already anyway)
+            <gnu_srs1> Well, in that case it is the called function:
+              http://paste.debian.net/54341/
+            <braunr> how do you know there is a problem with the stack in the
+              first place ?
+            <gnu_srs1> tracing up to here, everything is OK. then esp and ebp
+              are destroyed.
+            <gnu_srs1> and single stepping goes backward until it segfaults
+            <braunr> "destroyed" ?
+            <gnu_srs1> zero if I remember correctly now. the x86 version built
+              for is i586, should that be changed to i486?
+            <braunr> this shouldn't change anything
+            <braunr> and they shouldn't get to 0
+            <braunr> use gdb to determine exactly which instruction resets the
+              stack pointer
+            <gnu_srs1> how to step into the assembly part? using 's' steps
+              through the function since no line information:
+            <gnu_srs1> Single stepping until exit from function
+              wine_call_on_stack,
+            <gnu_srs1> which has no line number information.
+            <braunr> gnu_srs1: use break on the address
+            <gnu_srs1> how do i get the address of where the assembly starts?
 
       * `recvmmsg`/`sendmmsg` (`t/sendmmsg`)
 
