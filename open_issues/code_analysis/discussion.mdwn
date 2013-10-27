@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2011, 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2012, 2013 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -42,6 +43,8 @@ License|/fdl]]."]]"""]]
     <braunr> i tried duma, and it crashes, probably because of cthreads :)
 
 
+# Static Analysis
+
 ## IRC, freenode, #hurd, 2012-09-08
 
     <mcsim> hello. What static analyzer would you suggest (probably you have
@@ -49,3 +52,54 @@ License|/fdl]]."]]"""]]
     <braunr> mcsim: if you find some good free static analyzer, let me know :)
     <pinotree> a simple one is cppcheck
     <mcsim> braunr: I'm choosing now between splint and adlint
+
+
+## IRC, freenode, #hurd, 2013-10-17
+
+    <teythoon> whoa, llvm kinda works, enough to make scan-build work :)
+    <braunr> teythoon: what is scan-build ?
+    <teythoon> braunr: clangs static analyzer
+    <braunr> ok
+    <teythoon> I'm doing a full build of the hurd using it, I will post the
+      report once it is finished
+    <teythoon> this will help spot many problems
+    <teythoon> well, here are the scan-build reports I got so far:
+      https://teythoon.cryptobitch.de/qa/2013-10-17/scan-build/
+    <teythoon> I noticed it finds problems in mig generated code, so there are
+      probably lot's of duplictaes for those kind of problems
+    <pinotree> what's a... better one to look at?
+    <teythoon> it's also good at spotting error handling errors, and can spot
+      leaks sometimes
+    <teythoon> hm
+    <teythoon>
+      https://teythoon.cryptobitch.de/qa/2013-10-17/scan-build/report-yVBHO1.html
+    <braunr> that's minor, the device always exist
+    <braunr> but that's still ugly
+    <teythoon>
+      https://teythoon.cryptobitch.de/qa/2013-10-17/scan-build/report-MtgWSa.html
+    <teythoon>
+      https://teythoon.cryptobitch.de/qa/2013-10-17/scan-build/report-QdsZIm.html
+    <teythoon> this could be important:
+      https://teythoon.cryptobitch.de/qa/2013-10-17/scan-build/report-PDMEbk.html
+    <teythoon> this is the issue it finds in mig generated server stubs:
+      https://teythoon.cryptobitch.de/qa/2013-10-17/scan-build/report-iU3soc.html
+    <braunr> this one is #if TypeCheck1
+    <braunr> the libports one looks weird indeed
+    <teythoon> but TypeCheck is 1 (the tooltip shows macro expansion)
+    <teythoon> it is defined in line 23
+    <braunr> oh
+    <teythoon> hmmm... clang does not support nested functions, that will limit
+      its usefulness for us :/
+    <braunr> yes
+    <braunr> one more reason not to use them
+
+
+### IRC, freenode, #hurd, 2013-10-18
+
+    <teythoon> more complete, now with index:
+      https://teythoon.cryptobitch.de/qa/2013-10-17/scan-build-2/
+
+
+# Leak Detection
+
+See *Leak Detection* on [[boehm_gc]].

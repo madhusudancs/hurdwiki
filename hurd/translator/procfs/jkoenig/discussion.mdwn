@@ -436,6 +436,72 @@ Also used in `[GCC]/intl/relocatable.c`:`find_shared_library_fullname` for
 `#ifdef __linux__`.
 
 
+### IRC, freenode, #hurd, 2013-10-03
+
+    <camm`> what's the equivalent of cat /proc/self/maps on hurd?
+    <braunr> camm`: for now, /proc/self doesn't work as expected
+    <camm`> thanks, I just want to get a list of maps and protection status for
+      a running process -- how?
+    <braunr> vminfo
+    <camm`> thanks so much!  I'm trying to debug an unexec failure on hurd when
+      a linker script is present.  All works with the default script, but when
+      the text address is changed, unexec fails, running into a page with no
+      access in the middle of the executable:    0xc4b000[0x1000] (prot=0,
+      max_prot=RWX, offs=0xb55000)
+    <camm`> I get a segfault when trying to read from this page.
+    <braunr> unexec ?
+    <camm`> emacs/gcl/maxima/acl2/hol88/axiom use unexec to dump a running
+      image into a saved executable elf file.
+    <braunr> what is unexec ?
+    <braunr> ok looks like a dirty tool
+    <braunr> camm`: what is segfaulting, unexec or the resulting executable ?
+    <camm`> unexec opens the file from which the running program was originally
+      executed, finds its section start addresses, then writes a new file
+      replacing any data in the old file with possibly modified versions in
+      running memory.  The reverse of 'exec'.
+    <camm`> the read from running memory delimited by the addresses in the
+      executable file is hitting a page which has been protected with *no*
+      access, and is segfaulting.  Somehow, when the binary file is loaded,
+      hurd turning off all rights to this page.
+    <camm`> let me check the stack location ...
+    <camm`> ok I think I've got it -- hurd moves the sbrk(0) address away from
+      the end of .data (as reported by readelf) if the addresses are low,
+      presumably to avoid running into the stack.
+    <camm`> starting sbrk(0)!=.data+data_size on hurd
+    <braunr> i'm not sure there is anything like the heap on the hurd
+    <braunr> sbrk is probably implemented on top of mmap
+    <braunr> camm`: hm no, i'm wrong, glibc implements brk and sbrk mostly as
+      expected, but remapping the area isn't atomic
+    <braunr> "Now reallocate it with no access allowed"
+    <braunr> then, there is a call to vm_protect
+    <braunr> and no error checking
+    <braunr> ...
+    <camm`> ok, that's fine, but need to know -- in general there is no
+      relationship between the address returned by sbrk(0) and the .data
+      addresses reported by readelf on the file, (hurd only) yes?
+    <braunr> i don't know about that
+    <braunr> there should be ..
+    <camm`> Specific example: readelf -a ->   [24] .data             PROGBITS
+      000f5580 0c4580 000328 00  WA  0   0 32
+    <camm`>  
+    <camm`> sbrk(0)->(void *) 0x8021000
+    <braunr> camm`: is that on an executable or a shared object ?
+    <camm`> executable
+    <braunr> 000f5580 looks very low
+    <camm`> This is using a linker script.  The default setup works just fine.
+    <camm`> I think it (might) make sense for hurd to silently do this give the
+      placement of the C stack, but the assumptions behind my algorithm need
+      changing (perhaps). 
+    <camm`> (I probe in configure the allowable range of __executable_start,
+      and then choose a value to either ensure a large free signed range around
+      NULL, or a low data start to maximize heap)
+    <camm`> braunr: are there any guarantees of sbrk(0)==.data+size without a
+      linker script?
+    <braunr> camm`: i'm not sure at all
+    <braunr> sbrk isn't even posix
+    <camm`> thanks
+
+
 # `/proc/[PID]/mem`
 
 Needed by glibc's `pldd` tool (commit
@@ -471,3 +537,19 @@ Needed by glibc's `pldd` tool (commit
 
     <braunr> both htop and top seem to have problems report the cpu time
     <braunr> so i expect the problem to be in procfs
+
+
+# IRC, freenode, #hurd, 2013-10-03
+
+    <braunr> teythoon: any reason the static variable translator_exists isn't
+      protected by a lock in procfs/rootdir.c ?
+
+
+## IRC, freenode, #hurd, 2013-10-04
+
+    <braunr> teythoon: can you tell me why translator_exists isn't protected
+      from shared access in rootdir_mounts_exists ?
+    <teythoon> braunr: hm, dunno tbh, I probably thought the race was harmless
+      enough
+    <braunr> it probably is
+    <braunr> settrans -Rg doesn't work on procfs :(

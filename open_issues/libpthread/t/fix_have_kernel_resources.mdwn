@@ -413,3 +413,67 @@ Address problem mentioned in [[/libpthread]], *Threads' Death*.
     <braunr> oh, git is multithreaded
     <braunr> great
     <braunr> so i've actually tested my libpthread patch quite a lot
+
+
+## IRC, freenode, #hurd, 2013-09-25
+
+    <braunr> on a side note, i was able to build gnumach/libc/hurd packages
+      with thread destruction
+    <teythoon> nice :)
+    <braunr> they boot and work mostly fine, although they add their own issues
+    <braunr> e.g. the comm field of the root ext2fs is empty
+    <braunr> ps crashes when trying to display threads
+    <braunr> but thread destruction actually works, i.e. servers (those that
+      are configured that away at least) go away after some time, and even
+      heavily used servers such as ext2fs dynamically scale over time :)
+
+
+## IRC, freenode, #hurd, 2013-10-10
+
+    <braunr> concerning threads, i think i figured out the last bugs i had with
+      thread destruction
+    <braunr> it should be well on its way to be merged by the end of the year
+
+
+## IRC, freenode, #hurd, 2013-10-11
+
+    <gg0> braunr: is your thread destruction patch ready for testing?
+    <braunr> gg0: there are packages at my repository, yes
+    <braunr> but i still have hurd fixes to do before i polish it
+    <braunr> in particular, posix says returning from main() stops the entire
+      process and all other threads
+    <braunr> i didn't check that during the switch to pthreads, and ext2fs (and
+      maybe others) actually return from main but expect other threads to live
+      on
+    <braunr> this creates problems when the main thread is actually destroyed,
+      but not the process
+    <teythoon> braunr: tmpfs does something like that, but calls pthread_exit
+      at the end of main
+    <braunr> same effect
+    <braunr> this was fine with cthreads, but must be changed with pthreads
+    <braunr> and libpthread must be fixed to enforce it
+    <braunr> (or libc)
+
+    <braunr> diskfs_startup_diskfs should probably be changed to reuse the main
+      thread instead of returning
+
+
+## IRC, freenode, #hurd, 2013-10-19
+
+    <zacts> I know what threads are, but what is 'thread destruction'?
+    <braunr> the hurd currently never destroys individual threads
+    <braunr> they're destroyed when tasks are destroyed
+    <braunr> if the number of threads in a task peaks at a high number, say
+      thousands of them, they'll remain until the task is terminated
+    <braunr> such tasks are usually file systems, normally never restarted (and
+      in the case of the root file system, not restartable)
+    <braunr> this results in a form of leak
+    <braunr> another effect of this leak is that servers which should go away
+      because of inactivity still remain
+    <braunr> since thread destruction doesn't actually work, the debian package
+      uses a patch to prevent worker threads from timeouting
+    <braunr> and to finish with, since thread destruction actually doesn't
+      work, normal (unpatched) applications that destroy threads are certainly
+      failing bad
+    <braunr> i just need to polish a few things, wait for youpi to finish his
+      work on TLS to resolve conflicts, and that will be all

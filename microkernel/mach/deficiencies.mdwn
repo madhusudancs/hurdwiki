@@ -2384,3 +2384,310 @@ In context of [[open_issues/multithreading]] and later [[open_issues/select]].
       concurrently
     <braunr> (which is another contention issue when using mach-like ipc, which
       often do need to allocate/release virtual memory)
+
+
+## IRC, freenode, #hurd, 2013-09-28
+
+    <rah> braunr: http://git.sceen.net/rbraun/x15.git/blob/HEAD:/README
+    <rah> "X15 is a free microkernel."
+    <rah> braunr: what distinguishes it from existing microkernels?
+
+
+## IRC, freenode, #hurd, 2013-09-29
+
+    <braunr> rah: the next part maybe ?
+    <braunr> "Its purpose is to provide a foundation for a Hurd-like operating
+      system."
+    <rah> braunr: there are already microkernels that canbe used as the
+      foundatin for Hurd=like operating systems; why are you creating another
+      one?
+    <rah> braunr: what distinguishes your microkernel from existing
+      microkernels?
+    <tschwinge> rah:
+      http://www.gnu.org/software/hurd/microkernel/mach/deficiencies.html
+    <braunr> rah: it's better :)
+    <braunr> rah: and please, cite one suitable kernel for the hurd
+    <rah> tschwinge: those are deficiencies in Mach; I'm asking about x15
+    <rah> braunr: in what way is it better exactly?
+    <braunr> rah: more performant, more scalable
+    <rah> braunr: how?
+    <braunr> better algorithms, better interfaces
+    <braunr> for example, it supports smp
+    <rah> ah
+    <rah> it supports SMP
+    <rah> ok
+    <rah> that's one thing
+    <braunr> it implements lockless synchronization à la rcu
+    <rah> are there any others?
+    <rah> ok
+    <rah> lockless sync
+    <rah> anything else?
+    <braunr> it can scale from 4MB of physical memory up to several hundreds
+      GiB
+    <braunr> ipc is completely different, leading to simpler code, less data
+      involved, faster context switches
+    <braunr> (although there is no code for that yet)
+    <rah> how can it support larger memory while other microkernels can't?
+    <rah> how is the ipc "different"?
+    <braunr> others can
+    <braunr> gnumach doesn't
+    <rah> how can it support larger memory while gnumach can't?
+    <azeem_> because it's not the same code base?
+    <braunr> gnumach doesn't support temporary kernel mapping
+    <rah> ok, so x15 supports temporary kernel mapping
+    <braunr> not exactly
+    <braunr> virtual memory is completely different
+    <rah> how so?
+    <braunr> gnumach does the same as linux, physical memory is mapped in
+      kernel space
+    <braunr> so you can't have more physical memory than you have kernel space
+    <braunr> which is why gnumach can't handle more than 1.8G right now
+    <braunr> it's a 2/2 split
+    <braunr> in x15, the kernel maps what it needs
+    <braunr> and can map it from anywhere in physical memory
+    <tschwinge> rah: I think basically all this has already been discussed
+      before and captured on that page?
+    <braunr> it already supports i386/pae/amd64
+    <rah> I see
+    <braunr> the drawback is that it needs to update kernel page tables more
+      often
+    <braunr> on linux, a small part of the kernel space is reserved for
+      temporary mappings, which need page table updates too
+    <braunr> but most allocations don't use that
+    <braunr> it's complicated
+    <braunr> also, i plan to make virtual memory operations completely
+      concurrent on x15, similar to what is described in radixvm
+    <rah> ok
+    <braunr> which means mapping operations on non overlapping regions won't be
+      serialized
+    <braunr> a big advantage for microkernels which base their messaging
+      optimizations on mapping
+    <braunr> so simply put, better performance because of simpler ipc and data
+      structures, and better scalability because of improved data structure
+      algorithms and concurrency
+    <rah> tschwinge: yes but that page is no use to someone who wants a summary
+      of what distinguishes x15
+    <braunr> x15 is still far from complete, which is why i don't advertise it
+      other than here
+    <rah> "release early, release often"?
+    <braunr> give it a few more years :p
+    <braunr> release what ?
+    <braunr> something that doesn't work ?
+    <rah> software
+    <rah> yes
+    <braunr> this release early practice applies to maintenance
+    <rah> release something that doesn't work so that others can help make it
+      work
+    <braunr> not big developments
+    <braunr> i don't want that for now
+    <braunr> i have a specific idea of what i want, and both explaining and
+      defending it would take time, better spent in development itself
+    <braunr> just wait for a first prototype
+    <braunr> and then you'll see if you want to help or not
+    * rah does not count himself as one of the "others" who might help make it
+        work
+    <braunr> one big difference with other microkernels is that x15 is
+      specifically intended to run a unix like system
+    <braunr> a hurd like system providing a psoix interface more accurately
+    <braunr> and efficiently
+    <braunr> so for example, while many microkernels provide only sync ipc, x15
+      provides both sync ipc and signals
+    <braunr> and then, there are a lot of small optimizations, like port names
+      which will transparently identify as file descriptors
+    <braunr> light reference counting
+    <braunr> a restriction on ipc that only allows reliable transfers across
+      network to machines with same arch and endianness
+    <braunr> etc..
+    <rah> http://darnassus.sceen.net/~hurd-web/microkernel/x15/
+    <rah> please take note of the fact that this newly created page is not just
+      a dump of IRC logs
+
+
+## IRC, freenode, #hurd, 2013-09-30
+
+    <braunr> rah: i'm uncomfortable with a page about x15 on the wiki ...
+    <braunr> there is a reason i don't want to advertise it for now
+    <braunr> and you're just completely ignoring it
+    <rah> braunr: detailed information about x15 is already included elsewhere
+      in the wiki
+    <braunr> rah: really ?
+    <rah> braunr: there is a section named "X15" on this page:
+      http://www.gnu.org/software/hurd/microkernel/mach/deficiencies.html
+    <braunr> rah: oh ok, but it's still small and hard to find ;p
+    <rah> braunr: "small"?!
+    <rah> braunr: the X15 section starts at about 10% down the page and
+      finishes at the bottom of the page
+    <rah> braunr: and the page is huge
+    <braunr> rah: hm ok, but that's still listed as mach deficiencies, not as
+      x15 itself
+    <rah> braunr: I heard about x15
+    <rah> braunr: I wanted to learn about it
+    <rah> braunr: there was no easily accessible information for doing so
+    <rah> braunr: it's not unreasonable to want to learn about it, having heard
+      about it
+    <rah> braunr: others will want to learn about it
+    <azeem_> rah: please respect the developer's policy of how to advertise
+      their project
+    <rah> braunr: having learned about it myself, I've helped those who will
+      follow me by giving them the summary that I wanted
+    <rah> azeem_: I'm not disrespecting the developer's policy of how to
+      advertise their project; I'm not advertising their project
+    <azeem_> rah: maybe replace the wiki page by "If you would like to know
+      about X15, please contact <your email>"
+    <rah> azeem_: that's ridiculous
+    <braunr> rah: then ask me directly
+    <braunr> rah: don't make wiki pages
+    <rah> braunr: I don't understand what you mean
+    <rah> braunr: I have already asked you directly
+    <rah> braunr: I needed to ask you directly in order to make the wiki page
+    <azeem> rah: braunr does not like your wiki page, how hard is it to
+      understand?
+    <rah> azeem: my discussion is with braunr, not you
+    <braunr> rah: if someone wants to know more about x15, he can me directly,
+      no need for a wiki page
+
+
+## IRC, freenode, #hurd, 2013-10-01
+
+    <rah> braunr: that's hyperbole; there's no "need" for a wiki, or for x15 or
+      even for the Hurd
+    <rah> braunr: a wiki page is helpful
+    <rah> useful, even
+    <braunr> rah: as azeem said, i'm just not willing to advertise outside this
+      channel for now
+    <braunr> it makes sense to mention it in the defficiencies page, since this
+      page talks about what's lacking in gnumach
+    <braunr> and the wiki is about the hurd, including gnumach
+    <rah> braunr: why does it make sense to mention it in the deficiencies page
+      but not in a dedicated page?
+    <braunr> rah: because gnumach is a hurd project, x15 isn't
+    <rah> braunr: what do you mean by "a hurd project"?
+    <rah> braunr: you're saying that x15 differs from gnumach in some way, and
+      that this difference is the reason it doesn't make sense to have a wiki
+      page devoted to x15; the phrase you've used to descibe that difference is
+      "a hurd project" but it's not clear what, exactly, you mean by that
+    <rah> braunr: could you explain what you mean by that?
+    <azeem> rah: this is getting off-topic, please take this conversation
+      elsewhere
+    <rah> azeem: that's a very tenuous statement
+    <rah> azeem: I think this is the appropriate place to discuss the matter
+    <azeem> I leave that to braunr to decide
+    <rah> azeem: I think *you* don't want the conversation to be had at all and
+      are attempting to censor it using a tenuous excuse
+    <azeem> no no, I'm not censoring it - I am just saying you should take it
+      elsewhere
+    <braunr> let's take it elsewhere
+
+
+## IRC, freenode, #hurd, 2013-10-12
+
+    <zacts> braunr: are you still working on x15/propel?
+    * zacts checks the git logs
+    <braunr> zacts: taking a break for now, will be back on it when i have a
+      clearer view of the new vm system
+
+
+## IRC, freenode, #hurd, 2013-10-15
+
+    <gnufreex> braunr, few questions about x15. I was reading IRC logs on hurd
+      site, and in the latest part, you say (or I misunderstood) that x15 is
+      now hybrid kernel. So what made you change design... or did you? 
+    <braunr> gnufreex: i always intended to go for a hybrid
+
+
+## IRC, freenode, #hurd, 2013-10-19
+
+    <zacts> braunr: when do you plan to start on x15/propel again?
+    <braunr> zacts: after i'm done with thread destruction on the hurd
+
+[[open_issues/libpthread/t/fix_have_kernel_resources]].
+
+    <zacts> and do you plan to actually run hurd on top of x15, or are you
+      still going to reimplement hurd as propel?
+    <braunr> and no, i don't intend to run the hurd on top of x15
+
+
+## IRC, freenode, #hurd, 2013-10-24
+
+    <neal> braunr: What is your Mach replacement doing?
+    <braunr> "what" ? :)
+    <braunr> you mean how i guess
+    <neal> Sure.
+    <braunr> well it's not a mach replacement any more
+    <braunr> and for now it's stalled while i'm working on the hurd
+    <neal> that could be positive :)
+    <braunr> it's in good shape
+    <neal> how did it diverge?
+    <braunr> sync ipc, with unix-like signals
+    <braunr> and qnx-like bare data messages
+    <neal> hmm, like okl5?
+    <braunr> (with scatter gather)
+    <neal> okl4
+    <braunr> yes
+    <braunr> btw, if you can find a document that explains this property of
+      okl4, i'm interested, since i can't find it again on my own :/
+    <braunr> basically, x15 has a much lighter ipc interface
+    <neal> capabilities?
+    <braunr> mach ports are mostly retained
+    <braunr> but reference counting will be simplified
+    <neal> hmm
+    <neal> I don't like the reference counting part
+    <braunr> port names will be plain integers, to directly be usable as file
+      descriptors and avoid a useless translation layer
+    <braunr> (same as in qnx)
+    <neal> this sounds like future tense
+    <braunr> there is no ipc code yet
+    <neal> so I guess this stuff is not implemented
+    <neal> ok.
+    <braunr> next step is virtual memory
+    <braunr> and i'm taking my time because i want it to be a killer feature
+    <neal> so if you don't IPC and you don't have VM, what do you have? :)
+    <braunr> i have multiprocessor multithreading
+    <neal> I see.
+    <braunr> mutexes, condition variables, rcu-like lockless synchronization,
+      work queues
+    <braunr> basic bsd-like virtual memory
+    <braunr> which i want to rework
+    <neal> I ignored all of that in Viengoos :)
+    <braunr> and since ipc will still depend on virtual memory for zero-copy, i
+      want the vm system to be right
+    <braunr> well, i'm more interested in the implementation than the
+      architecture
+    <braunr> for example, i have unpublished code that features a lockless
+      radix tree for vm_object lookups
+    <braunr> that's quite new for a microkernel based system, but the ipc
+      interface itself is very similar to what already exists
+    <braunr> your half-sync ipc are original :)
+    <neal> I'm considering getting back in the OS game.
+    <braunr> oh
+    <neal> But, I'm not going to write a kernel this time.
+    <braunr> did anyone here consider starting a company for such things, like
+      genode did ?
+    <neal> I was considering using genode as a base.
+    <braunr> neal: why genode ?
+    <neal> I want to build a secure system.
+    <neal> I think the best way to do that is using capabilities.
+    <neal> Genode runs on Fiasco.OC, for instance
+    <neal> and it provides a lot of infrastructure
+    <braunr> neal: why not l4re for example ?
+    <braunr> neal: how important is the ability to revoke capabilities ?
+
+In the discussion on [[community/gsoc/project_ideas/object_lookups]], *IRC,
+freenode, #hurd, 2013-10-24*:
+
+    <teythoon> and, with some effort, getting rid of the hash table lookup by
+      letting the kernel provide the address of the object (iirc neil knew the
+      proper term for that)
+    <braunr> teythoon: that is a big interface change
+    <teythoon> how so
+    <braunr> optimizing libihash and libpthread should already be a good start
+    <braunr> well how do you intend to add this information ?
+    <braunr> ok, "big" is overstatement, but still, it's a low level interface
+      change that would probably break a lot of things
+    <teythoon> store a pointer in the port structure in gnumach, make that
+      accessible somehow
+    <braunr> yes but how ?
+    <teythoon> interesting question indeed
+    <braunr> my plan for x15 is to make this "label" part of received messages
+    <braunr> which means you need to change the format of messages
+    <braunr> that is what i call a big change

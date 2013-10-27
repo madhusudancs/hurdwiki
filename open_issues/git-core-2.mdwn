@@ -61,6 +61,113 @@ Fixing this situation is easy enough:
 Still seen.
 
 
+## IRC, freenode, #hurd, 2013-10-10
+
+    <sea`> Huh? I've cloned the 'hurd' repository and I'm attempting to compile
+      it, but the 'rtnetlink.h' header in
+      'hurd/pfinet/linux-src/include/linux/' is just blank. (Which leads to an
+      error later down when a macro that's supposed to be defined in there is
+      first used)
+    <sea`> So I'm just wondering, is that file really blank? Or is this some
+      unexpected error of decompression? 
+    <braunr> clone again and see
+    <braunr> the file is definitely not empty
+    <sea`> I cloned it twice, both have that file blank. BUT, I want to point
+      out that both clones do have some decompression errors. (Some files are
+      missing chunks in /both/ cloned repositories).
+    <braunr> where did you clone it from ?
+    <sea`> git.sv.gnu.org/hurd/hurd.git
+    <braunr> hum decompression errors ?
+    <braunr> can you paste them please ?
+    <sea`> Hmm, I can clone again and show you an example if I find one
+    <sea`> This was on the hurd. When I run: git clone $repo;, it seems to fail
+      almost randomly with "incorrect header check", but when it does succeed,
+      occasionally some files are missing chunks
+    <sea`> and apparently entire files can be blank
+    <braunr> http or git ?
+    <sea`> git.
+    <braunr> that's really weird
+    <braunr> actually i don't even have problems with http any more nowadays ..
+    <sea`> This is using the hurd image from sthibault
+    <sea`> So once I get it recompiled and shuffle in the new binaries, the
+      problem should probably go away
+    <braunr> no
+    <braunr> well maybe but
+    <braunr> don't recompile
+    <braunr> upgrade packages instead
+    <sea`> Alright, I'll do an upgrade instead. Why that path specifically?
+    <braunr> rebuilding is long
+    <braunr> i wonder if the image you got is corrupted
+    <braunr> compute the checksum
+    <braunr> we've had weird reports in the past about the images he provides
+    <braunr> well not the images themselves, but differences after dowloading
+      ..
+    <braunr> downloading*
+    <sea`> The MD5SUMS file on his site isn't including the values for the most
+      recent images.
+    <sea`> It stops at 2012-12-28
+    <braunr> hummm
+    <sea`> Anyway, let's see. git clone failed again:
+    <sea`> Receiving objects: 100% (50955/50955), 15.48 MiB | 42 KiB/s, done.
+    <sea`> error: inflate: date stream error (incorrect header check) <- This
+      is the interesting part
+    <sea`> fatal: serious inflate inconsistency
+    <sea`> fatal: index-pack failed
+    <braunr> not intereseting enough unfortunately
+    <braunr> but it might come from savannah too
+    <braunr> try the mirrors at
+      http://darnassus.sceen.net/gitweb/?a=project_list;pf=savannah_mirror
+    <sea`> Let's see..if I try: 'git clone
+      git://darnassus.sceen.net/gitweb/savannah_mirror/hurd.git', I get:
+      'fatal: remote error: access denied or repository not exported:
+      /gitweb/savannah_mirror/hurd.git'
+    <braunr> my bad
+    <braunr> that's weird, it should work ..
+    <braunr> oh, stupid translation error
+    <sea`> translation? From one human language to another?
+    <braunr> not translation actually
+    <braunr> typo :)
+    <braunr> it's either
+    <braunr> git://darnassus.sceen.net/savannah_mirror/hurd.git
+    <braunr> or
+    <braunr> http://darnassus.sceen.net/gitweb/savannah_mirror/hurd.git
+    <braunr> copy paste the url exactly please
+    <braunr> /gitweb/ is only present in the http url
+    <sea`> Ah, right. Okay, I'll paste it exactly
+    <sea`> Ehm. The whole thing locked up badly. I'll reboot it and try again.
+    <braunr> are you sure it locked oO ?
+    <braunr> the hurd can easily become unresponsive when performing io
+      operations
+    <braunr> but you need more than such a git repository to reach that state
+    <sea`> Yeah, that happens occasionally. It's not related to git, but rather
+      it happens when I cancel some command.
+    <braunr> your image must be corrupted
+    <braunr> have you enabled host io caching btw ?
+    <sea`> By now it's corrupted for sure..everytime it crashes the filesystem
+      gets into a weird state. 
+    <sea`> I'll unpack a fresh image, then update the packages, and then try
+      cloning this git repository.
+    <braunr> i'll get the image too so we can compare sums
+    <sea`> 957bb0768c9558564f0c3e0adb9b317e  ./debian-hurd.img.tar.gz
+    <sea`> Which unpacks to: debian-hurd-20130504.img
+    <azeem_> the NSA might backdoor the Hurd, in anticipation of our scheduled
+      world-dominance
+    <braunr> for now they're doing it passively :
+    <braunr> :p
+    <braunr> sea`: same thing here
+    <braunr> sea`: if you still have problems, the image itself might be wrong
+    <braunr> in which case you should try with the debian network installer
+    <sea`> Ah, so if problems persist, try with the network installer. Okay
+    <sea`> Is there some recipe for constructing a hurd/mach minimal
+      environment? 
+    <sea`> A system with only just enough tools and libraries to compile and
+      poke at things.
+    <braunr> not currently
+    <braunr> we all work in debian environments
+    <braunr> the reason being that a lot of patches are queued for integration
+      upstream
+
+
 # 2010-11-17
 
 A very similar issue.  The working tree had a lot of

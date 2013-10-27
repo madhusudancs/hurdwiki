@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2013 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -12,7 +12,8 @@ License|/fdl]]."]]"""]]
 
 Performance issues due to the microkernel/multi-server system architecture?
 
-IRC, freenode, #hurd, 2011-07-26
+
+# IRC, freenode, #hurd, 2011-07-26
 
     < CTKArcher> I read that, because of its microkernel+servers design, the
       hurd was slower than a monolithic kernel, is that confirmed ?
@@ -45,3 +46,181 @@ IRC, freenode, #hurd, 2011-07-26
     < braunr> but in 95, processors weren't that fast compared to other
       components as they are now
     < youpi> while disk/mem haven't evovled so fast
+
+
+# IRC, freenode, #hurd, 2013-09-30
+
+    <snadge> ok.. i noticed when installing debian packages in X, the mouse
+      lagged a little bit
+    <snadge> that takes me back to classic linux days
+    <snadge> it could be a side effect of running under virtualisation who
+      knows
+    <braunr> no
+    <braunr> it's because of the difference of priorities between server and
+      client tasks
+    <snadge> is it simple enough to increase the priority of the X server?
+    <snadge> it does remind me of the early linux days.. people were more
+      interested in making things work, and making things not crash.. than
+      improving the desktop interactivity or responsiveness
+    <snadge> very low priority :P
+    <braunr> snadge: actually it's not the difference in priority, it's the
+      fact that some asynchronous processing is done at server side
+    <braunr> the priority difference just gives more time overall to servers
+      for that processing
+    <braunr> snadge: when i talk about servers, i mean system (hurd) servers,
+      no x
+    <snadge> yeah.. linux is the same.. in the sense that, that was its
+      priority and focus
+    <braunr> snadge: ?
+    <snadge> servers
+    <braunr> what are you talking about ?
+    <snadge> going back 10 years or so.. linux had very poor desktop
+      performance
+    <braunr> i'm not talking about priorities for developers
+    <snadge> it has obviously improved significantly
+    <braunr> i'm talking about things like nice values
+    <snadge> right.. and some of the modifications that have been done to
+      improve interactivity of an X desktop, are not relevant to servers
+    <braunr> not relevant at all since it's a hurd problem, not an x problem
+    <snadge> yeah.. that was more of a linux problem too, some time ago was the
+      only real point i was making.. a redundant one :p
+    <snadge> where i was going with that.. was desktop interactivity is not a
+      focus for hurd at this time
+    <braunr> it's not "desktop interactivity"
+    <braunr> it's just correct scheduling
+    <snadge> is it "correct" though.. the scheduler in linux is configurable,
+      and selectable
+    <snadge> depending on the type of workload you expect to be doing
+    <braunr> not really
+    <snadge> it can be interactive, for desktop loads.. or more batched, for
+      server type loads.. is my basic understanding
+    <braunr> no
+    <braunr> that's the scheduling policy
+    <braunr> the scheduler is cfs currently
+    <braunr> and that's the main difference
+    <braunr> cfs means completely fair
+    <braunr> whereas back in 2.4 and before, it was a multilevel feedback
+      scheduler
+    <braunr> i.e. a scheduler with a lot of heuristics
+    <braunr> the gnumach scheduler is similar, since it was the standard
+      practice from unix v6 at the time
+    <braunr> (gnumach code base comes from bsd)
+    <braunr> so 1/ we would need a completely fair scheduler too
+    <braunr> and 2/ we need to remove asynchronous processing by using mostly
+      synchronous rpc
+    <snadge> im just trying to appreciate the difference between async and sync
+      event processing
+    <braunr> on unix, the only thing asynchronous is signals
+    <braunr> on the hurd, simply cancelling select() can cause many
+      asynchronous notifications at the server to remove now unneeded resources
+    <braunr> when i say cancelling select, i mean one or more fds now have
+      pending events, and the others must be cleaned
+    <snadge> yep.. thats a pretty fundamental change though isnt it? .. if im
+      following you, you're talking about every X event.. so mouse move,
+      keyboard press etc etc etc
+    <snadge> instead of being handled async.. you're polling for them at some
+      sort of timing interval?
+    <snadge> never mind.. i just read about async and sync with regards to rpc,
+      and feel like a bit of a noob
+    <snadge> async provides a callback, sync waits for the result.. got it :p
+    <snadge> async is resource intensive on hurd for the above mentioned
+      reasons.. makes sense now
+    <snadge> how about optimising the situation where a select is cancelled,
+      and deferring the signal to the server to clean up resources until a
+      later time?
+    <snadge> so like java.. dont clean up, just make a mess
+    <snadge> then spend lots of time later trying to clean it up.. sounds like
+      my life ;)
+    <snadge> reuse stale objects instead of destroying and recreating them, and
+      all the problems associated with that
+    <snadge> but if you're going to all these lengths to avoid sending messages
+      between processes
+    <snadge> then you may as well just use linux? :P
+    <snadge> im still trying to wrap my head around how converting X to use
+      synchronous rpc calls will improve responsiveness
+    <pinotree> what has X to do with it?
+    <snadge> nothing wrong with X.. braunr just mentioned that hurd doesnt
+      really handle the async calls so well
+    <snadge> there is more overhead.. that it would be more efficient on hurd,
+      if it uses sync rpc instead
+    <snadge> and perhaps a different task scheduler would help also
+    <snadge> ala cfs
+    <snadge> but i dont think anyone is terribly motivated in turning hurd into
+      a desktop operating system just yet.. but i could be wrong ;)
+    <braunr> i didn't say that
+    <snadge> i misinterpreted what you said then .. im not surprised, im a
+      linux sysadmin by trade.. and have basic university OS understanding (ie
+      crap all) at a hobbyist level
+    <braunr> i said there is asynchronous processing (i.e. server still have
+      work to do even when there is no client)
+    <braunr> that processing mostly comes from select requests cancelling what
+      they installed
+    <braunr> ie.e. you select fd 1 2 3, even on 2, you cancel on 1 and 3
+    <braunr> those cancellations aren't synchronous
+    <braunr> the client deletes ports, and the server asynchronously receives
+      dead name notifications
+    <braunr> since servers have a greater priority, these notifications are
+      processed before the client can continue
+    <braunr> which is what makes you feel lag
+    <braunr> X is actually a client here
+    <braunr> when i say server, i mean hurd servers
+    <braunr> the stuff implementing sockets and files
+    <braunr> also, you don't need to turn the hurd into a desktop os
+    <braunr> any correct way to do fair scheduling will do
+    <snadge> can the X client be made to have a higher priority than the hurd
+      servers?
+    <snadge> or perhaps something can be added to hurd to interface with X
+    <azeem_> well, the future is wayland
+    <snadge> ufs .. unfair scheduling.. give priority to X over everything else
+    <snadge> hurd almost seams ideal for that idea.. since the majority of the
+      system is seperated from the kernel
+    <snadge> im likely very wrong though :p
+    <braunr> snadge: the reason we elevated the priority of servers is to avoid
+      delaying the processing of notifications
+    <braunr> because each notification can spawn a server thread
+    <braunr> and this lead to cases where processing notifications was so slow
+      that spawning threads would occur more frequently, leading to the server
+      exhausting its address space because of thread stacks
+    <snadge> cant it wait for X though? .. or does it lead to that situation
+      you just described
+    <braunr> we should never need such special cases
+    <braunr> we should remove async notifications
+    <snadge> my logic is this.. if you're not running X then it doesnt
+      matter.. if you are, then it might.. its sort of up to you whether you
+      want priority over your desktop interface or whether it can wait for more
+      important things, which creates perceptible lag
+    <braunr> snadge: no it doesn't
+    <braunr> X is clearly not the only process involved
+    <braunr> the whole chain should act synchronously
+    <braunr> from the client through the server through the drivers, including
+      the file system and sockets, and everything that is required
+    <braunr> it's a general problem, not specific to X
+    <snadge> right.. from googling around, it looks like people get very
+      excited about asyncronous
+    <snadge> there was a move to that for some reason.. it sounds great in
+      theory
+    <snadge> continue processing something else whilst you wait for a
+      potentially time consuming process.. and continue processing that when
+      you get the result
+    <snadge> its also the only way to improve performance with parallelism?
+    <snadge> which is of no concern to hurd at this time
+    <braunr> snadge: please don't much such statements when you don't know what
+      you're talking about
+    <braunr> it is a concern
+    <braunr> and yes, async processing is a way to improve performance
+    <braunr> but don't mistake async rpc and async processing
+    <braunr> async rpc simply means you can send and receive at any time
+    <braunr> sync means you need to recv right after send, blocking until a
+      reply arrives
+    <braunr> the key word here is *blocking*ù
+    <snadge> okay sure.. that makes sense
+    <snadge> what is the disadvantage to doing it that way?
+    <snadge> you potentially have more processes that are blocking?
+    <braunr> a system implementing posix such as the hurd needs signals
+    <braunr> and some event handling facility like select
+    <braunr> implementing them synchronously means a thread ready to service
+      these events
+    <braunr> the hurd currently has such a message thread
+    <braunr> but it's complicated and also a scalability concern
+    <braunr> e.g. you have at least two thread per process
+    <braunr> bbl
