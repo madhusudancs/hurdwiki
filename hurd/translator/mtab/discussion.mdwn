@@ -2221,23 +2221,6 @@ In context of [[open_issues/mig_portable_rpc_declarations]].
     <braunr> which is why i'm mentioning it
     <braunr> :)
     <braunr> i'll try to reproduce the assertion
-    <pinotree> libdiskfs/node-drop.c:      assert (np->dn_stat.st_size == 0); ←
-      this one?
-    <braunr> yes
-    <braunr> hm no
-    <pinotree> oho
-    <braunr> no, not that one
-    <pinotree> no-oho
-    <braunr> well maybe by side effect
-    <braunr> but i doubt it
-    <pinotree> iirc you constantly get that when building ustr
-    <braunr> (e.g., because the object was freed and reallocated quickly,
-      st_size has been reset, something like that)
-    <braunr> is ustr a package ?
-    <pinotree> yes
-    <braunr> ok
-    <braunr> thanks
-    <braunr> pinotree: indeed, it's still present
     <braunr> pinotree: actually, after a more in-depth look, reference counting
       looks valid before the fix too
     <pinotree> ok, thanks for checking
@@ -2247,64 +2230,9 @@ In context of [[open_issues/mig_portable_rpc_declarations]].
     <braunr> malloc
     <pinotree> ok
     <braunr> i suspect the code doesn't handle memory failure well
-    <pinotree> iirc the ustr tests are mostly disk-intensive
-    <braunr> this one is really about enonmem
-    <braunr> enomem
-    <braunr> i'll make ext2fs print a stack trace
-    <pinotree> (might be wrong, but did not investigate further, sorry)
-    <braunr> no worries
-    <braunr> i'm doing it now :)
 
 
 ### IRC, freenode, #hurd, 2013-10-02
-
-    <braunr> i've traced the problem up to truncate
-    <braunr> which gets a negative size
-    <braunr> shouldn't take long to find out where it comes from now
-    <pinotree> it seems our truncate doesn't handle negative values well though
-    <braunr>        EINVAL The argument length is negative or larger than the
-      maximum file size.
-    <braunr> i still have to see whether it comes from the user (unlikely) or
-      if it's an internal inconsistency
-    <braunr> i suspect some code wrongly handles vm_map failures
-    <braunr> leading to that inconsistency
-    <braunr> pinotree: looks like glibc doesn't check for length >= 0
-    <pinotree> yeah
-    <braunr> servers should do it nonetheless
-    <pinotree> should we fix glibc, libdiskfs/libnetfs/libtrivfs/etc, or both?
-    <braunr> it appears a client does the truncate
-    <braunr> i'd say both
-    <braunr> can you take the glibc part ? :)
-    <pinotree> i was going to do the hurd part... :p
-    <pinotree> ok, i'll pick libc
-    <braunr> well i'm doing it already
-    <braunr> i want to write a test case first
-    <braunr> to make sure that's the problem
-    <pinotree> already on the hurd part, you mean?
-    <braunr> yes
-    <pinotree> ok
-    <braunr> ok looks like it
-    <pinotree> would you share the test you are doing, so i don't need to write
-      it again? :)
-    * pinotree lazy
-    <braunr> :)
-    <braunr> as soon as darnassus is restarted
-    <pinotree> ideally we could have some repository with all the testcases
-      written over time to fix bugs in implementations/compatibility/etc
-    <braunr> i noticed the system doesn't automatically reboot when e2fsck says
-      reboot, and no unexpected inconsistency was found
-    <braunr> is that normal ?
-    <pinotree> or having something like posixtestsuite, but actively maintained
-    <braunr> pinotree: polishing the test before sending it
-    <pinotree> sure, no hurry :)
-    <braunr> i can't reproduce the assertion but it does make ext2fs freeze
-    <braunr> pinotree: http://darnassus.sceen.net/~rbraun/test_ftruncate.c
-    <pinotree> merci
-    <braunr> pinotree: ustr builds
-    <pinotree> wow
-    <braunr> the client code (ustr) seems to perform a ftruncate with size
-      ((size_t)-1) whereas lengths are signed ..
-    <braunr> i'll check other libraries and send a patch soon
 
     <teythoon_> braunr: btw, did you fix the leak?
     <braunr> yes
@@ -2325,18 +2253,6 @@ In context of [[open_issues/mig_portable_rpc_declarations]].
       had my development vm running on that patches for two weeks
 
 
-### IRC, freenode, #hurd, 2013-10-03
-
-    <braunr> youpi: i've committed a fix to hurd that checks for negative sizes
-      when truncating files
-    <braunr> this allows building the ustr package without making ext2fs choke
-      on an assertion
-    <braunr> pinotree is preparing a patch for glibc
-    <braunr> see truncate/ftruncate
-    <braunr> with an off_t size parameter, which can be negative
-    <braunr>        EINVAL The argument length is negative or larger than the
-      maximum file size.
-    <braunr> hurd servers were not conforming to that before my change
 
 
 ## Multiple mtab Translators Spawned

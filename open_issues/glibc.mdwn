@@ -1864,6 +1864,70 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
           type for some flock structure field)
         <youpi> s/by/be/
 
+  * `truncate`/`ftruncate`
+
+    Hurd fixed with 2013-10-03 commit 6c3825f2b750bf9b913c6ea986739e648c470603,
+    glibc still to be done?
+
+    IRC, freenode, #hurd, 2013-10-01:
+
+        <pinotree> libdiskfs/node-drop.c:      assert (np->dn_stat.st_size == 0); ←
+          this one?
+        <pinotree> iirc you constantly get that when building ustr
+        <braunr> is ustr a package ?
+        <pinotree> yes
+        <pinotree> iirc the ustr tests are mostly disk-intensive
+
+    IRC, freenode, #hurd, 2013-10-02:
+
+        <braunr> i've traced the problem up to truncate
+        <braunr> which gets a negative size
+        <braunr> shouldn't take long to find out where it comes from now
+        <pinotree> it seems our truncate doesn't handle negative values well though
+        <braunr>        EINVAL The argument length is negative or larger than the
+          maximum file size.
+        <braunr> i still have to see whether it comes from the user (unlikely) or
+          if it's an internal inconsistency
+        <braunr> i suspect some code wrongly handles vm_map failures
+        <braunr> leading to that inconsistency
+        <braunr> pinotree: looks like glibc doesn't check for length >= 0
+        <pinotree> yeah
+        <braunr> servers should do it nonetheless
+        <pinotree> should we fix glibc, libdiskfs/libnetfs/libtrivfs/etc, or both?
+        <braunr> it appears a client does the truncate
+        <braunr> i'd say both
+        <braunr> can you take the glibc part ? :)
+        <pinotree> i was going to do the hurd part... :p
+        <pinotree> ok, i'll pick libc
+        <braunr> well i'm doing it already
+        <braunr> i want to write a test case first
+        <braunr> to make sure that's the problem
+        <pinotree> already on the hurd part, you mean?
+        <braunr> yes
+        <pinotree> ok
+        <braunr> ok looks like it
+        <braunr> i can't reproduce the assertion but it does make ext2fs freeze
+        <braunr> pinotree: http://darnassus.sceen.net/~rbraun/test_ftruncate.c
+        <pinotree> merci
+        <braunr> pinotree: ustr builds
+        <pinotree> wow
+        <braunr> the client code (ustr) seems to perform a ftruncate with size
+          ((size_t)-1) whereas lengths are signed ..
+        <braunr> i'll check other libraries and send a patch soon
+
+    IRC, freenode, #hurd, 2013-10-03:
+
+        <braunr> youpi: i've committed a fix to hurd that checks for negative sizes
+          when truncating files
+        <braunr> this allows building the ustr package without making ext2fs choke
+          on an assertion
+        <braunr> pinotree is preparing a patch for glibc
+        <braunr> see truncate/ftruncate
+        <braunr> with an off_t size parameter, which can be negative
+        <braunr>        EINVAL The argument length is negative or larger than the
+          maximum file size.
+        <braunr> hurd servers were not conforming to that before my change
+
   * Verify baseline changes, if we need any follow-up changes:
 
       * a11ec63713ea3903c482dc907a108be404191a02
