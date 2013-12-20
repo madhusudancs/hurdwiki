@@ -30,14 +30,14 @@ Here's what's to be done for maintaining glibc.
 <!--
 
 git checkout reviewed
-git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..sourceware/master
+git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -b -p -C --cc ..sourceware/master
 -i
 /^commit |^merge:|^---$|mach[^i]|hurd|linux|gs:|__assume
 
 -->
 
-Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
-(2013-05-24) sources|source_repositories/glibc]].
+Last reviewed up to the [[Git mirror's b0350db9747d602158377af3cf8ceb70764ea840
+(2013-08-30) sources|source_repositories/glibc]].
 
   * `t/hurdsig-fixes`
 
@@ -213,17 +213,20 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
     Many more are missing, some of which have been announced in `NEWS`, others
     typically haven't (like new flags to existing functions).  Typically,
     porters will notice missing functionaly.  But in case you're looking for
-    something to work on, here's a list.
+    something to work on, here's a bit of a commented list, otherwise go
+    looking in `/usr/include/i386-gnu/gnu/stubs.h` on a Debian GNU/Hurd system,
+    or the respective file from a fresh glibc build.
 
     `AT_EMPTY_PATH`, `CLOCK_BOOTTIME`, `CLOCK_BOOTTIME_ALARM`,
     `CLOCK_REALTIME_ALARM`, `O_PATH`,
     `PTRACE_*` (for example, cbff0d9689c4d68578b6a4f0a17807232506ea27,
-    b1b2aaf8eb9eed301ea8f65b96844568ca017f8b),
+    b1b2aaf8eb9eed301ea8f65b96844568ca017f8b,
+    521c6785e1fc94d1f501743e9a40af9e02797df3),
     `RLIMIT_RTTIME`, `SEEK_DATA` (`unistd.h`), `SEEK_HOLE` (`unistd.h`)
     `clock_adjtime`, `fallocate`, `fallocate64`, `name_to_handle_at`,
     `open_by_handle_at`, `process_vm_readv`, `process_vm_writev`,
     `setns`, `sync_file_range`, [[`mremap`|mremap]] and [[several
-    `MAP_*`|glibc/mmap]], `PTR_MANGLE`/`PTR_DEMANGLE` (`t/ptrmangle`)
+    `MAP_*`|glibc/mmap]]
 
     Check also the content of `gnu/stubs.h`, which lists all the functions
     marked as stub which only return `ENOSYS`.
@@ -1862,6 +1865,16 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
           type for some flock structure field)
         <youpi> s/by/be/
 
+  * `t/ptrmangle`: `PTR_MANGLE`/`PTR_DEMANGLE`
+
+      * <https://sourceware.org/glibc/wiki/PointerEncryption>
+
+      * See also [[t/tls|t/tls]].
+
+      * b7f2d27dbd85f6a0966dc389ad4f8205085b7ae8 `ARM: Add pointer encryption
+        support.` may help to find all the places that need to be touched when
+        adding support.
+
   * Verify baseline changes, if we need any follow-up changes:
 
       * a11ec63713ea3903c482dc907a108be404191a02
@@ -2047,7 +2060,6 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
         POSIX-generic sleep via nanosleep rather than SIGARLM.`: any benefit
         using that one (with `sysdeps/mach/nanosleep.c`) instead of
         `sysdeps/mach/sleep.c`?
-      * *baseline*
       * ea4d37b3169908615b7c17c9c506c6a6c16b3a26 -- IRC, freenode, #hurd,
         2012-11-20, pinotree: »tschwinge: i agree on your comments on
         ea4d37b3169908615b7c17c9c506c6a6c16b3a26, especially since mach's
@@ -2059,7 +2071,7 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
         destructors support`.  Anything needed to be done in our [[libpthread]]
         and configured for us in [[GCC]]?  Probably need to replicate the
         `nptl/pthread_create.c` change, and fix
-        `stdlib/Makefile`:`LDFLAGS-tst-tls-atexit`.
+        `stdlib/Makefile`:`$(objpfx)tst-tls-atexit`.
 
             +++ include/link.h
             @@ -302,6 +302,9 @@ struct link_map
@@ -2080,7 +2092,7 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
             +  __call_tls_dtors ();
             
             +++ stdlib/Makefile
-            +LDFLAGS-tst-tls-atexit = $(common-objpfx)nptl/libpthread.so \
+            +$(objpfx)tst-tls-atexit = $(common-objpfx)nptl/libpthread.so \
             +                        $(common-objpfx)dlfcn/libdl.so
             
             +++ stdlib/cxa_thread_atexit_impl.c
@@ -2099,7 +2111,6 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
             +gcc-4.7 tst-tls-atexit-lib.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-par
             +tst-tls-atexit-lib.c: In function 'do_foo':
             +tst-tls-atexit-lib.c:35:3: warning: implicit declaration of function '__cxa_thread_atexit_impl' [-Wimplicit-function-declaration]
-
       * a600e5cef53e10147932d910cdb2fdfc62afae4e `Consolidate Linux and POSIX
         libc_fatal code.` -- is `backtrace_and_maps` specific to Linux?
       * 288f7d79fe2dcc8e62c539f57b25d7662a2cd5ff `Use __ehdr_start, if
@@ -2110,6 +2121,38 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
         `phdrsz` members) from `hurd_startup_data`, and simplify
         [[hurd/interface/exec_startup_get_info]], or do we still require these
         for the `[SHARED]` case?
+      * fab7ce3f5b4060bf62659e8b58529de4156b5a2f `Link extra-libs consistently
+        with libc and ld.so.`  Alright for us?  Probably have to adjust
+        [libpthread]/Makefile.
+      * b8c61b4b1d6afb69190169764c1b141f4659e48b `Remove trailing whitespace
+        from mach/*.sub.`  Update `mach/Makefile`: generated
+        `mach/errsystems.c` is no longer checked in as of
+        66e3dda448406399136e6f144a1b46679d5b2613.  Rule had been disabled in
+        421f82e5cc8f81ab003247d771bcecbad799be85, then re-enabled in
+        8e3cc80f6d4f69ce003c82d3561ac324692792ad, but comment not removed.
+      * [low] 61dd6208fb1e59a423b6dfa712a3c896c34b2590 `New API to set default
+        thread attributes`.  Implement in libpthread ([[!taglink
+        open_issue_libpthread]])?
+      * [high] e4608715e6e1dd2adc91982fd151d5ba4f761d69 `CVE-2013-2207, BZ
+        #15755: Disable pt_chown. -- [[!message-id
+        "51E8D4C1.9000705@redhat.com"]]; do we need it (`--enable-pt_chown`)?
+      * 91ce40854d0b7f865cf5024ef95a8026b76096f3 `CVE-2013-4237, BZ #14699:
+        Buffer overflow in readdir_r` -- [[!message-id
+        "519220C7.6050705@redhat.com"]]; do we need corresponding changes to
+        Hurd sysdep files?
+      * 8cc3269f95fa7faa8f448d741f68cbc40efbf4ee `Flesh out 4.4 bits/socket.h
+        with SOCK_CLOEXEC, SOCK_NONBLOCK.`,
+        e041fb8b6557882b6710a655a97bbf3541b56b54 `Replace generic bits/socket.h
+        with 4.4 file.` -- `sysdeps/mach/hurd/bits/socket.h` differs from the
+        generic `bits/socket.h` now only in the values of
+        [[`SOCK_CLOEXEC`|secure_file_descriptor_handling]] and
+        `SOCK_NONBLOCK`.  If possible (no conflicts), would it make sense to
+        transition to the latter file, continuing to accept the former values
+        as deprecated for some time?
+      * [high] 6a97b62a5b4f18aea849d6f4d8de58d1469d2521 `Fix unsafe compiler
+        optimization` -- have to revert, see [[sourceware_PR 15605]].  For
+        analysis/fix also look at 384ca551743318bd9c9e24a496d6397f2e3f2a49.
+      * *baseline*
 
 
 ## Update
@@ -2122,14 +2165,9 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-83fed41a9ed81db6ca517185aefb296f74868c2f (2013-05-26;
-0323d08657f111267efa47bd448fbf6cd76befe8 (2013-05-24))
-plus 2b66ef5d55325b2957d6c62908ca065228e56814,
-ec9dd97cecafba5ddf5c3ec683db7ad5b4421923,
-07b4c13d0be4814ef10bbfbfd68db604978aa0e5,
-528c24058fb100fb27fe5c211b92be84c67a6659, `t/elfosabi_gnu` reverted,
-ec9dd97cecafba5ddf5c3ec683db7ad5b4421923 (again...),
-`id:"87bo7xo1ay.fsf@kepler.schwinge.homeip.net"`
+28777376b7b716631c5175991b5d8bb01fda35ce (2013-09-01;
+b0350db9747d602158377af3cf8ceb70764ea840 (2013-08-30))
+plus 6a97b62a5b4f18aea849d6f4d8de58d1469d2521 reverted
 sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -2138,8 +2176,8 @@ sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
     $ make install_root=/INVALID 2>&1 | tee log_build_
     [...]
 
-This takes up around 550 MiB, and needs roughly X min on kepler.SCHWINGE and
-100 min on coulomb.SCHWINGE.
+This takes up around 600 MiB, and needs roughly X min on kepler.SCHWINGE and
+105 min on coulomb.SCHWINGE.
 
 <!--
 
@@ -2153,47 +2191,6 @@ This takes up around 550 MiB, and needs roughly X min on kepler.SCHWINGE and
     $ toolchain/logs/process glibc build fetch coulomb.SCHWINGE
 
 TODO.
-
-  * With GCC >= 4.5, there's a ton of these warnings:
-
-        hurd/hurd.h: In function '__hurd_fail':
-        hurd/hurd.h:73: warning: case value '0' not in enumerated type 'error_t'
-
-    ... as well as a few individual instances:
-
-        hurdselect.c: In function '_hurd_select':
-        hurdselect.c:265: warning: case value '0' not in enumerated type 'error_t'
-        get-host.c: In function '_hurd_get_host_config':
-        get-host.c:38: warning: case value '0' not in enumerated type 'error_t'
-        hurdmsg.c: In function '_S_msg_get_init_ints':
-        hurdmsg.c:186: warning: case value '0' not in enumerated type 'error_t'
-        hurdmsg.c: In function '_S_msg_set_init_ints':
-        hurdmsg.c:273: warning: case value '0' not in enumerated type 'error_t'
-        intr-msg.c: In function '_hurd_intr_rpc_mach_msg':
-        intr-msg.c:363: warning: case value '0' not in enumerated type 'error_t'
-        sysdeps/mach/hurd/setitimer.c: In function 'timer_thread':
-        sysdeps/mach/hurd/setitimer.c:117: warning: case value '0' not in enumerated type 'error_t'
-        sysdeps/mach/hurd/wait4.c: In function '__wait4':
-        sysdeps/mach/hurd/wait4.c:40: warning: case value '0' not in enumerated type 'error_t'
-        sysdeps/mach/hurd/fork.c: In function '__fork':
-        sysdeps/mach/hurd/fork.c:423: warning: case value '0' not in enumerated type 'error_t'
-        sysdeps/mach/hurd/spawni.c: In function '__spawni':
-        sysdeps/mach/hurd/spawni.c:600: warning: case value '0' not in enumerated type 'error_t'
-        sysdeps/mach/hurd/setpriority.c: In function 'setonepriority':
-        sysdeps/mach/hurd/setpriority.c:66: warning: case value '0' not in enumerated type 'error_t'
-        sysdeps/mach/hurd/ioctl.c: In function 'send_rpc':
-        sysdeps/mach/hurd/ioctl.c:177: warning: case value '0' not in enumerated type 'error_t'
-        sysdeps/mach/hurd/ioctl.c: In function '__ioctl':
-        sysdeps/mach/hurd/ioctl.c:306: warning: case value '0' not in enumerated type 'error_t'
-
-    [[!message-id "20120723195143.7F8142C0B9@topped-with-meat.com"]].
-
-    IRC, freenode, #hurd, 2013-08-27:
-
-        < gnu_srs> Hi, is this fixed by now?
-        < gnu_srs> ../hurd/hurd.h:72:5: warning: case value ‘0’ not in
-          enumerated type ‘error_t’ [-Wswitch]
-        < pinotree> nope
 
   * baseline
     fd5bdc0924e0cfd1688b632068c1b26f3b0c88da..2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b
@@ -2273,7 +2270,7 @@ TODO.
     $ make -k install_root=/INVALID check fast-check=yes 2>&1 | tee log_test
     [...]
 
-This needs roughly X min on kepler.SCHWINGE and 160 min on coulomb.SCHWINGE.
+This needs roughly X min on kepler.SCHWINGE and 130 min on coulomb.SCHWINGE.
 
 Specifying `fast-check=yes` disables the `conformtest` which takes 1.75 h (out
 of 2.75 h total) on coulomb.SCHWINGE, doesn't pass anyway, and clearly isn't
@@ -2383,7 +2380,8 @@ Failures, mostly in order of appearance:
 
         dlopen failed: [...]/libc.so.0.3: version `GLIBC_2.13_DEBIAN_31' not found (required by [...]/libstdc++.so.6)
 
-  * `dlfcn/tststatic.out`, `dlfcn/tststatic2.out`
+  * `dlfcn/tststatic.out`, `dlfcn/tststatic2.out`, `dlfcn/tststatic3.out`,
+    `dlfcn/tststatic4.out`, `dlfcn/tststatic5.out`
 
     SIGSEGV.
 
@@ -2635,6 +2633,10 @@ Failures, mostly in order of appearance:
 
     SIGKILL.
 
+  * `elf/tst-null-argv.out`
+
+        Inconsistency detected by ld.so: ../sysdeps/mach/hurd/dl-sysdep.c: 338: open_file: Assertion `!(flags & ~(0x0001 | 0x00400000))' failed!
+
   * `elf/check-textrel.out`
 
         $BUILDDIR/libc.so.dyn: *** text relocations used
@@ -2653,7 +2655,10 @@ Failures, mostly in order of appearance:
     `/usr/include/hurd/*.h`.
 
   * `debug/tst-longjmp_chk2.out`, `debug/tst-longjmp_chk3.out`,
-    `debug/tst-longjmp_chk4.out`, `debug/tst-longjmp_chk5.out`
+    `debug/tst-longjmp_chk4.out`, `debug/tst-longjmp_chk5.out`,
+    `debug/tst-backtrace2.out`, `debug/tst-backtrace3.out`,
+    `debug/tst-backtrace4.out`, `debug/tst-backtrace5.out`
+    `debug/tst-backtrace6.out`
 
     All say: `Obtained backtrace with 0 functions`.
 
