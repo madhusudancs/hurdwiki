@@ -36,8 +36,8 @@ git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -b -p -C
 
 -->
 
-Last reviewed up to the [[Git mirror's b0350db9747d602158377af3cf8ceb70764ea840
-(2013-08-30) sources|source_repositories/glibc]].
+Last reviewed up to the [[Git mirror's 64a17f1adde4715bb6607f64decd73b2df9e6852
+(2013-12-19) sources|source_repositories/glibc]].
 
   * `t/hurdsig-fixes`
 
@@ -218,13 +218,15 @@ Last reviewed up to the [[Git mirror's b0350db9747d602158377af3cf8ceb70764ea840
     or the respective file from a fresh glibc build.
 
     `AT_EMPTY_PATH`, `CLOCK_BOOTTIME`, `CLOCK_BOOTTIME_ALARM`,
-    `CLOCK_REALTIME_ALARM`, `O_PATH`,
+    `CLOCK_REALTIME_ALARM`, `O_PATH`, `O_TMPFILE`
+    (ffdd31816a67f48697ea4d6b852e58d2886d42ca),
     `PTRACE_*` (for example, cbff0d9689c4d68578b6a4f0a17807232506ea27,
     b1b2aaf8eb9eed301ea8f65b96844568ca017f8b,
     521c6785e1fc94d1f501743e9a40af9e02797df3),
     `RLIMIT_RTTIME`, `SEEK_DATA` (`unistd.h`), `SEEK_HOLE` (`unistd.h`)
     `clock_adjtime`, `fallocate`, `fallocate64`, `name_to_handle_at`,
-    `open_by_handle_at`, `process_vm_readv`, `process_vm_writev`,
+    `open_by_handle_at`,
+    `posix_openpt`, `process_vm_readv`, `process_vm_writev`,
     `setns`, `sync_file_range`, [[`mremap`|mremap]] and [[several
     `MAP_*`|glibc/mmap]]
 
@@ -2136,6 +2138,7 @@ Last reviewed up to the [[Git mirror's b0350db9747d602158377af3cf8ceb70764ea840
       * [high] e4608715e6e1dd2adc91982fd151d5ba4f761d69 `CVE-2013-2207, BZ
         #15755: Disable pt_chown. -- [[!message-id
         "51E8D4C1.9000705@redhat.com"]]; do we need it (`--enable-pt_chown`)?
+	cdfc721b8d2d5079325ea9f0beb5673d72b4cdd0.
       * 91ce40854d0b7f865cf5024ef95a8026b76096f3 `CVE-2013-4237, BZ #14699:
         Buffer overflow in readdir_r` -- [[!message-id
         "519220C7.6050705@redhat.com"]]; do we need corresponding changes to
@@ -2152,6 +2155,22 @@ Last reviewed up to the [[Git mirror's b0350db9747d602158377af3cf8ceb70764ea840
       * [high] 6a97b62a5b4f18aea849d6f4d8de58d1469d2521 `Fix unsafe compiler
         optimization` -- have to revert, see [[sourceware_PR 15605]].  For
         analysis/fix also look at 384ca551743318bd9c9e24a496d6397f2e3f2a49.
+      * 6c82a2f8d7c8e21e39237225c819f182ae438db3 `Coordinate IPv6 definitions
+        for Linux and glibc` -- alright for us?
+      * c61b4d41c9647a54a329aa021341c0eb032b793e `POINTER_CHK_GUARD` -- see
+        [[t/tls|t/tls]].
+      * 5f855e3598a576c35e54623a13b256f3e87fcd4d `Fix erroneous (and circular)
+        implied pattern rule for linkobj/libc.so.` -- alright for us?
+      * [high] 7b7bab1391a3b16fff7e325e2c8a36b68eacba90 [Hurd] `Add fork hooks
+        for pthread_atfork` -- is that from a topic branch that can then be
+        annihilated?  Verify emails.  Verify no further changes in topic
+        branch.
+      * [high] 43d5c02c72bdaf59a8e0d4b06f2ae87e42269cbd `Fix build on hurd` --
+        is that from a topic branch that can then be annihilated?  Verify
+        emails.  Verify no further changes in topic branch.
+      * 69a17d9d245dc3551792e95e1823cc2d877592f3 `Patch [1/4] async-signal safe
+        TLS.` -- do we also need an implementation of this?  (Not yet called
+        from anywhere?)
       * *baseline*
 
 
@@ -2165,13 +2184,18 @@ Last reviewed up to the [[Git mirror's b0350db9747d602158377af3cf8ceb70764ea840
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-28777376b7b716631c5175991b5d8bb01fda35ce (2013-09-01;
-b0350db9747d602158377af3cf8ceb70764ea840 (2013-08-30))
-plus 6a97b62a5b4f18aea849d6f4d8de58d1469d2521 reverted
+f57644d0bdfc1ebe2201a677a33af27e09a5bab6 (2013-12-20;
+64a17f1adde4715bb6607f64decd73b2df9e6852 (2013-12-19))
+plus 6a97b62a5b4f18aea849d6f4d8de58d1469d2521 reverted,
+`id:"87zjnvn688.fsf@kepler.schwinge.homeip.net"`,
+`id:"87ioujn0eq.fsf@kepler.schwinge.homeip.net"`,
+1226676cd6f6f4451e6e6b75b8fbd9a35c949e8e reverted,
+56798c444bc584c118b69a3506c4050b34edc35f reverted,
+`id:"878uvfmwvs.fsf@kepler.schwinge.homeip.net"`
 sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
     $ export LC_ALL=C
-    $ ../Roger_Whittaker/configure AUTOCONF=: --prefix=/usr --disable-profile --disable-multi-arch --build=i486-gnu --host=i486-gnu CC=gcc-4.7 CXX=g++-4.7 2>&1 | tee log_build
+    $ ../Roger_Whittaker/configure --prefix=/usr --disable-profile --disable-multi-arch --build=i486-gnu --host=i486-gnu CC=gcc-4.7 CXX=g++-4.7 2>&1 | tee log_build
     [...]
     $ make install_root=/INVALID 2>&1 | tee log_build_
     [...]
@@ -2516,6 +2540,10 @@ Failures, mostly in order of appearance:
         [...]/nss/nss_test1.c:60: undefined reference to `pthread_mutex_lock'
         [...]/nss/nss_test1.c:85: undefined reference to `pthread_mutex_unlock'
 
+  * `rt/tst-shm.out`
+
+        read file outside of SHMDIR directory: (os/kern) successful
+
   * `rt/tst-timer.out`
 
     No message.
@@ -2613,6 +2641,10 @@ Failures, mostly in order of appearance:
     `grantpt` (actually `ptsname_r`), does not fail with `ENOTTY` when the `fd`
     does not refer to a PTY master.
 
+  * `elf/tst-auxv.out`
+
+    SIGSEGV.
+
   * `elf/tst-stackguard1-static.out`, `elf/tst-stackguard1.out`
 
         differences 0 defaults 0
@@ -2620,6 +2652,17 @@ Failures, mostly in order of appearance:
         nor equal to the default canary value
 
     Sometimes times out.
+
+  * `elf/tst-ptrguard1-static.o`, `elf/tst-ptrguard1.o`
+
+        In file included from tst-ptrguard1-static.c:1:0:
+        tst-ptrguard1.c: In function 'con':
+        tst-ptrguard1.c:42:24: error: 'tcbhead_t' has no member named 'pointer_guard'
+        tst-ptrguard1.c: In function 'do_test':
+        tst-ptrguard1.c:65:29: error: 'tcbhead_t' has no member named 'pointer_guard'
+        tst-ptrguard1.c:104:30: error: 'tcbhead_t' has no member named 'pointer_guard'
+
+    See [[t/tls|t/tls]].
 
   * `elf/tst-tls9-static.out`
 
