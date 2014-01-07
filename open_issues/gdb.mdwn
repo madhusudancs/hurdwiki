@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012, 2013 Free Software
-Foundation, Inc."]]
+[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012, 2013, 2014 Free
+Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -78,8 +78,9 @@ Last reviewed up to the [[Git mirror's d19fd090b7ec0a60846c52cad9fc0c24c3729565
 
 Here's a log of a GDB build run; this is from our [[Git
 repository|source_repositories/gdb]]'s `tschwinge/Ferry_Tagscherer` branch,
-commit d19fd090b7ec0a60846c52cad9fc0c24c3729565 (2013-09-18), run on
-kepler.SCHWINGE and coulomb.SCHWINGE.
+commit d19fd090b7ec0a60846c52cad9fc0c24c3729565 (2013-09-18) plus
+`id:"87vbxxhww4.fsf@kepler.schwinge.homeip.net"`, run on kepler.SCHWINGE and
+coulomb.SCHWINGE.
 
     $ export LC_ALL=C
     $ ../Ferry_Tagscherer/configure --prefix="$PWD".install SHELL=/bin/dash CC=gcc-4.8 CXX=g++-4.8 --disable-werror 2>&1 | tee log_build
@@ -242,6 +243,117 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
     Is only run for GNU/Linux; needs [[prelink]].
 
   * Disabled
+
+      * `gdb.base/interrupt.exp`
+
+             PASS: gdb.base/interrupt.exp: child process is alive
+             a
+             a
+             PASS: gdb.base/interrupt.exp: child process ate our char
+             ^C
+             Program received signal SIGINT, Interrupt.
+            -0x010bf5a2 in _hurd_intr_rpc_mach_msg () from /lib/i386-gnu/libc.so.0.3
+            +0x010bdb09 in _hurd_intr_rpc_mach_msg () from /lib/i386-gnu/libc.so.0.3
+             (gdb) PASS: gdb.base/interrupt.exp: send_gdb control C
+             p func1 ()
+             
+             Program received signal SIGTRAP, Trace/breakpoint trap.
+            -0x010bf5a2 in _hurd_intr_rpc_mach_msg () from /lib/i386-gnu/libc.so.0.3
+            +0x010bdb09 in _hurd_intr_rpc_mach_msg () from /lib/i386-gnu/libc.so.0.3
+             The program being debugged was signaled while in a function called from GDB.
+             GDB remains in the frame where the signal was received.
+             To change this behavior use "set unwindonsignal on".
+             Evaluation of the expression containing the function
+             (func1) will be abandoned.
+             When the function is done executing, GDB will silently stop.
+             (gdb) FAIL: gdb.base/interrupt.exp: call function when asleep (wrong output)
+             p func1 ()
+             
+             Program received signal SIGTRAP, Trace/breakpoint trap.
+            -0x010bf5a2 in _hurd_intr_rpc_mach_msg () from /lib/i386-gnu/libc.so.0.3
+            +0x010bdb09 in _hurd_intr_rpc_mach_msg () from /lib/i386-gnu/libc.so.0.3
+             The program being debugged was signaled while in a function called from GDB.
+             GDB remains in the frame where the signal was received.
+             To change this behavior use "set unwindonsignal on".
+             Evaluation of the expression containing the function
+             (func1) will be abandoned.
+             When the function is done executing, GDB will silently stop.
+             (gdb) FAIL: gdb.base/interrupt.exp: call function a second time
+             continue
+             Continuing.
+            -PASS: gdb.base/interrupt.exp: continue
+            +
+            +Program received signal SIGSEGV, Segmentation fault.
+            +0x010bdb09 in _hurd_intr_rpc_mach_msg () from /lib/i386-gnu/libc.so.0.3
+            +(gdb) FAIL: gdb.base/interrupt.exp: continue
+             data
+             PASS: gdb.base/interrupt.exp: echo data
+             ^C(gdb) Quit
+             (gdb) FAIL: gdb.base/interrupt.exp: Send Control-C, second time
+             signal SIGINT
+             Continuing with signal SIGINT.
+             PASS: gdb.base/interrupt.exp: signal SIGINT
+             more data
+             PASS: gdb.base/interrupt.exp: echo more data
+             
+             Program received signal SIGSEGV, Segmentation fault.
+            -0x010bf6c8 in _hurd_intr_rpc_mach_msg () from /lib/i386-gnu/libc.so.0.3
+            +0x010bdc9d in _hurd_intr_rpc_mach_msg () from /lib/i386-gnu/libc.so.0.3
+             (gdb) more data
+             Undefined command: "more".  Try "help".
+             (gdb) FAIL: gdb.base/interrupt.exp: send end of file
+            -testcase ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/interrupt.exp completed in 6 seconds
+            +[hangs]
+
+             7939 1000  6817  7939  7939  2  144M 8.92M 93.8  5:29.23    10hrs /media/erich/home/thomas/tmp/gdb/tschwinge/Ferry_Tagscherer.build/gdb/testsuite/../../gdb/gdb -nw -nx -data-directory /media/erich/home/thomas/tmp/gdb/tschwinge/Ferry_Tagscherer.build/gdb/testsuite/../data-directory
+             7944 1000  7939  7944  7939  2  146M  744K  0.0  0:00.00  0:00.01 /media/erich/home/thomas/tmp/gdb/tschwinge/Ferry_Tagscherer.build/gdb/testsuite/gdb.base/interrupt
+
+            $ gdb/gdb -q gdb/gdb 7939
+            Reading symbols from /media/erich/home/thomas/tmp/gdb/tschwinge/Ferry_Tagscherer.build/gdb/gdb...done.
+            Attaching to program `/media/erich/home/thomas/tmp/gdb/tschwinge/Ferry_Tagscherer.build/gdb/gdb', pid 7939
+            [New Thread 7939.1]
+            [New Thread 7939.2]
+            
+            warning: Can't modify tracing state for pid 7939: (ipc/rcv) timed out
+            Reading symbols [...]
+            (gdb) thread apply all bt full
+            
+            Thread 2 (Thread 7939.2):
+            #0  0x014949cc in swtch_pri () from /lib/i386-gnu/libc.so.0.3
+            No symbol table info available.
+            #1  0x01496354 in __spin_lock_solid () from /lib/i386-gnu/libc.so.0.3
+            No symbol table info available.
+            #2  0x014aa677 in _hurd_sigstate_lock () from /lib/i386-gnu/libc.so.0.3
+            No symbol table info available.
+            #3  0x014acbfb in ?? () from /lib/i386-gnu/libc.so.0.3
+            No symbol table info available.
+            #4  0x014ae29e in ?? () from /lib/i386-gnu/libc.so.0.3
+            No symbol table info available.
+            #5  0x014af98f in _S_catch_exception_raise () from /lib/i386-gnu/libc.so.0.3
+            No symbol table info available.
+            #6  0x016442c2 in ?? () from /lib/i386-gnu/libmachuser.so.1
+            No symbol table info available.
+            #7  0x01644344 in _S_exc_server () from /lib/i386-gnu/libmachuser.so.1
+            No symbol table info available.
+            #8  0x014a58ec in ?? () from /lib/i386-gnu/libc.so.0.3
+            No symbol table info available.
+            #9  0x01495898 in mach_msg_server_timeout () from /lib/i386-gnu/libc.so.0.3
+            No symbol table info available.
+            #10 0x014959cb in mach_msg_server () from /lib/i386-gnu/libc.so.0.3
+            No symbol table info available.
+            #11 0x014a597d in ?? () from /lib/i386-gnu/libc.so.0.3
+            No symbol table info available.
+            #12 0x010f7956 in entry_point () from /lib/i386-gnu/libpthread.so.0.3
+            No symbol table info available.
+            #13 0x00000000 in ?? ()
+            No symbol table info available.
+            
+            Thread 1 (Thread 7939.1):
+            #0  0x014d33eb in sigreturn () from /lib/i386-gnu/libc.so.0.3
+            No symbol table info available.
+            #1  0x014aef46 in ?? () from /lib/i386-gnu/libc.so.0.3
+            No symbol table info available.
+            Backtrace stopped: previous frame inner to this frame (corrupt stack?)
 
       * `gdb.base/readline.exp`
 
@@ -528,22 +640,6 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
 
     TODO.
 
-  * `gdb.python/python.exp`
-
-        >PASS: gdb.python/python.exp: post event insertion - gdb.post_event(Foo())
-        end
-        ERROR: Process no longer exists
-        UNRESOLVED: gdb.python/python.exp: post event insertion - end
-
-    This is apparently new with the glibc 2.17 upgrade.  Previously it said:
-
-        >PASS: gdb.python/python.exp: post event insertion - gdb.post_event(Foo())
-        end
-        (gdb) PASS: gdb.python/python.exp: post event insertion - end
-        [More PASSes.]
-
-    TODO.
-
   * `gdb.base/restore.exp`, `gdb.base/store.exp`
 
     Several FAILs, starting with GCC 4.8 usage:
@@ -557,6 +653,14 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
     "20130126202645.GA4888@host2.jankratochvil.net"]], and maybe [[!message-id
     "CAO2gOZXvCLdaKE2=ZKpjGVGq8A0wQ94-AUo7eKvvWHWncrU_yg@mail.gmail.com"]] look
     related.
+
+  * `gdb.base/default.exp`
+
+        shell echo Hi dad!
+        bash: relocation error: /lib/i386-gnu/libdl.so.2: symbol __libc_lock_self, version GLIBC_PRIVATE not defined in file libc.so.0.3 with link time reference
+        (gdb) FAIL: gdb.base/default.exp: shell echo Hi dad!
+
+    TODO.
 
 TODO.
 
