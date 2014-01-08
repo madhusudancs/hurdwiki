@@ -9,18 +9,13 @@ project=$1
 [ $# = 0 ] || shift
 build_suffix=.build
 case $project in
-  binutils)
-    branch=tschwinge/Paul_Desmond
+  binutils-gdb)
+    branch=tschwinge/W._C._Handy
     linux_host=kepler.SCHWINGE
     hurd_host=coulomb.SCHWINGE
     ;;
   gcc)
     branch=hurd/master
-    linux_host=kepler.SCHWINGE
-    hurd_host=coulomb.SCHWINGE
-    ;;
-  gdb)
-    branch=tschwinge/Ferry_Tagscherer
     linux_host=kepler.SCHWINGE
     hurd_host=coulomb.SCHWINGE
     ;;
@@ -76,7 +71,7 @@ case $action in
 esac
 
 case $project:$action in
-  binutils:fetch | gcc:fetch | gdb:fetch | glibc:fetch | llvm:fetch)
+  binutils-gdb:fetch | gcc:fetch | glibc:fetch | llvm:fetch)
     host=$1
     [ $# = 0 ] || shift
     case $host in
@@ -111,9 +106,8 @@ case $project:$action in
     : "${project_base:?}"
     # Log files.
     case $project:$step in
-      binutils:build | binutils:install | binutils:test \
+      binutils-gdb:build | binutils-gdb:install | binutils-gdb:test \
       | gcc:build | gcc:install | gcc:test \
-      | gdb:build | gdb:install | gdb:test \
       | glibc:build | glibc:install | glibc:test \
       | llvm:build | llvm:install | llvm:test)
         ssh \
@@ -135,16 +129,14 @@ case $project:$action in
     esac
     # Detailed log files.
     case $project:$step in
-      binutils:build | binutils:install \
+      binutils-gdb:build | binutils-gdb:install \
       | gcc:build | gcc:install \
-      | gdb:build | gdb:install \
       | glibc:build | glibc:install | glibc:test \
       | llvm:build | llvm:install | llvm:test)
         :
         ;;
-      binutils:test \
-      | gcc:test \
-      | gdb:test)
+      binutils-gdb:test \
+      | gcc:test)
         # First, create a temporary directory, where the *.sum files are copied
         # into, and then individually filtered through sed.
         ssh \
@@ -159,6 +151,13 @@ case $project:$action in
             find '"$branch$build_suffix"'.sums/ -type f \
               -exec sed -e "s%\('"$mount"'\)\?${PWD}%[...]%g" -i \{\} \;'
         case $project in
+          binutils-gdb)
+            # Remove the GDB summary file; we got the individual ones.
+            ssh \
+              "$host" \
+                'cd '"$project_base"'/'"$branch$build_suffix"'.sums/ && \
+                rm -f gdb/testsuite/gdb.sum'
+            ;;
           gcc)
             # Rename host-specific directory to a generic name.
             # This is probably not the most beautiful solution.
@@ -179,13 +178,6 @@ case $project:$action in
                 'cd '"$project_base"'/'"$branch$build_suffix"'.sums/ && \
                 if test -d '"$arch"'; then mv '"$arch"' [ARCH]; fi'
             ;;
-          gdb)
-            # Remove the summary file; we got the individual ones.
-            ssh \
-              "$host" \
-                'cd '"$project_base"'/'"$branch$build_suffix"'.sums/ && \
-                rm -f gdb/testsuite/gdb.sum'
-            ;;
         esac
         rsync \
           -vr --delete \
@@ -199,15 +191,14 @@ case $project:$action in
     esac
     exit
     ;;
-  binutils:diff | gcc:diff | gdb:diff | llvm:diff)
+  binutils-gdb:diff | gcc:diff | llvm:diff)
     [ $# = 0 ]
 
     : "${linux_host:?}"
     : "${hurd_host:?}"
     case $project:$step in
-      binutils:build | binutils:install | binutils:test \
+      binutils-gdb:build | binutils-gdb:install | binutils-gdb:test \
       | gcc:build | gcc:install | gcc:test \
-      | gdb:build | gdb:install | gdb:test \
       | llvm:build | llvm:install | llvm:test)
         sed \
           -f toolchain/logs/"$project"/"$linux_host"/log_"$step".diff.sed \
@@ -236,15 +227,13 @@ case $project:$action in
         ;;
     esac
     case $project:$step in
-      binutils:build | binutils:install \
+      binutils-gdb:build | binutils-gdb:install \
       | gcc:build | gcc:install \
-      | gdb:build | gdb:install \
       | llvm:build | llvm:install | llvm:test)
         :
         ;;
-      binutils:test \
-      | gcc:test\
-      | gdb:test)
+      binutils-gdb:test \
+      | gcc:test)
         r=0
         git diff --no-index \
           --ignore-space-change --patience \
