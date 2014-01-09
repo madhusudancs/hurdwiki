@@ -47,8 +47,8 @@ git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefi
 
 -->
 
-Last reviewed up to Git commit 95e4302a8f872b3f68c4cf5af774ca1bde9d2c1a
-(2013-10-21).
+Last reviewed up to Git commit 9939e1314f970c6ba568956148a518ac710a280a
+(2014-01-08).
 
   * Globally
 
@@ -116,6 +116,9 @@ Last reviewed up to Git commit 95e4302a8f872b3f68c4cf5af774ca1bde9d2c1a
 
       * [[gdb/gdbserver]]
 
+      * In `gdb/gnu-nat.c:gnu_wait`, we don't implement
+        `gdb/target/wait.h:TARGET_WNOHANG`.  What is this needed for?
+
   * `libdecnumber/`
 
     Should/can probably align to GNU/Linux.
@@ -151,26 +154,22 @@ Last reviewed up to Git commit 95e4302a8f872b3f68c4cf5af774ca1bde9d2c1a
   * Configure so that Debian system's `/usr/lib/debug/[...]` will be loaded
     automatically.
 
-  * old-style function definition
+      * [[!message-id "m3ei24vh4l.fsf@fleche.redhat.com"]]
 
-        ../../Ferry_Tagscherer/gdb/gnu-nat.c: In function 'trace_me':
-        ../../Ferry_Tagscherer/gdb/gnu-nat.c:2106:8: warning: old-style function definition [-Wold-style-definition]
-           void trace_me ()
-                ^
+  * [low] c26e9cbb0ce70e8fca32a40c434a0837bf46750a,
+    `gdb/gnu-nat.c:set_exceptions_cmd`, `Make this take effect immediately in a
+    running process`.
+
+  * [low] b27caf75c311991772b316fe7c0eecfd5788eeaf, ld, `Add HOSTING_SLIBS and
+    use it for -pie`.  For us, too?
 
 
 # Build
 
 Here's a log of a binutils-gdb build run; this is from Git commit
-95e4302a8f872b3f68c4cf5af774ca1bde9d2c1a (2013-10-21) plus
-36cff971e29987ed61e86891c77d28158c20b090,
-a903d6ac5a79c1fb390b9b833c891c0544502cfe,
-ae6da67e35733eb8be443ae46ca9a24f8037a75d,
-9548bbede51868a9a780d7d21ae16ac13e8bdf9b,
-eec6550343414e9ebf12885533609c1ba9b397f1,
-689a1abf0dba1f5353039a5625411c6c41098d3a,
-8467a2fd5569f7345c025ca94467f50cd329560d, and
-`id:"87vbxxhww4.fsf@kepler.schwinge.homeip.net"`, run on
+9939e1314f970c6ba568956148a518ac710a280a (2014-01-08) plus
+[[!message-id "87vbxxhww4.fsf@kepler.schwinge.homeip.net"]], and
+[[!message-id "8738kyi30l.fsf@kepler.schwinge.homeip.net"]], run on
 kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -192,7 +191,7 @@ This takes up around 1.3 GiB, and needs roughly 17 min on kepler.SCHWINGE and
 
 <!--
 
-    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && make -k check 2>&1 | tee log_test
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && mkdir -p gdb/testsuite/gdb.gdb && make -k check 2>&1 | tee log_test
 
 -->
 
@@ -246,15 +245,6 @@ formats, and more emulation vectors.
 
     `-Wmissing-prototypes`
 
-        gnu-nat.c: At top level:
-        gnu-nat.c:643:1: warning: no previous prototype for 'make_inf' []
-        gnu-nat.c: At top level:
-        gnu-nat.c:879:1: warning: no previous prototype for 'inf_set_traced' []
-        gnu-nat.c:980:1: warning: no previous prototype for 'inf_port_to_thread' []
-        gnu-nat.c: At top level:
-        gnu-nat.c:1748:1: warning: no previous prototype for 'inf_task_died_status' []
-        gnu-nat.c: At top level:
-        gnu-nat.c:3415:1: warning: no previous prototype for '_initialize_gnu_nat' []
         notify_S.c:305:24: warning: no previous prototype for 'notify_server' []
         notify_S.c:341:28: warning: no previous prototype for 'notify_server_routine' []
         process_reply_S.c:343:24: warning: no previous prototype for 'process_reply_server' []
@@ -274,15 +264,6 @@ formats, and more emulation vectors.
 
     [[!taglink open_issue_glibc]]?
 
-  * 00e1c4298d2b6fe040a9a970e98349602b12ddbf..6b25dae901ddedb3f330803542d3eac73cdcae4b:
-
-        +../../Ferry_Tagscherer/gdb/gnu-nat.c: In function 'info_port_rights':
-        +../../Ferry_Tagscherer/gdb/gnu-nat.c:3058:11: warning: passing argument 1 of 'parse_to_comma_and_eval' from incompatible pointer type [enabled by default]
-        +In file included from ../../Ferry_Tagscherer/gdb/breakpoint.h:23:0,
-        +                 from ../../Ferry_Tagscherer/gdb/inferior.h:37,
-        +                 from ../../Ferry_Tagscherer/gdb/gnu-nat.c:56:
-        +../../Ferry_Tagscherer/gdb/value.h:729:22: note: expected 'const char **' but argument is of type 'char **'
-
 
 # Install
 
@@ -301,6 +282,22 @@ min on coulomb.SCHWINGE.
 
 
 # Testsuite
+
+Some change in
+95e4302a8f872b3f68c4cf5af774ca1bde9d2c1a..b7bba0015567c096541d62f2637b9818b1634a59
+causes all gdb.gdb tests to regress from PASS to ERROR:
+
+     Running [...]/gdb/testsuite/gdb.gdb/complaints.exp ...
+    -PASS: gdb.gdb/complaints.exp: breakpoint in captured_command_loop
+    -[...]
+    +ERROR: remote_download to host of [...]/gdb/testsuite/../../gdb/gdb to [...]/gdb/testsuite/gdb.gdb/xgdb: cp: cannot create regular file '[...]/gdb/testsuite/gdb.gdb/xgdb': No such file or directory
+    +ERROR: Couldn't load  into [...]/gdb/testsuite/../../gdb/gdb.
+    +WARNING: Couldn't test self
+
+The gdb/testsuite/gdb.gdb directory does not exist/is no longer created; create
+it manually:
+
+    $ mkdir -p gdb/testsuite/gdb.gdb
 
     $ make -k check 2>&1 | tee log_test
     [...]
@@ -333,6 +330,8 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
     in `ld/configure.host`.  Perhaps we should finally rewrite this messy code
     in glibc?  Or, something similar to commit
     49cc20aa5c416ea4307931cccf6353247368187d `Add HOSTING_SCRT0 for PIE test`
+    or commit b27caf75c311991772b316fe7c0eecfd5788eeaf `Add HOSTING_SLIBS and
+    use it for -pie`
     can be used.
 
     Same issue for `FAIL: Common symbol override ifunc *` ones?
@@ -874,51 +873,10 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
 
     TODO.
 
-  * `gdb.pascal`
+  * `gdb.arch/i386-prologue.exp`
 
-    Both on coulomb.SCHWINGE and kepler.SCHWINGE:
-
-         Running ../../../Ferry_Tagscherer/gdb/testsuite/gdb.pascal/print.exp ...
-         PASS: gdb.pascal/print.exp: set language pascal
-         PASS: gdb.pascal/print.exp: set language to "pascal"
-        -PASS: gdb.pascal/print.exp: check fp + text
-        -PASS: gdb.pascal/print.exp: p 1.
-        -PASS: gdb.pascal/print.exp: p 1.5
-        -PASS: gdb.pascal/print.exp: p 1.f
-        -PASS: gdb.pascal/print.exp: p 1.5f
-        -PASS: gdb.pascal/print.exp: p 1.l
-        -PASS: gdb.pascal/print.exp: p 1.5l
-        -PASS: gdb.pascal/print.exp: p 0x1.1
-        +FAIL: gdb.pascal/print.exp: check fp + text
-        +FAIL: gdb.pascal/print.exp: p 1.
-        +FAIL: gdb.pascal/print.exp: p 1.5
-        +FAIL: gdb.pascal/print.exp: p 1.f
-        +FAIL: gdb.pascal/print.exp: p 1.5f
-        +FAIL: gdb.pascal/print.exp: p 1.l
-        +FAIL: gdb.pascal/print.exp: p 1.5l
-        +FAIL: gdb.pascal/print.exp: p 0x1.1
-         PASS: gdb.pascal/print.exp: reject p 1.1x
-         PASS: gdb.pascal/print.exp: reject p 1.1ff
-         PASS: gdb.pascal/print.exp: reject p 1.1ll
-         Running ../../../Ferry_Tagscherer/gdb/testsuite/gdb.pascal/types.exp ...
-         PASS: gdb.pascal/types.exp: set language pascal
-         PASS: gdb.pascal/types.exp: set language to "pascal"
-        -PASS: gdb.pascal/types.exp: pt 123
-        +FAIL: gdb.pascal/types.exp: pt 123
-         PASS: gdb.pascal/types.exp: pt TRUE
-         PASS: gdb.pascal/types.exp: pt FALSE
-         PASS: gdb.pascal/types.exp: pt 'a'
-         KFAIL: gdb.pascal/types.exp: pt 'a simple string' (PRMS: gdb/2326)
-        -PASS: gdb.pascal/types.exp: pt .44
-        -PASS: gdb.pascal/types.exp: pt 44.0
-        -PASS: gdb.pascal/types.exp: pt 10e20
-        -PASS: gdb.pascal/types.exp: pt 10E20
-        +FAIL: gdb.pascal/types.exp: pt .44
-        +FAIL: gdb.pascal/types.exp: pt 44.0
-        +FAIL: gdb.pascal/types.exp: pt 10e20
-        +FAIL: gdb.pascal/types.exp: pt 10E20
-
-    TODO.
+    On coulomb.SCHWINGE, there are several FAILs, where there are, for example,
+    unexpected frames showing up in backtraces.  TODO.
 
 TODO.
 
