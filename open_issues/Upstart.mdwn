@@ -1,0 +1,61 @@
+[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+Upstart is an event based init system that is GPL licensed, however upstream
+contributions are under a CLA that permits proprietary relicensing.
+
+As of Jan 2 2013, Debian is considering adopting Upstart as an init system on
+GNU/Linux, and on GNU/kFreeBSD when the port to kFreeBSD is finished.
+
+The following are the words of Colin Watson on the debian-ctte@lists.debian.org
+mailing list and list the requirements of a potential HURD port:
+
+>I haven't looked at this in much detail, and I suspect Dimitri hasn't
+yet although IIRC he did express some interest in doing so.  But I
+haven't seen anyone else try to outline the scope of a port, so let me
+try to do so for the sake of general understanding.  As far as I know,
+the hardest parts would be inotify, ptrace, and prctl
+(PR_SET_CHILD_SUBREAPER).
+
+>inotify is used to notice changes to configuration files.  This is
+certainly helpful for users, but it isn't critical as "initctl
+reload-configuration" works without it.  We could probably do without
+this with the aid of a dpkg trigger.
+
+>ptrace is used for "expect fork" and "expect daemon"; as I indicated in
+another post, I think it would be preferable to avoid these in Debian
+and quite possibly to compile them out.  (This would mean we wouldn't be
+able to translate Ubuntu jobs quite as directly, and a number of
+important jobs would definitely need to be changed, but the conversion
+isn't usually particularly difficult.)
+
+>prctl (PR_SET_CHILD_SUBREAPER) is used to make SIGCHLD notification work
+properly when Upstart is supervising a user session.  This isn't a
+required feature and could easily be compiled out until suitable kernel
+support is available (this actually seems like the sort of thing that
+could be done in the Hurd without too much difficulty, but I haven't
+looked into it).  If absent, it might well impede the ability to do an
+advanced desktop port, but it wouldn't get in the way of porting the
+bulk of services.
+
+>There might also be odds and ends around the details of wait status
+handling.
+
+inotify seems to be a feature that is often used in GNU/Linux programs, and
+implementing the feature in the HURD seems like a better and more rewarding
+option than porting the code in Upstart.
+
+Although many daemons double fork, that behavior seems to be dying out, and
+one can comfortably ignore the "expect fork/daemon" functionality of Upstart
+(and compile it out).
+
+[[!inline pages=tag raw=yes feeds=no]]
+
+[[!tag open_issue_porting]]
