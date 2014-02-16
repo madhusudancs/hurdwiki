@@ -47,8 +47,8 @@ git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefi
 
 -->
 
-Last reviewed up to Git commit 9939e1314f970c6ba568956148a518ac710a280a
-(2014-01-08).
+Last reviewed up to Git commit c2853f3d99797a321c37948297441ca6021f719a
+(2014-02-14).
 
   * Globally
 
@@ -167,9 +167,12 @@ Last reviewed up to Git commit 9939e1314f970c6ba568956148a518ac710a280a
 # Build
 
 Here's a log of a binutils-gdb build run; this is from Git commit
-9939e1314f970c6ba568956148a518ac710a280a (2014-01-08) plus
-[[!message-id "87vbxxhww4.fsf@kepler.schwinge.homeip.net"]], and
-[[!message-id "8738kyi30l.fsf@kepler.schwinge.homeip.net"]], run on
+c2853f3d99797a321c37948297441ca6021f719a (2014-02-14) plus
+[[!message-id "87vbxxhww4.fsf@kepler.schwinge.homeip.net"]],
+[[!message-id "8738kyi30l.fsf@kepler.schwinge.homeip.net"]],
+[[!message-id "8761ofv62k.fsf@kepler.schwinge.homeip.net"]],
+[[!message-id "1391759958-972-2-git-send-email-yao@codesourcery.com"]],
+[[!message-id "1391759958-972-3-git-send-email-yao@codesourcery.com"]], run on
 kepler.SCHWINGE and coulomb.SCHWINGE.
 
     $ export LC_ALL=C
@@ -187,11 +190,11 @@ MIG-generated stub files; thus no `-Werror` until that is resolved
 ([[strict_aliasing]]).
 
 This takes up around 1.3 GiB, and needs roughly 17 min on kepler.SCHWINGE and
-78 min on coulomb.SCHWINGE.
+79 min on coulomb.SCHWINGE.
 
 <!--
 
-    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && mkdir -p gdb/testsuite/gdb.gdb && make -k check 2>&1 | tee log_test
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && make -k check 2>&1 | tee log_test
 
 -->
 
@@ -283,26 +286,10 @@ min on coulomb.SCHWINGE.
 
 # Testsuite
 
-Some change in
-95e4302a8f872b3f68c4cf5af774ca1bde9d2c1a..b7bba0015567c096541d62f2637b9818b1634a59
-causes all gdb.gdb tests to regress from PASS to ERROR:
-
-     Running [...]/gdb/testsuite/gdb.gdb/complaints.exp ...
-    -PASS: gdb.gdb/complaints.exp: breakpoint in captured_command_loop
-    -[...]
-    +ERROR: remote_download to host of [...]/gdb/testsuite/../../gdb/gdb to [...]/gdb/testsuite/gdb.gdb/xgdb: cp: cannot create regular file '[...]/gdb/testsuite/gdb.gdb/xgdb': No such file or directory
-    +ERROR: Couldn't load  into [...]/gdb/testsuite/../../gdb/gdb.
-    +WARNING: Couldn't test self
-
-The gdb/testsuite/gdb.gdb directory does not exist/is no longer created; create
-it manually:
-
-    $ mkdir -p gdb/testsuite/gdb.gdb
-
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This needs roughly 17 min on kepler.SCHWINGE and 120 min on coulomb.SCHWINGE.
+This needs roughly 20 min on kepler.SCHWINGE and 140 min on coulomb.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
 the `tee` process does not terminate if there are still stray leftover
@@ -342,14 +329,6 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
     successfully ([[I/O system
     weakness|performance/io_system/binutils_ld_64ksec]]), so assuming some
     system load variation, the testsuite's timeout may trigger.
-
-  * <a name="weak"><!-- stable_URL -->`FAIL: ELF weak [...]`</a>
-
-    [[I|tschwinge]] suppose this is due to us having an override w.r.t. weak
-    symbol handling in glibc, needed for our external [[/libpthread]].  TODO:
-    document properly.
-    This has now been fixed (thus, we now get XPASSes), and the XFAILs can be
-    removed.
 
   * `FAIL: gas/i386/rept` (intermittently)
 
@@ -875,8 +854,69 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
 
   * `gdb.arch/i386-prologue.exp`
 
-    On coulomb.SCHWINGE, there are several FAILs, where there are, for example,
-    unexpected frames showing up in backtraces.  TODO.
+    There are several FAILs, where there are unexpected frames showing up in
+    backtraces, for example.  Earlier on, these just FAILed on
+    coulomb.SCHWINGE; since
+    9939e1314f970c6ba568956148a518ac710a280a..c2853f3d99797a321c37948297441ca6021f719a
+    on kepler.SCHWINGE, too.  TODO.
+
+  * [[libgc|boehm_gc]] `GC_find_limit_with_bound` SIGSEGVs
+
+    On coulomb.SCHWINGE, in
+    9939e1314f970c6ba568956148a518ac710a280a..c2853f3d99797a321c37948297441ca6021f719a
+    several PASSes regressed to FAILs:
+
+        Starting program: [...]/gdb/testsuite/gdb.gdb/xgdb -nw -nx -data-directory [...]/gdb/testsuite/../data-directory
+        [New Thread 13417.5]
+        
+        Program received signal SIGSEGV, Segmentation fault.
+        0x0126b961 in GC_find_limit_with_bound () from /usr/lib/i386-gnu/libgc.so.1
+        (gdb) FAIL: gdb.gdb/complaints.exp: run until breakpoint at captured_command_loop
+        WARNING: Couldn't test self
+
+        Starting program: [...]/gdb/testsuite/gdb.gdb/xgdb -nw -nx -data-directory [...]/gdb/testsuite/../data-directory
+        [New Thread 13448.5]
+        
+        Program received signal SIGSEGV, Segmentation fault.
+        0x0126b961 in GC_find_limit_with_bound () from /usr/lib/i386-gnu/libgc.so.1
+        (gdb) FAIL: gdb.gdb/python-interrupts.exp: run until breakpoint at captured_command_loop
+        WARNING: Couldn't test self
+
+        Starting program: [...]/gdb/testsuite/gdb.gdb/xgdb -nw -nx -data-directory [...]/gdb/testsuite/../data-directory
+        [New Thread 13464.3]
+        
+        Program received signal SIGSEGV, Segmentation fault.
+        0x0126b961 in GC_find_limit_with_bound () from /usr/lib/i386-gnu/libgc.so.1
+        (gdb) FAIL: gdb.gdb/python-selftest.exp: run until breakpoint at captured_command_loop
+        WARNING: Couldn't test self
+
+        (gdb) PASS: gdb.gdb/selftest.exp: step into xmalloc call
+        continue
+        Continuing.
+        
+        Program received signal SIGSEGV, Segmentation fault.
+        0x0126b961 in GC_find_limit_with_bound () from /usr/lib/i386-gnu/libgc.so.1
+        (gdb) FAIL: gdb.gdb/selftest.exp: xgdb is at prompt
+
+    These are all tests where GDB examines itself; being linked against libgc
+    (new dependency due to new Guile scripting support; all Guile scripting
+    tests PASS).  So, probably some bad interaction between GDB and a debuggee
+    that is using libgc; maybe libgc is using SIGSEGV for internal signalling
+    purposes; see the `HEURISTIC2` discussion on [[boehm_gc]].
+
+        #0  0x0126b961 in GC_find_limit_with_bound () from /usr/lib/i386-gnu/libgc.so.1
+        #1  0x0126ba2e in GC_find_limit () from /usr/lib/i386-gnu/libgc.so.1
+        #2  0x0126bb15 in GC_get_stack_base () from /usr/lib/i386-gnu/libgc.so.1
+        #3  0x011be0ec in scm_init_guile () from /usr/lib/libguile-2.0.so.22
+        #4  0x081203ba in _initialize_guile () at ../../W._C._Handy/gdb/guile/guile.c:704
+        #5  0x082dc94d in initialize_all_files () at init.c:291
+        #6  0x082a3c7f in gdb_init (argv0=0x8563e90 "[...]/gdb/testsuite/gdb.gdb/xgdb") at ../../W._C._Handy/gdb/top.c:1822
+        #7  0x081da3b8 in captured_main (data=0x1bff164) at ../../W._C._Handy/gdb/main.c:747
+        #8  0x081d70e9 in catch_errors (func=func@entry=0x81da110 <captured_main>, func_args=func_args@entry=0x1bff164, errstring=errstring@entry=0x837a0e5 "", mask=mask@entry=RETURN_MASK_ALL) at ../../W._C._Handy/gdb/exceptions.c:524
+        #9  0x081db277 in gdb_main (args=0x1bff164) at ../../W._C._Handy/gdb/main.c:1062
+        #10 0x0809714b in main (argc=5, argv=0x1bff1f4) at ../../W._C._Handy/gdb/gdb.c:33
+
+    TODO.
 
 TODO.
 
