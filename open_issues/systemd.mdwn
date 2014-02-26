@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2010, 2011, 2013 Free Software Foundation,
+[[!meta copyright="Copyright © 2010, 2011, 2013, 2014 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -27,7 +27,9 @@ Daniel Gollub, Stefan Seyfried, 2010-10-14.
 Likely there's also some other porting needed.
 
 
-# IRC, OFTC, #debian-hurd, 2011-05-19
+# Discussion
+
+## IRC, OFTC, #debian-hurd, 2011-05-19
 
     <pinotree> pochu: http://news.gmane.org/gmane.comp.gnome.desktop - the
       "systemd as dependency" and all the messages in it don't give me a bright
@@ -172,7 +174,7 @@ Likely there's also some other porting needed.
     <azeem> anyway, I'll talk to the upstart guys about libnih
 
 
-## IRC, OFTC, #debian-hurd, 2013-08-15
+### IRC, OFTC, #debian-hurd, 2013-08-15
 
     <azeem> btw, I talked to vorlon about upstart and the Hurd
     <azeem> so the situation with libnih is that it is basically
@@ -181,6 +183,16 @@ Likely there's also some other porting needed.
     <azeem> and Scott was (back in the days) against patches for porting
     <azeem> for upstart proper, Steve said he would happily take porting
       patches
+
+
+### IRC, OFTC, #debian-hurd, 2013-11-28
+
+    <azeem> teythoon: did you see they got libnih ported to kfreebsd?
+    <azeem> http://lists.debian.org/debian-devel/2013/11/msg00395.html
+    <azeem> "I haven't started looking into Hurd yet," sounds promising
+    <teythoon> saw that
+    <teythoon> i looked at libnih too
+    <teythoon> wrote a mail about that
 
 
 ## IRC, freenode, #hurd, 2013-08-26
@@ -1035,6 +1047,2591 @@ Likely there's also some other porting needed.
       wrecks havoc on the system
 
 
+## IRC, freenode, #hurd, 2014-01-03
+
+    <gg0> openrc on debian
+      https://buildd.debian.org/status/package.php?p=openrc&suite=experimental
+    <braunr> gg0: ah nice
+
+
+## IRC, freenode, #hurd, 2014-01-11
+
+    <gnu_srs1> teythoon: is the Hurd boot now fully init compatible? I would
+      like to try to boot with a ported openrc in a sandbox kvm:P
+
+
+### IRC, freenode, #hurd, 2014-01-12
+
+    <teythoon> gnu_srs1: yes, go ahead
+    <teythoon> gnu_srs1: you'll have to switch to sysvinit first
+    <teythoon> for that, you need patched sysvinit packages
+
+    <gnu_srs> teythoon: do you mean the parches in #721917?
+    <teythoon> gnu_srs: yes, mostly, but there is one final patch missing
+    <gg0> uploading patched sysvinit to debian-ports? (or braunr's or
+      teythoon's repos)
+    <teythoon> gg0, gnu_srs: they are actually here
+      http://teythoon.cryptobitch.de/gsoc/heap/debian/ but outdated
+    <gnu_srs> teythoon: if the sysvinit patches are outdated, can you update
+      them please? and provide a package for upload to -ports (as gg0 proposed)
+    <teythoon> gnu_srs: i will
+    <gnu_srs> tks:)
+
+
+### IRC, freenode, #hurd, 2014-01-13
+
+    <teythoon> gnu_srs: i updated the sysvinit patches
+    <teythoon> gnu_srs: for your convenience, here are packages:
+      http://darnassus.sceen.net/~teythoon/heap/sysvinit/
+    <teythoon> gnu_srs: you have to install the sysvinit-core package first,
+      then the others
+    <teythoon> to switch to sysvinit, do update-alternatives --config runsystem
+      and select runsystem.sysv
+    <teythoon> then, do reboot-hurd and hope for the best ;)
+
+    <gnu_srs> teythoon: thanks, will try soon. Are you submitting the updated
+      patches to #721917 too?
+    <teythoon> gnu_srs: i already did
+    <gnu_srs> good;-)
+    <gnu_srs> teythoon: rebooted with sysv:http://paste.debian.net/75925/
+    <teythoon> gnu_srs: please, whenever you run into a problem, give more
+      context
+    <teythoon> which file are you talking about ?
+    <teythoon> also, as the postinst script advised you, you need to use
+      {halt,reboot}-hurd *whenever* you switch the runsystem
+    <teythoon> not doing so wont do any harm, but it wont work
+    <teythoon> shutdown: /run/initctl: No such file or directory  <-- that's
+      what happens if you run reboot (=reboot-sysv) w/o sysvinit being run
+    <teythoon> if you don't get a getty on the console, check /etc/inittab
+    <gnu_srs> I did note see a message from any posinst script about
+      {halt,reboot}-hurd, only LC* related messages
+    <gnu_srs> A I missed it: You must use halt-hurd or reboot-hurd to halt or
+      reboot the
+    <gnu_srs> system whenever you change the runsystem.
+    <gnu_srs> I don't see anything suspicious in /etc/inittab,
+      eg. 1:2345:respawn:/sbin/getty 38400 tty1 is there
+    <teythoon> 7:2345:respawn:/sbin/getty 38400 console
+    <teythoon> then, you'll get a getty on the mach console, even if the
+      hurd-console does not start
+    <gnu_srs> teythoon: with 7:2345:respawn:/sbin/getty 38400 console in
+      /etc/inittab I get a (mach) console.
+    <gnu_srs> never seen that mentioned anywhere
+    <gnu_srs> anyway, the image is now booted with sysvinit. next to try will
+      be openrc:P
+    <teythoon> gnu_srs: you haven't heard of the inittab entry for the mach
+      console before b/c the inittab was not used before on the hurd
+    <teythoon> i should probably write that down in the wiki somewhere...
+    <youpi> shouldn't the upgrade of the sysvinit package do it too?
+    <youpi> (does it at least install a correct version on newer installs?)
+    <teythoon> it probably should / i'm not sure
+
+
+## IRC, freenode, #hurd, 2014-01-13
+
+    <teythoon> gnu_srs: have you ported openrc already ?
+    <gnu_srs> I made it build (with temporary workarounds for PATH_MAX) but
+      need to change at least one file to be hurd-specific before trying to
+      boot
+    <teythoon> cool :)
+    <gg0> i guess not much different from http://paste.debian.net/plain/75893/
+    <gg0> (i didn't say it sucks but one can find it out by taking a look)
+    <gnu_srs> gg0: Have you talked to zigo in #openrc?. He has partial patches
+      (submitted to the debian repo), you do and me too.
+    <gnu_srs> Maybe we should align our work.
+    <gnu_srs> The file to make Hurd-specific  is: init.sh.GNU (you start with
+      copy of the Linux version, I start from a copy of the BSD version).
+    <gnu_srs> BTW: I don't think fstabinfo is available for GNU/Hurd!
+    <gnu_srs> gg0: Sorry, fstabinfo and moutinfo are parts of openrc, my bad:-D
+    <gnu_srs> mountinfo*
+
+
+## IRC, freenode, #hurd, 2014-01-15
+
+    <gnu_srs> Hi, is these some simple way to find out the sequence of commands
+      executed during boot:
+    <gnu_srs> current using runsystem.gnu and with sysv-rc using runsystem.sysv
+    <gnu_srs> I need to edit on file of OpenRC before trying to boot with
+      it. (mainly mounting /run/*)
+    <gnu_srs> Is mount functional or is settrans .needed?
+
+
+## IRC, freenode, #hurd, 2014-01-16
+
+    <ArneBab> gnu_srs: you are adding OpenRC? cool!
+    <gnu_srs> ArneBab: Working on it, will try booting when my questions here
+      have been answered ;-)
+    <teythoon> gnu_srs: mount is functional enough to boot Debian/Hurd using
+      sysvinit
+    <teythoon> gnu_srs: you could add "set -x" to runsystem.*, or add "bash" to
+      just drop into a shell and examine the environment interactively
+    <gnu_srs> teythoon: Hi, is mount a wrapper on top of settrans ...? 
+    <teythoon> yes
+    <gnu_srs> how to log the boot sequence, when booting the mach console is
+      cleared when the hurd console starts?
+    <teythoon> you could just disable the hurd console
+    <gnu_srs> and the kvm console does not have scrolling functionality
+    <teythoon> it's actually the mach console that lacks this
+    <gnu_srs> copying manually is cumbersome, even if all is readable
+    <teythoon> but as a workaround you can use kvm .... -curses and use xterms
+      backlog
+    <teythoon> and c&p works then :)
+    <gnu_srs> tks, I'll try with that:P
+
+
+## IRC, freenode, #hurd, 2014-01-17
+
+    <gnu_srs> BTW: zigo successfully booted openrc on Hurd, I haven't tried
+      yet,, you know things coming in between. He used my patches to create
+      updated ones:)
+    <gnu_srs> that version is now in experimental (I still have to operate away
+      all those PATH_MAX issues, and fins at least one sh file). 
+    <teythoon> :/
+
+
+## IRC, freenode, #hurd, 2014-01-21
+
+    <gnu_srs> teythoon: I don't get a scrollable output when using -curses in
+      kvm, to be able to see all startup messages. Any other ideas? 
+    <teythoon> gnu_srs: are you sure ? i just tested this, and it works nicely
+      for me
+    <teythoon> gnu_srs: that's how i created all the "screenshots" for my blog
+      posts
+    <gnu_srs> teythoon: kvm -m 1024 -net nic,model=rtl8139 -net
+      user,hostfwd=tcp::5564-:22 -curses -hda debian-hurd-20140115.img 
+    <teythoon> ah, my bad
+    <teythoon> gnu_srs: try -nographic
+    <teythoon> oh, and maybe you need to add console=com0 to the gnumach
+      command line
+    <teythoon> b/c with -nographic, the first serial port is connected to qemus
+      stdio
+    <teythoon> sorry, i mixed this up
+    <gnu_srs> and how to add console=com0 to the qemu start oprtions? -kernel
+      and -append are Linux only
+    <teythoon> # grep console /etc/default/grub
+    <teythoon> GRUB_CMDLINE_GNUMACH="console=com0 --crash-debug"
+    <teythoon> and if you want grub on the serial port:
+    <teythoon> # grep serial /etc/default/grub
+    <teythoon> GRUB_TERMINAL=serial
+    <teythoon> GRUB_SERIAL_COMMAND="serial --speed=9600 --unit=0 --word=8
+      --parity=no --stop=1"
+    <gnu_srs> teythoon: with -nographic I don't get any output at all?
+    <teythoon> did you run update-grub ?
+    <gnu_srs> aha, will do
+    <gnu_srs> still no scrollbar with gnome-terminal, will try with xterm and
+      rxvt
+    <gnu_srs> it works: with rxvt, tks:-D
+    <teythoon> good :)
+    <teythoon> i found -nographic to be quite handy
+    <gnu_srs> in /etc/default/grub: GRUB_CMDLINE_LINUX_DEFAULT="quiet" and
+      GRUB_CMDLINE_LINUX=""  #GRUB_DISABLE_LINUX_UUID=true
+    <gnu_srs> linux configuration parameters in a gnumach boot setup?
+    <teythoon> those won't be used
+    <teythoon> unless the grub scripts find a linux kernel in /boot
+    <teythoon> it's just the stock debian configuration file
+    <gnu_srs> nevertheless:-(
+    <teythoon> what ?
+    <gnu_srs> there could be OS-specific files: Linux, kFreeBSD, Hurd?
+    <teythoon> or, preferebly, one that works on every os ? like it is now ;)
+    <gnu_srs> OK, one that works on every OS, with a common part and
+      OS-specific parts?
+    <teythoon> that's how it is now
+    <teythoon> stuff with LINUX in it is used for linux
+    <teythoon> stuff with GNUMACH in it is used for gnumach
+
+
+## IRC, freenode, #hurd, 2014-01-22
+
+    <gnu_srs> teythoon: A boot message segfault: (syv-rc specific?)
+    <gnu_srs>  + exec /sbin/init -a
+    <gnu_srs> INIT: version 2.88 booting
+    <gnu_srs> Using makefile-style concurrent boot in runlevel S.
+    <gnu_srs> end_request: I/O error, dev 02:00, sector 0
+    <gnu_srs> Segmentation fault
+    <gnu_srs> Activating swap...done.
+    <gnu_srs> Checking root file system...fsck from util-linux 2.20.1
+    <gnu_srs> another: mount: cannot remount /proc: Invalid argument
+    <gnu_srs> ...
+    <gnu_srs> df: Warning: cannot read table of mounted file systems: No such
+      file or directory
+    <gnu_srs> openrc boots on Hurd, login (user,root) works, read-only mode so
+      far, have to tweak some scripts:)
+    <braunr> not bad
+    <ArneBab> gnu_srs: woah!
+    <ArneBab> very cool!
+
+
+## IRC, freenode, #hurd, 2014-01-22
+
+    <ArneBab> I think with that you are doing the most useful thing to avoid
+      OpenRC: If it provides almost the same as systemd and runs on the Hurd,
+      then there is no technical reason for using systemd, but many against it.
+    <ArneBab> s/avoid OpenRC/avoid systemd/
+    <ArneBab> (gah, brain is jumbled)
+    <Shentino> I hate systemd because it monopolizes cgroups
+    <Shentino> which is SUPPOSED to be a generic interface open to anyone
+    <Shentino> I do not want an unholy alliance in a kernel-user api
+    <azeem_> ArneBab: the openrc maintainer will take care it will get
+      communicated
+    <azeem_> ArneBab: also, not sure what you mean about systemd, the question
+      isn't so much between openrc vs. systemd, but upstart vs. systemd
+    <azeem_> at least for the Technical Committee decision, none of the
+      tech-ctte members seems to consider openrc as n realistic contender
+    <azeem_> s/as n/as a/
+    <gnu_srs> azeem_: seem like it is so:-(
+    <gnu_srs> maybe in a future, if openrc gets some attention and developers,
+      it could become a one-for-all solution;-)
+    <teythoon> gnu_srs: nice :)
+    <teythoon> ignore the proc related message
+    <teythoon> gnu_srs: there is no way to associate the segfault with a
+      process for me, can you shed some light on which process dies ?
+    <teythoon> as for df complaining, you could fix this up like youpi did:
+    <teythoon> grep ln /etc/hurd/rc
+    <teythoon> ln -s /proc/mounts /var/run/mtab
+    <teythoon> the proper way is to fix our libc of course
+    <gnu_srs> teythoon: I was just coping the boot messages, I don't know
+      either which process segfaults
+    <teythoon> hm, maybe you can make openrc more verbose about what it starts
+    <gnu_srs> All I wrote earlier was from sysv-rc
+    <teythoon> ah
+    <teythoon> i've never seen that then
+    <ArneBab> azeem_: actually I think OpenRC is the only sane choice: It is
+      the only choice which supports other kernels.
+    <ArneBab> Shentino: I can’t stand systemd, because it establishes a tight
+      control over the init process by encouraging developers to add
+      dependencies to libraries which are so tightly coupled with others, that
+      they cannot be adapted without affecting the whole system.
+    <ArneBab> Shentino: But I wrote about that in much more details:
+      http://draketo.de/light/english/top-5-systemd-troubles TL;DR:
+      distributions become completely dependent on a small group and they throw
+      away the skills their maintainers already have (shell scripting)
+    <ArneBab> And systemd is Linux-only… 
+    <ArneBab> …with no intention of changing that.
+    <braunr> why would debian strive to support other kernels ?
+    <braunr> instead of other kernels adjusting ?
+    <braunr> if posix introduces new apis, are we going to say no, or are we
+      going to try and support them ?
+    <braunr> the issue of multi-kernel support is completely irrelevant
+    <braunr> what you're saying about tight coupling is actually the only real
+      issue of systemd
+    <ArneBab> braunr: I see a difference between providing a stable API which
+      others can easily replicate and a running target with no intention to
+      become cross-kernel usable (my experience with udev suggests that they
+      won’t really try to keep anything stable for long).
+    <ArneBab> braunr: but the tight coupling is the main issue for me, too:
+      that creates a vulnerability for the free software community.
+    <braunr> no, the free software community doesn't risk much here
+    <braunr> it's a technical problem
+    <braunr> ok, yes, posix as a point of convergence is clearly not the same
+      as linux as an implementation that diverges
+    <braunr> agreed
+    <ArneBab> if the systemd people decide to go a certain direction which
+      makes it impossible to provide a certain feature while using their new
+      tech, then there is a problem.
+    <braunr> but it still implies we have to adapt
+    <braunr> from my point of view, multi-kernel distributions are a technical
+      heresy
+    <braunr> if you want something really efficient, you want it very well
+      integrated
+    <teythoon> i'm concerned by the linux kernel making up interfaces w/o
+      proper considerations
+    <ArneBab> braunr: in Gentoo we had all the hassle with /usr on a separate
+      partition. There are usecases for that, and Gentoo wanted to provide
+      them, but udev (now systemd) made that impossible.
+    <braunr> teythoon: yes i'm concerned about that too
+    <teythoon> we will never be able to implement the cgroup interface for
+      example b/c it is too badly designed
+    <braunr> badly ?
+    <braunr> it's system specific
+    <ArneBab> braunr: also the systemd folks could essentially hold Linus at
+      ransom: “We couple userspace tightly to implementation details in the
+      kernel, so when you break the implementation in a way which we don’t
+      like, you’ll break userspace in the worst possible way”
+    <braunr> it's very hard to design an interface without properly
+      understanding what it would internally imply in the implementation
+    <braunr> ArneBab: that's already the case
+    <teythoon> system specific in a way that it will be impossible to implement
+      on non-monolithic kernels
+    <braunr> teythoon: exactly
+    <braunr> they didn't think of that because they don't care
+    <braunr> and why would they ?
+    <braunr> it doesn't make the interface bad per se
+    <ArneBab> it is the case in systemd, but not in sysVinit
+    <braunr> well it is too
+    <braunr> but sysvint is less demanding
+    <braunr> again, the coupling is the problem
+    <ArneBab> yes
+    <braunr> systemd comes from people with other goals and interests
+    <ArneBab> I think everything I wrote comes down to that.
+    <braunr> they're very technical, very business oriented
+    <braunr> they want to get up to speed with competitors quickly
+    <braunr> they're not wrong in doing that
+    <braunr> it just helps understand why they get with such results
+    <ArneBab> A distribution would be foolish to let other people take over a
+      crucial part of the system when those other people have a track record of
+      coupling more and more parts of the system with their product.
+    <braunr> and i agree, i don't want it either
+    <braunr> but please, stop with the nonsense
+    <braunr> don't say openrc is the only sane one because it's the only
+      multikernel one
+    <braunr> personally, i consider that very argument almost insane itself
+    <braunr> considering distributions that are hardly used can really have any
+      weight in the decision is absurd
+    <ArneBab> openrc is the only sane one, because it keeps already aquired
+      skills useful.
+    <braunr> s/distributions/kernels/
+    <ArneBab> (that’s my opinion)
+    <braunr> we have to make progress
+    <braunr> the init system is clearly obsolete and lacking features
+    <braunr> so "acquired" skills here are irrelevant too
+    <braunr> if it takes acquiring new skills to operate a better init system,
+      i'm all for it
+    <braunr> after all, it makes a lot more sense to me than all those fancy
+      languages/technologies like C# and ruby that have gained so much
+      popularity in so little time
+    <ArneBab> If you can get a similarly good init system wiothut forcing
+      people to learn new skills, that’s a big win.
+    <braunr> you probably can't
+    <ArneBab> OpenRC is pretty close in features to systemd
+    <teythoon> err
+    <teythoon> not even close
+    <braunr> teythoon is right
+    <braunr> openrc is just sysvinit++
+    <teythoon> no
+    <teythoon> openrc replaces the sysv rc, not sysvinit
+    <braunr> ok
+    <teythoon> it complements it
+    <braunr> i wasn"'t being pedantic here
+    <teythoon> nicely in my opinion
+    <braunr> yes i like it too
+    <braunr> but i'm afraid it's not a complete solution
+    <ArneBab> I think I need to be more pedantic in what I say: A system-boot
+      with OpenRC is pretty close in features to a system-boot using systemd.
+    <braunr> on the other hand, when i see discussions about event driven
+      systems and handling of dependencies, it sounds like something like
+      openrc could do the job, and something else, system-specific, would
+      handle the rest
+    <braunr> ArneBab: i disagree
+    <teythoon> me too
+    <teythoon> ArneBab: have you actually used systemd?
+    <ArneBab> I have read about what it provides.
+    <ArneBab> My udev experience burned me pretty badly.
+    <braunr> udev is only one part
+    <braunr> but actually, coupling is both a problem and a great feature
+    <teythoon> yes
+    <braunr> it's precisely the integration of many services previously
+      organized in a very messy way that makes it better
+    <braunr> and cgroups, by accurately tracking resources, allow even better
+      control
+    <teythoon> heh, i watched lennarts recent talk about kdbus
+    <ArneBab> but it does so by pulling in more and more parts instead of
+      providing a clean interface which separate projects can use.
+    <braunr> again, the coupling is too tight
+    <braunr> it's hard to hook in between
+    <ArneBab> teythoon: I watched lennart troll a talk pretty badly…
+    <ArneBab> braunr: yes
+    <teythoon> he cites mach and hurd for having an nice ipc mechanism, and
+      linux lacking such a system
+    <braunr> haha
+    <braunr> i was expecting such comparisons :)
+    <ArneBab> that’s why he writes an init-system which does not run on the
+      Hurd… 
+    <teythoon> ArneBab: that's trolling on your part ;)
+    <braunr> :)
+    <ArneBab> somehow yes… 
+    <braunr> what i personally get out of this is that, in the end, proper
+      messaging at the kernel level is something people do want
+    <braunr> and if you make stuff like x use it, why not things like the
+      network stack and the file system
+    <teythoon> i wish the linux kernel would allow the kernel devs to write
+      nicer interfaces
+    <ArneBab> yes
+    <braunr> they're almost in the process of acknowledging the merits of
+      multiserver architectures :)
+    <teythoon> b/c they lack a proper ipc mechanism, they do stuff like ad-hoc
+      filesystem-based interfaces that are crappy to support on the hurd :-/
+    * ArneBab has been out of the loop for too long… 
+    <braunr> teythoon: what file system do you consider "crappy to support on
+      the hurd" ?
+    <teythoon> braunr: cgroupfs in particular
+    <teythoon> not crappy, but impossible
+    <braunr> well, that's probably because we need realy resource containers
+      first
+    <braunr> real*
+    <teythoon> no, we'll never be able to implement the current interface
+    <braunr> i didn't study it as you did so i trust you
+    <teythoon> braunr:
+      http://teythoon.cryptobitch.de/posts/cgroupfs-is-as-cgroupy-as-it-gets/
+    <braunr> ok this would require proper support at the client side
+    <teythoon> yes
+    <braunr> i wouldn't say impossible but definitely not as clean as we would
+      want it
+    <braunr> far from it
+    <teythoon> how would you ever implement it w/o fixing the client
+      (i.e. fixing the interface first) ?
+    <braunr> the client would translate the request
+    <teythoon> magical write retries ?
+    <braunr> probably
+    <teythoon> uh
+    <braunr> clients are the only entities which know what their file
+      desctiptors refer to
+    <braunr> descriptors*
+    <teythoon> yes
+    <braunr> so writing such a request would make the client get a magic retry,
+      and use the proper rpc, passing the proper rights instead
+    <teythoon> yeah, i can see how that could work
+    <teythoon> but i'm not sure that we should go down this path ...
+    <braunr> we probably really do'nt want to :)
+    <braunr> i'd personally be fine if debian would allow two init systems
+    <teythoon> me too
+    <braunr> with the powerful linux-specific one still allowing sysvinit
+      scripts
+    <teythoon> in particular b/c the sysvinit scripts are already there
+    <braunr> from what i've read, they all provide some decent backward
+      compatibility with sysvinit
+    <teythoon> yes
+    <braunr> and i think we can count on the linux community to riot if,
+      assuming systemd was chosen, it becomes too hard to use and tweak
+    <braunr> again, these people want their software to be used
+    <braunr> so they'll probably manage something decent in the long run,
+      whatever is chosen
+    <braunr> i don't care much
+    <braunr> :)
+    <kilobug> AFAIK Debian is planning to let users chose the init system, the
+      discussion is only on what should be the main/default one; but I might
+      have misunderstood it
+    <braunr> that was one of the possibilities, yes
+    <braunr> maybe we could help the debate by agreeing on whether or not we
+      consider supporting ports is that important, as port maintainers,
+      considering we'll probably keep the ability to use sysvinit scripts
+      anyway
+    <braunr> and making that decision known
+    <teythoon> and stating that we consider openrc an worthwile incremental
+      improvement, whatever debian decides to do wrt to the default init system
+    <braunr> for example, yes
+    <braunr> we should discuss that with youpi and thomas
+    <braunr> tschwinge: ^
+    <braunr> when they have some time later :)
+
+
+## IRC, freenode, #hurd, 2014-01-24
+
+    <gnu_srs> Good news, a successful boot of Hurd with OpenRC:
+      http://paste.debian.net/78119/ :-)
+    <gnu_srs> ramains to fix the false negative for checkpath -W
+    <gnu_srs> remains*
+    <braunr> not bad
+
+    <gnu_srs> teythoon: btw, the segfault happens when starting the bootlogd
+      service: 
+    <gnu_srs> end_request: I/O error, dev 02:00, sector 0
+    <gnu_srs> Segmentation fault
+    <teythoon> gnu_srs: nice progress :)
+    <teythoon> i've never seen bootlogd crash like that, though i
+    <teythoon> i'm not sure it is installed
+    <gnu_srs> how can I check / ? it is mounted RW and even if cd to /run which
+      is on tmpfs, fsysopts --readonly fails:
+    <gnu_srs> :fsysopts: /: --readonly: Device or resource busy
+    <gnu_srs> I don't have bootlogd installed the segfault is at:
+    <gnu_srs> checkroot.sh: hwclock.sh mountdevsubfs.sh hostname.sh hdparm
+      keyboard-setup
+    <gnu_srs> called by /etc/rcS.d/S06checkroot.sh
+    <teythoon> you should probably create this directory that it fails to
+      create early in the boot process
+
+
+## IRC, freenode, #hurd, 2014-01-25
+
+    <antrik> braunr: being Linux-only is *part* of the "tight coupling"
+      strategy of the systemd cabal
+    <antrik> of course you could implement all the Linux-specific interfaces on
+      other systems; as you could implement any other interfaces relied upon or
+      provided by systemd components...
+    <antrik> (this is in fact Lennart's favourit cop-out argument whenever
+      someone raises concern about this)
+    <antrik> the problem however is that such alternative implementations
+      usually have prohibitive costs
+    <braunr> yes i know
+    <antrik> (and Lennart knows that perfectly well... he doesn't exactly take
+      pains to conceal the fact that it's a cop-out)
+    <antrik> their whole point is to create a tightly integrated stack of
+      monopolistic components, giving a shit about any possible alternatives
+    <antrik> this does have an obvious appeal: it *significantly* reduces the
+      cost of innovation within their stack
+    <antrik> at the same time however it kills the traditional innovation
+      driver in the free software eco-system, which is competition among
+      interchangable components
+    <antrik> quite frankly, it makes little sense that other distributions are
+      embracing systemd in droves: the tight coupling pretty much turns them
+      all into Fedora look-alikes, questioning the point of their very
+      existence...
+    <zacts> what is dmd?
+    <antrik> as for Debian considering fringe kernels in their decision, I
+      think it makes *perfect* sense: the real value of Debian is precisely the
+      fact that it supports so many different things, making it a good base to
+      build upon
+    <antrik> (it's just unfortunate that many Debian developers do not realise
+      this, and instead try to compete with user-oriented distributions...)
+    <antrik> zacts: daemon managing daemon? yet another new init system...
+    <zacts> yeah
+    <zacts> didn't know if you have an opinion on it vs systemd
+    <zacts> and whether or not hurd will use it..
+    <antrik> hm... not sure whether I do ;-)
+    <braunr> antrik: one could argue an init system is hard to make
+      interchangeable without also making it quite poor in functionality
+    <antrik> the GNU system uses it, right? when using the GNU system with the
+      Hurd (as it's really meant to be), that would obviously mean using DMD
+      with Hurd. though I'm not sure whether anyone has actually tried that
+      combination ;-)
+    <braunr> just to make it clear, i'm totally not in favor of systemd
+    <braunr> i'm just trying to measure the value of an interchangeable init
+      system here
+    <braunr> value versus cost
+    <braunr> why is it bad to try to compete with user oriented distros ?
+    <antrik> braunr: I suspect most of the really good things about systemd
+      could be kept while making it somewhat more open at fairly little cost...
+    <antrik> braunr: because that's not Debian's strength -- and never will be
+    <antrik> trying to compete in this space too hard is bound to fail, at only
+      bears the risk of loosing the actual strengths
+    <braunr> antrik: sounds true
+    <antrik> hm... thinking about it, I'd say it actually makes more sense for
+      the init system to be distribution-specific than kernel-specific...
+    <braunr> that makes sense
+    <braunr> but systemd isn't just an init system
+    <antrik> it's really the distribution's job to create a well-integrated
+      system. and basically, that's what the systemd cabal is doing for
+      Fedora...
+    <antrik> it's just problematic that they have so much influence in
+      important upstream projects, that they are basically killing any chance
+      for others to integrate things in different ways
+    <braunr> antrik: agreed
+    <braunr> the tight coupling i refer to is about the init system and the
+      upstream projects you mention such as udev, acpid, console-kit, etc..
+    <antrik> yeah... and GNOME
+    <braunr> is it really that coupled now ?
+    <antrik> don't really know; but judging from remarks people make, it must
+      be pretty bad
+    <braunr> this reminds me of the talk on gnome 3 last year at fosdem
+    <braunr> it would have been hilarious if gnome wasn't such an important
+      project
+    <antrik> (specifically, GNOME is now pretty much tied to logind AIUI, which
+      is not entirely inseparable from systemd -- but again, the cost is
+      prohibitive...)
+    <teythoon> i don't get what all the hate here is about ...
+    <antrik> in fact, certain people used that as an argument why Debian must
+      switch to systemd as init, as they are already pretty much forced to use
+      various of the other coupled components anyways, and trying to decouple
+      them is too costly for Debian...
+    <braunr> teythoon: hate ? here ?
+    <teythoon> i mean they don't do this for fun, they actually provide
+      something of value, right ?
+    <braunr> some value
+    <antrik> teythoon: they?
+    <braunr> but they remove the kind of value that made free software evolve
+      the way it did, as antrik said
+    <teythoon> the evil cabal around systemd ;)
+    <antrik> I didn't say "evil"... not explicitly at least ;-)
+    <teythoon> then again, if you are runnign linux/gnome3 and plug in a second
+      monitor, that one is automatically activated
+    <braunr> yes, that's what they want to achieve
+    <teythoon> that's what they achieved
+    <braunr> i mean, they targetted that, it's not a side effect
+    <teythoon> and anyone not happy with how they did that can surely provide a
+      nicer solution ;)
+    <antrik> teythoon: as I said, there are clearly good aspects to what they
+      are doing -- but at the same time it's very dangerous to the free
+      software eco-system...
+    <braunr> teythoon: not easily
+    <teythoon> antrik: i don't buy that
+    <braunr> i do
+    <teythoon> braunr: yes, not easily. that is kind of the point, right ?
+    <braunr> pulling projects such as gnome into a category of kernel specific
+      applications is dangerous
+    <braunr> teythoon: well, considering who they are and the means they have,
+      they could have spent the time to do it right for everyone
+    <teythoon> maybe
+    <antrik> err... activating a second monitor is not in any way tied to
+      systemd or related compontents... I think you are talking about a second
+      seat
+    <teythoon> that's another killer feature they achieved, yes
+    <antrik> (which is nice, but quite frankly, a niche use case in my book...)
+    <teythoon> maybe you're not the typical user
+    <antrik> I'm not. but the *typical* user definitely doesn't care about
+      multi-seat
+    <teythoon> if you say so
+    <teythoon> antrik: when you say it's dangerous what 'they' are doing, what
+      do you mean exactly ?
+    <teythoon> dangerous for whom ?
+    <antrik> asides from schools in developing countries, who try everything to
+      save on IT costs, I really can't think of many users for multi-seat...
+    <teythoon> (maybe schools all around the world trying to cut down their
+      costs?)
+    <teythoon> or like everyone, here, a $30 dongle that gives you an extra
+      workstation, how awesome is that ?
+    <antrik> teythoon: see above: they are killing the ability to combine
+      interchangable components, which has always been a core asset of the free
+      software ecosystem
+    <teythoon> antrik: so gnome is going for systemd, and gnome loses the
+      ability to be used w/o systemd
+    <teythoon> why do you care ? how does this affect the whole ecosystem ?
+    <teythoon> i really don't get why everyone is getting so upset about this
+    <antrik> teythoon: who cares about a dongle giving an extra workstation?
+      the remaining users of workstations are either corporate -- who prefer
+      dedicated boxes for organisational reasons -- or gamers, who want all the
+      power to themselves...
+    <braunr> teythoon: well gnome is kind of one of the major destkop software
+      in the free software world
+    <antrik> s/one of//
+    <teythoon> antrik: you stated that you havent used gnome3, yet you have an
+      opinion how tightly it should be coupled with systemd or linux
+    <teythoon> people who haven't used systemd or upstart have an opinion about
+      which one should be preferred
+    <braunr> teythoon: why do you think people shouldn't think about systems as
+      a whole ?
+    <antrik> teythoon: actually, I am using it (for some value of "use") --
+      though in legacy mode, as my hardware can't run the new bling...
+    <braunr> in that case, people shouldn't be allowed to vote, because that
+      would require them to be politicians ..
+    <teythoon> it's okay to think about that
+    <braunr> i don't think it is
+    <antrik> teythoon: but seriously, whether *I* have used it is quite beside
+      the point. I have no illusions about being a niche user
+    <braunr> people don't need to use something to actually understand it
+    <teythoon> but i cannot stand all the whining lately in the free software
+      world...
+    <braunr> whining isn't fair
+    <braunr> i mean, the word
+    <teythoon> y ?
+    <braunr> it's a big problem and complaining to force a debate is important
+    <teythoon> yes, but "they" are solving problems, and everyone is
+      complaining for one reason or the other
+    <braunr> they are also creating problems
+    <braunr> and not everyone is complaining
+    <teythoon> as opposed to offering alternatives
+    <braunr> that's a major issue, a lot of people are favorable to these
+      changes
+    <teythoon> and if you don't like what "they" are building, you are free not
+      to use it, no ? that's a freedom too ;)
+    <braunr> no
+    <braunr> you aren't
+    <teythoon> what ?
+    <braunr> that's precisely the point
+    <braunr> you'll be de facto forced to use it if you want to keep using the
+      rest
+    <teythoon> i'm free not to use gnome3
+    <braunr> you won't be free from using linux if you want gnome3
+    <teythoon> what kind of argument is that ?
+    <braunr> i'm abusing the word freedom
+    <braunr> because it has no clear meaning in practice
+    <braunr> as antrik said, it's about interchangeability and portability
+    <braunr> and alternatives
+    <braunr> accepting the way systemd is designed is a major shift towards
+      making linux its own standard, away from the rest
+    <braunr> and the way it's done isn't thought to easily allow the
+      alternatives to keep up with the changes
+    <teythoon> we agreed the other day that they shouldn't create ad-hoc
+      interfaces like they do, yes
+    <braunr> well that's the whole point
+    <teythoon> you just talked "about the way systemd is designed"
+    <braunr> they could invest some more effort to make well designed
+      interfaces that allow changing both the dependencies and the services
+      provided
+    <teythoon> how is that related to bad interface design ?
+    <braunr> for me, it's almost a synonym
+    <braunr> and we discussed it
+    <teythoon> aren't tightness of coupling and quality of interfaces
+      completely orthogonal ?
+    <braunr> it is designed with a narrow set of apparently company directed
+      interested towards a single system, a single distribution even, and
+      nothing else
+    <braunr> no
+    <braunr> absolutely not, when it's about something that should be
+      interchangeable
+    <braunr> an interface that forces tight coupling is of low quality to me
+    <antrik> braunr: they claim it's not actually company-directed... and I
+      tend to believe them on *that* point TBH
+    <braunr> antrik: this would have been a valid reason at least
+    <antrik> teythoon: it's just not right that some people can no longer use
+      major pieces of free software just because a tiny but highly vocal cabal
+      decides to disrupt the whole ecosystem
+    <teythoon> what are you talking about ? you are free to use older versions
+      of the software
+    <braunr> i's not technically feasible
+    <braunr> or it would require forking to maintain
+    <braunr> again, it's the start of a rift
+    <teythoon> but, if the gnome people want to go into that direction, who are
+      you to say that they shouldn't ?? that's what i get the least about this
+      kind of argument...
+    <braunr> i'm part of the free software community
+    <braunr> more accurately, the free unix-like community
+    <teythoon> and you are actively developing gnome... ?
+    <braunr> if they want to get out of this community, they'll hurt it, and
+      themselves
+    <braunr> do you understand what a rift is ?
+    <teythoon> but that's their choice, no ?
+    <braunr> a major division ?
+    <braunr> so what ?
+    <braunr> it doesn't mean it's a good one
+    <teythoon> you pick the desktop environment you like next best and be done
+      with it ?
+    <braunr> it's almost public service at this point
+    <braunr> what if they all do the same thing ?
+    <teythoon> err
+    <teythoon> they don't
+    <braunr> you won't be free to do what you want because the technical
+      possibility will have disappeared
+    <braunr> kde might
+    <braunr> if only to compete with gnome
+    <teythoon> well, if you don't like hte direction a project is taking, you
+      fork it
+    <teythoon> that's what happened
+    <braunr> exactly ..
+    <teythoon> why the long faces ?
+    <braunr> forks increase complexity and reduce manpower
+    <braunr> fork == division
+    <braunr> forking in the free software community is normally a last resort
+    <teythoon> huh ? since when is this considered a bad thing ?
+    <braunr> it's not a bad thing per se
+    <braunr> it usually implies a bad situation
+    <teythoon> < braunr> fork == division
+    <teythoon> and division == rift
+    <braunr> think of these situations that were caused by stupid drama and
+      lead to the duplication of a lot of effort
+    <braunr> openbsd, eglibc, jenkins, to name a few
+    <teythoon> i don't
+    <teythoon> why would i ? i never created these forks
+    <braunr> it affects the community as a whole
+    <teythoon> but the people who did thought it was necessary
+    <braunr> the fact they could do it is good, the fact they had to do it
+      isn't
+    <braunr> they were usually forced by the situation
+    <braunr> and often by the stupidity of other people
+    <teythoon> someone forced someone else to fork a project ? with a gun or
+      something like this ?
+    <teythoon> i don't buy this ;)
+    <braunr> of course not ..
+    <braunr> eglibc was forced by the inability of drepper to accept a whole
+      class of patches
+    <braunr> openbsd because theo de raadt has some huge ego
+    <braunr> for jenkins, it was a licensing issue iirc
+    <braunr> nothing technical at all
+    <braunr> nothing in the interest of the community
+    <teythoon> err
+    <teythoon> it brings diversity
+    <braunr> no
+    <braunr> netbsd versus freebsd brings diversity
+    <teythoon> i thought that was a good thing
+    <braunr> openbsd was just agotistic crap
+    <braunr> ego*
+    <teythoon> if there is no diversity, why should stuff be interchangeable if
+      there are no alternatives?
+    <braunr> and netbsd and freebsd aren't exactly forks, they're both bsd
+      based but had different goals from the start
+    <braunr> that's not what i'm talking about
+    <braunr> eglibc isn't exactly a new libc
+    <braunr> it's glibc+the stuff that should have gone into it
+    <antrik> teythoon: the stuff the systemd cabal does builds on the work of
+      thousands of projects and people; yet they act as if the don't own anyone
+      anything, and it's fine to boot out large parts of the community whos
+      work they are building on
+    <braunr> iceweasel isn't a whole new firefox
+    <braunr> most often, alternatives aren't forks of one another
+    <braunr> if they are, they have diverged a lot
+    <teythoon> antrik: that is your interpretation, and i respectfully disagree
+      with it;)
+    <braunr> and usually have different goals
+    <braunr> that's diversity, and i'm very ok with it
+    <braunr> (being a hurd guy and all)
+    <braunr> but forking because of decisions that prevent alternatives is a
+      very bad reason to fork
+    <teythoon> again, who are you to tell a project (say gnome) what they
+      should do or not ?
+    <braunr> that question makes no sense
+    <braunr> we're trying to think objectively
+    <braunr> forget who we are
+    <braunr> think about what should be done
+    <teythoon> no such thing ;)
+    <braunr> ok well, in that case, i'm a very smart person who knows a lot of
+      things, and people had better do what i tell them ;p
+    <braunr> satisfied ? :)
+    <teythoon> yes
+    <teythoon> that's much better actually
+    <braunr> not really ..
+    <teythoon> it's more honest
+    <braunr> no it was sarcasm
+    <braunr> what was honest are the arguments i explained
+    <braunr> why care about who says them ?
+    <teythoon> i do
+    <antrik> teythoon: there is not much interpretation in there really. some
+      of their own statements are quite explicit...
+    <braunr> damn non scalable kernel ..
+    <teythoon> who is "their"? what statements ?
+    <braunr> teythoon: when building glibc, there are so many nodes to fake
+      that ext2fs+fakeroot allocate enough ports to starve kernel memory ...
+    <teythoon> if i were mr. gnome3 and you would tell me that i should cuddle
+      with systemd b/c that's bad for one reason or another, the first thing
+      i'd like to know is who is telling me that
+    <braunr> teythoon: why not solely consider the argument ?
+    <teythoon> braunr: yes, i can imagine fakeroot doing that
+    <antrik> teythoon: Lennart and his friends. not sure how much of these
+      statements I have seen written down -- part of it I heard myself from
+      their own mouths
+    <teythoon> braunr: b/c maybe i like to develop my project in the direction
+      i want
+    <braunr> that's unrelated
+    <teythoon> and if anyone disagrees, she may fork
+    <braunr> this is a debate
+    <teythoon> why ?
+    <teythoon> so now we are debating what i may develop or not ? you lost me
+      ;)
+    <braunr> a way to reach consensus
+    <braunr> many people are discussing so that projects like debian and gnome3
+      make the best decisions
+    <braunr> a naive way to explain it is that the result is the sum of what
+      everyone likes and how louds he speaks for it
+    <teythoon> sure but you are not a gnome developer, no ?
+    <braunr> no, but again, i'm a free software community member
+    <braunr> and this affects the whole community
+    <braunr> because gnome3 is a major software component used by a lot of
+      people
+    <braunr> well, gnome at least
+    <teythoon> so the gnome project needs to seek consensus with everyone of
+      the free software community ?
+    <braunr> no
+    <braunr> that would be unanimity
+    <teythoon> but wrt to the systemd integration ?
+    <braunr> siding with systemd is starting to get away from the free software
+      community
+    <braunr> or, by bringing a lot of people along, dividing it
+    <teythoon> that's your interpretation
+    <braunr> yes
+    <braunr> always
+    <braunr> you don't have to say it, we're not doing raw science here
+    <braunr> it's implicit
+    <teythoon> i think it's important to point that out and make it explicit
+    <braunr> you made it several times
+    <braunr> we got the point
+    <braunr> what matters in the current discussion is whether you agree or not
+      and why
+    <braunr> and this will be your interpretation too
+    <braunr> and we'll see if it's convincing
+    <braunr> but, from experience, i expect noone will be convinced ;p
+    <teythoon> ^^
+    <braunr> the issue is too tied with the core goals we have in mind
+    <teythoon> but why does it matter whether i agree or not
+    <teythoon> that's my point actually
+    <braunr> you seem to have a problem understanding the issue, i was trying
+      to convince you there is one
+    <braunr> so, if i want to achieve that, it matters
+    <teythoon> what core goals ?
+    <braunr> basic dialectic
+    <braunr> well, for example, for me, i want people to think of the system as
+      a whole
+    <braunr> i want something effective, technically very good, and that
+      respects user freedoms
+    <braunr> i also want alternatives, i won't explain why, let's say it's
+      obvious
+    <teythoon> i agree
+    <braunr> well, systemd people don't think of the system as a whole
+    <braunr> here, what i call "system" is very large
+    <braunr> it would almost equal society
+    <braunr> i understand why they do that
+    <braunr> they have the right to do that
+    <braunr> but then i could say i understand why people make proprietary
+      software, and they also have the right to do it, i still won't approve it
+    <braunr> it contradicts my personal goals, my personal view of how things
+      should be
+    <teythoon> i completely agree
+    <teythoon> but then again, what you said now and the way you said it was
+      very different
+    <braunr> maybe, it's 3am, i'm sick and exhausted :)
+    <teythoon> more abstract
+    <braunr> when i give an opinion
+    <braunr> actually, when anyone gives an opinion
+    <braunr> i consider it implicit that it's their point of view alone
+    <braunr> they're not enforcing anything
+    <braunr> merely speaking out
+    <teythoon> people tend to overestimate the importance of their own opinion
+    <braunr> hm i wouldn't say so
+    <braunr> and that's probably why the "who" doesn't matter a lot to me
+    <braunr> it would matter if the person in question had real power
+    <braunr> and his opinion could have a strong influence
+    <braunr> in which case it wouldn't be overestimated
+    <braunr> i could say what i think to systemd people
+    <antrik> teythoon: quite frankly, I'm not sure what you are complaining
+      about. the systemd followers are trying to impose their opinions on
+      various projects. other people (including braunr and me, among many
+      others) are voicing counter-opinions. what's wrong with that?
+    <braunr> but i'm pertty certain the weight they'll associate to what i tell
+      them will be very low :)
+    <braunr> antrik: he called it "annoying whining"
+    <braunr> i think it's the only problem
+    <antrik> braunr: I don't think the systemd people associate much weight to
+      *anything* others say... ;-)
+    <braunr> heh :)
+    <braunr> to make an historic analogy
+    <braunr> it seems to me they're repeating the same mistakes others did
+      during the unix wars
+    <teythoon> antrik: but when you say "the systemd followers are trying to
+      impose their opinion on various projects", don't you dismiss the
+      possibility that the gnome3 people just want to make external displays
+      hot-pluggable?
+    <braunr> of course they do
+    <braunr> don't you dismiss that proprietary software author just want to
+      make money ?
+    <teythoon> no
+    <braunr> well, if that's the only thing you keep in mind to make your
+      opinion, you'll miss important points
+    <teythoon> that is an example of course
+    <braunr> they're sacrificing interchangeability and starting a possibly
+      major rift in the community for hot pluggable displays
+    <braunr> it may not be worth it
+    <teythoon> not supporting stuff like that might make the whole ecosystem
+      obsolete
+    <braunr> i'm not saying it shouldn't be done
+    <braunr> i'm saying it should be done while sacrificing other important
+      things
+    <braunr> it would just take a little mort effort
+    <braunr> and even if it wasn't done
+    <teythoon> that's what i meant by "whining"
+    <teythoon> no offense
+    <braunr> what is the problem of it being "obsolete" ?
+    <teythoon> but talk is cheap, offering alternative solutions is hard
+    <braunr> isn't unix obsolete ? isn't xorg obsolete ?
+    <braunr> hum no
+    <teythoon> no one did, so they implemented their nice features
+    <braunr> the point isn't to offer alternative solutions
+    <braunr> it's to make them possible
+    <braunr> or at least, not deny their technical feasibility because they
+      don't care
+    <braunr> teythoon: see, "interchangeability and starting a possibly major
+      rift" don't look to conflict with your personal goals
+    <braunr> that's the point where i think i can no longer do anything to
+      convince you
+    <braunr> so i'll head to bed :)
+    <teythoon> heh, me too :)
+    <braunr> honestly, i don't care a lot
+    <braunr> i mean
+    <braunr> it won't change much for me
+    <braunr> but again, my brain is wired to think of things as a whole
+    <braunr> on that note, good night :)
+    <teythoon> good night :)
+    <antrik> teythoon: again, IT'S NOT ABOUT DISPLAYS
+    <antrik> believe me, I do have some understanding how display hotplugging
+      works
+    <antrik> also, the problem is not that gnome3 supports logind. the problem
+      is that gnome3 works *only* with logind now AIUI
+    <antrik> there is yet another way to state the fundamental problem
+    <antrik> there is a kind of social contract among free software projects:
+      every maintainer takes a reasonable amount of extra effort to support use
+      cases beyond his own. in return, his use cases are supported by other
+      maintainers
+    <antrik> the systemd guys are breaking this contract, by explicitly
+      refusing, up front, to take *any* effort to accomodate other projects'
+      needs
+
+
+## IRC, freenode, #hurd, 2014-01-28
+
+    <azeem_> teythoon:
+      https://plus.google.com/+LennartPoetteringTheOneAndOnly/posts/EgKwQV8te7s
+    <teythoon> azeem_: pffff :)
+    <braunr> heh
+    <teythoon> which reminds me
+    <teythoon> if we want to state our position wrt the default init system
+      debate we should probably do it right now
+    <braunr> yes
+    <teythoon> ml or collaborative editor ?
+    <azeem_> well, tech-ctte chair called the vote only for the default init
+      system for the Linux-ports
+    <azeem_> the vote got shot down on technicalities, but that might stand
+    <azeem_> I think that is a good thing, cause it implies that not one init
+      system has to be adopted across all ports
+    <teythoon> we talked the other day that it might make sense just to state
+      our view and our needs
+    <azeem_> sure.
+    <azeem_> I think what's needed is (i) an init-system agnostic system to set
+      the enable/disable state of services (ii) possibly mandating a .ini-style
+      config file along the style of whatever init system gets chosen as
+      default for Linux, to be used by non-Linux init systems as inut
+    <azeem_> input*
+    <azeem_> just my 0.02 EUR
+    <teythoon> uh
+    <braunr> looks overkill
+    <teythoon> i was thinking more along the lines of 1) we have never used the
+      default debian init system and are cool with not using the default in the
+      future, 2) we intend to use sysvinit in the future, 3) to that end, we
+      ask the init script machinery to be left in place
+    <braunr> but then, people managed to write stuff like libvirt
+    <braunr> so who knows
+    <teythoon> 4) we will help maintaining it as part of our porter effort
+    <braunr> i agree with teythoon 
+    <teythoon> 5) we look forward to using openrc as incremental improvement,
+      complementing our sysvinit boot solution
+    <braunr> yes that would be nice
+    <teythoon> i'll write a draft to debian-hurd, ok ?
+    <gnu_srs> openrc now has a dependency loop resolver, so parallel would
+      work:)
+    <teythoon> so is insserv, isn't it ?
+    <gnu_srs> there were complaints on openrc
+      https://bugs.gentoo.org/show_bug.cgi?id=391945 in the tech-ctte
+      discussions, now fixed
+    <azeem_> gnu_srs: please accept the fact that openrc will not be picked by
+      the tech-ctte for the Linux ports
+    <gnu_srs> azeem_: I do, I'm referring to arguments during the discussion
+      (history) 
+    <azeem_> sure, just checking
+    <ArneBab> teythoon: your post is being used to portray systemd cgroups
+      treatment as the right way…
+    <teythoon> ArneBab: so ?
+    <braunr> it probably is the right way
+    <braunr> that's not the problem
+    <ArneBab> do you want to clear that up? (do I remember correctly that you
+      did not like that way?)
+    <braunr> we don't like the cgroups interface
+    <teythoon> i will
+    <braunr> not the feature
+    <ArneBab> braunr: that’s what I meant
+    <teythoon> exactly
+    <braunr> the feature amounts to resource containers in the hurd critique
+      ...
+    <braunr> we do want that too :)
+    <braunr> anatoly: you want them to rewrite cgroups ?
+    <braunr> err
+    <braunr> ArneBab: ^
+
+[[dbus_in_linux_kernel]].
+
+    <teythoon> i've been thinking
+    <teythoon> maybe the magic write stuff isn't that bad after all
+    <braunr> :)
+    <braunr> i was thinking the same thing actually
+    <teythoon> i mean, it's not the nicest thing, but it shows how flexible our
+      solution is
+    <braunr> the hurd is a lot about glue code already so why not
+    <teythoon> the problem is that there is no way to test cgroupfs
+    <teythoon> the main user is systemd, and it requires tons of other stuff
+    <braunr> right
+    <teythoon> any other user of cgroups is also probably using other
+      linux-interfaces too
+
+
+## IRC, freenode, #hurd, 2014-01-29
+
+    <gnu_srs> About openrc having a dependency loop resolver: <teythoon>: so is
+      insserv, isn't it ?
+    <gnu_srs> I found is_loop_detected() in insserv/listing.c but that one just
+      exits without telling where the loop is
+
+
+## IRC, OFTC, #debian-hurd, 2014-01-29
+
+    * youpi trying the new sysvinit
+    <youpi> hopefully we'll then be able to at last use the proper ifup/ifdown
+      debian way for networking :)
+    <youpi> teythoon: why leaving hurd's runsystem by default rather than
+      sysvinit's?
+    <youpi> ah, another issue, too, now that /dev/vcs appears in /proc/mounts,
+      umountfs would umount it
+    <youpi> ideally umountfs would not umount passive translators
+    <youpi> we could blacklist /dev/vcs in umountfs, but the same issue would
+      happen for user-defined translators in their own home, for instance
+
+
+## IRC, freenode, #hurd, 2014-01-30
+
+    <gnu_srs> booting with the new sysvinit and openrc versions: works:), but
+      only in recovery mode:-( Hangs before INIT: version 2.88 booting
+    <gnu_srs> after start ext2fs: Hurd server bootstrap: ext2fs[device:hd0s1]
+      exec init proc authtask c1120dc8 deallocating an invalid port 134517370,
+      most probably a bug.
+    <gnu_srs> related or an openrc problem? will test with sysv-rc
+    <youpi> I don't have such issue with sysv-rc
+    <gnu_srs> k!
+    <gnu_srs> shouldn't recovery mode mean starting in runlevel 1, I get
+      runlevel 2?
+    <youpi> it should
+    <pere> gnu_srs: recovery mode normally mean single user, which is between
+      rcS and rc2
+    <gnu_srs> I get INIT: Entering runlevel: 2
+    <pere> rcS.d should really have been named rcboot.d, as that is really what
+      it is.
+    <youpi> ah, right, recovery is not single
+    <youpi> (single as in init 1)
+    <pere> runlevel 1 is not single user either.  it is more a gateway into
+      single user.  see /etc/init.d/single to see what happen at the end of
+      runlevel 1.
+    <gnu_srs> init 1 and init 2 seems to work
+    <gnu_srs> well, the openrc dependency loop detector has found an init
+      script loop, maybe it has to be fixed?
+    <gnu_srs> disabling the hurd console solved the dependency loop problems,
+      thanks openrc;-)
+    <gnu_srs> (have to dig deeper to see where the loop is, and how to solve
+      it)
+
+
+## IRC, freenode, #hurd, 2014-01-31
+
+    <gnu_srs> Hi, does the hurd console work with sysv-rc: In operc I get with
+      #console -d vga -d pc_mouse --repeat=mouse -d pc_kbd --repeat=kbd -d
+      generic_speaker -c /dev/vcs
+    <gnu_srs> console: Console library initialization failed: Not a directory
+    <teythoon> gnu_srs: yes, it works with sysvrc
+    <teythoon> gnu_srs: check that /dev/vcs has the appropriate translator
+      record
+    <gnu_srs> showtrans /dev/vcs: empty on another box: /hurd/console
+    <teythoon> yes, fix that and your console will be fine
+    <gnu_srs> settrans /dev/vcs /hurd/console?
+    <gnu_srs> or should it be active?
+    <teythoon> no, set an passive translator record so that this will be
+      persistent
+    <gnu_srs> something is wrong: when starting the hurd console screen is
+      blanked (and hangs)
+    <gnu_srs> can I get the hurd console when running with the serial console
+      (to see boot messages)?
+    <teythoon> gnu_srs: yes, yuo can
+    <gnu_srs> will try that image then, tks:)
+    <gnu_srs> teythoon: how to create all underlying directories? ls /dev/vcs:
+      1 2 3 4 5 6
+    <teythoon> don't, /hurd/console takes care of that
+    <gnu_srs> is settrans /dev/vcs /hurd/console correct?
+    <teythoon> yes
+    <sjbalaji> What are those underlying directories representing ?
+    <teythoon> the hurd console is a console multiplexer
+    <teythoon> bringing multiple virtual consoles to the hurd
+    <teythoon> # showtrans /dev/tty1
+    <teythoon> /hurd/term /dev/tty1 hurdio /dev/vcs/1/console
+    <gnu_srs> aha:  console -d vga -d pc_mouse --repeat=mouse -d pc_kbd
+      --repeat=kbd -d generic_speaker -c /dev/vcs
+    <gnu_srs> task c1120e70 deallocating an invalid port 1782, most probably a
+      bug.
+    <sjbalaji> teythoon: Is it that /dev/tty1 has multiple translators ?
+    <teythoon> no
+    <teythoon> exactly one translator is bound to any given node in the vfs
+    <gnu_srs> something is strange with the hurd console: booting with it
+      enabled still runs the mach console, halting:
+      http://paste.debian.net/79438/
+    <teythoon> what is strange about taht ?
+    <gnu_srs> when starting the hurd console:  task c1120e70 deallocating an
+      invalid port 1782, most probably a bug.
+    <teythoon> so ?
+    <gnu_srs> and the paste when halting: twice
+    <teythoon> that is a known issue
+    <gnu_srs> with the hurd console?
+    <teythoon> how do you know it's the hurd console ?
+    <teythoon> that message comes from the kernel
+    <teythoon> currently, it is not possible to tell which process is
+      responsible
+    <teythoon> b/c the task is given as a pointer to the kernel task structure
+    <teythoon> not as a pid
+    <gnu_srs> I don't ,it is triggered by it at least
+    <teythoon> currently there is no way to map the former to the latter
+    <teythoon> why do you think it's a problem ? is something not working as
+      expected ?
+    <gnu_srs> maybe a reproducible way to hunt that bug!
+    <teythoon> we have one already
+    <teythoon> it happens every time the hurd boots
+    <gnu_srs> yes, hurd console does not start, even when enabled:-(
+    <teythoon> then please say so ;)
+    <gnu_srs> I did:  (11:23:30) srs: something is strange with the hurd
+      console: booting with it enabled still runs the mach console, halting:
+      http://paste.debian.net/79438/
+    <teythoon> where do you say that the hurd console did not start ?
+    <gnu_srs> maybe it is easier to hunt the bug in an already booted system
+    <teythoon> you just said that the mach console is still active, wich it is
+      even if the hurd console starts
+    <teythoon> yes
+    <teythoon> please start the hurd console by hand
+    <teythoon> -d current_vcs -c /dev/vcs -d vga -d pc_kbd --keymap us
+      --repeat=kbd -d pc_mouse --protocol=ps/2 --repeat=mouse
+    <teythoon> err
+    <teythoon> /bin/console -d current_vcs -c /dev/vcs -d vga -d pc_kbd
+      --keymap us --repeat=kbd -d pc_mouse --protocol=ps/2 --repeat=mouse
+    <gnu_srs> when I log in I have the mach console not the hurd console
+    <teythoon> yes, log in as root, then run that command
+    <gnu_srs> I've done that: (11:10:27) srs: aha:  console -d vga -d pc_mouse
+      --repeat=mouse -d pc_kbd --repeat=kbd -d generic_speaker -c /dev/vcs
+    <gnu_srs> please read?
+    <teythoon> and you discovered in that process that /dev/vcs lacked a
+      translator record
+    <teythoon> did you run it again after fixing that ?
+    <gnu_srs> the reply was: (11:10:27) srs: task c1120e70 deallocating an
+      invalid port 1782, most probably a bug.
+    <teythoon> well, if you are feeling that what i ask you to do is
+      unreasonable, i'm not sure how i can help you
+    <gnu_srs> yes, the translator was running!
+    <teythoon> you could hunt down the port deallocation bug, that'd be awesome
+      and most welcomed
+    <teythoon> but i don't believe it is causing your console malfunction
+    <gnu_srs> I did what you asked for??
+    <gnu_srs> I'll do it again!
+    <gnu_srs> ok, now I don't get that error, but still no hurd console? the
+      process is running, logging out and then in, no hurd console.
+    <gnu_srs> not possible in serial console?
+    <teythoon> no, the hurd console is displayed using the graphic card
+    <teythoon> you asked for that with -d vga ;)
+    <teythoon> not sure if there are any other display drivers
+    <teythoon> when you asked whether you can use the serial line, i assumed
+      you used both qemus graphic terminal and a serial console
+    <teythoon> try kvm ... -serial telnet::1236,server,nowait, then use telnet
+      localhost 1236 to connect to the serial console
+    <teythoon> then, you can start the hurd console over the serial console and
+      see whether that worked
+    <gnu_srs> OK; that's what I asked before. I tried with the graphic one,
+      I'll try again
+    <gnu_srs> telnet output is empty
+    <gnu_srs> frozen
+    <teythoon> did you start a getty there ?
+    <gnu_srs> in hurd?
+    <teythoon> b/c if you dropped the console=com0 argument from you gnumach
+      command line, the mach console will be put on the vga screen, not on the
+      serial console
+    <gnu_srs> I dropped  console=com0 from grub.cfg, yes
+    <teythoon> ok
+    <teythoon> so simply no one is talking to the serial port anymore
+    <teythoon> did you try to start the hurd console ?
+    <gnu_srs> I did before, can do  it again
+    <gnu_srs> startin the HC blanks the screen, and freezes the vga output:-(
+      ssh still working
+    <teythoon> hm
+    <teythoon> try  ps Ax | grep tty, are there any term servers running for
+      /dev/tty1..6 ?
+    <gnu_srs> lplenty of them: http://paste.debian.net/79442/
+    <teythoon> good, even gettys are there
+    <gnu_srs> and the console translator runs
+    <teythoon> hm
+    <gnu_srs> root  1224     5 7 months /hurd/console
+    <gnu_srs> root  1227  1226 7 months /bin/console -d vga -d pc_mouse
+      pc_mouse -d pc_kb...
+    <teythoon> yes, everything looks good
+    <teythoon> just to be sure, you are currently using the qemus graphical
+      frontend, right ?
+    <gnu_srs> yes
+    <teythoon> hm :/
+    <teythoon> gnu_srs: do you see loginpr processes ?
+    <gnu_srs> nope
+    <teythoon> hum
+    <teythoon> this strikes me as odd
+    <teythoon> on my system, i see no gettys but only loginpr processes
+    <teythoon> this is b/c the hurd getty does little other than to print some
+      text and run the login program
+    <teythoon> but on your system the getty sticks around
+    <teythoon> is /sbin/getty really the hurd getty? it's easily recognized by
+      its crappieness:
+    <teythoon> /sbin/getty --help || echo $?
+    <teythoon> 1
+    <gnu_srs> 1
+    <teythoon> hm
+    <teythoon> still funny though
+    <teythoon> you could try to run the hurd console, then run a getty manually
+    <teythoon> e.g. /sbin/getty 38400 tty1
+    <gnu_srs> from the ssh login?
+    <teythoon> yes
+    <gnu_srs> then the graphic display is back showing the loin prompt:P
+    <teythoon> weird
+    <teythoon> well, so most things work
+    <teythoon> that's a good thing
+    <teythoon> funny that hurds getty should get stuck like this
+    <gnu_srs> and the terminal is hurd:-)
+    <teythoon> any chance you can produce a stack trace of one of your getty
+      processes ?
+    <gnu_srs> how?
+    <teythoon> gdb --pid=the_pid /sbin/getty
+    <teythoon> then, do bt like usual
+    <gnu_srs> so you mean tty2-6 are broken?
+    <teythoon> no
+    <teythoon> it's just for some reason your gettys do not behave nicely when
+      run from init
+    <gnu_srs> from running tty2: bt #0  0x01087b09 in ?? ()
+    <gnu_srs> #1  0x00000000 in ?? ()
+    <gnu_srs> not much
+    <teythoon> hm :/
+    <teythoon> indeed
+    <teythoon> our getty logs to syslog, can you see anythign of interest here
+      ?
+    <gnu_srs> Jan 31 12:00:46 debian-openrc-20140123 rsyslogd-2066: could not
+      load module '/usr/lib/rsyslog/imklog.so', dlopen:
+      /usr/lib/rsyslog/imklog.so: undefined symbol: klogAfterRun
+    <gnu_srs>  [try http://www.rsyslog.com/e/2066 ]
+    <gnu_srs> nothing tty releated
+    <teythoon> gnu_srs: oh, i just noticed, please look into auth.log, the
+      getty stuff ends up there
+    <gnu_srs> teythoon: http://paste.debian.net/79465/
+    <teythoon> well, that is interesting :)
+    <gnu_srs> /dev/tty1 not a directory?
+    <teythoon> for instance, yes
+    <teythoon> it says bad syntax if it was invoked in the wrong way, i.e. not
+      with exactly two arguments
+    <teythoon> that might have been you yourself, right ?
+    <teythoon> with getty --help i mean
+    <teythoon> for the not a directory message, please verify that
+    <teythoon> # showtrans /dev//tty1
+    <teythoon> /hurd/term /dev/tty1 hurdio /dev/vcs/1/console
+    <teythoon> and stat /dev/vcs/1/console says it's a character special file
+    <gnu_srs> I used exactly: /sbin/getty --help || echo $?
+    <teythoon> yes, that accounts for that bad syntax message
+    <gnu_srs> what so bad about that?
+    <gnu_srs>  showtrans /dev//tty1
+    <gnu_srs> /hurd/term /dev/tty1 hurdio /dev/vcs/1/console
+    <teythoon> getty is so simple minded that it doesn't really parse its
+      arguments
+    <gnu_srs> stat: http://paste.debian.net/79469/
+    <teythoon> looks nice
+    <teythoon> everything looks nice, i'm at my wits end here
+    <gnu_srs> and everything works OK with sysv-rc?
+    <teythoon> yes
+    <teythoon> by the way, are you using the sysvinit init scripts or something
+      openrc related ?
+    <gnu_srs> openrc use all the scripts in /etc/init.d
+    <teythoon> actually, could you try to kill -HUP 1 ?
+    <gnu_srs> BTW: the dependency loop detector has found many loops in those
+      scripts 
+    <gnu_srs>  kill -HUP 1: nothing happens
+    <teythoon> ok, try to kill one of those gettys and see if the one that
+      respawns works
+    <teythoon> then again, the getty should try to reopen the device every
+      minute until it succeeds
+    <gnu_srs> getty tty1 and tty2 disappeared? kill -HUP tty3 respawns
+      immediately
+    <gnu_srs> now no getty processes are left?
+    <gnu_srs> /dev//tty4: Not a directory etc?
+    <teythoon> sorry, i should have expressed myself more clearly
+    <teythoon> kill -HUP 1 sends a SIGHUP to sysvinit, this makes it reload
+      it's configuration
+    <teythoon> when i said kill some getty, i meant just kill some_pid
+    <teythoon> when you said 'kill -HUP tty3 respawns immediately', did you
+      mean you killed the getty that was listening on /dev/tty3, and then a new
+      one appeared and you got a login prompt at tty3 ?
+    <gnu_srs> a new pid appeared, the login prompt is on tty1
+    <gnu_srs> this one? /hurd/term /dev/tty1 hurdio /dev/vcs/1/console
+    <teythoon> i'd like to invite you to look at daemons/getty.c
+    <gnu_srs> not a big piece of code: anything specific?
+    <teythoon> no, just look what it roughly does
+    <gnu_srs> not a directory is not coming from that code
+    <teythoon> correct
+    <gnu_srs> it execl-s login
+    <teythoon> yes
+    <teythoon> inevitably
+    <teythoon> but you do not observe this
+    <gnu_srs> how come when they are running?
+    <teythoon> this is the question that you will have to answer in order to
+      make any progress
+    <gnu_srs> I killed only one of them:  kill -HUP 1031 and they all
+      disappeared
+    <teythoon> i thought along these lines: the most obvious way to stall getty
+      is if it never exits that loop
+    <teythoon> so i guessed it might be failing to open the device
+    <teythoon> we already observed that getty works fine if invoked by you
+      manually
+    <teythoon> the question thus is, what is different when getty is invoked by
+      init ?
+    <teythoon> if a process started by init in this way is killed, init will
+      restart it
+    <teythoon> please note, that if anyone says kill that process, she means
+      send a signal that results in process termination
+    <teythoon> and while sighup causes processes to die if the signal is not
+      handled, it is not the ideal signal to kill processes
+    <teythoon> b/c some processes handle sighup
+    <teythoon> like sysvinit, which reloads its configuration
+    <teythoon> many daemons do this
+    <teythoon> see 'man 7 signal' for how signals affect processes
+    <gnu_srs> sorry, have to leave for now, bbl and thanks a LOT so far:)
+    <teythoon> ok :)
+    <teythoon> you are welcome :)
+    <gnu_srs> teythoon: I'm back but cannot spend to much time on this
+      tonight. Maybe you should try it yourself, do you want another image on
+      my box? 
+    <teythoon> it'd be nice if you put your packages somewhere
+    <gnu_srs> there are no special packages sysvinit  (-46) and openrc (-8)
+    <teythoon> surely openrc with some patches ?
+    <gnu_srs> from #openrc: (17:37:41) srs: start with sysvinit and make it
+      work first!
+    <gnu_srs> (17:28:43) srs: zigo: Then I copied that working image to
+      another, and changing hostname, and continued from there.
+    <gnu_srs> openrc with the hurd patches for /lib/rc/sh/init.sh (v8 should be
+      available from experimental by now)
+    <teythoon> sweet :)
+    <teythoon> gnu_srs: maybe it was just some weird issue with your system
+    <teythoon> i just switched to openrc and everything seems to just work
+    <teythoon> i'll redo what i just did more cleanly to get a clean test vm...
+    <gnu_srs> nice:)
+    <gnu_srs> teythoon: And you got the hurd console?
+    <teythoon> heh, i believe so >,<
+    <teythoon> i didn't see it b/c i was using --nographic
+    <teythoon> but ps Ax looked alright
+    <teythoon> hrm
+    <teythoon> gnu_srs: i can reproduce your trouble, umount still strips the
+      translator record from /dev/vcs
+    <teythoon> at system shutdown time
+    <gnu_srs> so that's the reason. Additionally I have to issue halt twice
+      from a ssh login, see http://paste.debian.net/79517/
+    <teythoon> funny indeed
+    <teythoon> gnu_srs: i can reliably recover the hurd console by doing
+    <teythoon> settrans /dev/vcs /hurd/console && service hurd-console restart
+      && pkill getty ; sleep 5 ; pkill getty
+    <teythoon> humm, as you say, halt doesn't work
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-01
+
+    <pere> I've just uploaded a new new sysvinit package to experimental, with
+      all the latest hurd fixes.  
+
+
+## IRC, freenode, #hurd, 2014-02-01
+
+    <gnu_srs> 17:53:28< teythoon> settrans /dev/vcs /hurd/console && service
+      hurd-console restart && pkill getty ; sleep 5 ; pkill getty
+    <gnu_srs> teythoon: Any ideas on how to solve this?
+    <teythoon> gnu_srs: yes, i have that on my todo list
+    <gnu_srs> so it is not an openrc problem?
+    <teythoon> gnu_srs: no
+
+
+## IRC, freenode, #hurd, 2014-02-01
+
+    <teythoon> start ext2fs: Hurd server bootstrap: ext2fs[gunzip:device:rd0]
+      exec init proc au
+    <teythoon> thtask with pid 6 deallocating an invalid port 134517370, most
+      probably a bug.  
+    <teythoon> :)
+    <teythoon> pid 6 is exec o_O
+    <gnu_srs> teythoon: Nice to see that you added pid numbers for error
+      print-outs:)
+    <gnu_srs> so the boot error comes from the exec sever?
+    <teythoon> so it seems
+    <gnu_srs> server*
+    <gnu_srs> have you found where?
+    <teythoon> no
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-02
+
+    <pere> but when I install the new packages, and run update-alternatives
+      --config runsystem to select sysv, the boot fail with: start ext2fs: Hurd
+      server bootstrap: ext2fs[device:hd0s1] exec init proc authtask c1128dc8
+      deallocationg and invalid port 134517370, most probably a bug.
+    <pere> was that the wrong approach?
+    <pere> is there some way to recover when hurd fail to boot with sysvinit?
+    <pere> I was able to boot in recovery mode. :)
+    <pere> and this time sysvinit booted.  saw a segfault message just after
+      sysvinit started, no idea what caused it.
+    <pere> looks like it is startpar that segfaults.
+    <pere> looks like the invalid port message come every time, no matter if
+      the boot hang or not.
+    <pere> I was wrong.  it isn't startpar segfaulting, it is something in
+      rcS.d/.
+    <pere> bootlogd is the process segfaulting at boot.
+    <pere> looks like the boot success rate is 30% or so.
+    <pere> reported bootlogd problem as <URL: http://bugs.debian.org/737375 >.
+      I really miss valgrind. :)
+    <teythoon> pere: yes, the invalid port message is from the exec server
+    <teythoon> pere: i see the hurd boot process hang sometimes, no matter if i
+      use sysvinit or not
+    <teythoon> i believe it's a race condition in the ext2fs, not sure though
+    <pere> teythoon: but did the frequency of the hang go up with sysvinit or
+      not? to me it seem like that.
+    <teythoon> pere: yes, i believe it got worse
+    <teythoon> what hangs is fsysopts --update /
+    <teythoon> runsystem.sysv does that quite early
+    <pere> able to debug it?
+    <pere> I like the fact that runsystem.sysv set up ip at boot time, while
+      with .gnu, I have to run dhclient /dev/eth0 manually
+    <pere> it is quite confusing that hurd got two init processes with
+      sysvinit.  one as pid 1, and another that seem to be the parent of all
+      internal stuff.  perhaps the latter could be renamed to hurd-system or
+      something like that?
+    <pere> "sleep 0.2 # Work around a race condition (probably in the root
+      translator)." do not look too good...
+    <pere> (I increased from 0.1 to see if it help me. :)
+    <teythoon> did it ?
+    <teythoon> i plan to rename /hurd/init to /hurd/startup
+
+[[hurd_init]].
+
+    <pere> nope. :)
+    <pere> five boots in a row hung. :(
+    <pere> still no go...
+    <teythoon> are you using a vm or real hardware ?
+    <pere> vm
+    <pere> kvm, via virt-manager, to be exact.
+    <teythoon> me too
+    <pere> on the sixt boot, after waiting a long time between try 5 and 6
+      (gave up a bit), it booted.
+    <pere> sleep 1 did not help either.
+    <teythoon> :(
+    <teythoon> well, it's not *that* bad for me
+    <teythoon> in fact recently it has been a lot better
+    <teythoon> you might try my packages
+    <teythoon> pere: here http://darnassus.sceen.net/~teythoon/hurd-ci/
+    <pere> teythoon: tested it, and it seem to solve the problem.
+    <pere> is also rid of the strange error at the start.
+    <pere> teythoon: your packages even work without the sleep 0.1, at least
+      some of the time. :)
+    <pere> hm, but the success rate without sleep 0.1 is very low.  I was able
+      to boot once, and never again. :(
+    <teythoon> pere: yes, i fixed the spurious port allocation today :)
+    <teythoon> pere: nice to hear that the sleep 0.1 i put in does increase
+      your chance to boot as well
+
+
+## IRC, freenode, #hurd, 2014-02-02
+
+    <teythoon> gnu_srs: i found the spurious port deallocation :)
+    <gnu_srs> Cangrats:-D
+    <teythoon> trouble is, i introduced it >,<
+    <gnu_srs> Congrats*
+    <gnu_srs> Ah, you did?
+    <teythoon> gnu_srs: yes, in debian/patches/exec_filename_fix.patch
+    <teythoon>
+      http://darnassus.sceen.net/gitweb/teythoon/packaging/hurd.git/commitdiff/6da3e0be8fde0594bd84a13536d9d93048186790
+    * teythoon . o O (diffs of diffs are trippy :)
+
+
+### IRC, freenode, #hurd, 2014-02-03
+
+    <braunr> teythoon: oh nice, you found that bug :)
+    <teythoon> braunr: yes, once i knew where to look it was easy to fix ;)
+
+
+### IRC, freenode, #hurd, 2014-02-05
+
+    <teythoon> i wonder why the port deallocation bug made the system hang when
+      the libc was compiled with the newer gcc
+    <braunr> teythoon: so it was indeed the problem ?
+    <teythoon> braunr: youpi said so, yes
+    <braunr> oh right
+
+[[glibc/debian/experimental]], *glibc 2.18 vs. GCC 4.8*?
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-03
+
+    <pere>
+      http://people.skolelinux.org/pere/blog/Testing_sysvinit_from_experimental_in_Debian_Hurd.html
+    <teythoon> :)
+    <teythoon> pere: sounds like your hurd-console isn't running and there is
+      no getty on the mach console
+    <teythoon> pere: you could add sth like 8:2345:respawn:/sbin/getty 38400
+      console to your inittab
+    <pere> I'd rather wait until the hurd porters get it right in the debs. :)
+    <pere> I suspect upgrading the downloadable image to use the latest
+      packages also would help a lot.
+    <pere> with upgraded packages, /proc is working and pstree, pkill, top, etc
+      is working out of the box. :)
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-04
+
+    <pere> I just uploaded sysvinit with hurd support to unstable. :)
+
+
+## IRC, freenode, #hurd, 2014-02-04
+
+    <gnu_srs> teythoon: Hi, the segfault during boot is coming from bootlogd,
+      see bug #737375
+    <gnu_srs> also the output on the console is from there: end_request: I/O
+      error, dev 02:00, sector 0
+    <teythoon> gnu_srs: interesting :)
+    <teythoon> gnu_srs: i believe the end_request message comes from gnumach
+    <youpi> yes, that's just a floppy disk access attempt
+    <gnu_srs> might be so yes
+    <youpi> it's not a "might", it's sure :)
+    <youpi> dev 02:00 is the flopy
+    <gnu_srs> k!
+
+
+## [[glibc_IOCTLs]], `TIOCCONS`
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-04
+
+    <zigo> Each time I upgrade my hurd box, I cannot login into it ...
+    <zigo> No login prompt.
+    <zigo> WTF is going on?
+    <zigo> How to fix?
+    <teythoon> zigo: most likely your hurd console is not running and there is no getty started for the mach console
+    <zigo> teythoon: How to fix? (note: I already have the partition mounted in a loopback)
+    <zigo> Or maybe go in recovery mode?
+    <teythoon> depends
+    <teythoon> do you use sysvinit ?
+    <teythoon> do you use the hurd packages from hurd-ci ?
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-05
+
+    <zigo> teythoon: Sorry, didn't see your reply. I just used the Hurd image,
+      untar it, and apt-get update / dist-upgrade. That's it, nothing more or
+      less.
+    <zigo> teythoon: I obviously would like to install sysvinit, and later
+      OpenRC. That's the reason why I'm running Hurd: to make sure OpenRC works
+      with it without issues.
+    <zigo> teythoon: It seems it "sometimes work" or what???
+    <zigo> I was able to repair it using the recovery mode, it seems.
+    <zigo> grrr...
+    <zigo> I got this issue again, again and again ...
+    <zigo> Sometimes, got the tty1, sometimes, it doesn't appear.
+    <zigo> That's REALLY frustrating.
+    <pere> zigo: and yes, the success rate for boot is not 100%.  it increases
+      a bit by using the packages teythoon created at hurd-ci.
+    <pere> apparently some race condition somewhere.
+    <zigo> pere: So, I should just try and reboot again and again ?
+    <zigo> pere: Is it improving after switching to sysvinit?
+    <pere> once I had to boot six times before I got it running...
+    <pere> I was told that the race involves a call to fsysopts, and that the
+      success rate with sysvinit was smaller because fsysopts command was
+      called earlier. I can not confirm nor deny this.
+    <pere> with the latest packages from hurd-ci the success rate is almost
+      100% again.
+    <zigo> pere: Where do get that?
+    <pere> zigo: see <URL:
+      http://people.skolelinux.org/pere/blog/Testing_sysvinit_from_experimental_in_Debian_Hurd.html
+      >
+    <zigo> pere: What's the "update-alternatives --config runsystem" for?
+    <pere> to switch to sysvinit
+    <zigo> Right, that's what I was missing then! :)
+    <pere> the new sysvinit version in unstable was built for hurd one and a
+      half hour ago.  so soon hurd users can skip experimental for that.
+    <zigo> pere: I've just succeeded in booting with OpenRC! :)
+    <zigo> Though this console pb is REAAAALLLYYYY getting on my nerves! :)
+    <zigo> Also, any idea why we don't get the nice colorfull output when
+      booting?
+    <zigo> When booting with OpenRC, I've noticed that the dependency loop
+      detects some loops with the hurd-console thing.
+    <teythoon> zigo: good to hear that you got it working
+    <teythoon> the console problem is the following
+    <teythoon> when you shutdown using sysvinit, the system will run umount -a
+    <teythoon> it will then mistake some translators (like the one on /dev/vcs)
+      for file systems and remove their passive translator records
+    <teythoon> you can fix this by running '/usr/lib/hurd/setup-translators -k
+      -p'
+    <teythoon> you can avoid it for the time being by using reboot-hurd or
+      halt-hurd
+    <pere> teythoon: btw, how often is the hurd boot image available for
+      download updated?
+    <teythoon> not very often
+    <zigo> teythoon: Can I run  '/usr/lib/hurd/setup-translators -k -p'
+      mounting my hurd image in a chroot?
+    <zigo> Hum...
+    <zigo> Probably better to do that in the recovery mode, no? :)
+    <youpi> dpkg-reconfigure hurd 
+    <youpi> would be easier to type :)
+    <youpi> but we really need to fix that /dev/vcs unmounting
+    <pere> missing working getty and missing symlink from /run/mtab to
+      /proc/mount are the most serious problems I still see.
+    <zigo> The recovery mode doesn't work with OpenRC ! :(
+    <zigo> (it does in kFreeBSD and Linux, not with hurd ...)
+    <zigo> What happens is that it continues to runlevel 2.
+    <zigo> How can I fix then?
+    <youpi> pere: missing working getty?
+    <youpi> I don't see what issue you are referring to
+    <youpi> about the missing symlink, I'm wondering what is supposed to add it
+    <youpi> zigo: I don't know if anybody investigated it yet
+    <pere> youpi: yes, after boot there is no login prompt.
+    * pere have no idea, suspect a script in initscripts.
+    <zigo> youpi: I'm reffering to the fact that I have no login prompt after
+      boot, and that I don't know how to fix, since I don't have a recovery
+      mode to my disposal anymore.
+    <youpi> pere: but is the console started?
+    <youpi> (I mean the hurd console)
+    <zigo> pere: I suspect a wrong dependency, which OpenRC by the way, prints.
+    <youpi> pere: otherwise, unless you have a /dev/console getty in
+      /etc/inittab, it's expected you don't have a prompt
+    <youpi> zigo: add
+    <youpi> c:23:respawn:/sbin/getty 38400 console
+    <youpi> to your /etc/inittab
+    <teythoon> youpi: yes, we need to get that fixed
+    <youpi> grrrr
+    * youpi wanted to change the image file on people.d.o
+    <youpi> but I can't do that without downloading it on my laptop, to be able
+      to modify it
+    <youpi> I would have been, if people was a hurd system :)
+    <teythoon> the proper way to fix this is to implement the get_source stuff
+      and get rid of the heuristic in mtab.c
+    <pere> youpi: nope, no console process running.
+    <youpi> then that's why, /dev/vcs got unmounted
+    <pere> I already have a console getty in inittab.  got it from the last
+      sysvinit package
+    * youpi should have brown-bag-fixed these bugs before this week-end
+        actually  :)
+    <youpi> pere: but you don't get a getty prompt on the mach console? I don't
+      understand why
+    <youpi> it does work for me
+    <teythoon> brown-bag-fixed ?
+    <zigo> youpi: Adding that in /etc/inittab didn't fix anything.
+    <youpi> yes, ugly hacks uploaded to debian-ports
+    <youpi> zigo: even with rebooting?
+    <youpi> could you snapshot your screen so we can make sure what you are
+      actually  getting?
+    <zigo> youpi: I did it mounting my partition in a loopback...
+    <zigo> Then booted up, and still couldn't see the console prompt.
+    <youpi> ok, but please take a snapshot, so we are sure what is actually
+      happening
+    <youpi> whether the console starts, etc.
+    <pere> that info passed out of the screen and is not shown after my boot,
+      at least.
+    <youpi> which info?
+    <youpi> again, please take a snapshot of the screen
+    <youpi> otherwise we are just guessing, and that's never good for debugging
+    <zigo> Maybe you'll find this interesting: http://paste.debian.net/80246/
+    <zigo> This is the output of OpenRC booting and detecting dependency loops
+      in the LSB header scripts.
+    <pere> youpi: the info about the console being started or not.  I'll show
+      you, give me a minute.
+    <youpi> zigo: well, that shouldn't be more problems than the dependency
+      loop already existing between rc.local and rmnologin
+    <pere> youpi: any loop is a fatal problem.
+    <youpi> how come the rc.local vs rmnologin is not a problem ?
+    <zigo> With sysv-rc in Debian, there's all sorts of loops that are just
+      silent.
+    <pere> I have not seen that loop on my linux system, so I am unsure what
+      you talk about.
+    <youpi> (the actual issues is simply that all three use Required-start:
+      $all, and thus all depend on each other)
+    <zigo> That's a huge pb IMO.
+    <youpi> pere: well, 
+    <pere> zigo: show me one?  
+    <youpi> rc.local:# Required-Start:    $all
+    <youpi> rmnologin:# Required-Start:    $remote_fs $all
+    <zigo> Yeah, the $all is just *bad*.
+    <pere> that is no loop.
+    <zigo> I do believe we should implement a lintian warning about it.
+    <pere> sure, $all do not behave the way most people expect, and should be
+      avoided as much as possible.
+    <pere> any other loops?
+    <youpi> no
+    <youpi> (not that I know of)
+    <pere> youpi: sending you the screenshot via irc.
+    <youpi> uh, long time no use dcc send, I don't even know where it sent it
+      to :o)
+    <pere> ok. aborting and trying another approach.
+    <pere> http://www.picpaste.com/booted-herd.png
+    <youpi> ok, so boot didn't actually finish
+    <youpi> that's why you don't get gettys or hurd-console (which is last)
+    <youpi> there must be some init script hanging in the meanwhile
+    <pere> logging in via ssh show no running startpar process, so I doubt that
+      is the case.
+    <pere> syslog contain this: Feb  5 10:10:27 hurdtest console[808]: Console
+      library initialization failed: Not a directory
+    <youpi> that is due to /dev/vcs not mounted
+    <youpi> but that should have not prevented the boot from completing...
+    <pere> the boot is completed, as far as I can tell.
+    <youpi> you can disable the hurd console in /etc/defaults/hurd-console
+    <youpi> do you have gettys running?
+    <pere> no such file.
+    <youpi> oops, -s
+    <pere> http://paste.debian.net/80251/
+    <teythoon> pere: check your /etc/inittab, is there a getty for the mach
+      console ?
+    <youpi> he said yes earlier
+    <teythoon> oh ok
+    <teythoon> i wonder why it doesn't show up then
+    <youpi> same for me
+    <teythoon> if the getty cannot open the device, it will loop
+    <pere> ah, I was wrong.  the inittab is not the one I thought.  the current
+      one is after a reinstall, while I checked the content before that.
+    <teythoon> pere: check /var/log/auth.log
+    <pere> there is indeed no console entry in /etc/inittab.  I thought it
+      would be copied into place during upgrades?
+    <teythoon> not if it exists
+    <teythoon> iirc
+    <youpi> indeed
+    <pere> ah, great.  "cp /usr/share/sysvinit/inittab  /etc/inittab" and a
+      reboot fixed it. :)
+    <youpi> phew :)
+    <pere> it really should try harder to update the inittab on hurd to a
+      working one.
+    <teythoon> didn't i do something like this to fix the getty path ?
+    <pere> yes.  that was the code I expected to solve this.
+    <teythoon> it didn't work ?
+    <pere> well, I had the wrong inittab file...
+    <pere> btw, do hurd have the needed syscalls for bootlogd to work?
+    <teythoon> i haven't looked at bootlogd yet
+    <pere> would be nice to have a text dump of the boot when trying to figure
+      out what went wrong.
+    <teythoon> yes, that'd be nice
+
+    <youpi> pere: could you blacklist /dev/vcs in umountfs, just like already
+      done for /proc|/dev|/.dev etc. ?
+    <youpi> so at least that case, which is really problematic, gets fixed now,
+      and not have to wait for another, more hurdish solution
+    <pere> youpi: just send patches to bts, and I'll pick it up from there.
+    <teythoon> nice. i'll work on the proper solution. bbl
+    <rleigh> teythoon: Can we add those translators to the exclusion lists in
+      umount[nfs]?
+    <rleigh> Sorry, I just noticed youpi's comment.  I'm a bit behind.
+    <heroxbd> rleigh: good to see you! are you back to the keyboard? fully
+      recovered?
+    <rleigh> Not quite fully, but on the mend, thanks!
+    <heroxbd> :]
+    <pere> rleigh: yeah, good to see you again.  I got a burst of energy and
+      brushed a bit on sysvinit in your absence. :)  Even revitalized the
+      #pkg-sysvinit channel. :)
+    <rleigh> pere: Yes, I saw all the commit emails flying by!
+    <rleigh> I realistically won't be doing much for several weeks at least
+      though, I'm afraid.
+    <pere> no worries. spend your time getting well.   :)  it would be great to
+      have you on #pkg-sysvinit, though. :)
+    <rleigh> I'll join, no worries.  I should add it to my irssi config so I
+      can't forget!
+    <heroxbd> teythoon: serial console always works, right? no matter how
+      hurd-console behaves.
+    <teythoon> heroxbd: yes
+    <teythoon> but you need a getty on it
+    <youpi> well, just like on linux :)
+    <teythoon> yes
+    <teythoon> almost
+    <teythoon> on mach, we have the mach console. by default that is put on the
+      vga screen, but you can make mach put it on a serial port using the
+      gnumach command line flag console=comX
+    <youpi> well, just like on linux :)
+    <heroxbd> understood, thanks!
+    <teythoon> oh, i didn't realize linux has this as well
+    <heroxbd> teythoon: you'll use it a lot on a embedded system
+    <heroxbd> an*
+    <teythoon> ok
+
+    <gg0> plus, seems it can't cleanly umount /, at boot it fsck's it, fixes it
+      and auto-reboot
+    <youpi> it's odd that / doesn't get unmounted, don't you get a message at
+      "notifying ext2fs device:hd0s1 of shutown" ?
+    <gg0> on console last 3 lines on halt are
+    <gg0> Deactivating swap...swapoff: /dev/hd0s5: 4193208k swap space
+    <gg0> done.
+    <gg0> Unmounting local filesystems...done.
+    <gg0> INIT: no more processes left in this runlevel
+    <youpi> is this on reboot or on halt?
+    <gg0> halt
+    <youpi> then you should also be getting the "notifying" messages, as well
+      as "In tight loop: hit ctl-alt-del to reboot" message
+    <gg0> it umounts uncleanly on reboot too
+    <youpi> if you don't wait for these, there's little wonder it's not
+      properly unmounted
+    <gg0> i waited many seconds, time to rewrite 3 lines above for you for
+      instance (not a fast typist)
+    <gg0> on reboot it's harder but iirc they don't appear as well
+    * gg0 rebooting again
+    <gg0> need to wait it finishes fsck'ing
+    <gg0> (i should resoldering my serial cable to get back to lazily c&p)
+    <gg0> -ing
+    <gg0> many Give root password messages then
+    <gg0> Give root password for maintenance
+    <gg0> (or type Control-d to continue):
+    <gg0> INIT: Id "z6" respawning too fast: disabled for 5 minutes
+    <gg0> INIT: no more processes left in this runlevel
+    <gg0> i'll wait 5 mins to see what happen
+    <gg0> ok another dozen of Give root password and same couple of INIT above
+    <gg0> no, just the first INIT
+    <youpi> so z6 doesn't work
+    <youpi> i.e. /sbin/sulogin (see /etc/inittab)
+    <youpi> check out why that is
+
+[[hurd/translator/mtab/discussion]], *IRC, freenode, #hurd, 2013-06-25*,
+*coreutils' `df`*.
+
+    <youpi> [...] depends on coreutils actually building
+    <youpi> which depends on putting back a login package from the shadow
+      source package
+    <pere> are someone on that task?
+    <youpi> no idea
+    <youpi> IIRC I've mentioned the issue on the lists like months ago
+    <youpi> but probably nobody took the tas
+    <youpi> k
+    <youpi> basically it means fixing any bug that login or su from the login
+      package would have
+    <youpi> and then properly handle the migration from hurd-provided versions
+      to login-provided versions
+    <youpi> and then we would be able to build coreutils
+    <pere> which BTS report is this?
+    <youpi> I don't know if any report has been written about it
+    <youpi> perhaps simplest would be to build the login package, but not its
+      bin/login
+    <youpi> it seems hurd's getty uses special options of hurd'slogin
+    <youpi> that's probably the easiest way to go
+
+    <gg0> sulogin seems to work fine but it shouldn't even called:
+    <gg0> # Normally not reached, but fallthrough in case of emergency.
+    <gg0> z6:6:respawn:/sbin/sulogin
+    <gg0> +be
+    <pere> I suspect a good fix is to provide a new init.d script in the hurd
+      package adding the symlink for hurd.
+
+    <gg0> umountfs gets stuck at "Will now umount local filesystem:settrans
+      -apgf /lib/rc/init.d"
+
+
+## IRC, freenode, #hurd, 2014-02-05
+
+    <gnu_srs> teythoon: Any ideas why I have to issue halt/reboot twice to make
+      the command succeed (from ssh login)
+    <gnu_srs> Is it the same issue with sysv-rc? 
+    <teythoon> no
+    <gnu_srs> BTW: The segfault when booting came from bootlogd (wrong
+      parameters, Linux/~Linux), removing that one fixed it;-)
+
+
+## IRC, freenode, #hurd, 2014-02-06
+
+    <youpi> teythoon: we really need to find the boot issue for which you added
+      a sleep 0.1 in runsystem.sysv
+    <youpi> apparently I had to move it above the mach-defpager startup, to get
+      a system that boots most of the time...
+
+    <azeem> did somebody look at
+      http://homepage.ntlworld.com/jonathan.deboynepollard/Softwares/nosh.html
+      ?
+    <braunr> azeem: interesting
+    <azeem> braunr: was mentioned here: http://lwn.net/Articles/584428/
+    <azeem> " Systemd won't work for them, that's for sure, but nosh as a
+      systemd unit file compatible alternative could. "
+    <braunr> "I'm also very interested in seeing a discussion where the Debian
+      Hurd and BSD porters weigh in for themselves"
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-06
+
+    <gg0> on halt/reboot it can't remount readonly root because it's busy, what
+      makes it busy?
+    <gg0> by keeping /lib/rc/init.d mounted (like /dev/vcs) it shuts down
+      properly
+    <youpi> I don't know about such directory
+    <gg0> so seems that failed readonly remount is not a real problem because
+      at the end it runs halt-hurd/reboot-hurd which umount root properly
+    <youpi> yes
+    <gg0> afaiu it's a tmpfs where openrc copies "itself", kind of work
+      directory
+    <gg0> by removing it, it can't continue working
+    <gg0> at boot some messages are about its creation/population
+    <pere> why do init.d/hurd-console depend on $all?  In most cases, depending
+      on $all is not giving you want you expect.
+    <youpi> because we prefer to start the console (and thus clear all the
+      screen) only after the boot has finished
+    <youpi> otherwise the console output will be messed up by the end of the
+      boot messages
+    <teythoon> youpi: there has to be a better way
+    <teythoon> b/c the way it is now, if one spawns a getty on the mach
+      console, it will mess up the hurd console as well
+    <youpi> well, we do want mach messages printed even with the hurd console,
+      at least
+    <teythoon> i once thought that instead of printing them the kernel could
+      send messages to a registered userspace daemon that could e.g. send them
+      to syslog
+    <youpi> that requires syslog to be working at all
+    <pere> changing $all to $local_fs seem to work fine here.
+    <youpi> when the kernel cries out, we'd better always be able to hear it :)
+    <youpi> pere: but then you have the bootup messages in the middle of the
+      console, don't you?
+    <pere> not as far as I can tell. look just the same as before.
+    <youpi> well, on my box it seems that it gets to start after other daemons,
+      by luck
+    <youpi> ah, perhaps getty actually clears the tty?
+    <youpi> then that would be ok
+    <teythoon> youpi: i don't think it does
+    <youpi> well, somehow something clears the output at least
+    <teythoon> i thought he hurd console does this
+    <youpi> it does on startup, yes
+    <youpi> but if it starts before other daemons
+    <youpi> the damons startup output gets over it
+    <youpi> one sees the console clear the screen, then get daemon startup
+      messages, and then the screen gets cleared again before the login prompt
+      appears
+    <teythoon> interesting, i haven't seen this happening
+    <youpi> it seems like it happens when emitting text on /dev/tty1, the
+      console will then clear the screen to make the way for the new output
+    <youpi> and since that happens on getty startup, it happens to be after all
+      daemon startup
+    <youpi> yes, that's what happens
+    <youpi> so considering this, I'm fine with starting the console earlier
+    <youpi> getting a display glitch seems to have been acceptable on Linux for
+      years :)
+    <youpi> (during boot, I mean)
+    <teythoon> ok
+
+    <gg0> anyone else tried openrc?
+    <gg0> 15:20 < pere> yes, it did not umount properly.
+    <gg0> 15:36 < gg0> reboot or halt? it takes few seconds to actually
+      reboot/halt since the last message from openrc
+    <gg0> 15:39 < gg0> any typo adding such path?
+    * gg0 likes cross-channel pasting
+    <gg0> anyone else keeps getting unclean umounts even after applying
+      http://paste.debian.net/plain/80386/ ?
+    <teythoon> gg0: yes, me. worked fine, it didn't shut down properly though
+    <gg0> here works like a charm
+    <gg0> what do you mean by properly?
+    <gg0> i see first it can't remount root readonly but at least by not umount
+      path in question it continues executing scripts till actually shut it
+      down with something like {halt,reboot}-hurd
+    <gg0> *not umounting
+    <gg0> *shutting
+    <teythoon> for me it did not shut down
+    <gg0> you mean don't you get classic press ctrl+alt+canc to reboot message?
+    <teythoon> yes
+    <teythoon> from my perspective (and from /hurd/init's), that's not shutting
+      down
+    <teythoon> as in it did not call reboot(2)
+    <gg0> what are configuration not to miss besides switching runsystem to
+      sysv one?
+    <gg0> *configuration steps
+    <teythoon> no idea, i did nothing else but to switch to runsystem.sysv and
+      to install openrc thus replacing sysv-rc
+    <gg0> can you paste shutdown messages somewhere?
+    <teythoon> sure
+    <gg0> .o(world is failing, /me can't debug teythoon :))
+    <teythoon> http://paste.debian.net/hidden/745071e6/
+    <gg0> in my case i just found out that /etc/init.d/umountfs tries to umount
+      /lib/rc/init.d where openrc scripts are
+    <gg0> what if you set VERBOSE and print REG_MTPTS? something like
+      http://paste.debian.net/plain/80570/
+    <gg0> there i got "settrans -apfg /lib/rc/init.d" which vanished with first
+      patch
+    <teythoon> http://paste.debian.net/80573/
+    <gg0> ok and if you apply first patch http://paste.debian.net/plain/80386/
+    <gg0> i.e. adding |/lib/rc/init.d to mount point to ignore
+    <teythoon> didn't help
+    <gg0> well output should change though
+    <teythoon> it does
+    <teythoon> but it still does not shut down
+    <gg0> paste please then
+    <teythoon> http://paste.debian.net/80576/
+    <teythoon> what did you expect ?
+    <gg0> did you unapply VERBOSE & print REG_MTPTS?
+    <teythoon> yes
+    <teythoon> no
+    <teythoon> well
+    <gg0> seems you do, if VERBOSE is set, it prints Will now unmount local
+      filesystems"
+    <teythoon> i restored a vm snapshot, and applied both patches
+    <gg0> instead of "Unmounting local filesystems"
+    <gg0> *seems you did
+    <teythoon> http://paste.debian.net/80577/
+    <teythoon> shall i do it again ?
+    <gg0> and what after "root@debian:/# halt" ? :p
+    <teythoon> 23:55 < teythoon> http://paste.debian.net/80576/
+    <teythoon> and openrc shouting lots of stuff about breaking dependencies
+    <gg0> please yes do it again
+    <gg0> if VERBOSE is set, it prints "Will now unmount local filesystems"
+      instead of "Unmounting local filesystems"
+    <teythoon> yes, you are right
+    <teythoon> still, it does not work
+    <teythoon> http://paste.debian.net/80579/
+    <gg0> i'm curious about the new REG_MTPTS, supposing /lib/rc/init.d has
+      been suppressed
+    <gg0> ok stop
+    <gg0> 23:47 < gg0> ok and if you apply first patch
+      http://paste.debian.net/plain/80386/
+    <teythoon> i did
+    <teythoon> well, i added that path
+    <gg0> i don't believe so, it should ignore it if added
+    <teythoon> did it fix the issue for you ?
+    <gg0> yes
+    <gg0> any typo in addition?
+    <gg0> obviously patch is against sysvinit source but you have to apply it
+      to /etc/init.d/umountfs
+    <teythoon> obviously
+    <gg0> isn't it time to tell me you are kidding me yet?
+    <youpi> pere: thanks for the upload. I happened to realized that since it
+      was in collab-maint, I could as well just commit changes, I hope it's ok?
+    <teythoon> gg0: root@debian:~# fgrep '/lib/rc/init.d' /etc/init.d/umountfs
+      /|/proc|/dev|/.dev|/dev/pts|/dev/shm|/dev/.static/dev|/proc/*|/sys|/sys/*|/run|/run/*|/lib/rc/init.d)
+    <gg0>  /dev/vcs is missing, not the latest sysvinit version
+    <gg0> could this affect shutdown?
+    <teythoon> i know
+    <teythoon> possibly
+    <gg0> what if you also add /dev/vcs to path list?
+    <teythoon> what then ?
+    <teythoon> i don't mind /dev/vcs being 
+    <teythoon> err, 'umounted'
+    <teythoon> i can handle that just fine
+    <gg0> i mean what happens if you add /dev/vcs to path list in
+      /etc/init.d/umountfs as you did with /lib/rc/init.d?
+    <gg0> what happens = how it shutdown
+    <teythoon> why would it be any different ?
+    <gg0> no idea, seems the only change you don't have
+    <gg0> i just know it fixes hurd console
+    <teythoon> i know it fixes the hurd console b/c i was the one who broke the
+      hurd console in the first place ...
+    <gg0> quite sure there's something wrong on your side
+    <gg0> if it's actually among those path to ignore, it can't be added to
+      REG_MTPTS
+    <gg0> my /proc/mounts http://paste.debian.net/plain/80583
+    <gg0> yours?
+    <gg0> i hope i'm not forgetting one change i did around
+    <gg0> teythoon: /proc/mounts ?
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-07
+
+    <gg0> teythoon: sorry for pasting reversed patches
+    <gg0> please apply http://paste.debian.net/plain/80587, halt and paste
+      output + /proc/mounts
+    <pere> youpi: just fine.  but please join us on #pkg-sysvinit and make sure
+      to follow the mailing lists.
+    <teythoon> gg0: no, sorry, i was perfectly able to use -R on your patches,
+      as demonstrated by the paste i send
+    <teythoon> i think i'll rather just wait for the next sysvinit package and
+      try it again
+    <gg0> teythoon: i don't doubt you are able, i'm sorry because i messed up
+      things
+    <gg0>  /lib/rc/init.d should not go in $REG_MTPTS
+    <gg0> sysvinit 2.88dsf-48 just add /dev/vcs to not-to-umount paths and make
+      boot consider -s for single user, nothing about umounting filesystems on
+      halt/reboot
+    <pere> the /lib/rc/init.d/ change to umountfs seem to be the wrong one, as
+      it do not solve the problem for me.  because of this, I have not applied
+      it to git.
+    <gg0> pere: could you try to apply http://paste.debian.net/plain/80587,
+      halt and paste output?
+    <gg0> well it applies to teythoon who doesn't have /dev/vcs
+    <gg0> */dev/vcs change
+    <gg0> pere: this one applies to -48
+      installed. http://paste.debian.net/plain/80615/
+    <gg0> given /lib/rc/init.d is added to not-to-umount paths it can't go in
+      REG_MTPTS
+    <pere> http://picpaste.com/halt-hurd-DVEVoHnr.png
+    <gg0> pere: you didn't apply it
+    <gg0> no messages from umountfs
+    <gg0> which is even more weird
+    <pere> well, patch claimed it did.
+    <gg0> normally it says "Unmounting local filesystems..."
+    <pere> checked the file, patch is applied.
+    <gg0> ok i think i got it
+    <gg0> patch is good. it just requires booting twice _and_ removing
+      non-patched /etc/init.d/umountfs.* if any
+    <gg0> patch = adding /lib/rc/init.d
+    <gg0> so
+    <pere> which files do you need to remove?
+    <gg0>  /etc/init.d/umountfs.* and /lib/rc/init.d/started/umountfs.*
+    <gg0> do you have any?
+    <gg0> you should just have patched umountfs under both /etc/init.d/ and
+      /lib/rc/init.d/started/
+    <gg0> the latter is populate at boot, that's why i said twice to become
+      effective
+    <gg0> *populated
+    <gg0> but propably /lib/rc/init.d/started/umountfs can be fixed on the fly
+    <gg0> from start:
+    <pere> why do you need to remove these files?
+    <gg0> 1/ patch /etc/init.d/umountfs by adding /lib/rc/init.d to
+      not-to-umount path list
+    <pere> why are these files not ignored?
+    <gg0> 2/ remove /etc/init.d/umountfs.* if any (eg. .orig .new .whatever)
+    <gg0> pere: because it loads them at boot, you need it loads just the right
+      one
+    <gg0> 3/ reboot twice
+    <gg0> (3/ halt twice)
+    <pere> this sound very fishy to me.
+    <gg0> or 3/ fix umountfs files under /lib/rc/init.d/started as well
+    <gg0> that should make it shutdown properly right away
+    <pere> my halt still hang.
+    <gg0> pere: you have /lib/rc/init.d in both /etc/init/umountfs and
+      /lib/rc/init.d/started/umountfs and there are no umountfs.* around?
+    <gg0> problem seems to be it picks first it finds if there are more than
+      one
+    <gg0> well i could have been more precise: /lib/rc/init.d/started/umountfs
+      is a link to /etc/init.d one
+    <gg0> btw there must be just one and only one umountfs, patched
+    <gg0> pere: clean /etc/init.d, reboot/halt with reboot-hurd or halt-hurd,
+      then next sysv reboot/halt will be good
+    <gg0> you just need to leave patched umountfs under /etc/init.d alone
+    <gg0> patch has always been good, it just needs 2 reboots to be appreciated
+    <gg0> pere: do you have other /etc/init/umountfs* files besides patched
+      one?
+    <gg0> my guess is it takes the first and only the first which Provides:
+      umountfs
+    <gg0> 12:17 < pere> why are these files not ignored?
+    <gg0> 12:35 < gg0> my guess is it takes the first and only the first which
+      Provides: umountfs
+    <gg0> to confirm that, if you have umountfs and umountfs.orig, under
+      /started you'll find just umountfs.orig
+    <gg0> pere: how goes?
+    <gg0> teythoon: last ~40 lines
+    <gg0> i'm assuming you have any else umountfs.* under /etc/init.d. if you
+      just add /lib/rc/init.d path to the only umountfs there should not be any
+      problem
+    <pere> gg0: removing the umountfs.* files did not help, as far as I can
+      tell.
+    <pere> are you telling me that openrc caches all init.d scripts in
+      /lib/rc/init.d/ at boot?
+    <gg0> pere: yes, you can see them. which umountfs* do you have under
+      /lib/rc/init.d ?
+    <pere> the right one. :)
+    <gg0> only the right one?
+    <pere> just scared me to know that changes on the disk do not take effect
+      immediately with openrc.
+    <gg0> pere: only the right one?
+    <pere> yes
+    <gg0> here i screwed it up by forcing initscripts removal and reinstall to
+      reproduce it, then fixed it once again
+    <gg0> i should just improving the explaination :)
+    <gg0> pere: "removing the umountfs.* files did not help," so did you find
+      any?
+    <pere> yes, both .orig, .rej and .dpkg-old
+    <gg0> pere: ok you should find one of them linked under
+      /lib/rc/init.d/started then
+    <gg0>  /lib/rc/init.d/started/umountfs.*
+    <pere> I removed them three boots ago.  still halt hangs.
+    <gg0> pere: and current umountfs have /lib/rc/init.d in path list?
+    <gg0> *has
+    <pere> yes.
+    <gg0> pere: can you access via ssh to it before issuing halt?
+    <pere> that is how I access it normally.
+    <gg0> ok
+    <gg0> before halt df should list /lib/rc/init.d as well
+    <gg0> after halt it should not, do you confirm that?
+    <gg0> (ssh connection here is kept alive)
+    <pere> my ssh connection went down, but /lib/rc/init.d was mounted while it
+      was active.
+    <pere> to me it look like umountfs isn't executed at all during shutdown.
+    <pere> oh, well.  got to work on other things now. :)
+    <gg0> it's correct getting no messages if there no filesystem to umount
+    <gg0> as it wouldn't be run at all
+    <zigo> pere: Hey, thanks for uploading sysv-rc -48 ! :)
+    <pere> you are welcome. :)
+    <gg0> i can't reproduce it on a VM :/ http://paste.debian.net/plain/80658/
+    <gg0> ehm no, same machive, successive halt
+      http://paste.debian.net/plain/80659/
+    <gg0> got stuck
+    <pere> are there any testet sysvinit patches for hurd lingering?  I plan to
+      upload a new version tonight or tomorrow.
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-08
+
+    <gg0> http://paste.debian.net/plain/80854/
+    <gg0> expected?
+    <gg0> do tmpfs and procfs need to be shown as types /hurd/tmpfs and
+      /hurd/procfs?
+    <gg0> or can they be "normalized"?
+    <gg0> domount mount_noupdate tmpfs shmfs /run tmpfs
+      -onosuid,noexec,size=10%,mode=755
+    <gg0> another one is why on linux options are nosuid,noexec ^, whereas on
+      hurd no-suid,no-exec,... ?
+    <rleigh> gg0: If they need generalising, we can add $nosuid/$noexec
+      etc. variables to mount-functions.sh and set them appropriately for the
+      currently platform.
+    <rleigh> current platform rather
+    <gg0> yeah, i ask just to understand what side people prefers modifying, in
+      this case hurd vs sysvinit
+    <gg0> btw in the meanwhile i got tmpfs takes options without '-' though it
+      shows them with '-' in proc/mounts
+    <gg0> rleigh: and thanks for pointing out what looking for, little hints
+      saves hours in my case :)
+    [IRC connection closed]
+
+
+## IRC, freenode, #hurd, 2014-02-08
+
+    <youpi> gnu_srs: the -49 version of sysvinit contains a fix for bootlogd
+
+
+### IRC, freenode, #hurd, 2014-02-09
+
+    <gnu_srs> (16:31:17) <youpi>: gnu_srs: the -49 version of sysvinit contains
+      a fix for bootlogd
+    <gnu_srs> Nice for kFreeBSD, for Hurd it doesn't matter if we get a
+      segfault or an error code saying it's not implemented :-(
+    <youpi> segfault vs error code is really not the same
+    <youpi> iirc bootlogd would ignore the error
+    <gnu_srs> Nevertheless, bootlogd is not usable on Hurd :( 
+    <youpi> then fix it
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-08
+
+    <rleigh> gg0: If the sames are set by hurd itself, then it makes sense to
+      adapt sysvinit to cope with that rather than altering hurd since that
+      would be a fairly major compatibility break. OTOH, adding support for the
+      Linux/FreeBSD names in addition to the hyphenated names would be good
+      from the point of view of better interoperability generally, not just for
+      sysvinit.
+    <rleigh> For now, getting sysvinit to support the Hurd names is easy
+      enough, and if you do add the Linux/FreeBSD names then the compatibility
+      stuff can be removed when that's available.
+
+
+## IRC, freenode, #hurd, 2014-02-11
+
+    <gnu_srs> Hi, still problems with hurd console under openrc: console:
+      Console library initialization failed: Not a directory
+    <gnu_srs> and /dev/vcs is there
+    <youpi> gnu_srs: but is it a directory?
+    <gnu_srs> the output of console -d vga -d pc_mouse --repeat=mouse -d pc_kbd
+      --repeat=kbd -d generic_speaker -c /dev/vcs gives the response above
+    <gnu_srs> looks like /dev/vcs is a file. How to recreate the directory
+      content?
+    <gnu_srs> I thought it should not be removed with the latest sysvinit
+      package (-49)
+    <gnu_srs> from -48 changelog:  Tell init.d/umountfs to not umount /dev/vcs,
+      as it break the console on Hurd.  Patch from Samuel Thibault.
+    <youpi> gnu_srs: but did your reconfigure the hurd package to remount it ?
+    <gnu_srs> ?
+    <youpi>  /dev/vcs  won't magically be remounted by just not being unmounted
+      by sysvinit
+    <gnu_srs> dpkg-reconfigure hurd?
+    <youpi> sure
+    <gnu_srs> I can start the console manually, but ENABLE='true' in
+      /etc/default/hurd-console does not work (at least with openrc)
+    <youpi> does /dev/vcs becomes a mere file again with openrc?
+    <gnu_srs> no it's a directory with 6 entries
+    <youpi> does the /etc/init.d/hurd-console gets to starT?
+    <youpi> I'm afraid I'm really asking obvious questions that you should have
+      already asked for yourself
+    <gg0> so you mounted it and it's not a file anymore. does it work now?
+    <gnu_srs> it seem like the service is not started, trying to figure out
+      why:-D
+    <gnu_srs> I can restart it but it is not visible in rc-status?
+
+    <gg0> shutdown stuck at "Asking all remaining processes to
+      terminate...done." (even before distupgrade btw)
+    <gg0> seems stuck at killall5 -18
+    <teythoon> hm, that's bad
+    <teythoon> how do you know that ?
+    <gg0>  /etc/init.d/sendsigs and /etc/init.d/killprocs
+    <gg0> (yes, switched to sysvinit and testing openrc)
+    <teythoon> but killall5 -18 is SIGSTOP right?
+    <teythoon> and if it says ...done. then killall5 has already been run
+    <teythoon> so, how do you know it hangs at killall5 ?
+    <gg0> teythoon: "done" is "log_action_end_msg 0" just after killall5 -15,
+      then we should get "Killing all remaining processes" or "All processes
+      ended within $seq seconds."
+    <gg0> Asking all remaining processes to terminate...killall5 -15 -o 956 #
+      SIGTERM...done.
+    <gg0> All processes ended within 1 seconds...done.
+    <gg0> shutdown properly this time
+    <teythoon> hm
+    <teythoon> fwiw, i've also encountered hangs, haven't investigated yet
+    <gg0> with openrc?
+    <teythoon> yes
+
+    <gnu_srs> Is it so that with teythoons mtab translator umount -a unmounts
+      all passive translators, removing the translator records??
+    <gnu_srs> causing pflocal (and pfinet) to disappear?
+
+[[hurd/translator/mtab/discussion]].
+
+    <azeem> gnu_srs: didn't he say that this is getting fixed in his latest
+      patchset?
+    <gnu_srs> yes, what about mine and gg0s currently hosed systems?
+    <gnu_srs> yes, but until the patch makes into the next release,**
+    <youpi> gnu_srs: pflocal and pfinet don't appear in mtab
+    <youpi> because they don't expose whole directories, just a trivial node
+    <youpi> so no, they won't get umounted by umount -a
+    <youpi> simply check the content of /proc/mounts
+    <gnu_srs> so how come I cannot recover my image?
+    <gnu_srs> and gg0 neither
+    <youpi> no idea, I've never tried openrc
+    <youpi> when daring new fields, you face new issues, that's no wonder
+    <gnu_srs> so this does not happen with sysv-rc?
+    <youpi> I haven't seen any of this kind of issue
+    <youpi> whether it's related to using openrc vs sysvrc, I have no idea
+    <youpi> but at least that's a candidate for sure
+    <gnu_srs> well in my case hurd bootstrap is stuck after ext2fs exec and
+      before init
+    <gnu_srs> ant reinstalling hurd via linux does not help
+    <youpi> you mean the hurd package?
+    <youpi> you can also try to reinstall the libc0.3 package
+    <youpi> normally it should be all that is needed for boot
+    <youpi> perhaps also some /dev entries
+    <gnu_srs> yes, the hurd package. I will try with libc0.3 tomorrow. Which
+      /dev entries, and how to create them manually?
+    <youpi> "perhaps" implies that I don't know
+    <youpi> you can as well just boot with an install CD, mount your disk,
+      chroot into it, and run dpkg-reconfigure hurd there to recreate
+      everything in /dv
+    <youpi> +e
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-13
+
+    <youpi> pere, rleigh: which script is supposed to make /etc/mtab a symlink
+      to /proc/mounts already? I can't find it
+    <pere> youpi: see /lib/init/mount-functions.sh
+
+
+## IRC, freenode, #hurd, 2014-02-13
+
+    <braunr> teythoon: are the sysvinit debian packages in sid usable currently
+      ?
+    <teythoon> they are
+    <braunr> nice
+    <teythoon> youpi and pere have been busy polishing it quite a bit
+    <braunr> teythoon: and uhm, how does one enable sysvinit in debian ? :)
+    <braunr> ah, found pere's blog
+    <teythoon> braunr: didn't you read the postinst instructions ? :p
+    <teythoon> update-alternatives --config runsystem
+    <braunr> oh right
+    <braunr> got lost in the noise
+    <braunr> very nice
+    <braunr> still a few glitches i see, but it does the job
+    <braunr> although i'm not sure i like the lack of console prompt :/
+    <braunr> i'll keep darnassus on the old runsystem until this is fixed
+    <teythoon> braunr: cp -p /usr/share/sysvinit/inittab /etc/inittab
+    <teythoon> and  kill -HUP 1
+    <braunr> oh
+    <braunr> :)
+    <braunr> teythoon: thanks
+    <braunr> teythoon: do you know why there are three tmpfs instances after
+      startup (/run, and in addition, /run/shm and /run/lock) instead of one on
+      /run ?
+    <braunr> sorry for being so annoying :)
+    <teythoon> braunr: dunno, but that is what Debian does
+    <braunr> https://wiki.debian.org/ReleaseGoals/RunDirectory explains it a
+      bit
+    <teythoon> root@thinkbox ~src # uname -s; mount | grep /run
+    <teythoon> Linux
+    <teythoon> tmpfs on /run type tmpfs
+      (rw,nosuid,noexec,relatime,size=306952k,mode=755)
+    <teythoon> tmpfs on /run/lock type tmpfs
+      (rw,nosuid,nodev,noexec,relatime,size=5120k)
+    <teythoon> tmpfs on /run/shm type tmpfs
+      (rw,nosuid,nodev,noexec,relatime,size=613900k)
+    <braunr> i like this /run directory
+    <teythoon> yep, it's nice
+    <braunr> ah great, i can add ,sync=30 to fstab and it's added at boot time
+      :)
+
+
+## IRC, freenode, #hurd, 2014-02-17
+
+    <congzhang> hi, I think we should make console server separate from
+      hurd-console
+    <congzhang> if DM want start, console server need be start first
+    <braunr> congzhang: send patches
+    <congzhang> and hurd-console mark it start at the end of sysinit?
+    <teythoon> congzhang: i agree
+    <braunr> teythoon: isn't hurd-console the console server ?
+    <congzhang> I want to check whether it is need first
+    <teythoon> braunr: yes, but congzhangs point is (as i understand it) that
+      the backend component should be started earlier
+    <teythoon> then again, i know little about the hurd console
+    <congzhang> no, if user enable one dispaly manager, then cycle dependence
+      happen 
+    <braunr> why ?
+    <teythoon> i believe that is a different problem, namely that our
+      hurd-console init script depends on $all
+    <teythoon> pere: ^
+    <congzhang> hurd-console Required-Start： $all
+    <braunr> ok
+    <braunr> yes that's a separate issue, and easier to understand
+    <congzhang> teythoon: if wdm Required-Start hurd-console, then insserv
+      can't generate the script order, right ?
+    <teythoon> congzhang: possibly, i don't know for sure
+    <congzhang> It doesn't work , and I rename to S??wdm to later one like
+      S20wdm
+    <congzhang> but insserv will regenerate the script order in /etc/rc2.d/, I
+      can't depend on that
+    <pere> congzhang: $all means after all scripts not depending on $all, and
+      not what the intuitive interpretation would tell you.
+    <pere> the current implementation order all scripts as if $all were not
+      present, and then move all scripts depending on $all to the last order
+      number+1.
+    <pere> because $all is misunderstood by most users, I strongly recommend to
+      _not_ use $all in any init.d script.
+    <congzhang> pere: so to make wdm to be number+more?
+    <pere> congzhang: make it depend on $all and be lexically sorted after
+      hurd-console. :)
+    <congzhang> wdm need start after hurd-console, if console-driver will run
+      when hurd-console start
+    <pere> not quite sure how startpar handle that case, so it might not work
+      the way you want anyway.
+    <pere> adding a dependency on hurd-console should not hurt, though. :)
+    <congzhang> how make it lexically sorted after hurd-console?
+    <pere> w is already after h in the alphabet. :)
+    <congzhang> that's trick!
+    <pere> but startpar uses the info in /etc/init.d/.depend.* (makefile style)
+      to order scripts, so check what the result is there too.
+    <braunr> congzhang: no it's not
+    <congzhang> that's just cache
+    <braunr> congzhang: ?
+    <congzhang> and generated from script head?
+    <congzhang> the right way is Adding run-time dependencies  in script
+    <pere> congzhang: yes.  insserv called from update-rc.d generate the
+      .depend.* files, and startpar reads the files (and ignore the headers)
+      when starting scripts.
+    <congzhang> if the script have cycle dependence, no one can help
+    <pere> congzhang: if there is a cycle, update-rc.d will reject the script.
+    <congzhang> sure, because the system current have not runable one
+    <congzhang> Display  Manager run before hurd-console, and never successful
+      for X stared failed!
+    <pere> what is this hurd-console stuff, btw?  it sound like somthing that
+      should be started in rcboot.d (aka rcS.d on Debian).
+    <congzhang> if you install wdm, you will notice that wdm start failed
+    <pere> should it run before sulogin when booting into single user?
+    <congzhang> hurd-console mix too much thins
+    <teythoon> pere: it's the console multiplexes that provides /dev/tty?
+    <congzhang> just part of that function
+    <teythoon> pere: it's like screen or tmux a server-client architecture
+    <teythoon> the x server gets keyboard and mouse events from it iirc
+    <pere> right.  so not needed by sulogin, I guess.  because if it was, it
+      should start in rcS.d, not rc[2-5].d/.
+    <congzhang> and also start /bin/console to start keyboard and mouse driver 
+    <teythoon>  /bin/console is the frontend
+    <pere> and if it started in rcS.d/, it would always be started before
+      wdm. :)
+    <braunr> i think it should be started in rcS.d
+    <congzhang> why not essential?
+    <pere> braunr: when I tried, it failed.
+    <congzhang> https://www.gnu.org/software/hurd/hurd/console.html
+    <congzhang> teythoon: i want to make one disk img with default DM, and face
+      these problem
+    <braunr> pere: do you have a log of the failur e?
+    <congzhang> teythoon: I know you are working on the hurd init system, so I
+      ask you for help
+    <pere> braunr: only the boot message: Starting Hurd console multiplexer:
+      hurd-console failed!
+    <pere> braunr: how can I learn more?
+    <braunr> i don't know any easy way
+    <braunr> try to put the system in its early state manually
+    <braunr> and maybe run rpctrace on the actual console command
+    <braunr> if that is what really fails
+    <congzhang> and I found that pc_kbd may have some bug? I have high
+      frequence of start failed if I make it start
+    <congzhang> but I can't located the real source of these problem
+    <teythoon> pere: the console logs some messages to syslog
+    <pere> teythoon: looked, nothing there. :(
+    <pere> gah, look like I broke my hurd machine.  Added rpctrace to the start
+      of hurd-console, and now the boot just hang there, and when I interrupt
+      it the kernel reboot the entire machine. :(
+    <braunr> pere: use rpctrace manually, don't script it
+    <teythoon> oh yeah, seen this as well
+    <pere> braunr: well, no use to test it after boot when it hang during
+      boot...
+    <teythoon> it triggers an assertion in the proc server iirc
+    <braunr> pere: that doesn't imply you need to script it
+    <congzhang> pere: qemu snapshot mode will be your friend:)
+    <braunr> ideally, i'd run the init system automatically up to the point i
+      want to run my test, and make it spawn a shell, and use that shell then
+    <pere> congzhang: hah.  real men do to take backups.  but they weep a
+      lot. :)
+    <congzhang> teythoon: runsystem.sysv has work well on my machine, just some
+      error infomation
+    <teythoon> good
+
+
+## IRC, freenode, #hurd, 2014-02-21
+
+    <gnu_srs1> Hi, a general question: is ptrace available for GNU/Hurd?
+    <teythoon> yes
+    <gnu_srs1> tks, the openrc developers are working on process supervision
+      using it: good/bad? (compared to cgroups)
+    <teythoon> uh
+    <teythoon> i prefer the cgroups approach
+    <teythoon> but upstart also uses ptrace to keep track of the 'main' process
+      of an daemon
+    <teythoon> they use ptrace to follow a daemon that double forks
+    <gnu_srs1> teythoon: and regarding portability?
+
+
+## IRC, freenode, #hurd, 2014-02-24
+
+    <braunr> sysvinit doesn't seem to handle /etc/default/locale into
+      consideration
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-25
+
+    <gg0> how about switching runsystem.sysv by default?
+    <youpi> now that it seems to be running fine, we could do that, yes
+
+
 # Required Interfaces
 
 In the thread starting
@@ -1071,7 +3668,7 @@ interfaces that are used in (two source code files of) systemd:
   * /proc/$PID/cmdline
   * /proc/cmdline
   * numerous GNU APIs like asprintf
-  * SOCK_CLOEXEC, O_CLOEXEC
+  * [[SOCK_CLOEXEC, O_CLOEXEC|secure_file_descriptor_handling]]
   * /proc/$PID/fd
   * /dev/tty0
   * TIOCLINUX

@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2010 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2014 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -10,7 +10,8 @@ License|/fdl]]."]]"""]]
 
 [[!tag open_issue_glibc]]
 
-IRC, unknown channel, unknown date.
+
+# IRC, unknown channel, unknown date
 
     <pinotree> d'oh, broken defines for ioctl()!
     <pinotree> http://paste.debian.net/45021/ ← any idea about this? looks like something fishy with the SIO* defines
@@ -70,3 +71,101 @@ IRC, unknown channel, unknown date.
     <pinotree> right
     <youpi> which might end up in mach, other processes, other machines, etc.
     * pinotree s/Mach/Hurd/ :)
+
+
+# `TIOCCONS`
+
+## IRC, freenode, #hurd, 2014-02-05
+
+    <gnu_srs> Hi, anybody have time to look at what fails with: ioctl(0,
+      TIOCCONS, NULL)?
+    <gnu_srs> found a program doing the same function call as bootlogd:
+      http://paste.debian.net/80231/
+    <gnu_srs> rpctrace: http://paste.debian.net/80232/
+    <youpi> gnu_srs: it seems there  is a misunderstanding between linux and
+      *bsd on this one
+    <youpi> to be able to work on *bsd (and on hurd too), the source code
+      should replace its NULL parameter with the address of an integer
+      containing 1
+    <youpi> see
+      http://lists.freebsd.org/pipermail/freebsd-current/2011-January/022116.html
+      for the bsd implementation, for instance
+    <gnu_srs> youpi: replacing 0 with &i where int i=1 gives: TIOCCONS:
+      Inappropriate ioctl for device
+    <youpi> so be it, but that's clearly needed to be able to work on bsd
+    <youpi> and probably the implementation is just missing on the Hurd for now
+    <gnu_srs> jus to be clear: do you mean 0 or NULL in: ioctl(0, TIOCCONS,
+      NULL)?
+    <youpi> yes, for instance there is an implementation do_tiocsctty in glibc,
+      but no to_tioccons
+    <youpi> I mean NULL
+    <gnu_srs> OK, that's where I changed, the first argument id the FD
+    <youpi> well, when I wrote "NULL", I really meant "NULL" ...
+    <gnu_srs> yes sure, so you say that it is not yet implemented?
+    <youpi> yes, for instance there is an implementation do_tiocsctty in glibc,
+      but no to_tioccons
+    <gnu_srs> easy to do?
+    <youpi> no idea, I don't even know what that is suppsoed to do
+    <youpi> it's probably something like tiocsctty, but I don't really know
+    <gnu_srs> Redirecting console output to a pseudotty
+    <youpi> omg that ioctl is so ugly
+    <youpi> the way I can see it working is to add an RPC to the /dev/console
+      translator (i.e. /hurd/term) to give it the fd, and have /hurd/term write
+      to it whenever it gets writes, instead of writing to the console device
+    <youpi> gnu_srs: what do you need that for?
+    <gnu_srs> bootlogd in sysvinit use that for logging.
+    <gnu_srs> should I propose a patch to avoid the segfault when booting then?
+    <youpi> at least, yes
+    <youpi> *bsd will need it anyway
+    <gnu_srs> youpi: btw: hurd console does not work when running openrc,
+      neither is halt/reboot. Maybe you should try it out?
+    <gnu_srs> bootlogd use  ioctl(0, TIOCCONS, NULL) a Linux (only) construct
+    <gnu_srs> ?
+    <youpi> gnu_srs: I had infinite time in the day, I would be able to try it
+      out, yes
+    <braunr> heh
+    <youpi> giving NULL to TIOCCONS is a linux-only construct, yes
+    <youpi> to be compatible with *BSD, you have to pass the parameter
+      mentioned above
+    <youpi> instead of NULL
+    <gnu_srs> well bootlogd is from sysvinit, so it is a matter if we move to
+      that for init.
+    <gnu_srs> ***checking if bootlogd segfaults on kFreeBSD too
+
+
+# Non-constant structures as IOCTL parameter
+
+[[!debbug 413734]].
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-16
+
+    <gg0> https://bugs.debian.org/413734
+    <gg0> patch #2 has become http://paste.debian.net/plain/82412/
+    <gg0> ie. almost entirely ifdef'ing DeviceEnum
+    <gg0> ok final patch is http://paste.debian.net/plain/82440/
+    <gg0> could anyone review it, especially last 3 oss hunks?
+    <azeem> gg0: well probably it would be cleaner to have autoconf check for
+      any of the three soundcard.h include locations?
+    <gg0> azeem: i think if upstream is ok with 2 it could be ok with 3 too
+    <gg0> my concern is about linux/ in header path (hurd is not linux) and
+      about ways cleaner than last 2 hunks
+    <azeem> well yeah, #ifdef __GNU__ #include <linux/foo.h> certainly looks
+      ugly
+    <gg0> i'll ifdef ioctls only
+
+
+### IRC, OFTC, #debian-hurd, 2014-02-17
+
+    <gg0> http://paste.debian.net/plain/82446/
+    <gg0> https://trac.videolan.org/vlc/ticket/10696
+
+
+### IRC, freenode, #hurd, 2014-02-17
+
+    <gg0> porting vlc with http://paste.debian.net/plain/82446/ +
+      http://paste.debian.net/plain/82510/
+    <gg0> what's the proper way to fix ioctl instead of ifdef'ing them?
+    <gg0> see https://bugs.debian.org/413734
+    <braunr> gg0: defining them in libc
+    <braunr> and in servers implementing them ofc

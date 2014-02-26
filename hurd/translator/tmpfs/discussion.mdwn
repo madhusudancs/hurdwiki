@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011, 2012, 2013 Free Software Foundation,
+[[!meta copyright="Copyright © 2011, 2012, 2013, 2014 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -18,6 +18,8 @@ License|/fdl]]."]]"""]]
   * [[tmpfs_vs_defpager]]
 
   * [[!GNU_Savannah_bug 26751]]
+
+[[!toc]]
 
 
 # [[Maksym_Planeta]]
@@ -467,3 +469,35 @@ License|/fdl]]."]]"""]]
       privilege of their owner
     <braunr> privileges should be decoupled from identity
     <teythoon> yes
+
+
+## IRC, freenode, #hurd, 2013-11-08
+
+    <teythoon> braunr: I'm investigating this port leak of mine
+    <teythoon> well, I thought I introduced one
+    <teythoon> but I'm not too sure anymore
+    <teythoon> the setting is this
+    <teythoon> i start an active tmpfs translator, bind it to foo
+    <teythoon> then, i create foo/bar with a passive translator entry
+    <teythoon> i access foo/bar, the passive translator is started
+    <teythoon> my test suite now covers several methods of making that
+      translator go away
+    <teythoon> killing it with 15 or 9 is fine, i.e. does not make the first
+      tmpfs leak ports
+    <teythoon> however, doing settrans -g foo/bar does for some reason
+    <teythoon> i think my code is fine, i spent considerable time on tracking
+      down this problem, always thinking that i must have introduced it
+    <teythoon> but another thing just cought my eye, the first tmpfs translator
+      says this when i do settrans -g foo/bar:
+    <teythoon> tmpfs/tmpfs: pthread_create: Resource temporarily unavailable
+    <teythoon> could it be that a no-sender notification is ignored b/c the
+      handler thread failed to start ?
+    <braunr> teythoon: i saw this pthread error too
+
+
+# IRC, freenode, #hurd, 2014-02-09
+
+    <gg0> remounting tmpfs doesn't work if in use
+      http://paste.debian.net/plain/80937/
+    <gg0> you will also get a pthread_create: Resource temporarily unavailable
+    <youpi> iirc the pthread_create warning happens for any kind of translator

@@ -1,5 +1,5 @@
 [[!meta copyright="Copyright © 2002, 2003, 2005, 2007, 2008, 2009, 2010, 2011,
-2012, 2013 Free Software Foundation, Inc."]]
+2012, 2013, 2014 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -375,6 +375,70 @@ With Python, you can use the [`errno` module](http://docs.python.org/library/err
 ## <a name="libdl"> undefined reference to `dlopen`, `dlsym`, `dlclose` </a>
 
 Configure script often hardcode the library that contains dlopen & such (`-ldl`), and only for Linux. Simply add the other GNU OS cases: replace `linux*` with `linux*|gnu*|k*bsd*-gnu*`
+
+## `struct sockaddr`, `sa_len/sa_family`
+
+### IRC, freenode, #hurd, 2014-02-18
+
+    <braunr> if there is someone here that can help, i've traced the https
+      issue in iceweasel down to nspr
+    <braunr> the problem being that the hurd uses the old 4.4bsd sockaddr
+      structure that includes sa_len before sa_family, and nspr directly maps
+      that into its own structure, assuming the internal layout is the same
+    <braunr> i need to change a configure script so that a macro is defined for
+      the hurd
+    <braunr> let's see if that works
+    <braunr> better :)
+    <braunr> there, ssl now works
+    <braunr> \o/
+    <braunr> it's still the experimental one
+    <braunr> and there are other minor issues
+    <braunr> (like no logo on the about panel :p)
+    <cluck> that's a feature^TM
+    <braunr> maybe it's not a mistake
+    <braunr> i haven't seen that version on linux to actually compare
+    *** rbraun_hurd (c3445c23@gateway/web/freenode/ip.195.68.92.35) has joined
+          channel #hurd
+    <rbraun_hurd> webchat from freenode :)
+    <teythoon> :D
+    <rbraun_hurd> there is also this weird :"Failed to truncate cookie file:
+      Invalid argument Failed to write cookie file: Unknown error (os/kern)
+      303" error
+    <rbraun_hurd> but i guess it's simply a matter of supporting an option in
+      glibc/hurd somewhere
+    <braunr> 18:06 CTCP VERSION reply from rbraun_hurd: qwebirc v0.91,
+      copyright (C) 2008-2011 Chris Porter and the qwebirc project --
+      Mozilla/5.0 (X11; GNU i686-AT386; rv:27.0) Gecko/20100101  Firefox/27.0
+      Iceweasel/27.0
+    <braunr> hm, i didn't version the iceweasel packages :/
+    <braunr> i'll rebuild them properly and put them on my repository
+    <braunr> oh, the freenode webchat actually runs in gnash oO
+
+
+### IRC, freenode, #hurd, 2014-02-19
+
+    <braunr> http://darnassus.sceen.net/~rbraun/nspr4_hurd.patch
+    <braunr> in short: nsprt has its own struct sockaddr, which it assumes to
+      have the same layout as the native one
+    <youpi> doesn't kfreebsd also have sockaddr_len ?
+    <braunr> and of course, that's not the case on the hurd, because we use an
+      old 4.4bsd header that defines sa_len before sa_family, making all sorts
+      of tests fail in nspr
+    <braunr> hm
+    <braunr> i don't know
+    <braunr> we could discuss that with them
+    <braunr> but i doubt they don't use iceweasel :)
+    <youpi> it really seems kfreebsd has sa_len etc.
+    <youpi> kfreebsd really has sa_len
+    <youpi> so put it in the new case too :)
+    <braunr> i'll ask them first
+    <braunr> something in nspr might already take care of the bsd case
+      elsewhere
+    <braunr> nspr knows more about bsd systems than it knows about the hurd :)
+    <braunr> but with all these fixed, i could run iceweasel for a whole day at
+      work, multiple tabs, gnash running (things like youtube and freenode web
+      chat client among other things)
+
 
 ## <a name="linux_headers"> Missing `linux/types.h`, `asm/types.h`, `linux/limits.h`, `asm/byteorder.h`, `sys/endian.h`, `asm/ioctl.h`, `asm/ioctls.h`, `linux/soundcard.h` </a>
 

@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011, 2012, 2013 Free Software Foundation,
+[[!meta copyright="Copyright © 2011, 2012, 2013, 2014 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -123,6 +123,108 @@ IRC, freenode, #hurd, 2011-08-17
     <gnu_srs> why
     <pinotree> missing link to pthread?
     <pinotree> and yes, it's known already, just nobody worked on solving it
+
+
+# IRC, freenode, #hurd, 2014-01-28
+
+    <gnu_srs> braunr: Is this fixed by your recent patches? test_dbi:
+      ./pthread/../sysdeps/generic/pt-mutex-timedlock.c:70: 
+    <gnu_srs> __pthread_mutex_timedlock_internal: Assertion `__pthread_threads'
+      failed.
+    <youpi> faq/libpthread_dlopen.mdwn:
+      ./pthread/../sysdeps/generic/pt-mutex-timedlock.c:70:
+      __pthread_mutex_time
+    <gnu_srs> youpi: tks. A workaround seems to be available:
+      LD_PRELOAD=/lib/i386-gnu/libpthread.so.0.3
+    <gnu_srs> Is that possible on a buildd?
+    <youpi> it would be simpler to just make the package explicitly link
+      libpthread
+    <gnu_srs> Package is libdbi-drivers, providing libdbd-sqlite3 needed by
+      gnucash
+
+
+# IRC, freenode, #hurd, 2014-02-17
+
+    <braunr> hm ok, looks like iceweasel errors all have something to do with
+      the libc dns resolver
+    <braunr> http://darnassus.sceen.net/~rbraun/iceweasel_crash
+    <braunr> apparently, it's simply because the memory chunk isn't page
+      aligned ..
+    <braunr> looks like not preloading libpthread tirggers lots of tricky
+      issues
+    <braunr> anyway, apparently, the malloc/free calls in libresolv don't use
+      locks if libpthread isn't preloaded, which explains why the program state
+      looked impossible to reach and why crashes look random
+    <congzhang> debian linux does not have the pthread load problem.
+    <braunr> congzhang: it had it
+    <braunr> maybe not debian but i've found one such report for opensuse
+
+    <braunr> ok the bug is simple
+    <braunr> for some reason, our glibc still uses a global _res state for dns
+      resolution instead of per thread ones
+    <braunr> uh, apparently, it's libpthread's job to define a __res_state
+      function for that :(
+
+## IRC, freenode, #hurd, 2014-02-18
+
+    <braunr> usually when i say it, it crashes soon after, so let's try it :
+    <braunr> i've been running iceweasel 27 fine for like 10 minutes with a
+      patched libpthread
+    <braunr> still no crash ;p
+    <braunr> with luck this extremely lightweight patch will fix all
+      multithreaded applications doing concurrent name resolution .... :)
+    <teythoon> nice :)
+    <braunr> let's try gnash ....
+    <braunr> uh, segfault on termination
+    <braunr> gnash works :)
+    <teythoon> sweet :)
+    <braunr> i'm very surprised we could live so long with that resolv bug
+
+
+## IRC, freenode, #hurd, 2014-02-19
+
+    <braunr> youpi: the eglibc bug is about libresolv
+    <braunr> it uses a global resolver state even in multithreaded applications
+    <youpi> libresolv is a horrible part of glibc :)
+    <braunr> which is obviously bad
+    <braunr> yes .. :)
+    <braunr> here is the patch :
+      http://darnassus.sceen.net/~rbraun/0001-libpthread-per-thread-resolver-states.patch
+    <braunr> it's very short, it basically allocates a resolver state per
+      thread in the pthread struct, and sets the TLS variable __resp when the
+      thread starts
+    <braunr> should we make that hurd-specific ?
+    <braunr> or enclose that assignment with #ifdef ENABLE_TLS ?
+    <youpi> well, ENABLE_TLS is now always 1, iirc :)
+    <braunr> for the hurd, yes
+    <youpi> I'm surprised linux never had the issue
+    <youpi> no, not for the hurd
+    <braunr> ah
+    <youpi> I *had* to implement TLS for hurd because it was always 1 for
+      everybody :)
+    <braunr> ok
+    <braunr> so all those ifdefs could be removed and libpthread can assume tls
+      is enabled
+    <braunr> in which case my patch looks fine
+    <youpi> ah, thats a libpthread patch, not glibc patch
+    <braunr> yes
+    <braunr> nptl obviously did that from the start . :)
+    <braunr> linuxthreads had the problem a looong time ago
+    <youpi> ok
+    <braunr> i'm surprised we overlooked it for so long
+    <braunr> but anyway, that's a good fix
+    <youpi> indeed
+    <youpi> it seems all good to me
+    <braunr> well, __resp is a __thread variable
+    <braunr> i could add #ifdef ENABLE_TLS, but then what of the case where TLS
+      isn't enabled, and do we actually care ?
+    <braunr> #error maybe ?
+    <braunr> or #warning ?
+    <youpi> I don't think we care about the non-TLS case any more
+    <braunr> ok
+    <braunr> topgit branch i suppose ?
+    <youpi> well, not, hurd libpthread repo :)
+    <braunr> oh right ... :)
 
 
 # libthreads vs. libpthread

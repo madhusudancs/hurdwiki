@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2011, 2013, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -16,6 +17,13 @@ packages.
   * Need to have an automation to get from Hurd upstream Git branches to
     a branch usable in Debian.
 
+    IRC, freenode, #hurd, 2013-12-18:
+
+        <teythoon> http://darnassus.sceen.net/~teythoon/hurd-ci/ has hurd and
+          mig and gnumach packages built directly from the upstream git
+          repository
+
+
 ---
 
 There is infrastructure available to test whole OS installations.
@@ -29,3 +37,74 @@ There is infrastructure available to test whole OS installations.
 ---
 
 See also [[nightly_builds]].
+
+
+# Debian Jenkins Instance
+
+## IRC, OFTC, #debian-hurd, 2014-02-24
+
+    <pere> hi.  can hurd be installed using d-i?  If so, what about scripting
+      the installation on <URL:
+      http://jenkins.debian.net/view/g-i-installation/ >?
+    <gnu_srs> pere: d-i works for Hurd, yes, with full graphical interface I
+      dunno. Maybe you can ask about scripting in #hurd, more people are
+      present there?
+    <pere> gnu_srs: the scripts in questions are for jenkins.  quite easy to
+      write (d-i preseed scripts and qemu boot rules).
+
+## IRC, OFTC, #debian-hurd, 2014-02-25
+
+    <pere> getting a automated test in jenkins running could show the status.
+      what is needed to boot the hurd d-i image with a preseed file using qemu?
+    <pere> git://git.debian.org/git/users/holger/jenkins.debian.net.git is the
+      repo with the jenkins build rules.
+    <pere> youpi: is it possible to start the hurd d-i installer with a preseed
+      file from the qemu command line?  --append need --kernel, which I suspect
+      do not make sense with hurd?
+    <pere> can the d-i hurd installer take a preseed file at all?  my initial
+      try failed. :(
+    <teythoon> i don't know
+    <teythoon> there has been talk here the other day about using qemus
+      multiboot capabilities to directly boot the hurd
+
+[[debugging_gnumach_startup_qemu_gdb]], *Multiboot*
+
+    <teythoon> i always wanted to try that out
+    <pere> the jenkins rules to test the install uses --kernel, --initrd and
+      --append in qemu to specify the preseed file.  without a similar method
+      to boot hurd, it will be hard to automate the test.  rewriting the iso
+      might be an option, but not a very nice one.
+    <teythoon> i believe that it is possible to use those options to boot a
+      hurd
+    <teythoon> i'll report back to you
+    <pere> I tried adding an url= option to grub when booting the installer,
+      but it seem to be ignored.
+    <pere> I suspect it did not make it to /proc/cmdline, but am not sure.
+    <teythoon> um
+    <teythoon> it should
+    <pere> could be.  I am unable to get a shell in the installer, so I do not
+      know.
+    <teythoon> root@pluto ~ # cat /proc/cmdline
+    <teythoon> root=device:hd0s1
+    <teythoon> oh ? select expert install, then spawn a shell or something
+    <pere> perhaps the preseed udeb is missing, or the network support was
+      enabled after preseed looked for the file?
+    <teythoon> uh, i don't know about that stuff, youpi creates the d-i images
+    <pere> ok.  seem to me that the d-i images do not support preseeding at the
+      moment.
+    <teythoon> pere: when i try to use qemus multiboot support to boot the
+      hurd, qemu crashes :/
+    <teythoon> youpi: ^ did you succeed? if so, can you share how?
+    <pere> teythoon: nope, I concluded it didn't work, and left it to other to
+      fix. :)
+    <youpi> pere, teythoon: IIRC preseeding can be put on the gnumach kernel
+      command line
+    <youpi> but I'm wondering why you can't simply modify the disk image into
+      doing what you want
+    <youpi> or you mean reinstalling the image each time?
+    <pere> youpi: the point is testing the installer, and that can only be done
+      by using the installer. :)
+    <youpi> ok
+    <pere> I would like to see something like <URL:
+      http://jenkins.debian.net/view/g-i-installation/job/g-i-installation_debian_sid_daily_lxde/lastBuild/
+      > for hurd.

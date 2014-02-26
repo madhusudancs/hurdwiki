@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2007, 2008, 2010, 2013 Free Software Foundation,
-Inc."]]
+[[!meta copyright="Copyright © 2007, 2008, 2010, 2013, 2014 Free Software
+Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -53,3 +53,188 @@ License|/fdl]]."]]"""]]
     <braunr> a temporary receive right to get replies from servers
     <hacklu> so we can reuse the name which are freed before
     <braunr> of course
+
+
+## IRC, freenode, #hurd, 2013-11-08
+
+    <teythoon> braunr: btw, portinfo --search turned out quite nice for
+      detecting port leaks
+    <braunr> teythoon: something you added i guess ?
+    <teythoon> braunr: just yesterday
+    <teythoon> braunr: portinfo.c is full of useful ideas
+    <teythoon> braunr: for example, with a little help of the target server
+      (introspection protocol for libports) we could reliably detect leaks of
+      ports managed with libports
+    <braunr> yes introspection is probably required
+
+
+## IRC, freenode, #hurd, 2013-11-20
+
+    <braunr> looking forward to using portinfo --search btw :)
+    <teythoon> yeah, that turned out to be quite helpful
+    <teythoon> that reminds me of the libports introspection idea :)
+    <braunr> introspection ?
+    <braunr> i mean
+    <braunr> that much, or a simple name for each port ?
+    <teythoon> I thought about returning more information, like the port class
+    <braunr> class ?
+    <braunr> i don't think you should
+    <braunr> iirc, classes are deemed not very useful for hurdng
+    <braunr> they were supposed to be removed, leaving only buckets
+    <teythoon> hurdng ... ?
+    <braunr> which seems more appropriate
+    <braunr> oh :)
+    <teythoon> well, no need for an introspectino interface then
+    <braunr> http://www.gnu.org/software/hurd/hurd/ng.html
+    <braunr> introspection is a bit too much
+    <teythoon> just look at the ports in the only port set then
+    <braunr> but something that would be reusable in lsof
+    <braunr> or /proc/*/maps
+    <braunr> would be very nice
+    <teythoon> if you could just be a little more specific then I might just go
+      and implement it ;)
+    <antrik> braunr: I don't think bucket information would be useful to the
+      outside world; classes OTOH might
+    <teythoon> worked fine with the mtab translator, let's do that again ;)
+    <braunr> antrik: buckets aren't, clearly
+    <braunr> antrik: more than classes, object types
+    <braunr> teythoon: well cat /proc/self/maps on linux
+    <antrik> ain't that the same? ;-)
+    <braunr> i don't know
+    <braunr> and i'm not sure it's that easy to make classes/types something
+      global
+    <braunr> so simply returning a path, or even more generally a description
+      string (sometimes a path)
+    <braunr> should be fine
+    <braunr> teythoon: just consider ports are frontends to objects
+    <teythoon> yes
+    <braunr> what i'd like is something like object.toString() :p
+    <teythoon> right
+    <braunr> something that would help us gather information about objects
+      accessible from user applications
+    <braunr> what is known as open files on unix :)
+    <teythoon> so 1) get a list of ports managed by libports, and 2) map those
+      ports to strings describing the object ?
+    <braunr> the list isn't strictly necessary
+    <braunr> just associate a string description to ports
+    <braunr> portinfo and such already create port lists
+    <teythoon> and fail if the port wasn't vaild?
+    <teythoon> rihgt
+    <braunr> well
+    <braunr> if the port isn't valid, you can't succeed anyway
+    <braunr> but
+    <braunr> what is more likely is the port not supporting the operation
+    <teythoon> yes
+    <braunr> in which case assume the empty string
+    <braunr> it may not be that straightforward
+    <braunr> imagine reply ports in select() for example
+    <teythoon> so where would I put such an rpc ?
+    <braunr> i'm not sure
+    <braunr> for a time, i considered making it a kernel call
+    <braunr> it could be implemented in the signal thread too
+    <teythoon> uh, oh, that's glibc land, right... ?
+    <braunr> in addition to "what are you waiting on", we could have "what's
+      the name for that port"
+    <braunr> yes
+    <braunr> :)
+    <braunr> well not name
+    <braunr> port names refer to integers
+    <braunr> port desc
+    <teythoon> yes
+    <braunr> i'm not sure how it should be done
+    <braunr> ideally, user applications should never have any reply ports
+    <braunr> and we could implement it all in libports
+    <braunr> select (and maybe others) make it hard
+    <teythoon> how so ?
+    <braunr> such calls don't expect any kind of request
+    <braunr> other than what's intended
+    <braunr> if select gets something else than a select reply, it returns with
+      an error
+    <teythoon> so ?
+    <braunr> changing that to deal with unexpected requests makes the select
+      implementation even harder than it is
+    <braunr> hum so, you don't want something like a mail server to fail
+      because you used lsof right ?
+    <teythoon> why would it get unexpected requests ?
+    <teythoon> no
+    <braunr> a new rpc like "give me your description" would be unexpected for
+      select
+    <braunr> servers properly demuxing messages would already reply they don't
+      implement the interface
+    <braunr> select would return an error to its caller
+    <braunr> that's very different
+    <teythoon> ah, well, ok, but if we put it in the signal thread, then lsof
+      would talk to that port
+    <braunr> yes
+    <teythoon> you mentioned that as a reason not to put it in libports ?
+    <braunr> yes
+    <braunr> normal applications don't use libports
+    <braunr> but they do have receive rights
+    <teythoon> I see, yes
+
+
+## IRC, freenode, #hurd, 2013-11-29
+
+    <braunr> is the format of portinfo --search ORIG_PID => ... FOUND_PID =>
+      ... ?
+    <teythoon> i think so, not sure atm
+    <braunr>     4 ->     5:      1 =>      1: send (refs: 65534)
+    <braunr> :/
+    <braunr> hm i don't see such a right in pid 1
+    <teythoon> no, frompid -> topid: port name in frompid => corresponding name
+      in topid
+    <braunr> oh ok
+
+
+# IRC, freenode, #hurd, 2013-11-08
+
+[[!tag open_issue_gdb]]
+
+    <braunr> what i'd like personally would be gdb to be able to track threads
+      across address spaces, when it has the right to do so
+    <crocket> braunr, can gdb debug across threads?
+    <braunr> no
+    <braunr> the same is it can't follow system calls
+    <braunr> it can follow RPCs
+    <crocket> Then, I guess you have to debug multiple applications at once.
+    <braunr> can't*
+    <braunr> well
+    <braunr> the goal would be that
+    <braunr> right now, we debug them one at a time
+    <braunr> following our leads across applications
+    <braunr> it's a bit more tricky but not that hard
+    <teythoon> braunr: that would be nice indeed
+    <braunr> we're talking about cross-address-space debugging
+    <braunr> which is needed only when objects are shared between multiple
+      applications
+    <crocket> gdb can't do it
+    <braunr> but it can't do it on a monolithic system either
+    <braunr> people debug the kernel separately
+    <braunr> we debug our servers separately
+    <braunr> it's almost the same
+    <braunr> we don't debug all our servers, only those relevant in the code
+      path
+    <braunr> that's only a few
+    <teythoon> no it's worse for the monolithic kernel
+    <crocket> braunr, "Additionally, just tracking down a FS/write issue means
+      examining the user space process, the block device service, VFS service,
+      file system service and (possibly) the PCI service. If you get a blank on
+      that, its time to look at the IPC service. This is often easier in a
+      monolithic kernel."
+    <braunr> teythoon: depends
+    <braunr> crocket: agreed
+    <braunr> but again, such bugs are huge
+    <braunr> rare
+    <braunr> the only real class of cross-address-space bugs are leaks
+    <braunr> and leaks are easy to solve in practice
+
+
+# [[open_issues/Translate_FD_or_Port_to_File_Name]]
+
+
+# IRC, freenode, #hurd, 2014-01-30
+
+    <pere> btw, is there some alternative to strace?  wanted to figure out why
+      lightdm didn't find dbus.
+    <pochu> there's rpctrace but that's a bit different
+    <youpi> there's also sotruss from recent glibc

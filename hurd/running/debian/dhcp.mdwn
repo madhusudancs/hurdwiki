@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011, 2012, 2013 Free Software Foundation,
+[[!meta copyright="Copyright © 2011, 2012, 2013, 2014 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -124,3 +124,78 @@ scripts, but has its own `/libexec/rc` script -- which integrates scripts from
           in /dev/eth0)
         <teythoon> I tried to rebuild the package served on debian-ports, but
           that failed
+
+    IRC, freenode, #hurd, 2014-01-03:
+
+        <congzhang> dhcp 4.3 alpha released
+        <congzhang> and PATH_MAX issue was fixed
+
+    IRC, freenode, #hurd, 2014-01-21:
+
+        <gnu_srs> teythoon: what about this?  *** stack smashing detected ***:
+          dhclient terminated
+        <teythoon> gnu_srs: well, dhclient dies
+        <teythoon> i've seen this, it comes and goes
+        <teythoon> not sure what happens, but i tend to blame it on our
+          custom-built dhcp package
+        <teythoon> from debian-ports, and it's outdated
+        <teythoon> it's most likely not your fault
+        <gnu_srs> i thought there was a new upstream by now
+        <teythoon> and the network configuration can be done with passive
+          translators as it was always done
+        <teythoon> there was ?
+        <gnu_srs> there is one recently released, haven't checked yet
+        <gnu_srs> in experimental: 4.3.0a1-2, does still not build out of the
+          box
+        <teythoon> there was, but it does not seem to build on the hurd
+        <teythoon>
+          https://buildd.debian.org/status/logs.php?pkg=isc-dhcp&arch=hurd-i386
+        <teythoon> the most recent version is from debian-ports
+
+
+    IRC, freenode, #hurd, 2014-01-24:
+
+        <braunr> stack smashing detected ***: dhclient terminated
+        <braunr> how nice
+        <tschwinge> braunr: dhclient:
+          http://news.gmane.org/find-root.php?message_id=%3C874ngfvwn4.fsf%40kepler.schwinge.homeip.net%3E
+        <tschwinge> braunr: And I thought, teythoon had found this to be a
+          buffer overflow; something like char dev[10], and for us the path to
+          the dev (/dev/eth0) was longer (but I may be misremebering).
+        <braunr> tschwinge: sounds reasonable
+        <tschwinge> braunr: By the way: I'm seeing this segfault all the time
+          during boot, but when I again run it manually (root login), it works
+          fine.
+        <braunr> tschwinge: you mean the dhclient one µ?
+        <tschwinge> Yes.
+        <braunr> mhm
+        <teythoon> braunr, tschwinge: i never found the cause of the dhclient
+          issue
+        <teythoon> i blame the (outdated) build on debian-ports
+
+
+    IRC, freenode, #hurd, 2014-01-30:
+
+        <youpi> err, still nobody found the dhclient bug?
+        <gnu_srs> youpi: You found the dh-client bug, right?
+        <youpi> gnu_srs: yes, the dhclient bug was in libc, as tschwinge
+          guessed
+        <youpi> I'll probably upload a fixed glibc on debian-ports
+
+        <gnu_srs> youpi: dhclient starts OK with libc 2.17-98~0
+
+        <youpi> btw, the experimental version of isc-dhcp has a newer
+          occurrence of PATH_MAX
+        <gnu_srs> :-(
+        <youpi> (aside from not including the needed debian files for
+          hurd-i386)
+
+  * IPv6
+
+    IRC, freenode, #hurd, 2014-02-23:
+
+        <gg0> seems dhclient can't also set ipv6 translator
+        <gg0> cheated by setting it manually, i had probably screwed it up
+          somehow
+        <gg0> exim was complaining 2014-02-23 22:26:41 IPv6 socket creation
+          failed: Address family not supported by protocol

@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2012, 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2012, 2013, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -95,3 +96,136 @@ License|/fdl]]."]]"""]]
     <youpi> braunr: actually it seems like a bug in emacs
     <youpi> cud may or may not scroll the screen, depending on the
       implementation
+
+
+# IRC, freenode, #hurd, 2013-12-28
+
+    <braunr> ahem, looks like the last xkb-data package dropped
+      /usr/share/X11/xkb/compat/default :/
+    <ivanshmakov> braunr: Looks more like an upstream issue; check, e. g.,
+      http://cgit.freedesktop.org/xkeyboard-config/commit/?id=882f5470713d.
+    <ivanshmakov> braunr: Slightly more surprising is that xkb-data 2.8 was
+      packaged for Debian last Sunday. While the upstream has released 2.10.1
+      back in October, as per
+      http://www.x.org/releases/individual/data/xkeyboard-config/.
+    <gg0> ivanshmakov:
+      http://packages.qa.debian.org/x/xkeyboard-config/news/20131222T160519Z.html
+    <ivanshmakov> gg0: ACK, thanks. (No idea how did I read 2.10.1 as 2.8, as I
+      was looking on essentially the same information.)
+
+
+## IRC, freenode, #hurd, 2013-12-30
+
+    <ZenWalker> on debian/hurd, with startx, show the error "cannot open
+      keyboard (no such file or directory)"
+    <braunr> ZenWalker: what version of xkb-data do you have ?
+    <ZenWalker> braunr: 2.10.1-1
+    <braunr> ZenWalker: there is a bug in that package
+    <braunr> you can confirm it by spotting an error during system startup that
+      mentions a missing "compat/default" file
+    <braunr> this prevents the hurd console from starting
+    <braunr> and without the hurd console, xorg can't find the input device
+    <braunr> hopefully it will be fixed soon
+    <ZenWalker> braunr: yes, "couldn't open include file "compat/default""
+    <ZenWalker> thanks
+
+
+## IRC, freenode, #hurd, 2013-12-31
+
+    <braunr> youpi1: fyi, xkb-data doesn't provide compat/default, which
+      prevents the hurd console from starting
+
+    <ZenWalker> braunr: X works with xkb-data 2.5.1-3 :)
+
+    <braunr> maybe xkb-data isn't the problem
+    <braunr> maybe we need to fix the hurd-console
+    <braunr> youpi: we should probably fix the hurd with regard to xkb-data
+      before releasing the next packages
+    <braunr> it's very unlikely that xkb-data will be fixed
+    <braunr> they say compat/default is unused since march 2012
+
+
+## IRC, freenode, #hurd, 2014-01-01
+
+    <DusXMT> Is anyone else having problems with the console?
+    <gg0> downgrade xkb-data to
+      http://snapshot.debian.org/package/xkeyboard-config/2.5.1-3/#xkb-data_2.5.1-3
+    <DusXMT> ty
+
+
+## IRC, freenode, #hurd, 2014-01-04
+
+    <mihi> does anybody know if the fact that aptitude looks shitty on the hurd
+      console is a bug in the console implementation or some broken
+      term{cap,info} config?
+    <youpi> ncurses is pending a terminfo fix, possibly related
+    <youpi> you can try to recompile your hurd terminfo entry, adding xenl to
+      it, and see whether it fixes it
+    <mihi> hmm, just did an aptitude upgrade, and now after a restart the Hurd
+      console does not even start any more (did not mess with my terminfo yet)
+    <mihi> Couldn't open include file "compat/default"
+    <youpi> yes, xkb-data broke, downgrade it
+    <mihi> youpi, to which version?
+    <youpi> well, the previous one :)
+    <mihi> (or can aptitude or another tool show me what version I had
+      previously?)
+    <youpi> you can simply take the but-last on snapshot.debian.org
+    <mihi> youpi, thanks, that helped. And adding xenl to hurd.ti and
+      recompiling helped, too :)
+
+
+## IRC, freenode, #hurd, 2014-01-13
+
+    <gnu_srs> Couldn't open include file "compat/default" from the console
+    <teythoon> that has been reported on the ml and as debian bug
+    <teythoon> a workaround is both in the upcoming hurd package as well as in
+      the ones i provide in hurd-ci
+    <gnu_srs> Any workaround for the hang in the console for now?
+    <teythoon> there is no hang
+    <teythoon> there is simply no getty
+    <gnu_srs> how come?
+
+    <gnu_srs> and the xkb-data problems I thought was causing problems with the
+      hurd console to start, not the mach console.
+    <teythoon> gnu_srs: exactly, the missing xkb data prevents your
+      hurd-console from running
+
+
+# IRC, freenode, #hurd, 2014-02-05
+
+    <bu^> btw, does the console handle other keymaps than the qwerty US one ?
+      Samuel thibault talked about this during his fosdem conference
+    <braunr> it does
+    <braunr> check /etc/default/hurd-console
+    <bu^> how ? I mean which lib does it use, because I face a similar issue
+      with my programms and would like a "smart" way to handle this (meaning
+      not reimplement something doing it worse)
+    <bu^> thx
+    <braunr> bu^: xkb
+    <bu^> I'm not clear with xkb and how much it is related to xorg, I would
+      like to be xorg independant, but the hurd console also should be and it
+      seems to work
+    <youpi> bu^: xkb is just a library
+    <youpi> xorg uses it
+    <youpi> but other applications can use it
+    <youpi> it just happens to be maintained by x.org people
+    <bu^> oh ok, nice, I'll look at it
+    <bu^> we are talking about this one ?
+      http://www.x.org/releases/current/doc/libX11/XKB/xkblib.html
+    <youpi> yes
+    <bu^> btw the way special caracters like é or à breaks the backspace
+      (erase) key as it will not count properly the number of caracters on the
+      line
+    <bu^> and I end up with remaining caracters I can't erase
+    <bu^> I also started to look for this one but didn't find a proper way to
+      use it as a library http://www.kbd-project.org
+    <youpi> bu^: probably a bogus locale
+    <youpi> that just works for me
+
+
+# IRC, freenode, #hurd, 2014-02-25
+
+[[!tag open_issue_hurd]]
+
+    <gg0> to reproduce "task f5ca6e40 deallocating an invalid port 1711, most
+      probably a bug." just restart hurd-console

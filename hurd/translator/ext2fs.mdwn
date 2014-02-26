@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012, 2013 Free Software
-Foundation, Inc."]]
+[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012, 2013, 2014 Free
+Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -212,6 +212,334 @@ That would be a nice improvement, but only after writeback throttling is impleme
     <tschwinge> boundary by stripped/unstripped), it'd segfault or not.  Burnt
       several days on that before Samuel (IIRC) eventually figured it out.
     <teythoon> tschwinge: well, thanks anyway ;)
+
+
+## IRC, freenode, #hurd, 2014-02-11
+
+    <gg0> task with pid 5 deallocating an invalid port 4622, most probably a
+      bug.
+    <gg0> ext2fs
+    <teythoon> yes, i've seen this
+    <teythoon> e.g. when a passive translator starts
+    <teythoon> i guess it is in libfshelp/translator-list.c
+
+
+## Inode Sizes, Fragment and Block Sizes
+
+### IRC, freenode, #hurd, 2014-02-12
+
+    <gg0> this might be interesting and could make people not to fsck hurd
+      filesystem on linux:
+    <gg0> start ext2fs: ext2fs: device:hd0s1
+    <braunr> ?
+    <gg0> : panic: get_hypermetadata: inode size 256 isn't supported
+    <gg0> (wait, also a bad typist)
+    <braunr> well, if the file system was created from the hurd, or with -o
+      hurd, as it ought to be, you wouldn't have this problem
+    <gg0> oh, good to know, especially before restoring :p
+    <braunr> i suspect your mkfs command to have created an ext4 fs
+    <gg0> nope mkfs.ext2
+    <braunr> hm ok, so it seems to create 256 size inodes by default there
+    <gg0> i guess -o hurd would set some os-specific properties
+    <braunr> it merely enforces a few restrictions
+    <gg0> some predefined defaults
+    <braunr> fragments and blocks are 4k
+    <braunr> and apparently inodes are 128 bytes
+    <gg0> because it can't support bigger values? is it worth working on remove
+      such restrictions?
+    <braunr> probably not so far
+    <braunr> certainly not the fragment/block size restriction
+    <braunr> it matches the page size
+    <braunr> larger inode sizes could be supported if they're dependencies for
+      other worthwhile features such as those someone would add in an ext4
+      translator
+
+
+## Linux' `CONFIG_EXT4_USE_FOR_EXT23`
+
+### IRC, freenode, #hurd, 2014-02-12
+
+    <gg0> why the hell i have thousands of Inode 839, i_blocks is 248, should
+      be 256.  Fix<y>? yes
+    <gg0> in all cases i_blocks should be +8
+    <gg0> and /dev/sda1: (There are 245635 inodes containing multiply-claimed
+      blocks.)
+    <gnu_srs1> 10:50:08< gg0> start ext2fs: Hurd server bootstrap:
+      ext2fs[device:hd0s1] exec
+    <gnu_srs1> That's exactly where my image boot hangs!
+    <gg0> start ext2fs: Hurd server bootstrap: ext2fs[gunzip:device:rd0] exec
+    <AliciaC> gnu_srs1: you might want to check that linux isn't using the ext4
+      module to handle ext2 and ext3 filesystems
+    <AliciaC> gnu_srs1: as I understand it the idea is that the ext4 module
+      treats them as ext2/ext3 filesystems, just avoiding code duplication from
+      having three separate modules for related filesystems, so it shouldn't
+      change it from ext2 at all, but it does do something strange with it
+    <AliciaC> but I'm not sure if that's the case or if it's converting it to
+      ext4. last I heard Hurd doesn't support anything beyond ext2
+    <gnu_srs1> AliciaC: I did use ext2 when mounting from Linux: mount -t ext2
+      /dev/loop0 /mnt
+    <gnu_srs1> and when not mounted: e2fsck /dev/loop0
+    <AliciaC> gnu_srs1: I'd check the kernel config to be sure,
+      CONFIG_EXT4_USE_FOR_EXT23 must be disabled
+    <braunr> you can use the ext4 driver for ext2
+    <braunr> that's not a problem here
+    <braunr> the problem happens long before, when the file system gets
+      corrupted
+    <braunr> you must understand why
+    <AliciaC> I have done some testing on this, mounting a Hurd ext2 filesystem
+      with the ext4 module broke it for me, an easily repeated issue
+    <AliciaC> mounting Debian's ext2 image and unmounting it with ext4 broke
+      it, resulting precisely in the kind of hang ups mentioned by gnu_srs1 and
+      gg0
+    <braunr> interesting
+    <AliciaC> that's with a clean image with nothing corrupting it before hand,
+      tested to be working as well
+    <braunr> ok so the ext4 driver must ignore hurd specific stuff
+    <braunr> that's strange because i recall using it to perform small repairs
+      on darnassus and never had any issue
+    <braunr> even on the root file syste
+    <braunr> but my repairs were very quick and targetted
+    <AliciaC> different linux versions maybe
+    <AliciaC> when I was testing it I didn't even need to do anything in the
+      filesystem to trigger the issue, just mount and unmount
+    <gnu_srs1> I repaired filesystems before like this, has something happened
+      with later versions of Linux?
+    <gnu_srs1> One of my boxes is ext3 (probably worked before) another ext4
+      (the one breaking things, but worked before)
+    <gnu_srs1> ext3 and ext4 box: CONFIG_EXT4_USE_FOR_EXT23=y same kernel
+      3.12-1.amd64
+    <gnu_srs1> what about mounting with bs=4096 (used by hurd)
+    <braunr> -t ext2 should work fine
+    <braunr> just don't use the ext4 driver if in doubt
+    <gg0> no difference between specifying -t or not, in both cases EXT4-fs
+      (sda1): mounting ext2 file system using the ext4 subsystem
+    <braunr> hmm
+    <braunr> you're screwed then ;
+    <braunr> ;p
+    <braunr> or maybe -t ext3 .. :)
+    <braunr> although i suspect ext4 would be used then too
+    <gg0> linux-image-3.2.0-4-amd64:
+      /lib/modules/3.2.0-4-amd64/kernel/fs/ext2/ext2.ko
+    <gg0> wheezy still has it. then something between 3.2.0 and 3.13(?) removed
+      it
+    <braunr> check the config file
+    <gg0> i mean ext2 module
+    <braunr> check if the config file enables it
+    <gnu_srs1> It's not: # CONFIG_EXT2_FS is not set
+    <gg0> 14:42 < gg0> wheezy still has it. then something between 3.2.0 and
+      3.13(?) removed it
+    <braunr> how about retrying what you did without ever mounting from linux ?
+    <braunr> gg0: it wasn't clear enough that you meant removed from
+      configuration
+    <braunr> (for example, it could have been blacklisted)
+    <gg0> or present not as a module
+    <braunr> maybe yes, although it's unusual to see generic kernels embedding
+      file systems these days
+    <AliciaC> the CONFIG_EXT4_USE_FOR_EXT23 option isn't available if either
+      ext2 or ext3 are enabled though, even just as loadable modules
+    <gnu_srs1> The ext2 and ext3 modules were there in  3.10-3, not in 3.12-1
+    <gnu_srs1> (14:48:59) <srs>: It's not: # CONFIG_EXT2_FS is not set --
+      3.12-1
+    <gg0> https://bugs.debian.org/731072
+    * gg0 rsync'ing back to new fs with 3.10 kernel
+    <gnu_srs1> seems like this bug was archived without being closed??
+    <gg0> someone should produce a testcase and file another one btw
+    <gnu_srs1> but that bug was for files systems up to 4MB, not 4GB?
+    <gg0> i pasted it just because submitter talks about config option in
+      question and when was enabled
+    <gg0> don't we want to thank AliciaC who pointed it out and who could
+      precisely file a bug? :)
+    <gg0> filed http://bugs.debian.org/738758
+    <braunr> gg0: thanks
+    <braunr> AliciaC: and thanks too
+
+
+### IRC, freenode, #hurd, 2014-02-13
+
+    <gnu_srs> gg0: Did you create and test with an ext2 Linux image too on
+      3.10/3.12?
+    <gnu_srs> here is a diff: http://paste.debian.net/81837/
+    <gnu_srs> visible differences: Filesystem features:filetype (linux only)
+      and Free inodes:1268(hurd)  / 1269(linux)
+    <AliciaC> between one created with -o Hurd and one created with -o Linux
+      (or no -o)?
+    <gnu_srs> AliciaC: -o Hurd and -b 4096 (no -o)
+    <AliciaC> I wonder if that would show any interesting difference between an
+      untouched -o Hurd ext2 image and a copy of it that has been mounted with
+      the ext4 module
+    <gnu_srs> AliciaC: here: http://paste.debian.net/81857/
+    <gnu_srs> there is a difference of one in the number of free inodes!
+    <gnu_srs> cf the number of free inodes for linux
+    <AliciaC> gnu_srs: thanks :) though I don't know what to make of that, I
+      guess just adding an inode shouldn't break anything
+    <AliciaC> wait, no, removing an inode?
+    <AliciaC> bleh, too tired, read it wrong
+    <gnu_srs> this line should read:(11:37:48) srs: visible differences:
+      Filesystem features:filetype (linux only) and Free inodes:1268(linux)  /
+      1269(hurd)
+    <gnu_srs> There are differences in ext2.h and ext4.h in the Linux source
+      code wrt hurd1, hurd2 structs.
+    <gnu_srs> one change might be interesting: http://paste.debian.net/81864/
+    <braunr> gnu_srs: probably not
+    <gnu_srs> If not, where to look?
+    <braunr> well, the first thing would be to create a (small) ext2 file
+      system, usable on the hurd, with a few files and directories
+    <braunr> save it
+    <braunr> mount it with the ext4 driver
+    <braunr> and make a binary comparison
+    <braunr> you could use a modified ext2fs translator to tell you exactly
+      what's wrong when loading the file system
+    <braunr> and then look at the corresponding code in the ext4 driver
+    <gnu_srs1> braunr: here is a binary diff of the unmounted and mounted e2fs
+      files: http://paste.debian.net/81896/
+    <braunr> gnu_srs1: i'm not going to analyze it
+    <braunr> you are
+    <braunr> :p
+    <gnu_srs1> many of them can be removed: e.g. /mnt and bug000
+    <braunr> ?
+    <gnu_srs1> many diff entries*
+    <braunr> but why ?
+    <braunr> you shouldn't have changed the content at all
+    <gnu_srs1> If I don't add a file, the fs is not corrupted
+    <gnu_srs1> this is with two vers small files created as in gg0s bug report
+    <gnu_srs1> very*
+    <braunr> ok
+    <braunr> i guess checking the source code first and the binary diffs next
+      is easier
+    <gnu_srs1> OK, I have to find out how the ext2fs files are organized.
+    <gnu_srs1> I.e. reading mke2fs source code
+    <braunr> no
+    <braunr> read the ext4 driver
+    <braunr> how a directory entry is created
+    <braunr> how a directory is saved back on the block device
+    <braunr> how any potential conversion could be triggered
+    <gnu_srs1> k, will do
+    <braunr> read about the ext2fs format if doing that first doesn't help
+    <braunr> learning a file system is complicated and long
+    <gnu_srs1> What is the inode size for Hurd/Linux?
+    <braunr> probably 128
+    <gnu_srs1> same for both?
+    <braunr> what is "Hurd/Linux" ?
+    <gnu_srs1> on Hurd / on Linux
+    <braunr> 128 on hurd, variable on linux
+    <braunr> 128-512 i'd say
+    <gnu_srs1> ext2 on linux
+    <gnu_srs1> found it from dumpe2fs: 128 for both
+    <braunr> no, it can vary on linux
+    <braunr> although once a file system is built, the inode size cannot be
+      changed
+    <gnu_srs1> k, the file created with mke2fs has 128
+
+
+## `ext2fs: ../../ext2fs/pager.c:401: file_pager_write_page: Assertion 'block' failed.`
+
+### IRC, freenode, #hurd, 2014-02-19
+
+    <pere> "ext2fs: ../../ext2fs/pager.c:401: file_pager_write_page: Assertion
+      'block' failed." in the console.
+
+[[user/Maksym_Planeta]] also has hit that one.
+
+    <braunr> wow oO
+    <braunr> using debian hurd right ?
+    <pere> power cycling.
+    <pere> yes.
+    <braunr> with hurd 1:0.5.git20140203-1 and glibc 2.17-98~1 ?
+    <pere> braunr: not sure how to check.
+    <braunr> pere: dpkg -l | grep .. i suppose
+    <pere> gah, autofsck do not work.. :(
+    <braunr> it does :(
+    <braunr> unstable is easy to mess it seems
+    <pere> had to run fsck -y / manually...
+    <braunr> i suspect you were using a corrupted file system at mount time
+    <braunr> ah that
+    <braunr> yes it is sometimes needed
+    <braunr> but ext2 is reliable enough that only temporary files get their
+      way into lost+found
+    <braunr> temporary/recently created
+    <braunr> the crash you had, on the other hand, looks more serious
+    <braunr> it seems like you mounted a corrupted file system
+    <pere> could be.  
+    <pere> hurd v1:0.5.git20140203-1 and libc0.3 v2.17-98~1, it seem.
+    <braunr> good
+    <braunr> you shouldn't have such problems then, i suspect a mess up on your
+      part
+    <braunr> but you're not the only one to have had weird file systems
+      problems lately
+    <pere> hah.  I blame the hurd. :P
+    <braunr> heh :)
+    <pere> gah, another crash. :(
+    <braunr> Oo
+    <braunr> same assertion ?
+    <pere> same place, or almost the same place.
+    <pere> yes.
+    <braunr> hm
+    <pere> same crash. :(
+    <braunr> what kind of machine do you run the hurd on ?
+    <pere> kvm
+    <braunr> how much memory ?
+    <pere> 1G
+    <braunr> did you see if the system was swapping ?
+    <pere> no idea.
+    <braunr> i suggest always running top/htop on the hurd ;p
+    <braunr> and monitor memory usage closely
+    <gg0> unless pere lately mounted/fsck'ed fs in question with a recent linux
+      kernel, there should not be particular problems
+    <braunr> it definitely doesn't look like it was mounted by an ext4 driver,
+      no
+    <braunr> which means it's something else entirely and this is scary
+    <pere> I didn't.  I fetched the prebuild image, upgraded it, switched it to
+      sysvinit and started working.
+    <braunr> sorry i can't be of more help about that
+    <braunr> ext2fs has been quite solid on my machines for a long time :(
+    <braunr> there are known assertions that trigger under some special
+      pressure, but that's not what you're having here
+    <braunr> pere: anything particular in fstab ?
+    <pere> nope, have not touched /etc/fstab.
+    <braunr> hm stupid question
+    <braunr> are you sure it's not full ?
+    <pere> nothing look full to me.
+    <pere> neither the disk nor the host file system.
+
+
+### IRC, freenode, #hurd, 2014-02-20
+
+    <pere> braunr: do you remember my ext2fs crash from yesterday?  I could
+      avoid it by interrupting the triggering build and running sync once in a
+      while.  and it show up again if I do not sync in between. :)
+    <braunr> ?
+    <braunr> are you sure you're not swapping ?
+    <pere> I have no idea. still. :)
+    <braunr> again, i recommend you run top/htop and monitor that 
+    <braunr> pere: is your patch needed to trigger the assertion ?
+
+[[open_issues/ti-rpc_then_nfs]].
+
+    <pere> braunr: well, without it, the package do not build, so yeah. :)
+    <braunr> ok
+    <pere> tested again, and is not swapping.  850MB free memory.
+    <braunr> ok
+    <braunr> so this might be a real file system bug
+    <braunr> let me see
+    <braunr> pere: libtirpc built fine here ..
+    <braunr> pere: do you have a separate /home partition ?
+    <braunr> or any separate file system for builds
+    <pere> braunr: nope, everything on /
+    <braunr> pere: i wouldn't recommend that
+    <braunr> there very probably are bugs in the file system code and using
+      separate partitions is a way to alleviate them
+
+
+## `ext2fs: ../../libdiskfs/rdwr-internal.c:42: _diskfs_rdwr_internal: Assertion `!diskfs_readonly' failed.`
+
+### IRC, freenode, #hurd, 2014-02-22
+
+    <gg0> login: init: notifying pfinet of shutdown...init: notifying tmpfs
+      none of shutdown...init: notifying tmpfs none of shutdown...init:
+      notifyi.
+    <gg0> ext2fs: ../../libdiskfs/rdwr-internal.c:42: _diskfs_rdwr_internal:
+      Assertion `!diskfs_readonly' failed.
+    <gg0> In tight loop: hit ctl-alt-del to reboot
 
 
 # Documentation

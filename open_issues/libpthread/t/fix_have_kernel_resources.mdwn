@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2012, 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2012, 2013, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -477,3 +478,824 @@ Address problem mentioned in [[/libpthread]], *Threads' Death*.
       failing bad
     <braunr> i just need to polish a few things, wait for youpi to finish his
       work on TLS to resolve conflicts, and that will be all
+
+
+## IRC, freenode, #hurd, 2013-10-30
+
+    <braunr> FYI, the packages on my repository enable actual thread
+      destruction, and i've altered the libports_stability.patch
+    <braunr> it nows only sets the global timeout to 0
+    <braunr> now*
+    <braunr> we actually can't let translator "die" on global timeout because
+      of a race issue
+    <braunr> tested for about two weeks now and no major problem sighted
+    <braunr> top reports processes running for 100% of their time when
+      terminating threads, but i expect it's simply mach/proc aggregating their
+      run time to the task
+    <braunr> 100% of cpu time
+
+
+## IRC, freenode, #hurd, 2013-11-08
+
+    <braunr> teythoon: darnassus is currently running a modified glibc with
+      thread destruction, yes
+    <teythoon> braunr: did that require any fixups in Hurd that I'd have missed
+      ?
+    <braunr> no
+    <braunr> well
+    <teythoon> b/c the resulting hurd package would not boot
+    <braunr> actually yes
+    <braunr> one
+    <braunr> i'll push the patch somewhere
+    <teythoon> iirc the mach-defpager spewed some error and /hurd/init failed
+      to bootstrap the system
+    <braunr> teythoon:
+      http://darnassus.sceen.net/~rbraun/0001-Prevent-diskfs-translators-from-destroying-main-thre.patch
+    <braunr> make sure you have the proper gnumach packages too :p
+    <teythoon> well, that could very well account for my trouble ;)
+    <teythoon> uh
+    <teythoon> well
+    <braunr> gnumach implements thread destruction, glibc uses it, hurd makes
+      sure it doesn't exit from main
+
+
+## IRC, freenode, #hurd, 2013-11-12
+
+    <braunr> ok so, calling pthread_exit() from main isn't the same as
+      returning from main()
+    <braunr> unlike what some man pages seem to say
+    <braunr> so loosing task info when destroying the main thread is actually a
+      proc bug
+    <braunr> ugh
+    <teythoon> ^^
+    <braunr> or a glibc one
+    <teythoon> the proc server, your favorite Hurd component...
+    <braunr> :)
+    <braunr> hm :/
+    <braunr> looks like command line arguments are stored on the stack of the
+      main thread
+    <braunr> and proc merely receives the addresses of those in the target task
+    <neal> why not just keep the main thread around?
+    <neal> it represents a minor resource leak, true
+    <braunr> yes
+    <braunr> that's the hack i suggested
+    <neal> but it is relatively small
+    <braunr> well no
+    <braunr> my hack was about diskfs translators
+    <braunr> it should be generalized in libpthread
+    <braunr> seems reasonable
+    <braunr> let's do it >)
+
+
+## IRC, freenode, #hurd, 2013-11-13
+
+    <youpi> braunr: there is a thread destruction issue in the experimental
+      ocaml build, worth looking at, probably
+    <braunr> what do you mean ?
+    <youpi> ... testing 'testfork.ml': ocamlcocamlrun:
+      ../libpthread/sysdeps/mach/pt-thread-halt.c:51: __pthread_thread_halt:
+      Unexpected error: (ipc/send) invalid destination port.
+    <youpi> during the experimental ocaml build
+    <braunr> well yes
+    <braunr> thread recycling is buggy
+    <braunr> i had the choice to fix it, or implement true destruction
+    <braunr> i'm tweaking my patch so it leaves the main thread stack untouched
+      on destruction
+    <braunr> and it should be ready
+    <braunr> for review at least
+
+
+## IRC, OFTC, #debian-hurd, 2013-11-13
+
+    <gg0> ironforge out of memory during ruby1.9.1 rebuild. during test which
+      creates 10000 threads
+    <gg0> ironforge out of memory during ruby1.9.1 rebuild, test which creates
+      10000 threads
+    <gg0> i guess ironforge kernel has been rebuilt against -95, correct?
+    <youpi> err, what kernel?
+    <gg0> 23:37 < youpi> hurd needs a rebuild to be able to work with the newer
+      eglibc
+    <gg0> i mean hurd
+    <youpi> yes, libc0.3 breaks the old packages anyway
+    <gg0> wrt ENOMEM, was it expected?
+    <gg0> wrt disk problems, aren't there on alioth only?
+    <youpi> well 10,000 threads is a lot, especially on 32bit machine with 2M
+      default stack  size
+    <youpi> that makes 2GiB stacks
+    <youpi> can't fit in a 2/2 split model, which gnumach uses
+    <gg0> well, though active thread should die right away, just after set x to
+      false, if i read it correctly
+    <youpi> perhaps the stacks are not correctly reused
+    <youpi> that's probably worth digging in libpthread
+    <youpi> by putting printfs, etc.
+    <youpi> it seems stacks are never reused indeed, damn
+    <youpi> I just wrote a small test that creates threads which just print
+      their stack address
+    <youpi> that takes just a few minutes to do
+    <gg0> i see. about reusage i guess you mean base address is kindof always
+      incremented
+    * gg0 likes being wrong
+    <youpi> that's it, yes
+    <youpi> gg0: take care, by keeping being wrong all the time, sometimes you
+      get right ;)
+    <youpi> and you are definitely right here :)
+    <youpi> Mmm, but the stack is really deallocated
+    <youpi> and the numbers wrap around
+    <youpi> I wonder how that is :)
+    <youpi> ok, creating 20 000 threads does work
+    <youpi> perhaps ruby does odd things which makes it not work
+
+
+### IRC, OFTC, #debian-hurd, 2013-11-14
+
+    <gg0>  UID   PID  PPID TH  MSGI  MSGO    SZ   RSS SC STAT     TIME COMMAND
+    <gg0> 1012 16446 15473 720  987   509 1.89G 23.6M  1 Hu    0:00.15
+      /home/gg0-guest/ruby/ruby1.9.git/ruby1.9.1
+      -I/home/gg0-guest/ruby/ruby1.9.git/lib -W0 bootstraptest.tmp.rb
+    <gg0> 720 threads, stuck
+    <youpi> 2G SZ is very big :)
+    <gg0> 00:42 < youpi> perhaps ruby does odd things which makes it not work
+    <gg0> is that enough to file a ruby bug? as ruby suggests itself btw
+    <youpi> no, they will probably not be able to investigate
+    <youpi> but you can already check out how they create threads
+    <youpi> and try to reproduce the same with a small C program
+    <gg0> ehm on ruby2.0 with *context _enabled_ i can not reproduce it
+
+See [[/open_issues/glibc]] for `*context` functions.
+
+
+## IRC, freenode, #hurd, 2013-11-14
+
+    <braunr> nice, i got glibc packages with thread destruction
+    <braunr> building hurd packages against it now
+    <braunr> everything seems fine
+    <braunr> hurd packages ready, let's see
+
+    <gg0> ruby1.9.1 FTBFS due to a couple of tests
+      https://buildd.debian.org/status/fetch.php?pkg=ruby1.9.1&arch=hurd-i386&ver=1.9.3.448-1&stamp=1384265526
+    <gg0> second one creates 10000 threads and machine got ENOMEM
+    <braunr> bootstraptest.tmp.rb: [BUG] [BUG] pthread_cond_init: Cannot
+      allocate memory (ENOMEM) ew
+    <gg0> few hours ago trying to reproduce it:
+    <gg0> 01:20 < gg0>  UID   PID  PPID TH  MSGI  MSGO    SZ   RSS SC STAT
+      TIME COMMAND
+    <gg0> 01:20 < gg0> 1012 16446 15473 720  987   509 1.89G 23.6M  1 Hu
+      0:00.15 /home/gg0-guest/ruby/ruby1.9.git/ruby1.9.1
+      -I/home/gg0-guest/ruby/ruby1.9.git/lib -W0 bootstraptest.tmp.rb
+    <braunr> yes that's expected
+    <braunr> our stacks are 2M
+    <braunr> 10k threads means right over 2G of stacks
+    <braunr> userspace is restricted to 2G
+    <gg0> but if i read correctly test in question, thread should just set x to
+      false then die
+    <braunr> so ?
+    <gg0> and ENOMEM popped upk when there were thread count was at 720
+    <braunr> hum
+    <braunr> 10k threads would actually be 20G
+    <braunr> 1k threads is 2G
+    <braunr> 720 is about 1.5G
+    <braunr> the rest is probably the ruby runtime
+    <gg0> youpi tried to create 10000 thread, no problem. he guessed something
+      wrong on ruby side
+    <gg0> indeed on ruby2.0 such test succeeds
+    <braunr> you can't create 10k threads unless you change the stack size
+    <braunr> hurd servers use a stack size of 64k by default which allows them
+      to go up to 30k iirc
+    <braunr> but normal applications use the default 2M
+    <gg0> i guess you mean 10000 threads active at the same time. test in
+      question should make them die after simply setting x to false, i guess
+      youpi's test did so as well
+    <braunr> no
+    <braunr> it's about stacks
+    <braunr> hm
+    <braunr> yes at the same time but
+    <braunr> thread recycling is known to be buggy
+    <braunr> which is what i'm currently fixing btw
+    <neal> what's the bug?
+    <braunr> neal: there are several subtle issues
+    <braunr> for example, joining a thread that is also calling pthread_exit
+      can fail badly
+    <neal> hmm
+    <neal> good that you are on it then :)
+    <braunr> or detaching
+    <braunr> i don't remember the details
+    <braunr> but i remember such problems
+    <braunr> apparently, keeping the stack of the main thread isn't enough
+    <braunr> :(
+    <braunr> for now, i'll keep the entire thread
+
+
+## IRC, freenode, #hurd, 2013-11-15
+
+    <gg0> i wasn't doing anything, just some single test runs. but yes, also
+      that one which creates hundreds of threads
+    <gg0> it would like creating 10000 but goes out of memory after ~720
+    <gg0> btw same tests succeed on ruby2.0, so they should be fixed by
+      backporting some changes
+    <braunr> actually it looks more like a deadlock ..
+    <gg0> deadlock that says ENOMEM?
+    <braunr> ?
+    <braunr> ENOMEM is returned because the test task has no more virtual
+      memory
+    <braunr> this doesn't mean the rest of the system should fail
+    <gg0> ok i thought you were talking about such test
+    <braunr> no it's something else
+    <braunr> a deadlock in a critical server
+    <braunr> the root file system maybe
+    <gg0> braunr: htop and ps hang. just run the test once again
+    <gg0> now you should still be able to login
+    <braunr> htop/ps hanging means one process is unable to reply to queries
+      sent to the message port/thread
+    <braunr> procfs does that to report on what a process is waiting
+    <braunr> it usually mean there is a bug around signals, since the message
+      thread is also in charge of delivering signals
+    <braunr> use ps -eM
+    <braunr> and kill -KILL
+    <braunr> hum
+    <braunr> root       954 S<o   0:00.05 /hurd/crash --dump-core
+    <braunr> dumping cores is known not to work most of the time
+    <braunr> exodar shouldn't be configured like that
+    <braunr> so yes, the crash server is hanging
+    <braunr> gg0: i've set it to crash --kill and killed the hanging crash
+      instances blocking top/ps
+    <gg0> nice
+
+    <braunr> my thread destruction patch and tls are indeed conflicting a bit
+    <braunr> i suspect the tcb is used after being freed
+    <braunr> i think i'll simply recycle the tcb, along with the pthread
+      structs
+    <braunr> ok i think it's fine now
+    <braunr> there was also a small bug in the tls code, keeping a reference on
+      the thread port
+    <braunr> mach reference counting is so counter intuitive :/
+    <braunr> well, error-prone
+
+    <braunr> argh, more bugs in libc :(
+    <teythoon> :/
+    <teythoon> but don't worry, there is always one more bug ;)
+    <braunr> this one might explain crashes that are long to trigger
+    <braunr> _hurd_self_sigstate() is implemented like this :
+      _hurd_thread_sigstate (__mach_thread_self ());
+    <braunr> it leaks a reference on the current thread each time it's called
+    <teythoon> >,<
+    <braunr> but glibc maintains such references, so if the maximum value is
+      reached, and references are dropped, the value can reach 0
+    <teythoon> ouch
+    <braunr> at which point any call on a thread will result in an invalid send
+      right
+    <braunr> and probably an assertion
+    <teythoon> well it's a good thing then that you found it :)
+    <braunr> i think it's always been there
+    <braunr> but it's more apparent since jknoenig's patch on signal
+      dispositions
+    <braunr> the maximum number of user references in mach is 64k
+    <braunr> this right leak isn't easy
+    <braunr> tls is very tricky heh :)
+    <braunr> for the main thread, tls initialization happens after the thread
+      creation, obviously
+    <braunr> but for other threads, it's initialized before starting them
+    <braunr> the leak was probably an overlook caused by that complexity
+    <braunr> teythoon: actually that leak i mentioned in _hurd_self_sigstate
+      has only been recently added in Convert sigstate to TLS
+    <braunr> so it's merely tls integration polishing
+    <braunr> youpi: i'm currently reviewing changes related to tls and i think
+      there is a bug in _hurd_self_sigstate
+    <braunr> calls to mach_thread_self() should be paired with
+      mach_port_deallocate to avoid urefs overflows
+    <braunr> and right leaks
+    <braunr> _hurd_critical_section_lock is probably affected too
+    <braunr> hm
+    <braunr> mhmm
+    <braunr> in glibc, hurd/hurd/signal.h, _hurd_critical_section_lock
+    <braunr> why is the sigstate unlocked after the call to
+      _hurd_thread_sigstate
+    <braunr> _hurd_thread_sigstate doesn't seem to lock it ..
+    <braunr> unless __spin_lock_init does it
+    <braunr> yes, leak solved :)
+
+
+## IRC, freenode, #hurd, 2013-11-16
+
+    <braunr> argh, _hurd_critical_section_lock is called before the send right
+      on the main thread is fetched in libpthread :/
+    <teythoon> is that bad ?
+    <braunr> the sigstate is supposed to be initialized after pthreads
+    <braunr> _hurd_critical_section_lock will create it if it sees there is
+      none
+    <braunr> creating the sigstate is currently what makes the send right leak
+    <teythoon> ok
+    <teythoon> it's bad then
+    <braunr> it may be due to my patch
+    <braunr> _hurd_critical_section_lock is called during pthreads
+      initializatio
+    <braunr> n
+    <braunr> before the sigstate for the main thread is created, but after the
+      pthread init routine is called
+    <braunr> it does indeed look like the code wasn't written with thread being
+      destroyed some day in mind :/
+    <teythoon> braunr: btw, if you ever feel like benchmarking, sysbench has a
+      benchmark for threads contending for a lock
+    <braunr> yes i've used it before
+    <teythoon> was it useful for this purpose ?
+    <braunr> no :)
+    <teythoon> :/
+    <braunr> we already know libpthread isn't optimized
+    <braunr> and felt it when we switched from cthreads
+    <braunr> humpf
+    <braunr> simply calling malloc implies a call to
+      _hurd_critical_section_lock
+    <braunr> on the other hand, unlike what some glibc comments say, this does
+      work
+
+
+## IRC, freenode, #hurd, 2013-11-17
+
+    <braunr> looks like i've fixed all leak issues with thread destruction and
+      tls :)
+    <braunr> let's see if ext2fs.static works fine too
+    <youpi> braunr: \o/
+    <youpi> sorry about introducing the tls ones :)
+    <braunr> no worries, it was expected
+    <braunr> and tls was really needed :)
+    <braunr> i mean, i expected to have some problems when rebasing on tls :p
+    <teythoon> braunr: this is good news, how is your rootfs translator holding
+      up?
+    <braunr> building hurd packages right now
+    <braunr> for now, only test applications and a few really multithreaded
+      ones (e.g. iceweasel) have been tested
+    <braunr> well, the system boots :)
+    <teythoon> awesome :)
+    <braunr> stressing the file system with git while watching youtube videos
+      with gnash doesn't make the system crash
+    <teythoon> you can actually watch yt videos on your Hurd box ?
+    <braunr> yes
+    <braunr> for a while now
+    <teythoon> o_O
+    <braunr> can't you ?
+    <teythoon> I never even dared to try
+    <braunr> hehe
+    <braunr> teythoon: looks stable enough to install on darnassus
+
+
+## IRC, freenode, #hurd, 2013-11-18
+
+    <teythoon> braunr: wrt to your thread destruction patchset, I thought you
+      also had to fix the proc server ?
+    <braunr> teythoon: no
+    <braunr> the problem was in glibc
+    <braunr> i may have to fix proc/procfs though, because cpu time gets wrong
+      with the patch
+    <braunr> currently, it's the addition of the cpu time of all threads
+    <braunr> mach provides aggregate times including destroyed threads though
+    <teythoon> ah, I see
+    <braunr> one side effect is that you'll see processes sometimes taking 100%
+      of cpu time although the cpu is unused
+    <braunr> or the cpu time of a process gets reduced :)
+    <braunr> i guess the 100% cpu is how top sees a negative increment
+    <teythoon> ^^
+    <braunr> gg0: do my threadterm packages help with ruby1.9 ?
+    <braunr> i mean, can you test with them some time ? :)
+
+
+## IRC, freenode, #hurd, 2013-11-21
+
+    <braunr> youpi: ping about my question regarding error handling in the
+      proposed thread_terminate_release call
+    <youpi> I agree with what Neal said
+    <braunr> he didn't say anything about error handling
+    <braunr> see
+      http://lists.gnu.org/archive/html/bug-hurd/2013-11/msg00181.html
+    <braunr> i think i should make the call fail on first error
+    <braunr> it shouldn't happen, so it would merely serve to catch bugs
+    <braunr> it's not easily recoverable (if it's recoverable at all)
+    <youpi> uh, I thought he had
+    <youpi> I must have dreamt
+
+    <braunr> i think i'll go ahead with thread destruction integration
+
+
+## IRC, freenode, #hurd, 2013-11-25
+
+    <braunr> i've pushed the thread destruction patches for gnumach upstream
+    <braunr> and made a branch in glibc for that too
+    <teythoon> awesome :)
+    <braunr> youpi: i don't remember how glibc changes should be managed
+    <braunr> once those are applied, i'll commit in libpthread
+    <youpi> braunr: usually we create a topgit branch, and then we add the
+      patch from that to the debian repository
+
+
+## IRC, freenode, #hurd, 2013-11-29
+
+    <braunr> youpi: i still have a leak somewhere with the thread destruction
+      patches
+    <braunr> maybe on the host priv port in bootstrap servers (root fs and proc
+      server)
+    <braunr> it prevents priority adjusting in libports and can easily bring
+      down a system because servers can start trashing a lot sooner, as it was
+      the case during the pthread migration
+
+See discussion about that on [[/open_issues/libpthread]].
+
+    <braunr> so i'll hunt it down before merging
+
+
+## IRC, freenode, #hurd, 2013-12-19
+
+    <braunr> darnassus still has the libports priority adjustement leaks
+    <braunr> i'll apply a few more patches to my hurd packages
+
+    <braunr> humpf, proc seems to have a problem getting the host priv port :/
+    <teythoon> thats bad
+    <teythoon> what did you do ?
+    <braunr> i fixed all the leaks in libports when adjusting priorities
+    <braunr> the last one being releasing the host priv right
+    <braunr> and i get errors at boot time from the proc server
+    <teythoon> remember when i had this problem ?
+    <braunr> proc doesn't get the host priv port the normal way since the
+      normal way is to get it from proc iirc
+    <teythoon> ah, thought you fixed that
+    <braunr> so i guess the alternate way doesn't add a reference
+    <braunr> well the leak is fixed
+    <braunr> the problem you had was due to the leak which made the host priv
+      port reach its max uref value
+    <braunr> now it's just the proc server
+    <braunr> the system works fine though
+    <teythoon> for real ?
+    <teythoon> the proc server needs the host priv port for getting the new
+      tasks
+    <braunr> well yes
+    <teythoon> how can it work w/o it ?
+    <braunr> i don't know ..
+    <braunr> i guess the problem is internal to glibc
+    <braunr> i mean, get_priv_ports fails, but that doesn't mean the host priv
+      port is lost
+    <teythoon> could be
+    <teythoon> are you running a patched rootfs translator too ?
+    <braunr> yes
+    <teythoon> ok
+    <teythoon> b/c i remember having trouble with that
+    <braunr> right, the glibc call would make proc call __proc_getprivports
+    <braunr> hum
+    <braunr> teythoon: do you remember how proc gets its host priv port ?
+    <teythoon> from init
+    <teythoon> i think
+    <braunr> startup_procinit ?
+    <teythoon> possibly
+    <braunr> right
+    <braunr> so it's probably not the host priv port
+    <braunr> i mean, the error is about another invalid send right
+    <braunr> hm nope, it is on host_priv :/
+    <braunr> hm ok i see, looks like a bug from a debian patch
+    <braunr> or rather, a bug fix not yet imported into the debian package
+    <braunr> teythoon: you actually fixed it in
+      2c9422595f41635e2f4f7ef1afb7eece9001feae
+    <braunr> great :)
+    <teythoon> ah, that one
+    <braunr> i was looking at the upstream code and couldn't understand what
+      was going wrong
+    <braunr> :)
+    <braunr> much better
+    <braunr> except ps -eT doesn't work any more ..
+    <braunr> interestingly, with the thread destruction patch, ps -eT sometimes
+      work, and sometimes doesn't
+    <braunr> the behaviour doesn't seem to change without a reboot
+    <braunr> and of course, as soon as i say it, i'm proven wrong by the next
+      test :)
+
+
+## IRC, freenode, #hurd, 2013-12-26
+
+    <braunr> __pthread_sigstate_init doesn't seem to be converted to TLS in the
+      upstream repository master branch
+
+    <braunr> ah dammit, the global signal dispositions patch touches both glibc
+      and libpthread @#!
+    <braunr> what a mess
+
+    <braunr> youpi: do you have some time to quickly review the
+      rbraun/thread_destruction branch in libpthread ?
+    <braunr> there might be conflict with some glibc patches
+    <braunr> or do you prefer it on the mailing list ?
+    <braunr> (i used a branch because it's not based on master)
+    <youpi> rather mail the list, yes
+    <braunr> ok
+    <youpi> it'd also be useful to write the rationale
+    <youpi> probably to be left as comment in the source code
+    <braunr> yes, that branch was for personal storage :)
+    <youpi> so the reader knows how things are recycled or not
+    <braunr> hm
+    <braunr> that should already be the case
+    <youpi> ok
+    <braunr> the two structures that are still recycled are the pthread struct
+      and tls
+    <braunr> it's quite obvious from pthread_alloc
+    <braunr> and well commented there
+    <braunr> for tls, it's explained in pthread_exit
+
+    <braunr> there, thread destruction finally merged in
+    <braunr> and now, we can remove the ugly hacks that were done for
+      threadvars
+    <braunr> :)
+    <braunr> change stacks at will and support all sorts of weird languages and
+      runtimes
+    <teythoon> braunr: cool :)
+
+
+## IRC, freenode, #hurd, 2013-12-31
+
+    <youpi1> braunr: I've added sigstate_locking, sigstate_thread_reference and
+      tls_thread_leak to the debian glibc 2.18 package
+    <youpi1> I believe that's complete?
+    <youpi1> is mach_msg_uspace_options ready for being added? Does it bring
+      much speedup?
+    <youpi1> AIUI, thread_terminate_release is  the union of the branches
+      mentioned above?
+    <youpi1> (I'm cleaning up branches in the glibc repo)
+    <braunr> youpi1: mach_msg_uspace_options can be left over, it only affects
+      selects and not noticeably
+    <braunr> yes, those three branches are the only ones needed for thread
+      destruction
+    <youpi1> ok
+    <youpi> does the hurd changes depend on these changes ?
+    <braunr> no
+    <youpi> good :)
+    <braunr> only on tls for one of them
+    <braunr> (it's about the default stack size of 64k for hurd servers)
+    <youpi> and we have had this in debian for a long time already :)
+    <braunr> yes
+    <youpi> (how big were they before?)
+    <youpi> (where they a couple MiB, and thus exploding to GiBs on thousands
+      of threads?)
+    <braunr> 64k
+    <braunr> pthread stacks are 2M by default
+    <braunr> yes
+
+
+## IRC, freenode, #hurd, 2014-01-14
+
+    <youpi> braunr: it seems your time change in libps made ps produce odd re
+    <youpi> results
+    <youpi>     samy 10987     5 -514358:-18:-42.17 /hurd/firmlink tmp
+    <braunr> youpi: wow :)
+    <braunr> that change is supposed to run on a system where threads actually
+      get destroyed
+    <braunr> but i don't see what could trigger this side effect
+    <youpi>     root  8629   664 56 years make -j 3
+    <youpi> :)
+    <braunr> heh
+    <braunr> youpi: does the hurd package on darnassus include that patch ?
+    <youpi> yes
+    <braunr> i don't reproduce the problem :/
+    <youpi> err
+    <braunr> what command are you using ?
+    <youpi> ps -feM on darnassus
+    <youpi>     root 29642   473 7 months /usr/sbin/sshd -R
+    <braunr> hmmmm
+    <braunr> i don't see it with a make -j
+    <youpi> well, it's not systematic
+    <youpi> it's like once over two launches
+    <braunr> hhhhmmmmm
+    <youpi> it'd look like some random numbers get added
+    <braunr> strangely, the gcc processes started by a recursive make aren't
+      children of make ..
+    <braunr> ps -eF hurd seems to report the correct values
+    <braunr> even ps -eM
+    <braunr> oO
+    <braunr> ps -ef too
+    <braunr> the problem seems to be with ps -efM
+    <youpi> too bad I'm always using that :)
+    <braunr> another way to see it is that it makes us spot the issue ;p
+
+
+### IRC, freenode, #hurd, 2014-01-15
+
+    <braunr> ok i have an idea of what goes wrong in libps
+
+    <braunr> youpi: for some reason, ps -efM lacks the PSTAT_TASK_BASIC flag
+    <braunr> my patch is wrong since it doesn't try to determine whether the
+      stats apply to a task or a thread, but that is easy to fix
+    <braunr> ps -efM should nonetheless provide basic task info, obviously
+    <braunr> in addition, the problems i've observed with ps -T (occasional
+      segfaults) seem to have existed before thread destruction
+    <braunr> they're just strongly exposed now that the thread list can be
+      shrunk
+
+    <braunr> libps is quite complicated
+    <braunr> even hairy, i'd say ..
+
+
+### IRC, freenode, #hurd, 2014-01-16
+
+    <braunr> youpi: i think i have a proper fix for libps
+    <braunr> i'll commit it soon
+    <youpi> ok
+    <braunr> basically, getting system times simply set the PSTAT_THREAD_BASIC
+      flag
+    <braunr> whereas getting the run time of the terminated threads requires
+      PSTAT_TASK_BASIC
+    <braunr> i assumed it was always set in the function i changed when dealing
+      with a task and not a thread
+    <braunr> and well, that was a wrong assumtion, -M can remove it if not
+      strictly needed by the format
+    <braunr> the default format asks for suspend_count, which forces the
+      retrieval of task basic info, os it works with -eM
+    <braunr> but -f doesn't :)
+    <youpi> so extremely bad lucky combination of flags :)
+    <braunr> indeed
+    <braunr> i added a pstat_times using the last (!) available flag bit
+    <braunr> looks clean to me
+    <braunr> i hope there is no abi issue
+    <braunr> (at least everything works with the unmodified ps-hurd executable
+      and a new libps.so)
+
+    <braunr> hm, small bug in the thread destruction patch :/
+
+
+### IRC, freenode, #hurd, 2014-01-17
+
+    <braunr> good, i have proper fixes for tls in the main thread and thread
+      termination :)
+    <teythoon> awesome :)
+    <teythoon> i've been wondering, what does it take to get the thread
+      destruction stuff into the debian package ?
+    <braunr> i still have to build test packages, look for (unlikely, heh)
+      regressions and work some integration details with samuel
+    <braunr> hum the main thread tls fixup i guess
+    <braunr> youpi was waiting for me to fix that
+    <braunr> gnumach already provides the RPC
+    <braunr> so it will be in glibc soon
+    <braunr> i just have to get those last bits right
+    <braunr> teythoon: i'm quite slow at integrating stuff
+    <teythoon> and samuel then builds packages ?
+    <teythoon> i mean, is our libc package build linked to the other libc
+      packages ?
+    <braunr> libpthread is applied as a patch to glibc
+    <braunr> and loaded as a plugin
+
+
+## IRC, freenode, #hurd, 2014-01-17
+
+    <braunr> uhm, did we break fakeroot-tcp ?
+    <teythoon> we did ?
+    <youpi> fakeroot-tcp just works fine on buildds
+    <braunr> with fakeroot-tcp, i get
+    <braunr> make[4]: Entering directory
+      `/home/rbraun/devel/debian/packages/hurd/hurd-0.5.git20140113/libdde-linux26/contrib/include'
+    <braunr> rm -f .general.d
+    <braunr> make[4]: *** [cleanall] Killed
+    <braunr> when cleaning the package before building ..
+
+
+### IRC, freenode, #hurd, 2014-01-18
+
+    <braunr> damn, fakeroot-tcp won't work on darnassus ..
+    <braunr> uh, looks like my tls/thread destruction "fixes" do cause
+      regressions :(
+    <braunr> fakeroot works fine with debian glibc
+    <teythoon> which one ?
+    <teythoon> which fakeroot i mean
+    <braunr> -tcp
+    <braunr> yes, it fails as soon as i use the patched glibc :/
+    <braunr> at least it's easy to reproduce
+
+
+### IRC, freenode, #hurd, 2014-01-20
+
+    <braunr> great, 3rd libc version installed on darnassus, let's see if i can
+      build hurd packages against that
+
+
+### IRC, freenode, #hurd, 2014-01-21
+
+    <braunr> damn, fakeroot-tcp still crashes with my latest changes ....
+
+    <braunr> darnassus looks in good shape
+    <braunr> youpi: ^
+    <braunr> youpi: if you have other tests, feel free to do them now
+    <braunr> i feel confident about committing the changes, if you're ok with
+      it
+    <youpi> which changes ?
+    <youpi> I'm a bit lost in what you were talking about :)
+    <braunr> you can find them in 2 patches in /var/tmp on darnassus
+    <braunr> one is about fixing thread destruction
+    <braunr> i'm pretty certain about this one so i'll commit it directly
+    <braunr> the other is fixing the tcb of the main thread
+
+[[open_issues/libpthread]].
+
+    <braunr> where i simply do tcb->self = thread->kernel_thread :)
+    <braunr> with a comment explaining why i don't do something else like
+      deallocating the unused tcb
+    <youpi> braunr: ok, that looks good
+    <teythoon> braunr: awesome :)
+    <braunr> youpi: ok
+
+
+### IRC, freenode, #hurd, 2014-01-22
+
+    <braunr> there, libpthread should be fine now
+
+
+## IRC, freenode, #hurd, 2014-02-06
+
+    <braunr> youpi: in case you're planning to upgrade glibc (or not), the
+      thread destruction changes are complete
+    <braunr> youpi: darnassus has been running them for some weeks with no
+      visible regression
+    <youpi> braunr: ok, good
+    <youpi> including it in glibc was on my todo list indeed
+    <youpi> and Adam  indeed plan for a 2.18 upload
+    <braunr> good :)
+    <youpi> braunr: this is up to 7c6dc6e28b2fc4b67934223f41cf080ffe58b230,
+      right? (Wed Jan 22, Fix up the main thread TCB)
+    <braunr> yes
+    <braunr> oh, i just saw 2.17-98~0 glibc packages on debian-ports :)
+    <youpi> yes, it's just to fix the dhcp crash
+    <braunr> ah yes, it's not 2.18
+    <youpi> 2.18 is available in experimental
+
+    <youpi> braunr: just to make sure: did you have
+      983b18a6ff16f5687a9ece63a50d1831dec88609 in libc on darnassus?
+    <youpi> (which drops the stack size  hack)
+    <braunr> youpi: let me check
+    <braunr> youpi: ah no, i don't, you're right
+    <youpi> well, I was just wondering, nothing make me think that was the case
+      :)
+    <youpi> what was the issue that it was raising btw?
+    <braunr> threadvards
+    <youpi> ok, b ut in which case?
+    <youpi> (to make sure I test that before committing)
+    <braunr> now that we switched to tls, i would assume the transition path to
+      be 1/ hurd stops defining that symbol, 2/ libpthread can stop using it
+    <braunr> the goal was to reduce the stack size of hurd server threads
+    <youpi> well, that's not my question :) I'm wondering in which precise case
+      that was breaking things
+    <braunr> youpi: i don't know, it shouldn't break
+    <youpi> ok
+    <braunr> youpi: just in case, don't forget that last one line patch i
+      committed last night, fakeroot can't work right without it
+    <braunr> (i made a minor change while reviewing before comitting, and
+      obviously got it wrong :p)
+    <youpi> ok
+
+    <youpi> braunr: I've upgraded libpthread in debian's eglibc btw
+
+    <braunr>
+      /home/rbraun/devel/debian/packages/eglibc/eglibc-2.17/build-tree/hurd-i386-libc/libc.so.phdr:
+      *** executable stack signaled
+    <braunr> from build-tree/hurd-i386-libc/elf/check-execstack.out
+    <braunr> i thought glibc didn't use those
+    <braunr> anyway it doesn't look to be the regression i'm having
+    <braunr> does this ring a bell :
+    <braunr> Encountered regressions that don't match expected failures
+      (debian/testsuite-checking/expected-results-i486-gnu-libc):
+    <braunr> test-stpcpy_chk.out, Error 1
+    <braunr> TEST test-stpcpy_chk.out: __stpcpy_chk    normal_stpcpy
+      simple_stpcpy_chk
+    <youpi> nope
+    <youpi> after what are you getting this regression?
+    <braunr> building glibc 2.17-97 with thread destruction patches, including
+      the one removing the stack size hack
+    <braunr> during tests
+    <braunr> there also are "progressions", but i'm not sure what these are
+    <youpi> some progressions are just luck, other seem to happen on some
+      platforms only
+    <youpi> I'm not sure you want to test 2.17
+    <youpi> a lot has changed between 2.17's libpthread and 2.18's libpthread
+      (which is now equal to cvs's libpthread
+    <youpi> )
+    <youpi> s/cvs/git/
+    <braunr> yes
+    <braunr> i usually build with nocheck
+
+
+## IRC, freenode, #hurd, 2014-02-07
+
+    <braunr> youpi: on a vm with hurd 1:0.5.git20140203-1, upgrading to a
+      patched glibc 2.17-97 that includes the patch which reverts the stack
+      size hack, the system reboots and works fine
+    <youpi> ok. I don't remember what problem I was seeing
+    <braunr> that version of the hurd no longer defines the symbol
+    <braunr> but even then, there shouldn't have been any problem
+    <braunr> hm, or does it
+    <braunr> yes, it does
+    <braunr> youpi: the hurd package patch mentions
+    <braunr> Revert this for now, will have to wait for dropping the use of
+    <braunr> __pthread_stack_default_size from eglibc's
+      libpthread_hurd_cond_wait.diff
+    <braunr> i wonder how it got there
+    <youpi> IIRC I was wondering too
+    <braunr> i've installed my c library on darnassus and it works fine there
+      too
+    <braunr> with older (january) hurd packages
+    <braunr> looks good to me
+
+
+## IRC, freenode, #hurd, 2014-02-10
+
+    <teythoon> braunr: btw, do the new libc packages contain your thread
+      destruction work ?
+    <braunr> teythoon: the -98 ones on experimental ?
+    <braunr> i don't think they do
+    <braunr> the -18 ones should do

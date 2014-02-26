@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2013, 2014 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -117,3 +117,61 @@ License|/fdl]]."]]"""]]
     <braunr> yes, schedule_timeout could need a review
     <braunr> actually, fakeroot rm -rf * is a good test
     <braunr> and it's still damn slow
+
+
+## IRC, freenode, #hurd, 2013-11-04
+
+    <braunr> i think i know why fakeroot is slow no
+    <braunr> now
+    <braunr> schedule_timeout as implemented in pfinet can only be awaken by a
+      timeout
+    <braunr> even when the expected even comes in earlier
+    <braunr> so yes, the proper solution is to rewrite the timers using
+      interruptible_sleep_on_timeout (and in turn
+      pthread_hurd_cond_timedwait_np)
+    <braunr> hm no, it's still not that straightforward :(
+
+
+## IRC, freenode, #hurd, 2013-11-05
+
+    <braunr> youpi: i found the bug slowing down fakeroot-tcp
+    <braunr> it's actually a bug that slows down anything using the loopback
+      device
+    <braunr> (although there still is a problem with fakeroot chown)
+    <youpi> oh!
+    <braunr> basically
+    <braunr> the loopback device calls netif_rx from its xmit function
+    <braunr> which is perfectly fine
+    <braunr> except the glue code makes mark_bh (used to raise bottom halves)
+      broadcast a condition
+    <braunr> and since netif_rx is called from within xmit, which is called
+      from the net_bh worker thread
+    <braunr> the thread itself is never waiting for the condition when it is
+      broadcast
+    <braunr> it's very simple to fix, i'll send a patch later
+    <braunr> netcat to netcat now consumes 100% cpu
+    <braunr> as does fakeroot ls -Rl
+    <braunr> but for some reason fakeroot chown is still extremely slow
+    <braunr> and i've seen deadlocks in glibc (e.g. setlocale() getting the
+      locale lock, which is locked again in case libfakeroot fails and calls
+      strerror)
+    <braunr> so still a bit of debugging work needed
+
+
+## IRC, freenode, #hurd, 2013-11-06
+
+    <braunr> chown being slow with fakeroot-tcp can also be seen on linux
+
+    <teythoon> did your recent patch improve the performance of fakeroot-tcp ?
+    <braunr> yes
+    <teythoon> very nice :)
+    <braunr> but fakeroot chown is still slow
+    <braunr> although it's also slow on linux
+    <braunr> so i'm not looking into that any more for the time being
+    <braunr> as long as it's not used recursively on huge directories, it's
+      fine
+
+
+## IRC, freenode, #hurd, 2013-11-09
+
+    <teythoon> braunr: fakeroot-tcp is indeed much faster now :)

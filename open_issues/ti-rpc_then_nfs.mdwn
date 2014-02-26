@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2014 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -18,3 +18,88 @@ It needs some work on our side, [[!message-id
 
 Then, the Hurd's [[hurd/translator/nfs]] translator and [[hurd/nfsd]] can be
 re-enabled, [[!message-id "87hb2j7ha7.fsf@gnu.org"]].
+
+
+## IRC, freenode, #hurd, 2014-02-19
+
+    <pere> hi.  I'm trying to port libtirpc to get rcpbind on hurd, and am
+      unable to find IPV6_PORTRANGE and IPV6_PORTRANGE_LOW.  is this a known
+      problem with a known fix?
+    <braunr> what are they supposed to be ?
+    <pere> braunr: found them described in <URL:
+      http://www.daemon-systems.org/man/ip6.4.html >.
+    <braunr> "The IPV6_PORTRANGE socket option and the conflict resolution rule
+      are not defined in the RFCs and should be considered implementation
+      dependent
+    <braunr> "
+    <braunr> hm
+    <braunr> if we have that, they're very probably not accessible from outside
+      our network stack
+    <pere> needed feature on hurd, in other words...
+    <braunr> why ?
+    <pere> If I remember correctly, SO_PEERCRED is also missing?
+    <braunr> yes ..
+    <braunr> that one is important
+    <pere> braunr: you wonder why the IPV6_PORTRANGE socket option was created?
+    <braunr> i wonder why it's needed
+    <braunr> does linux have it ?
+    <pere> yes, linux got it.
+    <braunr> same name ?
+    <pere> it make it possible for some services to work with some
+      firewalls. :)
+    <pere> yes, same name, as far I can tell.
+    <braunr> they could merely bind ports explicitely, couldn't they ?
+    <pere> not always.
+    <braunr> or is it for servers on creation of a client socket ?
+    <pere> see <URL:
+      http://www.stacken.kth.se/lists/heimdal-discuss/2000-11/msg00002.html >
+      for an example I came across.
+    <braunr> i don't find these macros on linux :/
+    <pere> how strange.  libtirpc build on linux.
+    <braunr> is there a gitweb or so somewhere ?
+    <braunr> i can't find it on sf :/
+    <pere> for <URL: http://sourceforge.net/projects/libtirpc >, you mean?
+    <braunr> yes
+    <pere> no idea.
+    <braunr> are you looking at upstream 0.2.4 or a particular debian package ?
+    <pere> I'm looking at the debian package.
+    <braunr> let me take a look
+    <pere> http://paste.debian.net/82971/ is my first draft patch to get the
+      source building.
+    <braunr> ok so
+    <braunr> in src/bindresvport.c
+    <braunr> if you look carefully, you'll see that these _PORTRANGE macros are
+      used in non linux code
+    <braunr> not very portable but it explains why you hit the problem
+    <braunr> try using #if defined (__linux__) || defined(__GNU__)
+    <braunr> also, i think we intend to implement SCM_CREDS, not SO_PEERCRED
+    <braunr> but consider we have neither for now
+    <pere> ah, definitely a simpler fix.
+    <braunr> pere: btw, see
+      https://lists.debian.org/debian-hurd/2010/12/msg00014.html
+
+    <pere> <URL: https://bugs.debian.org/739557 > with patch reporte.d
+
+
+## IRC, freenode, #hurd, 2014-02-20
+
+    <pere> new libtirpc with hurd fixes just uploaded to debian.  should fix
+      the rpcbind build too.
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-20
+
+    <pere> hm, rpcbind built with freshly patched libtirpc fail to work on
+      hurd.  no idea why.
+    <pere> running 'rpcinfo -p' show 'rpcinfo: can't contact portmapper: RPC:
+      Success'
+    <teythoon> o_O
+    <pere> I have no idea how to debug it. :(
+    <pere> anyway, I've found that rpcinfo is the broken part.  rpcbind work,
+      when I test it from a remote machine.
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-21
+
+    <pere> failing rpcinfo -p on hurd reported as <URL:
+      http://bugs.debian.org/739674 >.  Anyone got a clue how to debug it?

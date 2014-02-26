@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2008, 2009, 2013 Free Software Foundation,
+[[!meta copyright="Copyright © 2008, 2009, 2013, 2014 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -18,7 +18,7 @@ mounted file systems. This also means that commands like `df` can only work on
 explicitly specified mountpoints, instead of displaying the usual listing.
 
 One possible solution to this would be for the translator startup mechanism to
-update the `mtab` on any `mount`/`unmount`, like in traditional systems.
+update the `mtab` on any `mount`/`umount`, like in traditional systems.
 However, there are some problems with this approach.  Most notably: what to do
 with passive translators, i.e., translators that are not presently running, but
 set up to be started automatically whenever the node is accessed?  Probably
@@ -1108,6 +1108,12 @@ In context of [[open_issues/mig_portable_rpc_declarations]].
     <braunr> only send-once rights have their own names
     <teythoon> btw, I'll push my work to darnassus from now on,
       e.g. http://darnassus.sceen.net/gitweb/?p=teythoon/hurd.git;a=shortlog;h=refs/heads/feature-mtab-translator-v3-wip
+
+
+### IRC, freenode, #hurd, 2013-11-20
+
+    <braunr> teythoon: ah thanks for making mtab multithreaded :)
+    <braunr> i forgot about that
 
 
 ## [[open_issues/libnetfs_passive_translators]]
@@ -2494,6 +2500,548 @@ Fixed in 2013-10-05 procfs commit c87688a05a8b49479ee10127470cc60acebead4a?
     <braunr> ok
     <braunr> first thing to know i guess
     <teythoon> yes
+
+
+### IRC, freenode, #hurd, 2013-11-06
+
+    <braunr> by the way, did you fix mtab for passive translators ?
+    <braunr> or make any progress ?
+    <teythoon> I just cleaned up the patch series
+    <braunr> ah good
+    <teythoon> I'm still trying to decide whether I leak any ports
+
+
+### IRC, freenode, #hurd, 2013-11-15
+
+    <teythoon> btw, I haven't forgotten about the passive translator not
+      showing up in /proc/mounts
+    <teythoon> I have a patch series, the first patch seems fine, but if I
+      build hurd packages with the other two (those that actually hook into
+      dir-lookup), strange things happen
+    <teythoon> on the first boot, everything is fine, passive translators
+      showing up in /proc/mounts, nice
+    <teythoon> but when I reboot, the system kind-of comes back, but something
+      is very wrong with many (passive?) translators
+    <teythoon> the system never recovers, I have no idea whats going on there
+    <braunr> ok
+    <braunr> push that work in a branch somewhere for review please
+    <teythoon> right, thanks
+    <teythoon> braunr:
+      http://darnassus.sceen.net/gitweb/teythoon/hurd.git/shortlog/refs/heads/feature-translatorslist-detect-passive-translators
+
+
+### IRC, freenode, #hurd, 2014-01-04
+
+    <youpi> teythoon: did you eventually get any idea about why /proc/mounts is
+      missing mounts?
+    <youpi> e.g. I have /boot as a separate partition, it doesn't show up
+
+
+### IRC, freenode, #hurd, 2014-01-05
+
+    <teythoon> youpi: yes, passive translators are not currently handled
+    <teythoon> youpi: i have patches for that, but they produce weird results,
+      braunr promised to take a look
+    <braunr> teythoon: hum
+    <teythoon> ^^
+    <braunr> i thought they were pending review
+    <braunr> !
+    <braunr> where are they again ?
+    <teythoon>
+      http://darnassus.sceen.net/gitweb/teythoon/hurd.git/shortlog/refs/heads/feature-translatorslist-detect-passive-translators
+    <braunr> ok
+    <teythoon> they are reasonably straight-forward
+    <teythoon> but cause this funny issue, after the first reboot with the
+      patched hurd everything is fine
+    <teythoon> after the second reboot, everything is weird and broken badly
+    <braunr> right
+    <braunr> interesting :)
+
+
+### IRC, freenode, #hurd, 2014-01-06
+
+    <braunr> teythoon: is it normal that, if ext2fs is started as an active
+      translator for /home, and then for another directory inside my home, mtab
+      only reports / and /home and not this third file system ?
+    <braunr> (with the hurd master version)
+    <braunr> (the translator for /home is run by root, but the one inside my
+      home is started with my uid)
+    <braunr> (and every component on the path is readable/crossable)
+
+
+### IRC, freenode, #hurd, 2014-01-07
+
+    <teythoon_> braunr: well yes, the mtab tool/translator does not follow
+      translators bound to nodes not owned by root
+    <teythoon> braunr: try /hurd/mtab --insecure /home
+    <braunr> ok
+    <braunr> good thinking
+
+    <teythoon> braunr: did you encounter any problems after the second reboot ?
+    <braunr> i'm not yet there
+    <braunr> work still making me busy
+    <braunr> and i'm trying to isolate the problem first
+    <braunr> that is, restrict tests to a single leaf translator
+    <teythoon> you reproduced the weirdness ?
+    <braunr> teythoon: attempting
+    <braunr> teythoon: first i'm trying to check a few things
+    <braunr> teythoon: i'm running my leaf translator as root now
+    <braunr> active
+    <braunr> and i still don't see it :/
+    <braunr> one of the components in the path is not own by root
+    <braunr> is that a problem ?
+    <teythoon> no, but maybe the mtab translator should check for that...
+    <braunr> does it check for the node ownership or the process rights ?
+    <braunr> credentials, rather
+    <teythoon> node ownership
+    <braunr> ah, ok
+    <braunr> ok i see it now
+    <braunr> oh, also, it looks like settrans -g on an active translator
+      doesn't work, i get ebusy all the time :/
+    <teythoon> oh ?
+    <teythoon> that could explain the fs corruption i saw
+    <teythoon> did i break that ?
+    <braunr> i don't know
+    <braunr> maybe
+    <braunr> i think it was possible in the past
+
+    <braunr> teythoon: when isolated, your code works fine
+    <braunr> i'll try applying it globally
+    <braunr> btw, how did you do that ?
+    <braunr> through debian packages ?
+    <teythoon> i'm trying to get to the point, but i'm still not there
+    <teythoon> with our uber-buildbot setup i picture myself pushing to a git
+      repo, wait a little and get the packages from my deb repo...
+    <teythoon> for now, i have my hurdtest tool that i used during gsoc
+    <teythoon> with that i can just drop files into a directory and have that
+      overlayed ontop of my test image
+    <braunr> hum
+    <braunr> so you replaced the lib*fs libraries directly ?
+    <braunr> and the static rootfs ?
+    <teythoon> yes
+    * teythoon checks
+    <teythoon> hm, maybe i just missed a file, not sure anymore
+
+    <braunr> teythoon: with the new libraries, df -h doesn't see passive
+      translators :/
+    <teythoon> braunr: see /proc/mounts please
+    <braunr> same
+    <teythoon> or /hurd/mtab /
+    <teythoon> weird
+    <braunr> no :/
+    <teythoon> b/c when i developed it, i used a test suite to check that every
+      combination of tmpfs/ext2fs active/passive and every way to get rid of
+      any translator produced the desired results
+    <teythoon> i'll look into this
+    <braunr> teythoon: when i remove the active translator i set on /home, i
+      get
+    <braunr> /dev/hd0s1      8.1G  2.0G  5.8G  26% /home
+    <braunr> hd0s1 being used for / :/
+    <braunr> this does need reviewing
+    <teythoon> this is how i expect the system to react currently
+    <braunr> oh
+    <teythoon> w/o these patches
+    <braunr> hm ok
+    <braunr> well
+    <braunr> i'm currently using them
+    <teythoon> including the root fs ?
+    <braunr> yes
+    <teythoon> hmpf
+    <braunr> i have to mention that i merged master into it
+    <teythoon> i did the same
+    <teythoon> currently compiling...
+    <braunr> i only changed libdiskfs, libnetfs and libfshelp
+    <braunr> is there something else that should be changed ?
+    <braunr> (i.e. because of inlining ?)
+    <braunr> i guess i should rebuild a hurd package just to be sure
+    <kilobug> braunr: isn't the translator for / statically linked ? if so it
+      needs to be rebuilt (sorry if I'm saying silly things by popping out of
+      nowhere)
+    <braunr> yes i took care of that
+
+    <braunr> teythoon: i've built a hurd package with the three patches and i
+      don't see passive translators at all
+    <teythoon> :/
+    <braunr> well
+    <braunr> actually i see a lot of the
+    <braunr> them
+    <braunr> just not /home
+
+    <teythoon> braunr: please see
+      /home/teythoon/build/hurd-upstream/test.{bash,log}
+    <teythoon> the latter is a log i just created on darnassus
+    <teythoon> it shows no failures
+    <teythoon> do you have another translator that is started from a passive
+      translator record ?
+    <teythoon> besides /home, if so, does that show up ?
+    <braunr> well, as i just said, i can actually see many of them
+    <teythoon> weird
+    <braunr> http://darnassus.sceen.net/~rbraun/mounts
+    <braunr> hm
+    <braunr> let's try without --sync=
+    <braunr> ah, now i can see it
+    <teythoon> can you give me the command line you used before
+    <teythoon> for the /home translator
+    <braunr> /hurd/ext2fs --sync=30 /dev/hd0s6
+    <braunr> but hm
+    <braunr> i can only see /home when the passive translator is started
+    <braunr> is that intentional ?
+    <teythoon> yes
+    <braunr> ok
+    <teythoon> and it doesn't work with --sync=30 o_O
+    <braunr> so, actually, mtab doesn't report passive translators
+    <teythoon> no
+    <braunr> it reports active ones only, whether they're started manually or
+      from passive translators
+    <teythoon> yes
+    <braunr> ok
+    <braunr> that's good enough
+    <braunr> reporting passive translators wouldprobably require a complete
+      scan
+    <teythoon> yes, that was deemed not feasible
+    <braunr> right
+    <braunr> i can't reproduce any weirdness
+    <teythoon> good
+    <braunr> it seems to just work well
+    <braunr> except this option parsing problem
+    <teythoon> thanks for looking into this
+    <teythoon> yeah
+    <braunr> sur
+    <braunr> e
+    <braunr> thanks for reminding me :)
+    <teythoon> the actual fix is implementing fsys_get_source
+    <braunr> i forgot that "pending review" was my review here he
+    <teythoon> which should actually be file_get_source
+
+    <braunr> teythoon: why does mtab report errors for /proc/swaps and
+      /xconsole ?
+    <teythoon> not sure
+
+    <teythoon> btw, i build hurd packages with my patches and it reliably
+      wreaks havoc on my test vms ...
+    <braunr> now that's really weird
+    <braunr> are you certain everything has been cleaned since your manual
+      replacement of the libraries ?
+    <teythoon> yes, i use mainly throwaway-vms for such experiments
+    <braunr> ok
+    <teythoon> did you include the debian patches ?
+    <braunr> yes
+    <teythoon> so did i
+    <braunr> i based my work on my own packages
+    <braunr> with thread destruction
+    <braunr> i'll redo it from the sid ones
+    <braunr> but before, i guess i should share mine with you
+    <braunr> so you can test them in your vms
+    <braunr> we may simply have different configurations
+    <teythoon> yes
+    <braunr> something we might have missed just like the --sync parameter
+
+
+### IRC, freenode, #hurd, 2014-01-08
+
+    <braunr> teythoon: hello
+    <braunr> see http://darnassus.sceen.net/~rbraun/teythoon/ for the custom
+      hurd packages
+    <braunr> they need thread destruction so get the latest gnumach package
+      from unstable, and the libc packages from my repository first
+
+
+### IRC, freenode, #hurd, 2014-01-09
+
+    <teythoon> braunr: your packages indeed seem to work
+    <teythoon> and with mine i encounter a different problem, the proc server
+      crashes *very* early
+    <teythoon> this is w/o a rebuilt libc
+    <teythoon> different as in not the weird one i remember having back when i
+      wrote those patches
+    <braunr> hum
+    <braunr> you're using all my glibc/hurd packages right ?
+    <teythoon> your packages work fine
+    <braunr> i wonder if your bug is caused by
+      2c9422595f41635e2f4f7ef1afb7eece9001feae
+    <teythoon> mine don't
+    <braunr> (or rather, not having it)
+    <braunr> look at the patches i've added
+    <braunr> it's included, and i remember i really needed it
+    <braunr> althouhg it was just about a leak
+    <braunr> hm
+    <braunr> i don't know :/
+    <braunr> but i strongly suspect your patches are ok
+    <braunr> and something else is wrong
+    <teythoon> why would my packages miss that patch ?
+    <braunr> hum
+    <braunr> are you testing with your packages built from upstream sources ?
+    <teythoon> always
+    <braunr> upstream hurd against debian glibc ?
+    <teythoon> yes
+    <braunr> check the patches again
+    <teythoon> what patches ?
+    <braunr> the debian ones that you don't include
+    <braunr> another thing you can do is
+    <teythoon> err
+    <braunr> get the latest debian hurd package
+    <braunr> add your patch only
+    <braunr> rebuild
+    <teythoon> i use hurd upstream + all the debian stuff
+    <braunr> that's weird
+    <braunr> but hurd upstream has received quite a lot of patches
+    <braunr> please try from debian hurd + your patch only
+
+    <teythoon> braunr: i'm afraid it might be your patch 3a3fcc81 that breaks
+      proc
+
+[[open_issues/libpthread_set_stack_size]].
+
+    <braunr> teythoon: but anyway, it does look like your patches are actually
+      fine
+    <teythoon> yes
+    <braunr> i'll install my packages on darnassus and test a bit more
+    <teythoon> there is an issue however
+    <braunr> ah
+    <teythoon> grep sd2s1 /proc/mounts
+    <teythoon> /dev/sd2s1 /dev/sd2s1 /hurd/storeio writable 0 0
+    <teythoon> that makes fsck think that /dev/sd2s1 is mounted
+    <braunr> hmpf
+    <teythoon> which makes debians fsck magic (when using sysvinit) drop to a
+      root shell at boot time
+    <braunr> why does it report a mount point ?
+    <braunr> or even a device
+    <braunr> why not none /dev/sd2s1 ?
+    <teythoon> b/c of the heuristic it uses
+    <teythoon> and i know, you told me it's a bad idea
+    <braunr> i did ?
+    <teythoon> probably
+    <braunr> hm
+    <braunr> we said so many things i don't remember
+    <braunr> but that doesn't look too hard to fix
+    <teythoon> well, i'll just have to make translators provide meaningful
+      get_source responses
+    <teythoon> and get rid of the heuristic
+    <braunr> ok
+    <teythoon> so if you use passive translators for the mounts, and not
+      /etc/fstab, you should be fine
+    <teythoon> my "traditional" hurd systems are
+    <braunr> teythoon: i'll wait a bit before deplying it on darnassus then
+
+
+### IRC, freenode, #hurd, 2014-01-13
+
+    <braunr> teythoon: does your latest patch series take care of --sync ?
+    <teythoon> yeah, i finally got why the hurd would react strangely after an
+      reboot, it was umount --all removing vital passive translator records
+    <teythoon> i never had any issues with --sync
+    <braunr> ah, umount -a
+    <braunr> hm
+    <braunr> do you recall i did :) ?
+    <teythoon> umount -a was only run with the sysvinit scripts, that's why you
+      didn't see that issue, only me
+    <teythoon> yes, i do
+    <braunr> yes, i see
+    <teythoon> however, i'm also using --sync 30 on my fs
+    <braunr> ok so you couldn't reproduce that particular issue
+    <braunr> hum
+    <braunr> try --sync=30
+    <teythoon> showtrans /media/scratch
+    <teythoon> /hurd/ext2fs --sync=30 /dev/sd1s1
+    <teythoon> works fine
+    <braunr> now that's weird :)
+    <teythoon> then again, previously there was another bug
+    <braunr> but then the patches i've tested are not the complete series you
+      sent
+    <teythoon> in the dir lookup function, if a passive translator is started
+    <teythoon> say, if i first access /proc/foo, /proc/foo would be recorded,
+      not /proc
+    <teythoon> i fixed that yesterday
+    <braunr> ok
+    <teythoon> maybe it was b/c of that
+    <braunr> but hm
+    <braunr> why would /proc be recorded ?
+    <teythoon> now ?
+    <braunr> i mean, /proc should be recorded at /, and /foo at /proc
+    <braunr> right ?
+    <teythoon> yes
+    <braunr> and that wasn't the case ?
+    <teythoon> but what happened was that proc/foo was recorded as a child
+      translator for /
+    <braunr> ohh
+    <teythoon> yes
+    <braunr> i see
+    <braunr> well, i'm not sure it's that bug, since the translator involved
+      was on /home
+    <teythoon> same problem
+    <teythoon> it's unlikely that the translator was started b/c of a /home
+      lookup
+    <teythoon> much more likely that the first lookup is /home/someone
+    <braunr> yes
+    <braunr> but mtab correctly reported /home without --sync, and not when the
+      option was present
+    <braunr> and that part doesn't quite make sense to me
+    <teythoon> how did you trigger the startup
+    <teythoon> ?
+    <braunr> ssh i believe
+    <teythoon> hm
+    <teythoon> anyways, i could not reproduce this issue
+    <braunr> do you have packages somewhere i can test ?
+    <teythoon> yes
+    <braunr> oh and btw
+    <teythoon> http://darnassus.sceen.net/~teythoon/hurd-ci/
+    <braunr> something you could do to deal with umount -a
+    <braunr> but i guess that's what you did already
+    <braunr> is to only shut the active translator down
+    <teythoon>
+      http://git.sceen.net/hurd/hurd.git/commitdiff/0033d20449b3bb558f2ea470983018db39b572aa
+    <teythoon> yeah, i thought about that
+    <teythoon> but i believe that is not the right hting to do
+    <braunr> yes i know but i'm not sure that's the right approach
+    <braunr> hm :)
+    <teythoon> b/c if on linux you do umount /foo && ls /foo, foo will be empty
+    <braunr> yours is probably more posix-friendly
+    <teythoon> if the passive translator lookup is left, /foo will be restarted
+    <braunr> ok
+    <teythoon> s/lookup/record/
+    <braunr> that's one reason i'm not very fond of passive translators tbh
+    <teythoon> yep
+    <braunr> i'd reserve them as a user-oriented hurd-specific feature
+    <braunr> anything that must behave as mount/umount expects has to be active
+      anyway
+    <braunr> ok let's give a quick shot at your packages :)
+
+    <braunr> teythoon: works fine :)
+    <braunr> mtab still reports console entries though
+    <braunr> is tha texpected ?
+    <teythoon> braunr: kind of
+    <teythoon> braunr: /bin/console is a netfs-based translator, probably for
+      multiplexing, dunno exactly
+    <braunr> i see
+
+
+### IRC, freenode, #hurd, 2014-01-14
+
+    <youpi> teythoon: passive translators do work fine in mtab now, thanks :)
+    <braunr> indeed :)
+
+
+### IRC, freenode, #hurd, 2014-02-11
+
+    <antrik> another topic: what's the rationale again behind umount removing
+      passive translators?...
+    <teythoon> antrik: umount is for compatibility with unixoid systems
+    <teythoon> consider umount /foo; ls /foo
+    <teythoon> if umount would leave the passive translator record on /foo,
+      /foo would be started again
+    <antrik> but mount never creates passive translators, right?
+    <antrik> so why would umount remove them? they are none of its business...
+    <teythoon> sure, you can see it this way
+    <teythoon> still, i like the way it is now, hence i implemented it this way
+      ;)
+    <youpi> teythoon: but then umount -a unmounts all passive translators
+    <youpi> include ~joe/http:/
+    <youpi> s/include/including/
+    <youpi> I tend to agree with antrik
+    <teythoon> i won't oppose a change of course
+    <teythoon> and yes, we have seen problems b/c of that. otoh those can be
+      fixed (and they are, i just sent a patch fixing that)
+    <youpi> teythoon: well, it's not only about http:, joe user may want to
+      mount its own iso image, or whatever
+    <teythoon> thats true
+    <teythoon> no
+    <teythoon> it's not
+    <teythoon> /proc/mounts does not contain translators bound to nodes that do
+      not belong to root
+    <teythoon> but sure, we can change umount
+    <braunr> i agree
+    <braunr> active translators can be viewed as unix mounts
+    <braunr> passive translators are an entirely hurdish feature
+    <braunr> but then, servers such as pflocal and pfinet shouldn't probably
+      not be passive translators
+    <antrik> braunr: shouldn't not? what are you trying to say? :-)
+    <braunr> woops
+    <braunr> i'm not trying to make this unconfusingly clearer
+    <braunr> :p
+    <braunr> pflocal and pfinet should probably be active translators
+    <antrik> why?
+    <braunr> hum wait
+    <braunr> i had a reason weeks ago
+    <braunr> but now it looks the opposite is better actually :p
+    <braunr> so that they don't appear in mounts
+    <braunr> but aiui, there is another property that is tested to make
+      translators appear in mounts
+    <antrik> hm... I know this question has been discussed when first talking
+      about an mtab translator years ago... but don't remember whether there
+      was any conclusion
+    <antrik> I think one of the ideas was that translators would opt in for
+      being considered as mounts...
+    <braunr> it makes sense to only have file systems in mounts anyway
+    <antrik> instead of going by the translator type, another option might be
+      ignoring anything that is backed by a passive translator?...
+    <antrik> or have a startup option (perhaps with some "smart" defaults) to
+      request a translator to manifest as a mount or not
+    <antrik> so many ideas... ;-)
+
+
+## coreutils' `df`
+
+### IRC, freenode, #hurd, 2014-01-24
+
+    <braunr> gnu_srs: "df: Warning: cannot read table of mounted file systems:
+      No such file or directory"
+    <braunr> you should be able to fix that easily
+
+
+### IRC, OFTC, #debian-hurd, 2014-02-03
+
+    <pere>  /run/mtab also seem to be missing.  df do not work.
+    <teythoon> that's a libc bug
+
+
+### IRC, OFTC, #debian-hurd, 2014-02-05
+
+    <gg0> i had to ln -s /proc/mounts /var/run/mtab to make df work, what's the
+      proper fix?
+    <gg0> (here sysvinit+openrc)
+    <youpi> gg0: the proper fix for df is to fix the coreutils build
+
+    <pere> I checked the mtab problem, and /etc/hurd/runsystem.gnu via
+      /etc/hurd/rc fixes the symlink, while runsystem.sysv do not. I suspect
+      /etc/init.d/checkroot.sh should fix the symlink too.
+    <youpi> well, atm df looks at /var/run/mtab instead of /etc/mtab only
+      because it hasn't been rebuilt against a recent glibc, that's all
+    <youpi> but we can brownpaperbag fix it, yes
+    <pere> right.  so perhaps that is the bug to fix?
+    <youpi> yes, it is
+    <youpi> it depends on coreutils actually building
+    <teythoon> youpi: i thought the proper way to fix the /var/run/mtab issue
+      is to patch the libc ?
+    <youpi> it is
+    <teythoon> the libc defines some macro, on linux it expands to /etc/mtab,
+      on hurd to /var/run/mtab
+    <youpi> but you need to rebuild coreutils to get a fixed df
+    <teythoon> ok, right
+    <pere> should it be /var/run/mtab or /etc/mtab on hurd?  the former seem
+      more correct, but /run/mtab give more sense given that it should be
+      available also before /var/ is mounted.
+    <youpi> to be honest, I don't really care
+    <youpi> and I thus tend to agree on sticking with what linux does
+    <youpi> to avoid issues
+    <youpi> as in: keep debian working mostly the same on all kernels, to avoid
+      issue
+    <youpi> s
+    <pere> well, linux really should move that file away from /etc/ too. :)
+    <youpi> pere: ok, but let's move at the same time
+    <youpi> rather than hitting bugs ourselves
+    <pere> perhaps df should use /proc/mount instead, and get rid of the
+      problem completely...
+    <youpi> that can be a way, too
+
+    <pere> I believe <URL: http://bugs.debian.org/737759 > is a good fix for
+      the mtab problem.
+
+    <rleigh> WRT /etc/mtab the main reason for keeping it is solely for
+      compatibility; there's no reason not to use /proc/mounts directly (or
+      /run/mtab if we want a kernel-agnostic location).  Whether it's worth
+      doing something like that is debatable.
+    <rleigh> The main issue with doing stuff like this nowadays is that you get
+      shouted at by all the systemd people for making changes...
 
 
 ## Memory Leak in `translator_ihash_cleanup`

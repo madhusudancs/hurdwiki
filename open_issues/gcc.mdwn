@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2007, 2008, 2009, 2010, 2011, 2012, 2013 Free
-Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014
+Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -303,6 +303,47 @@ Last reviewed up to the [[Git mirror's 3a930d3fc68785662f5f3f4af02474cb21a62056
 
   * [`-fsplit-stack`](http://nickclifton.livejournal.com/6889.html)
 
+    IRC, freenode, #hurd, 2014-01-10:
+
+        <gnu_srs1> Hi, I assume gcc -fsplit-stack is not yet supported?
+        <braunr> gnu_srs1:
+          https://lists.gnu.org/archive/html/bug-hurd/2013-06/msg00100.html
+        <gnu_srs1> braunr: That's exactly where the problem is:
+          src/libgcc/generic-morestack.c:814:__morestack_load_mmap
+        <gnu_srs1> no return value recorded
+        <gnu_srs1> creating a call: page = mmap ((void*)0x0, 0, 4, 2, -1, 0);,
+          returning EINVAL
+        <braunr> lenght of 0 ?
+        <gnu_srs1> yes, __morestack_current_segment, is zero
+        <braunr> mmap is expected to return einval if the requested mapping has
+          a size of 0 ..
+        <braunr> i don't know what split stack is, but i remember it's a
+          problem for the hurd
+        <gnu_srs1> sorry, the address is zero from the above, and the length in
+          the call is zero too
+        <braunr> yes that's what i understood
+        <braunr> and i'm telling you it's normal
+        <braunr> the size is invalid
+        <gnu_srs1> libgcc/generic-morestack.c:  mmap
+          (__morestack_current_segment, 0, PROT_READ, MAP_ANONYMOUS, -1, 0);
+        <braunr> well this is wrong
+        <gnu_srs1> and the error code stays, not being reset in subsequent
+          calls
+        <gnu_srs1> causing an error later on
+        <braunr> as roland says in
+          https://lists.gnu.org/archive/html/bug-hurd/2013-06/msg00102.html, it
+          should be possible to support split-stack now that we have tls
+        <gnu_srs1> as thomas reported
+        <braunr> i don't see the relation between split-stack and the mmap
+          invocation
+        <gnu_srs1> tls s in 2.17-97, right? that's the one I tried
+        <braunr> tls is there, but not split stack support
+        <braunr> and libpthread still has bugs related to changing the stack
+          apparently
+        <braunr> fixed upstream but not yet in debian packages
+        <braunr> unless you want to try with the thread destruction packages
+        <braunr> not sure it will change much though
+
       * Also see `libgcc/config/i386/morestack.S`: comments w.r.t
         `TARGET_THREAD_SPLIT_STACK_OFFSET`/`%gs:0x30` usage; likely needs
         porting.
@@ -498,6 +539,29 @@ Last reviewed up to the [[Git mirror's 3a930d3fc68785662f5f3f4af02474cb21a62056
 
     [[!message-id "201211061305.02565.pino@debian.org"]].
 
+    IRC, freenode, #hurd, 2014-01-08:
+
+        <gnu_srs> How come __GLIBC__ is defined in gcc for kFreeBSD and not
+          GNU? They sometimes use that instead of __FreeBSD_kernel__
+        <pochu> it's defined by libc's /usr/include/features.h
+        <gnu_srs> pochu: __GLIBC__ is defined in features.h both for GNU and
+          kFreeBSD, but only in gcc/cpp for kFreeBSD: touch foo.h;gcc -E -dM
+          foo.h|grep GLIBC
+        <pochu> gnu_srs: #include <stdlib.h>
+        <gnu_srs> pochu: they both include <features.h>
+        <pochu> gnu_srs: I get __GLIBC__ defined if I include features.h
+        <pochu> with an empty file (as suggested by your `touch foo.h') I don't
+          get it defined, whether on hurd or linux, but I think that's expected
+        <gnu_srs> pochu: might be so but it is not pre-defined in CPP, as it is
+          for kFreeBSD.
+        <gnu_srs> I think it should not be defined, or it should be defined by
+          all three: GNU,.kFreeBSD and Linux
+        <gnu_srs> an anomaly, something for tschwinge
+        <braunr> https://lists.debian.org/debian-bsd/2012/11/msg00016.html
+        <gnu_srs> braunr: good finding, I assume nothing has happened since
+          then?
+        <braunr> not likely
+
   * [low] Does `-mcpu=native` etc. work?  (For example,
     2ae1f0cc764e998bfc684d662aba0497e8723e52.)
 
@@ -535,6 +599,42 @@ Last reviewed up to the [[Git mirror's 3a930d3fc68785662f5f3f4af02474cb21a62056
 
     A lot of Linux-specific things.
 
+  * `libcilkrts`
+
+    IRC, freenode, #hurd, 2014-01-10:
+
+        <youpi> bwaarf, libcilkrts in gcc-4.9
+        <p2-mate> libcilkrts?
+        <youpi> the runtime for the cilk language I guess
+        <tschwinge> Yes.  That most likely needs disabling for us.
+        <tschwinge> I'll hve a look eventually.
+        <tschwinge> As soon as I get
+          <http://news.gmane.org/find-root.php?message_id=%3C87wqjjo5kx.fsf%40kepler.schwinge.homeip.net%3E>
+          resolved, actually.
+
+    [[!debbug 734973]].
+
+  * `WCONTINUED`
+
+    IRC, OFTC, #debian-hurd, 2014-02-25:
+
+        <gnu_srs> youpi: some gcc-4.9 packages (and source) are needed for
+          gnat-4.9 to build: Is it OK to propose this patch:
+          http://paste.debian.net/84079/
+          --- a/src/gcc/lto_lto.c.orig    2014-02-14 19:22:14.000000000 +0100
+          +++ b/src/gcc/lto/lto.c 2014-02-25 20:50:20.000000000 +0100
+          @@ -2476,7 +2476,11 @@
+             int status;
+             do
+               {
+          +#ifdef __GNU__
+          +      int w = waitpid(0, &status, WUNTRACED);
+          +#else
+                 int w = waitpid(0, &status, WUNTRACED | WCONTINUED);
+          +#endif
+                 if (w == -1)
+                  fatal_error ("waitpid failed");
+        <youpi> gnu_srs: rather ifndef WCONTINUED
 
 
 

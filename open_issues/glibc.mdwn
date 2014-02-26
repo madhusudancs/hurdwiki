@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012, 2013 Free Software
-Foundation, Inc."]]
+[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012, 2013, 2014 Free
+Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -18,7 +18,7 @@ Here's what's to be done for maintaining glibc.
 
 # [[General information|/glibc]]
 
-## [[Versioning]]
+  * [[Versioning]]
 
 
 # [[Sources|source_repositories/glibc]]
@@ -32,14 +32,14 @@ Here's what's to be done for maintaining glibc.
 <!--
 
 git checkout reviewed
-git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..sourceware/master
+git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -b -p -C --cc ..sourceware/master
 -i
 /^commit |^merge:|^---$|mach[^i]|hurd|linux|gs:|__assume
 
 -->
 
-Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
-(2013-05-24) sources|source_repositories/glibc]].
+Last reviewed up to the [[Git mirror's 64a17f1adde4715bb6607f64decd73b2df9e6852
+(2013-12-19) sources|source_repositories/glibc]].
 
   * `t/hurdsig-fixes`
 
@@ -212,20 +212,33 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
 
   * Missing interfaces, amongst many more.
 
+    IRC, freenode, #hurd, 2014-02-25:
+
+        <tschwinge> youpi et al.: Is it a useful GSoC task to have the student
+          implement interfaces in glibc that we are currently missing?
+        <braunr> tschwinge: definitely
+        <braunr> posix_timers would be great
+        <youpi> tschwinge: probably
+
     Many more are missing, some of which have been announced in `NEWS`, others
     typically haven't (like new flags to existing functions).  Typically,
     porters will notice missing functionaly.  But in case you're looking for
-    something to work on, here's a list.
+    something to work on, here's a bit of a commented list, otherwise go
+    looking in `/usr/include/i386-gnu/gnu/stubs.h` on a Debian GNU/Hurd system,
+    or the respective file from a fresh glibc build.
 
     `AT_EMPTY_PATH`, `CLOCK_BOOTTIME`, `CLOCK_BOOTTIME_ALARM`,
-    `CLOCK_REALTIME_ALARM`, `O_PATH`,
+    `CLOCK_REALTIME_ALARM`, `O_PATH`, `O_TMPFILE`
+    (ffdd31816a67f48697ea4d6b852e58d2886d42ca),
     `PTRACE_*` (for example, cbff0d9689c4d68578b6a4f0a17807232506ea27,
-    b1b2aaf8eb9eed301ea8f65b96844568ca017f8b),
+    b1b2aaf8eb9eed301ea8f65b96844568ca017f8b,
+    521c6785e1fc94d1f501743e9a40af9e02797df3),
     `RLIMIT_RTTIME`, `SEEK_DATA` (`unistd.h`), `SEEK_HOLE` (`unistd.h`)
     `clock_adjtime`, `fallocate`, `fallocate64`, `name_to_handle_at`,
-    `open_by_handle_at`, `process_vm_readv`, `process_vm_writev`,
+    `open_by_handle_at`,
+    `posix_openpt`, `process_vm_readv`, `process_vm_writev`,
     `setns`, `sync_file_range`, [[`mremap`|mremap]] and [[several
-    `MAP_*`|glibc/mmap]], `PTR_MANGLE`/`PTR_DEMANGLE` (`t/ptrmangle`)
+    `MAP_*`|glibc/mmap]]
 
     Check also the content of `gnu/stubs.h`, which lists all the functions
     marked as stub which only return `ENOSYS`.
@@ -266,6 +279,20 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
       * `futimesat`
 
         If we have all of 'em (check Linux kernel), `#define __ASSUME_ATFCTS`.
+
+      * `futimens`
+
+        IRC, freenode, #hurd, 2014-02-09:
+
+            <youpi> it seems apt 0.9.15.1 has troubles downloading packages
+              etc., as opposed to apt 0.9.15
+            <youpi> ah, that version uses futimens unconditionally
+            <youpi> and we haven't implemented that yet
+            <azeem> did somebody file a bug for that apt-get issue?
+            <youpi> I haven't
+            <youpi> I'll commit the fix in eglibc
+            <youpi> but perhaps a bug report would be good for the kfreebsd
+              case
 
       * `bits/stat.h [__USE_ATFILE]`: `UTIME_NOW`, `UTIME_OMIT`
 
@@ -358,6 +385,374 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
             <braunr>
               http://darnassus.sceen.net/gitweb/savannah_mirror/glibc.git/blob/refs/heads/tschwinge/Roger_Whittaker:/hurd/hurdselect.c
             <braunr> this is the client side implementation
+
+        IRC, freenode, #hurd, 2014-02-14:
+
+            <desrt> also: do you know if hurd has a modern-day poll()
+              replacement? ala epoll, kqueue, iocp, port_create(), etc?
+            <pochu_> last thing I remember was that there was no epoll
+              equivalent, but that was a few years ago :)
+            <pochu_> braunr: ^
+            * desrt is about to replace gmaincontext in glib with something
+                more modern
+            * desrt really very much wants not to have to write a poll()
+                backend....
+            <desrt> it seems that absolutely every system that i care about,
+              except for hurd, has a new approach here :/
+            <desrt> even illumos has solaris-style ports
+            <azeem> desrt: I suggest you bring up the question on bug-hurd
+            <azeem> the poll() system call there to satisfy POSIX, but there
+              might be a better Hurd-specific thing you could use
+            <azeem> is there*
+            <desrt> that would be ideal
+            <desrt> i have to assume that a system that passes to many messages
+              has some other facilities :)
+            <desrt> *so many
+            <desrt> the question is if they work with fds....
+            <desrt> bug-hurd doesn't seem like a good place to ask open-ended
+              questions....
+            <azeem> it's the main development lists, it's just old GNU naming
+            <azeem> list*
+            <desrt> k.  thanks.
+            <azeem> bug-hurd@gnu.org is the address
+            * desrt goes to bug... hurd
+            <desrt> written.  thanks.
+            <braunr> desrt: the hurd has only select/poll
+            <braunr> it suffers from so many scalability issues there isn't
+              much point providing one currently
+            <braunr> we focus more on bug fixing and posix compliance right now
+            <desrt> fair answer
+            <braunr> you should want a poll-based backend
+            <braunr> it's the most portable one, and doesn't suck as much as
+              select
+            <braunr> very easy to write
+            <braunr> although, internally, our select/poll works just like a
+              bare epoll
+            <braunr> i.e. select requests are installed, the client waits for
+              one or more messages, then uninstalls the requests
+
+        IRC, freenode, #hurd, 2014-02-23:
+
+            <desrt> brings me to another question i asked here recently that
+              nobody had a great answer for: any plan to do kqueue?
+            <braunr> not for now
+            <braunr> i remember answering you about that
+            <desrt> ah.  on IRC or the list?
+            <braunr> that internally, our select/poll implementation works just
+              like epoll
+            <braunr> on irc
+            <braunr> well "just like" is a bit far from the truth
+            <desrt> well... poll() doesn't really work like epoll :p
+            <braunr> internally, it does
+            <braunr> even on linux
+            <desrt> since both of us have to do the linear scan on the list
+            <desrt> which is really the entire difference
+            <braunr> that's the user interface part
+            <braunr> i'm talking about the implementation
+            <desrt> ya -- but it's the interface that makes it unscalable
+            <braunr> i know
+            <braunr> what i mean is
+            <braunr> since the implementation already works like a more modern
+              poll
+            <braunr> we could in theory add such an interface
+            <braunr> but epoll adds some complicated detail
+            <desrt> you'll have to forgive me a bit -- i wasn't around from a
+              time that i could imagine what a non-modern poll would look like
+              inside of a kernel :)
+            <braunr> what i mean with a modern poll is a scalable poll-like
+              interface
+            <braunr> epoll being the reference
+            * desrt is not super-crazy about the epoll interface....
+            <braunr> me neither
+            <desrt> kevent() is amazing -- one syscall for everything you need
+            <braunr> i don't know kqueue enough to talk about it
+            <desrt> no need to do 100 epollctls when you have a whole batch of
+              updates to do
+            <desrt> there's two main differences
+            <desrt> first is that instead of having a bunch of separate fds for
+              things like inotify, timerfd, eventfd, signalfd, etc -- they're
+              all built in as different 'filter' types
+            <desrt> second is that instead of a separate epoll_ctl() call to
+              update the list of monitored things, the kevent() call
+              (epoll_wait() equivalent) takes two lists: one is the list of
+              updates to make and the other is the list of events to
+              return.... so you only do one syscall
+            <braunr> well, again, that's the interface
+            <braunr> internally, there still are updates and waits
+            <braunr> and on a multiserver system like the hurd, this would mean
+              one system call per update per fd
+            <braunr> and then one per wait
+            <desrt> on the implementation side, i think kqueue also has a nice
+              feature: the kernel somehow has some magic that lets it post
+              events to a userspace queue.... so if you're not making updates
+              and you do a kevent() that would not block, you don't even enter
+              the kernel
+            <braunr> ok
+            <desrt> hm.  that's an interesting point
+            <desrt> "unix" as such is just another server for you guys, right?
+            <braunr> no
+            <braunr> that's a major difference between the hurd and other
+              microkernel based systems
+            <braunr> even multiserver ones like minix
+            <braunr> we don't have a unix server
+            <braunr> we don't have a vfs server or even an "fd server"
+            <desrt> so mach knows about things like fds?
+            <braunr> no
+            <braunr> only glibc
+            <desrt> oh.  weird!
+            <braunr> yes
+            <braunr> that's the hurd's magic :)
+            <braunr> being so posix compliant despite how exotic it is
+            <desrt> this starts to feel like msvcrt :p
+            <braunr> maybe, i wouldn't know
+            <braunr> windows is a hybrid after all
+            <braunr> with multiple servers for its file system
+            <braunr> so why not
+            <braunr> anyway
+            <desrt> so windows doesn't have fds in the kernel either... the C
+              library runtime emulates them
+            <braunr> mach has something close to file descriptors
+            <desrt> which is fun when you get into dll hell -- sometimes you
+              have multiple copies of the C library runtime in the same program
+              -- and you have to take care not to use fds from one of them with
+              th o ther one
+            <braunr> yes ..
+            <braunr> that, i knew :)
+            <braunr> but back to the hurd
+            <braunr> since fds are a glibc thing here, and because "files" can
+              be implemented by multiple servers
+            <braunr> (sockets actually most of the time with select/poll)
+            <braunr> we have to make per fd requests
+            <braunr> the implementation uses the "port set" kernel abstraction
+            <desrt> right -- we could have different "fd" coming from different
+              places
+            <braunr> do you know what a mach port is ?
+            <desrt> not even a little bit
+            <braunr> hm
+            <desrt> i think it's what a plane does when it goes really fast,
+              right?
+            <braunr> let's say it's a kernel message queue
+            <braunr> no it's not a sonic boom
+            <desrt> :)
+            <braunr> ;p
+            <braunr> so
+            <braunr> ports are queues
+            <desrt> (aside: i did briefly run into mach ports recently on macos
+              where they modified their kqueue to support them...)
+            <braunr> queues of RPC requests usually
+            <desrt> (but i didn't use them or look into them at all)
+            <braunr> they can be referenced through mach port names, which are
+              integers much like file descriptors
+            <braunr> they're also used for replies but, except for weird calls
+              like select/poll, you don't need to know that :)
+            <braunr> a port set is one object containing multiple ports
+            <desrt> sounds like dbus :)
+            <braunr> the point of a port set is to provide the ability to
+              perform a single operation (wait for a message) on multiple ports
+            <desrt> sounds like an epoll fd....
+            <desrt> is the port set itself a port?
+            <braunr> so, when a client calls select, it translates the list of
+              fds into port names, creates reply ports for each of them, puts
+              them into a port set, send one select request for each, and does
+              one blocking wait on the port set
+            <braunr> no, but you can wait for a message on a port set the same
+              way you do on a port
+            <braunr> and that's all it does
+            <desrt> does that mean that you can you put a port set inside of
+              another port set?
+            <braunr> hm maybe
+            <desrt> i guess in some way that doesn't actually make sense
+            <braunr> i guess
+            <desrt> because i assume that the message you sent to each port in
+              your example is "tell me when you have some stuff"
+            <braunr> yes
+            <desrt> and you'd have to send an equivalent message to the port
+              set.... and that just doesn't make sense
+            <desrt> since it's not really a thing, per se
+            <braunr> it would
+            <braunr> insteaf of port -> port set, it would just be port -> port
+              set -> port set
+            <braunr> but we don't have any interface where an fd stands for a
+              port set
+            <braunr> what i'm trying to tell here is that
+            <braunr> considering how it's done, you can easily see that there
+              has to be non trivial communication
+            <braunr> each with the cost of a system call
+            <braunr> and not just any system call, a messaging one
+            <braunr> mach is clearly not as good as l4 when it comes to that
+            <desrt> hrmph
+            <braunr> and the fact that most pollable fds are either unix or
+              inet/inet6 sockets mean that there will be contention in the
+              socket servers anyway
+            <desrt> i've seen some of the crazy things you guys can do as a
+              result of the way mach works and way that hurd uses it, in
+              particular
+            <desrt> normal users setting up little tcp/ip universes for
+              themselves, and so on
+            <braunr> yes :)
+            <desrt> but i guess this all has a cost
+            <braunr> the cost here comes more from the implementation than the
+              added abstractions
+            <braunr> mach provides async ipc, which can partially succeed
+            <desrt> if i spin up a subhurd, it's using the same mach, right?
+            <braunr> yes
+            <desrt> that's neat
+            <braunr> we tend to call them neighbour hurds because of that
+            <braunr> i'm not sure it is
+            <desrt> it puts it half way between linux containers and outright
+              VMs
+            <desrt> because you have a new kernel.... ish...
+            <braunr> well, it is for the same reasons hypervisors are neat
+            <desrt> but the kernel exists within this construct....
+            <braunr> a new kernel ?
+            <desrt> a new hurd
+            <braunr> yes
+            <desrt> but not a new mach
+            <braunr> exactly
+            <desrt> ya -- that's very cool
+            <braunr> it's halfway between hypervisors and containers/jails
+            <braunr> what matters is that we didn't need to write much code to
+              make it work
+            <braunr> and that the design naturally guarantees strong isolation
+            <desrt> right.  that's what i'm getting at
+            <braunr> unlike containers
+            <desrt> it shows that the interaction between mach and these set of
+              crazy things collectively referred to as the hurd is really
+              proper
+            <braunr> usually
+            <braunr> sometimes i think it's not
+            <braunr> but that's another story :)
+            <desrt> don't worry -- you can fix it when you port to L4 ;)
+            <braunr> eh, no :)
+            <desrt> btw: is this fundamentally the same mach as darwin?
+            <braunr> yes
+            <desrt> so i guess there are multiple separate implementations of a
+              standard set of interfaces?
+            <braunr> ?
+            * desrt has to assume that apple wouldn't be using GNU mach, for
+                example...
+            <braunr> no it's the same code base
+            <braunr> they couldn't
+            <braunr> but only because the forks have diverged a bit
+            <desrt> ah
+            <braunr> and they probably changed a lot of things in their virtual
+              memory implementation
+            <desrt> so i guess original mach was under some BSDish type thing
+              and GNU mach forked from that and started adding GPL code?
+            <braunr> something like that
+            <desrt> makes sense
+            <braunr> we have very few "non-standard" mach interfaces
+            <braunr> but we now rely on them so we couldn't use another mach
+              either
+            <braunr> back to the select/poll stuff
+            * desrt gets a lesson tonight :)
+            <braunr> it costs, it's not scalable
+            <braunr> but
+            <braunr> we have scalability problems in our servers
+            <braunr> they're old code, they use global locks
+            <desrt> right.  this is the story i heard last time.
+            <braunr> probably from me
+            <braunr> poll works good enough for us right now
+            <braunr> we're more interested in bug fixes than scalability
+              currently
+            <desrt> the reason this negative impacts me is because now i need
+              to write a bunch more code ;p
+            <braunr> i hope this changes but we still get weird errors that
+              many applications don't expect and they react badly to those
+            <braunr> well, poll really is the posix fallback
+            <desrt> every other OS that we want to support has some sort of new
+              scalable epoll-type interface or is Windows (which needs separate
+              code anyway)
+            <desrt> a very large number of them have kqueue... linux has
+              epoll... solaris/illumos is the odd one out with this weird thing
+              that's sort of like epoll
+            <braunr> i would think you want a posix fallback for such a
+              commonly used interface
+            <braunr> hm
+            <desrt> braunr: hurd is pretty much the only one that doesn't
+              already have something better....
+            <braunr> linux can be built without epoll
+            <desrt> and the nice thing about all of these things is that every
+              single one of them gives me an fd that can be polled when any
+              event is ready
+            <braunr> i don't see why anyone would do that, but it's a compile
+              time option ;p
+            <braunr> yes ...
+            <braunr> we don't have xxxfd() :)
+            <desrt> and we want to expose that fd on our API... so people can
+              chain gmaincontext into other mainloops
+            <braunr> that's expected
+            <desrt> so for hurd this means that i will need to spin up a
+              separate thread doing poll() and communicating back to the main
+              thread when anything becomes ready
+            <desrt> i was looking forward to not having to do that :)
+            <braunr> it matches the unix "everything is a file" idea, and
+              windows concept of "events"
+            <braunr> i understand but again, it's a posix fallback
+            <braunr> you probably want it anyway
+            <desrt> probably
+            <braunr> it could help new systems trying to be posix like
+            <desrt> i honestly thought i'd get away with it, though
+            <desrt> this is true...
+            <desrt> CLOCK_MONOTONIC is an easy enough requirement to implement
+              or fake.... "modern event polling framework" is another story...
+
+        [[clock_gettime]].
+
+            <braunr> yes, but again, we do have the underlying machinery to add
+              it
+            <desrt> i appreciate if your priorities are elsewhere ;)
+            <braunr> it's just not worth the effort right now
+            <braunr> although we do have performance and latency improvements
+              in our patch queues currently
+            <braunr> if our network stack gets replaced, it would become
+              interesting
+            <braunr> we need to improve posix compliance first
+            <braunr> make more applications not choke on unecpected errors
+            <braunr> and then we can think of improving scalability
+            <desrt> +1 vote from me for implementing monotonic time :)
+            <desrt> (and also pthread_condattr_setclock())
+            <braunr> and we probably won't implement the epoll interface ;p
+            <braunr> yes
+            <desrt> it's worth noting that there is also a semi-widely
+              available non-standard extension called
+              pthread_cond_timedwait_relative_np that you could implement
+              instead
+            <desrt> it takes a (relative) timeout instead of an absolute one --
+              we can use that if it's available
+            <braunr> desrt: why would you want relative timeouts ?
+            <desrt> braunr: if you're willing to take the calculations into
+              your own hands and you don't have another way to base it on
+              monotonic time it starts to look like a good alternative
+            <desrt> and indeed, this is the case on android and macos at least
+            <braunr> hm
+            <desrt> not great as a user-facing API of course.... due to the
+              spurious wakeup possibility and need to retry
+            <braunr> so it's non standard alternative to a monotonic clock ?
+            <desrt> no -- these systems have monotonic clocks
+            <desrt> what they lack is pthread_condattr_setclock()
+            <braunr> oh right
+            <desrt> which is documented in POSIX but labelled as 'optional'
+            <braunr> so relative is implicitely monotonic
+            <desrt> yes
+            <desrt> i imagine it would be the same 'relative' you get as the
+              timeout you pass to poll()
+            <desrt> since basing anything like this on wallclock time is
+              absolutely insane
+            <desrt> (which is exactly why we refuse to use wallclock time on
+              our timed waits)
+            <braunr> sure
+            <braunr> i'm surprised clock_monotonic is even optional in posix
+              2008
+            <braunr> but i guess that's to give some transition margin for
+              small embedded systems
+            <desrt> when you think about it, CLOCK_REALTIME really ought to
+              have been the optional feature
+            <desrt> monotonic time is so utterly basic
+            <braunr> yes
+            <braunr> and that's how it's normally implemented
+            <braunr> kernels provide a monotonic clock, and realtime is merely
+              shifted from it
 
       * `sys/eventfd.h`
 
@@ -1126,6 +1521,82 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
             <gg0> ah ok you just pushed your tls. great!
             <braunr> tls will fix a lot of things
 
+        IRC, OFTC, #debian-hurd, 2013-11-03:
+
+            <youpi> gg0: 
+            <youpi> #252 test_fork.rb:30:in `<top (required)>': core dumped
+              [ruby-core:28924]
+            <youpi> FAIL 1/949 tests failed
+            <youpi> with the to-be-uploaded glibc
+            <gg0> why does it coredump?
+            <gg0> that's the test i had workarounded by increasing sleep from 1
+              to 3 but i don't recall it coredump'ed
+            <gg0> *recall if
+            <gg0> "sleep 1" at bootstraptest/test_fork.rb:33
+            <youpi> how can I run the test alone?
+
+        IRC, OFTC, #debian-hurd, 2013-11-04:
+
+            <youpi> gg0: ^
+            <gg0> it should not take much
+            <gg0> run $ make OPTS=-v test
+            <gg0> found out how to minimize
+            <gg0> mkdir _youpi && cp bootstraptest/{runner,test_fork}.rb _youpi
+            <gg0> then run $ ./miniruby -I./lib -I. -I.ext/common
+              ./tool/runruby.rb --extout=.ext  -- --disable-gems
+              "./_youpi/runner.rb" --ruby="ruby2.0 -I./lib" -q -v
+            <gg0> youpi: that should work
+            <youpi> #1 test_fork.rb:1:in `<top (required)>': No such file or
+              directory - /usr/src/ruby1.9.1-1.9.3.448/ruby2.0
+              -I/usr/src/ruby1.9.1-1.9.3.448/lib -W0  bootstraptest.tmp.rb
+              [ruby-dev:32404]
+            <gg0> seems it can't find /usr/src/ruby1.9.1-1.9.3.448/ruby2.0
+            <youpi> well it's ruby1.9.1 indeed :)
+            <youpi> ok, got core
+            <gg0> replace 2.0 with 1.9, check what you have in rootdir
+            <gg0> k
+            <youpi> Mmm, no, there's no core file
+            <gg0> does stupidly increasing sleep time work?
+            <youpi> nope
+            <gg0> without *context it runs "make test" fine. real problems come
+              later with "make test-all"
+            <gg0> wrt test_fork, is correspondence between signals correct? i
+              recall i read something about USR1 not implemented
+            <youpi> USR1 is implemented, it's SIGRT which is not implemented
+            <gg0> my next wild guess is that that has something to do with
+              atfork, whatever that means
+            <gg0> it makes 2 forks: one sleeps for 1 sec then kills -USR1
+              itself, the second traps USR1 in getting current time. in the
+              meanwhile parent sleeps for 2 secs
+
+        IRC, OFTC, #debian-hurd, 2013-11-07:
+
+            <gg0> ruby2.0 just built on unstable
+
+        IRC, OFTC, #debian-hurd, 2013-11-09:
+
+            <gg0> youpi: just found out a more "official" way to run one test
+              only
+              http://anonscm.debian.org/gitweb/?p=collab-maint/ruby1.9.1.git;a=blob;f=debian/README.porters;h=94aff7dd3ecd9f748498f2e285b4a4313b4b8f36;hb=HEAD
+            <gg0> btw still getting coredumps?
+
+        IRC, OFTC, #debian-hurd, 2013-11-13:
+
+            <gg0> wrt the other test test_fork i suppose you made it not to
+              segfault anymore, it simply does fail
+            <youpi> I haven't taken any particular care
+            <youpi> didn't have any time to deal with it
+
+        IRC, OFTC, #debian-hurd, 2013-11-14:
+
+            <gg0> btw patches to disable *context have been backported to 1.9
+              as well so next 1.9 point release should have *context disabled
+            <gg0> as 2.0 have
+            <gg0> *has
+            <gg0> i guess you'd like to get them reverted now
+            <gg0> youpi: ^
+            <youpi> after testing that *context work, yes
+
       * `sigaltstack`
 
         IRC, freenode, #hurd, 2013-10-09:
@@ -1312,6 +1783,77 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
             <pinotree> tschwinge: ehm, regarding the SOCK_* patches for
               socket/socketpair, didn't we talk about them when i worked on
               eglibc 2.17?
+
+      * `mlock`, `munlock`, `mlockall`, `munlockall`
+
+        IRC, freenode, #hurd, 2014-01-09:
+
+            <gnu_srs> Hi, is mlock, mlockall et al implemented?
+            <braunr> i doubt it
+            <braunr> mlock could be, but mlockall only partially
+
+      * [[glibc_IOCTLs]]
+
+      * Support for `$ORIGIN` in the dynamic linker, `ld.so`
+
+        IRC, freenode, #hurd, 2014-02-23:
+
+            <sjamaan>
+              https://www.gnu.org/software/hurd/user/jkoenig/java/report.html
+              says $ORIGIN patches have been added to Hurd.  Have those hit the
+              mainline codebase?
+
+        [[user/jkoenig/java]], [[user/jkoenig/java/report]].
+
+            <sjamaan> It doesn't seem to work here, but perhaps I'm missing
+              something (I'm using the prebuilt Debian/Hurd 2014-02-11 VM
+              image)
+            <sjamaan> objdump -x says the value of RPATH is $ORIGIN
+            <sjamaan> But it doesn't load a library I placed in the same dir as
+              the binary
+            <braunr> sjamaan: i'm not sure
+            <braunr> sjamaan: what are you trying to do ?
+
+        IRC, freenode, #hurd, 2014-02-24:
+
+            <sjamaan> braunr: I am working on a release of the CHICKEN Scheme
+              compiler. Its test suite is currently failing on the stand-alone
+              deployment tests.  Either it should work and use $ORIGIN, or the
+              test should be disabled, saying Hurd is not supported for
+              stand-alone deployment-directories
+            <sjamaan> braunr: The basic idea is to be able to create "appdirs"
+              like on OS X or PC-BSD, containing all the dependencies a program
+              needs, which can then simply be untarred
+            <braunr> sjamaan: ok so you do need $ORIGIN
+            <sjamaan> yeah
+            <sjamaan> iiuc, so does Java.  Does Java work on Hurd?
+            <braunr> we had packages at the time jkoenig worked on it
+            <braunr> integration of patches may have been incomplete, i wasn't
+              there at the time and i'm not sure
+            <sjamaan> So it's safest to claim it's unsupported, for now?
+            <braunr> yes
+            <sjamaan> Thank you, I'll do that and revisit it later
+
+      * `mig_reply_setup`
+
+        IRC, freenode, #hurd, 2014-02-24:
+
+            <teythoon> braunr: neither hurd, gnu mach or glibc provides
+              mig_reply_setup
+            <teythoon> i want to provide this function, where should i put it ?
+            <teythoon> i found some mach source that put it in libmach afaic
+            <teythoon>
+              ftp://ftp.sra.co.jp/.a/pub/os/mach/extracted/mach3/mk/user/libmach/mig_reply_setup.c
+            <braunr> teythoon: what does it do ?
+            <teythoon> braunr: not much, it just initializes the reply message
+            <teythoon> libports does this as well, in the
+              ports_manage_port_operations* functions
+            <braunr> teythoon: is it a new function you're adding ?
+            <teythoon> braunr: yes
+            <teythoon> braunr: glibc has a declaration for it, but no
+              implementation
+            <braunr> teythoon: i think it should be in glibc
+            <braunr> maybe in mach/
 
     For specific packages:
 
@@ -1928,6 +2470,16 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
           maximum file size.
         <braunr> hurd servers were not conforming to that before my change
 
+  * `t/ptrmangle`: `PTR_MANGLE`/`PTR_DEMANGLE`
+
+      * <https://sourceware.org/glibc/wiki/PointerEncryption>
+
+      * See also [[t/tls|t/tls]].
+
+      * b7f2d27dbd85f6a0966dc389ad4f8205085b7ae8 `ARM: Add pointer encryption
+        support.` may help to find all the places that need to be touched when
+        adding support.
+
   * Verify baseline changes, if we need any follow-up changes:
 
       * a11ec63713ea3903c482dc907a108be404191a02
@@ -2113,7 +2665,6 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
         POSIX-generic sleep via nanosleep rather than SIGARLM.`: any benefit
         using that one (with `sysdeps/mach/nanosleep.c`) instead of
         `sysdeps/mach/sleep.c`?
-      * *baseline*
       * ea4d37b3169908615b7c17c9c506c6a6c16b3a26 -- IRC, freenode, #hurd,
         2012-11-20, pinotree: »tschwinge: i agree on your comments on
         ea4d37b3169908615b7c17c9c506c6a6c16b3a26, especially since mach's
@@ -2125,7 +2676,7 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
         destructors support`.  Anything needed to be done in our [[libpthread]]
         and configured for us in [[GCC]]?  Probably need to replicate the
         `nptl/pthread_create.c` change, and fix
-        `stdlib/Makefile`:`LDFLAGS-tst-tls-atexit`.
+        `stdlib/Makefile`:`$(objpfx)tst-tls-atexit`.
 
             +++ include/link.h
             @@ -302,6 +302,9 @@ struct link_map
@@ -2146,7 +2697,7 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
             +  __call_tls_dtors ();
             
             +++ stdlib/Makefile
-            +LDFLAGS-tst-tls-atexit = $(common-objpfx)nptl/libpthread.so \
+            +$(objpfx)tst-tls-atexit = $(common-objpfx)nptl/libpthread.so \
             +                        $(common-objpfx)dlfcn/libdl.so
             
             +++ stdlib/cxa_thread_atexit_impl.c
@@ -2165,9 +2716,17 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
             +gcc-4.7 tst-tls-atexit-lib.c -c -std=gnu99 -fgnu89-inline  -O2 -Wall -Winline -Wwrite-strings -fmerge-all-constants -frounding-math -g -Wno-par
             +tst-tls-atexit-lib.c: In function 'do_foo':
             +tst-tls-atexit-lib.c:35:3: warning: implicit declaration of function '__cxa_thread_atexit_impl' [-Wimplicit-function-declaration]
-
       * a600e5cef53e10147932d910cdb2fdfc62afae4e `Consolidate Linux and POSIX
         libc_fatal code.` -- is `backtrace_and_maps` specific to Linux?
+
+        IRC, freenode, #hurd, 2014-02-06:
+
+            <braunr> why wouldn't glibc double free detection code also print
+              the backtrace on hurd ?
+            <youpi> I don't see any reason why
+            <youpi> except missing telling glibc that it's essentially like on
+              linux
+
       * 288f7d79fe2dcc8e62c539f57b25d7662a2cd5ff `Use __ehdr_start, if
         available, as fallback for AT_PHDR.` -- once we require Binutils 2.23,
         can we simplify [[glibc's process startup|glibc/process]]
@@ -2176,6 +2735,55 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
         `phdrsz` members) from `hurd_startup_data`, and simplify
         [[hurd/interface/exec_startup_get_info]], or do we still require these
         for the `[SHARED]` case?
+      * fab7ce3f5b4060bf62659e8b58529de4156b5a2f `Link extra-libs consistently
+        with libc and ld.so.`  Alright for us?  Probably have to adjust
+        [libpthread]/Makefile.
+      * b8c61b4b1d6afb69190169764c1b141f4659e48b `Remove trailing whitespace
+        from mach/*.sub.`  Update `mach/Makefile`: generated
+        `mach/errsystems.c` is no longer checked in as of
+        66e3dda448406399136e6f144a1b46679d5b2613.  Rule had been disabled in
+        421f82e5cc8f81ab003247d771bcecbad799be85, then re-enabled in
+        8e3cc80f6d4f69ce003c82d3561ac324692792ad, but comment not removed.
+      * [low] 61dd6208fb1e59a423b6dfa712a3c896c34b2590 `New API to set default
+        thread attributes`.  Implement in libpthread ([[!taglink
+        open_issue_libpthread]])?
+      * [high] e4608715e6e1dd2adc91982fd151d5ba4f761d69 `CVE-2013-2207, BZ
+        #15755: Disable pt_chown. -- [[!message-id
+        "51E8D4C1.9000705@redhat.com"]]; do we need it (`--enable-pt_chown`)?
+	cdfc721b8d2d5079325ea9f0beb5673d72b4cdd0.
+      * 91ce40854d0b7f865cf5024ef95a8026b76096f3 `CVE-2013-4237, BZ #14699:
+        Buffer overflow in readdir_r` -- [[!message-id
+        "519220C7.6050705@redhat.com"]]; do we need corresponding changes to
+        Hurd sysdep files?
+      * 8cc3269f95fa7faa8f448d741f68cbc40efbf4ee `Flesh out 4.4 bits/socket.h
+        with SOCK_CLOEXEC, SOCK_NONBLOCK.`,
+        e041fb8b6557882b6710a655a97bbf3541b56b54 `Replace generic bits/socket.h
+        with 4.4 file.` -- `sysdeps/mach/hurd/bits/socket.h` differs from the
+        generic `bits/socket.h` now only in the values of
+        [[`SOCK_CLOEXEC`|secure_file_descriptor_handling]] and
+        `SOCK_NONBLOCK`.  If possible (no conflicts), would it make sense to
+        transition to the latter file, continuing to accept the former values
+        as deprecated for some time?
+      * [high] 6a97b62a5b4f18aea849d6f4d8de58d1469d2521 `Fix unsafe compiler
+        optimization` -- have to revert, see [[!sourceware_PR 15605]].  For
+        analysis/fix also look at 384ca551743318bd9c9e24a496d6397f2e3f2a49.
+      * 6c82a2f8d7c8e21e39237225c819f182ae438db3 `Coordinate IPv6 definitions
+        for Linux and glibc` -- alright for us?
+      * c61b4d41c9647a54a329aa021341c0eb032b793e `POINTER_CHK_GUARD` -- see
+        [[t/tls|t/tls]].
+      * 5f855e3598a576c35e54623a13b256f3e87fcd4d `Fix erroneous (and circular)
+        implied pattern rule for linkobj/libc.so.` -- alright for us?
+      * [high] 7b7bab1391a3b16fff7e325e2c8a36b68eacba90 [Hurd] `Add fork hooks
+        for pthread_atfork` -- is that from a topic branch that can then be
+        annihilated?  Verify emails.  Verify no further changes in topic
+        branch.
+      * [high] 43d5c02c72bdaf59a8e0d4b06f2ae87e42269cbd `Fix build on hurd` --
+        is that from a topic branch that can then be annihilated?  Verify
+        emails.  Verify no further changes in topic branch.
+      * 69a17d9d245dc3551792e95e1823cc2d877592f3 `Patch [1/4] async-signal safe
+        TLS.` -- do we also need an implementation of this?  (Not yet called
+        from anywhere?)
+      * *baseline*
 
 
 ## Update
@@ -2188,24 +2796,24 @@ Last reviewed up to the [[Git mirror's 0323d08657f111267efa47bd448fbf6cd76befe8
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-83fed41a9ed81db6ca517185aefb296f74868c2f (2013-05-26;
-0323d08657f111267efa47bd448fbf6cd76befe8 (2013-05-24))
-plus 2b66ef5d55325b2957d6c62908ca065228e56814,
-ec9dd97cecafba5ddf5c3ec683db7ad5b4421923,
-07b4c13d0be4814ef10bbfbfd68db604978aa0e5,
-528c24058fb100fb27fe5c211b92be84c67a6659, `t/elfosabi_gnu` reverted,
-ec9dd97cecafba5ddf5c3ec683db7ad5b4421923 (again...),
-`id:"87bo7xo1ay.fsf@kepler.schwinge.homeip.net"`
+f57644d0bdfc1ebe2201a677a33af27e09a5bab6 (2013-12-20;
+64a17f1adde4715bb6607f64decd73b2df9e6852 (2013-12-19))
+plus 6a97b62a5b4f18aea849d6f4d8de58d1469d2521 reverted,
+`id:"87zjnvn688.fsf@kepler.schwinge.homeip.net"`,
+`id:"87ioujn0eq.fsf@kepler.schwinge.homeip.net"`,
+1226676cd6f6f4451e6e6b75b8fbd9a35c949e8e reverted,
+56798c444bc584c118b69a3506c4050b34edc35f reverted,
+`id:"878uvfmwvs.fsf@kepler.schwinge.homeip.net"`
 sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
 
     $ export LC_ALL=C
-    $ ../Roger_Whittaker/configure AUTOCONF=: --prefix=/usr --disable-profile --disable-multi-arch --build=i486-gnu --host=i486-gnu CC=gcc-4.7 CXX=g++-4.7 2>&1 | tee log_build
+    $ ../Roger_Whittaker/configure --prefix=/usr --disable-profile --disable-multi-arch --build=i486-gnu --host=i486-gnu CC=gcc-4.7 CXX=g++-4.7 2>&1 | tee log_build
     [...]
     $ make install_root=/INVALID 2>&1 | tee log_build_
     [...]
 
-This takes up around 550 MiB, and needs roughly X min on kepler.SCHWINGE and
-100 min on coulomb.SCHWINGE.
+This takes up around 600 MiB, and needs roughly X min on kepler.SCHWINGE and
+105 min on coulomb.SCHWINGE.
 
 <!--
 
@@ -2219,47 +2827,6 @@ This takes up around 550 MiB, and needs roughly X min on kepler.SCHWINGE and
     $ toolchain/logs/process glibc build fetch coulomb.SCHWINGE
 
 TODO.
-
-  * With GCC >= 4.5, there's a ton of these warnings:
-
-        hurd/hurd.h: In function '__hurd_fail':
-        hurd/hurd.h:73: warning: case value '0' not in enumerated type 'error_t'
-
-    ... as well as a few individual instances:
-
-        hurdselect.c: In function '_hurd_select':
-        hurdselect.c:265: warning: case value '0' not in enumerated type 'error_t'
-        get-host.c: In function '_hurd_get_host_config':
-        get-host.c:38: warning: case value '0' not in enumerated type 'error_t'
-        hurdmsg.c: In function '_S_msg_get_init_ints':
-        hurdmsg.c:186: warning: case value '0' not in enumerated type 'error_t'
-        hurdmsg.c: In function '_S_msg_set_init_ints':
-        hurdmsg.c:273: warning: case value '0' not in enumerated type 'error_t'
-        intr-msg.c: In function '_hurd_intr_rpc_mach_msg':
-        intr-msg.c:363: warning: case value '0' not in enumerated type 'error_t'
-        sysdeps/mach/hurd/setitimer.c: In function 'timer_thread':
-        sysdeps/mach/hurd/setitimer.c:117: warning: case value '0' not in enumerated type 'error_t'
-        sysdeps/mach/hurd/wait4.c: In function '__wait4':
-        sysdeps/mach/hurd/wait4.c:40: warning: case value '0' not in enumerated type 'error_t'
-        sysdeps/mach/hurd/fork.c: In function '__fork':
-        sysdeps/mach/hurd/fork.c:423: warning: case value '0' not in enumerated type 'error_t'
-        sysdeps/mach/hurd/spawni.c: In function '__spawni':
-        sysdeps/mach/hurd/spawni.c:600: warning: case value '0' not in enumerated type 'error_t'
-        sysdeps/mach/hurd/setpriority.c: In function 'setonepriority':
-        sysdeps/mach/hurd/setpriority.c:66: warning: case value '0' not in enumerated type 'error_t'
-        sysdeps/mach/hurd/ioctl.c: In function 'send_rpc':
-        sysdeps/mach/hurd/ioctl.c:177: warning: case value '0' not in enumerated type 'error_t'
-        sysdeps/mach/hurd/ioctl.c: In function '__ioctl':
-        sysdeps/mach/hurd/ioctl.c:306: warning: case value '0' not in enumerated type 'error_t'
-
-    [[!message-id "20120723195143.7F8142C0B9@topped-with-meat.com"]].
-
-    IRC, freenode, #hurd, 2013-08-27:
-
-        < gnu_srs> Hi, is this fixed by now?
-        < gnu_srs> ../hurd/hurd.h:72:5: warning: case value ‘0’ not in
-          enumerated type ‘error_t’ [-Wswitch]
-        < pinotree> nope
 
   * baseline
     fd5bdc0924e0cfd1688b632068c1b26f3b0c88da..2ba92745c36eb3c3f3af0ce1b0aebd255c63a13b
@@ -2323,7 +2890,7 @@ TODO.
     $ make install_root="$PWD".install install 2>&1 | tee log_install
     [...]
 
-This takes up around 100 MiB, and needs roughly X min on kepler.SCHWINGE and 14
+This takes up around 100 MiB, and needs roughly X min on kepler.SCHWINGE and 16
 min on coulomb.SCHWINGE.
 
 
@@ -2339,7 +2906,7 @@ TODO.
     $ make -k install_root=/INVALID check fast-check=yes 2>&1 | tee log_test
     [...]
 
-This needs roughly X min on kepler.SCHWINGE and 145 min on coulomb.SCHWINGE.
+This needs roughly X min on kepler.SCHWINGE and 130 min on coulomb.SCHWINGE.
 
 Specifying `fast-check=yes` disables the `conformtest` which takes 1.75 h (out
 of 2.75 h total) on coulomb.SCHWINGE, doesn't pass anyway, and clearly isn't
@@ -2449,7 +3016,8 @@ Failures, mostly in order of appearance:
 
         dlopen failed: [...]/libc.so.0.3: version `GLIBC_2.13_DEBIAN_31' not found (required by [...]/libstdc++.so.6)
 
-  * `dlfcn/tststatic.out`, `dlfcn/tststatic2.out`
+  * `dlfcn/tststatic.out`, `dlfcn/tststatic2.out`, `dlfcn/tststatic3.out`,
+    `dlfcn/tststatic4.out`, `dlfcn/tststatic5.out`
 
     SIGSEGV.
 
@@ -2584,6 +3152,10 @@ Failures, mostly in order of appearance:
         [...]/nss/nss_test1.c:60: undefined reference to `pthread_mutex_lock'
         [...]/nss/nss_test1.c:85: undefined reference to `pthread_mutex_unlock'
 
+  * `rt/tst-shm.out`
+
+        read file outside of SHMDIR directory: (os/kern) successful
+
   * `rt/tst-timer.out`
 
     No message.
@@ -2681,6 +3253,10 @@ Failures, mostly in order of appearance:
     `grantpt` (actually `ptsname_r`), does not fail with `ENOTTY` when the `fd`
     does not refer to a PTY master.
 
+  * `elf/tst-auxv.out`
+
+    SIGSEGV.
+
   * `elf/tst-stackguard1-static.out`, `elf/tst-stackguard1.out`
 
         differences 0 defaults 0
@@ -2688,6 +3264,17 @@ Failures, mostly in order of appearance:
         nor equal to the default canary value
 
     Sometimes times out.
+
+  * `elf/tst-ptrguard1-static.o`, `elf/tst-ptrguard1.o`
+
+        In file included from tst-ptrguard1-static.c:1:0:
+        tst-ptrguard1.c: In function 'con':
+        tst-ptrguard1.c:42:24: error: 'tcbhead_t' has no member named 'pointer_guard'
+        tst-ptrguard1.c: In function 'do_test':
+        tst-ptrguard1.c:65:29: error: 'tcbhead_t' has no member named 'pointer_guard'
+        tst-ptrguard1.c:104:30: error: 'tcbhead_t' has no member named 'pointer_guard'
+
+    See [[t/tls|t/tls]].
 
   * `elf/tst-tls9-static.out`
 
@@ -2700,6 +3287,10 @@ Failures, mostly in order of appearance:
   * `elf/tst-audit1.out`, `elf/tst-audit2.out`, `elf/tst-audit8.out`
 
     SIGKILL.
+
+  * `elf/tst-null-argv.out`
+
+        Inconsistency detected by ld.so: ../sysdeps/mach/hurd/dl-sysdep.c: 338: open_file: Assertion `!(flags & ~(0x0001 | 0x00400000))' failed!
 
   * `elf/check-textrel.out`
 
@@ -2719,7 +3310,10 @@ Failures, mostly in order of appearance:
     `/usr/include/hurd/*.h`.
 
   * `debug/tst-longjmp_chk2.out`, `debug/tst-longjmp_chk3.out`,
-    `debug/tst-longjmp_chk4.out`, `debug/tst-longjmp_chk5.out`
+    `debug/tst-longjmp_chk4.out`, `debug/tst-longjmp_chk5.out`,
+    `debug/tst-backtrace2.out`, `debug/tst-backtrace3.out`,
+    `debug/tst-backtrace4.out`, `debug/tst-backtrace5.out`
+    `debug/tst-backtrace6.out`
 
     All say: `Obtained backtrace with 0 functions`.
 

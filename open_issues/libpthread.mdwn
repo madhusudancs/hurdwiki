@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2011, 2012, 2013 Free Software Foundation,
-Inc."]]
+[[!meta copyright="Copyright © 2010, 2011, 2012, 2013, 2014 Free Software
+Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -1303,6 +1303,7 @@ Most of the issues raised on this page has been resolved, a few remain.
       after the system has been alive for some time ?
     <braunr> (some time being at least a few hours, more probably days)
 
+
 #### IRC, freenode, #hurd, 2013-07-05
 
     <braunr> ok, found the bug about invalid ports when adjusting priorities
@@ -1310,6 +1311,149 @@ Most of the issues raised on this page has been resolved, a few remain.
     <braunr> i have so many problems when trying to cleanly destroy threads
 
 [[libpthread/t/fix_have_kernel_resources]].
+
+
+#### IRC, freenode, #hurd, 2013-11-25
+
+    <braunr> youpi: btw, my last commit on the hurd repo fixes the urefs
+      overflow we've sometimes seen in the past in the priority adjusting code
+      of libports
+
+
+#### IRC, freenode, #hurd, 2013-11-29
+
+See also [[open_issues/libpthread/t/fix_have_kernel_resources]].
+
+    <braunr> there still are some leak ports making servers spawn threads with
+      non-elevated priorities :/
+    <braunr> leaks*
+    <teythoon> issues with your thread destruction work ?
+    <teythoon> err, wait
+    <teythoon> why does a port leak cause that ?
+    <braunr> because it causes urefs overflows
+    <braunr> and the priority adjustment code does check errors :p
+    <teythoon> ^^
+    <teythoon> ah yes, urefs...
+    <braunr> apparently it only affects the root file system
+    <teythoon> hm
+    <braunr> i'll spend an hour looking for it, and whatever i find, i'll
+      install the upstream debian packages so you can build glibc without too
+      much trouble
+    <teythoon> we need a clean build chroot on darnassus for this situation
+    <braunr> ah yes
+    <braunr> i should have time to set things up this week end
+    <braunr>      1: send (refs: 65534)
+    <braunr> i wonder what the first right is in the root file system
+    <teythoon> hm
+    <braunr> search doesn't help so i'm pretty sure it's a kernel object
+    <braunr> perhaps the host priv port
+    <teythoon> could be the thread port or something ?
+    <braunr> no, not the thread port
+    <teythoon> why would it have so many refs ?
+    <braunr> the task port maybe but it's fine if it overflows
+    <teythoon> also, some urefs are clamped at max, so maybe this is fine ?
+    <braunr> it may be fine yes
+    <braunr> err = get_privileged_ports (&host_priv, NULL);
+    <braunr> iirc, this function should pass copies of the name, not increment
+      the urefs counter
+    <braunr> it may behave differently if built statically
+    <teythoon> o_O y would it ?
+    <braunr> no idea
+    <braunr> something doesn't behave as it should :)
+    <braunr> i'm not asking why, i'm asking where :)
+    <braunr> the proc server is also affected
+    <braunr> so it does look like it has something to do with bootstrap
+    <teythoon> I'm not surprised :/
+
+
+#### IRC, freenode, #hurd, 2013-11-30
+
+    <braunr> so yes, the host_priv port gets a reference when calling
+      get_privileged_ports
+    <braunr> but only in the rootfs and proc servers, probably because others
+      use the code path to fetch it from proc
+    <teythoon> ah
+    <teythoon> well, it shouldn't behave differently
+    <braunr> ?
+    <teythoon> get_privileged_ports
+    <braunr> get_privileged_ports is explictely described to cache references
+    <teythoon> i don't get it
+    <teythoon> you said it behaved differently for proc and the rootfs
+    <teythoon> that's undesireable, isn't it ?
+    <braunr> yes
+    <teythoon> ok
+    <braunr> so it should behave differently than it does
+    <teythoon> yes
+    <teythoon> right
+    <braunr> teythoon: during your work this summer, have you come across the
+      bootstrap port of a task ?
+    <braunr> i wonder what the bootstrap port of the root file system is
+    <braunr> maybe i got the description wrong since references on host or
+      master are deallocated where get_privileged_ports is used ..
+    <teythoon> no, I do not believe i did anything bootstrap port related
+    <braunr> ok
+    <braunr> i don't need that any more fortunately
+    <braunr> i just wonder how someone could write a description so error-prone
+      ..
+    <braunr> and apparently, this problem should affect all servers, but for
+      some reason i didn't see it
+    <braunr> there, problem fixed
+    <teythoon> ?
+    <braunr> last leak eliminated
+    <teythoon> cool :)
+    <teythoon> how ?
+    <braunr> i simply deallocate host_priv in addition to the others when
+      adjusting thread priority
+    <braunr> as simple as that ..
+    <teythoon> uh
+    <teythoon> sure ?
+    <braunr> so many system calls just for reference counting
+    <braunr> yes
+    <teythoon> i did that, and broke the rootfs
+    <braunr> well i'm using one right now
+    <teythoon> ok
+    <braunr> maybe i should let it run a bit :)
+    <teythoon> no, for me it failed on the first write
+    <braunr> teythoon: looks weird
+    <teythoon> so i figured it was wrong to deallocate that port
+    <braunr> i'll reboot it and see if there may be a race
+    <teythoon> thought i didn't get a reference after all or something
+    <teythoon> I believe there is a race in ext2fs
+    <braunr> teythoon: that's not good news for me
+    <teythoon> when doing fsysopts --update / (which remounts /)
+    <teythoon> sometimes, the system hangs
+    <braunr> :/
+    <teythoon> might be a deadlock, or the rootfs dies and noone notices
+    <teythoon> with my protected payload stuff, the system would reboot instead
+      of just hanging
+    <braunr> oh
+    <teythoon> which might point to a segfault in ext2fs
+    <teythoon> maybe the exception message carries a bad payload
+    <braunr> makes sense
+    <braunr> exception handling in ext2fs is messy ..
+    <teythoon> braunr: and, doing sleep 0.1 before remounting / makes the
+      problem less likely to appear
+    <braunr> ugh
+    <teythoon> and system load on my host system seems to affect this
+    <teythoon> but it is hard to tell
+    <teythoon> sometimes, this doesn't show up at all
+    <teythoon> sometimes several times in a row
+    <braunr> the system load might simply indicate very short lived processes
+    <braunr> (or threads)
+    <teythoon> system load on my host
+    <braunr> ah
+    <teythoon> this makes me believe that it is a race somewhere
+    <teythoon> all of this
+    <braunr> well, i can't get anything wrong with my patched rootfs
+    <teythoon> braunr: ok, maybe I messed up
+    <braunr> or maybe you were very unlucky
+    <braunr> and there is a rare race
+    <braunr> but i'll commit anyway
+    <teythoon> no, i never got it to work, always hung at the first write
+    <braunr> it won't be the first or last rare problem we'll have to live with
+    <braunr> hm
+    <braunr> then you probably did something wrong, yes
+    <braunr> that's reassuring
 
 
 ### IRC, freenode, #hurd, 2013-03-11
@@ -1582,6 +1726,9 @@ Same issue as [[term_blocking]] perhaps?
 ## IRC, freenode, #hurd, 2013-01-06
 
     <youpi> it seems fakeroot has become slow as hell
+
+[[pfinet_timers]].
+
     <braunr> fakeroot is the main source of dead name notifications
     <braunr> well, a very heavy one
     <braunr> with pthreads hurd servers, their priority is raised, precisely to
@@ -2008,3 +2155,260 @@ Same issue as [[term_blocking]] perhaps?
       handling, but there are still a few bugs remaining
     <braunr> fyi, the related discussion was
       https://lists.gnu.org/archive/html/bug-hurd/2012-08/msg00057.html
+
+
+## IRC, freenode, #hurd, 2014-01-01
+
+    <youpi> braunr: I have an issue with  tls_thread_leak
+    <youpi> int main(void) {
+    <youpi> pthread_create(&t, NULL, foo, NULL);
+    <youpi> pthread_exit(0);
+    <youpi> }
+    <youpi> this fails at least with the libpthread without your libpthread
+      thread termination patch
+    <youpi> because for the main thread, tcb->self doesn't contain thread_self
+    <youpi> where is tcb->self supposed to be initialized for the main thread?
+    <youpi> there's also the case of fork()ing from main(), then calling
+      pthread_exit()
+    <youpi> (calling pthread_exit() from the child)
+    <youpi> the child would inherit the tcb->self value from the parent, and
+      thus pthread_exit() would try to kill the father
+    <youpi> can't we still do tcb->self = self, even if we don't keep a
+      reference over the name?
+    <youpi> (the pthread_exit() issue above should be fixed by your thread
+      termination patch actually)
+    <youpi> Mmm, it seems the thread_t port that the child inherits actually
+      properly references the thread of the child, and not the thread of the
+      father?
+    <youpi> “For the name we use for our own thread port, we will insert the
+      thread port for the child main user thread after we create it.” Oh, good
+      :)
+    <youpi> and, “Skip the name we use for any of our own thread ports.”, good
+      too :)
+    <braunr> youpi: reading
+    <braunr> youpi: if we do tcb->self = self, we have to keep the reference
+    <braunr> this is strange though, i had tests that did exactlt what you're
+      talking about, and they didn't fail
+    <youpi> why?
+    <braunr> if you don't keep the reference, it means you deallocate self
+    <youpi> with the thread termination patch, tcb->self is not used for
+      destruction
+    <braunr> hum
+    <braunr> no it isn't
+    <braunr> but it must be deallocated at some point if it's not temporary
+    <braunr> normally, libpthread should set it for the main thread too, i
+      don't understand
+    <youpi> I don't see which code is supposed to do it
+    <youpi> sure it needs to be deallocated at some point
+    <youpi> but does tcb->self has to wear the reference?
+    <braunr> init_routine should do it
+    <braunr> it calls __pthread_create_internal
+    <braunr> which allocates the tcb
+    <braunr> i think at some point, __pthread_setup should be called for it too
+    <youpi> but what makes pthread->kernel_thread contain the port for the
+      thread?
+    <braunr> but i have to check that
+    <braunr> __pthread_thread_alloc does that
+    <braunr> so normally it should work
+    <braunr> is your libpthread up to date as well ?
+    <youpi> no, as I said it doesn't contain the thread destruction patch
+    <braunr> ah
+    <braunr> that may explain
+    <youpi> but the tcb->self uninitialized issue happens on darnassus too
+    <youpi> it just doesn't happen to crash because it's not used
+    <braunr> that's weird :/
+    <youpi> see ~youpi/test.c there for instance
+    <braunr> humpf
+    <braunr> i don't see why :/
+    <braunr> i'll debug that later
+    <braunr> youpi: did you find the problem ?
+    <youpi> no
+    <youpi> I'm working on fixing the libpthread hell in the glibc debian
+      package :)
+    <youpi> i.e. replace a dozen patches with a git snapshot
+    <braunr> ah you reverted commit
+    <braunr> +a
+    <braunr> i imagine it's hairy :)
+    <youpi> not too much actually
+    <braunr> wow :)
+    <youpi> with the latest commits, things have converged
+    <youpi> it's now about small build details
+    <youpi> I just take time to make sure I'm getting the same source code in
+      the end :)
+    <braunr> :)
+    <braunr> i hope i can determine what's going wrong tonight
+    <braunr> youpi: avec mach_print, je vois bien self setté par la libpthread
+      ..
+    <youpi> mais à autre chose que 0 ?
+    <braunr> oui
+    <braunr> bizarrement, l'autre thread n'as pas la même valeur
+    <braunr> tu es bien sûr que c'est self que tu affiches avec l'assembleur ?
+    <braunr> oops, english
+    <youpi> see test2
+    <youpi> so I'm positive
+    <braunr> well, there obviously is a bug
+    <braunr> but are you certain your assembly code displays the thread port
+      name ?
+    <youpi> I'm certain it displays tcb->self
+    <braunr> oh wait, hexadecimal, ok
+    <youpi> and the value happens to be what mach_thread_self returns
+    <braunr> ah right
+    <youpi> ah, right, names are usually decimals :)
+    <braunr> hm
+    <braunr> what's the problem with test2 ?
+    <youpi> none
+    <braunr> ok
+    <youpi> I was just checking what happens on fork from another thread
+    <braunr> ok i do have 0x68 now
+    <braunr> so the self field gets erased somehow
+    <braunr> 15:34 < youpi> this fails at least with the libpthread without
+      your libpthread thread termination patch
+    <braunr> how does it fail ?
+    <youpi> ../libpthread/sysdeps/mach/pt-thread-halt.c:44:
+      __pthread_thread_halt: Unexpected error: (ipc/send) invalid destination
+      port.
+    <braunr> hm
+    <braunr> i don't have that problem on darnassus
+    <youpi> with the new libc?
+    <braunr> the pthread destruction patch actually doesn't use the tcb->self
+      name if i'm right
+    <braunr> yes
+    <braunr> what is tcb->self used for ?
+    <youpi> it used to be used by pt-thread-halt
+    <youpi> but is darnassus using your thread destruction patch?
+    <youpi> as I said, since your thread destruction pathc doesn't use
+      tcb->self, it doesn't have the issue
+    <braunr> the patched libpthread merely uses the sysdeps kernel_thread
+      member
+    <braunr> ok
+    <youpi> it's the old libpthread against the new libc which has issues
+    <braunr> yes it is
+    <braunr> so for me, the only thing to do is make sure tcb->self remains
+      valid
+    <braunr> we could simply add a third user ref but i don't like the idea
+    <youpi> well, as you said the issue is rather that tcb->self gets
+      overwritten
+    <youpi> there is no reason why it should
+    <braunr> the value is still valid when init_routine exits, so it must be in
+      libc
+    <youpi> or perhaps for some reason tls gets initialized twice
+    <braunr> maybe
+    <youpi> and thus what libpthread's init writes to is not what's used later
+    <braunr> i've add a print in pthread_create, to see if self actually got
+      overwritten
+    <braunr> and it doesn't
+    <braunr> there is a disrepancy between the tcb member in libpthread and
+      what libc uses for tls
+    <braunr> added*
+    <braunr> (the print is at the very start of pthread_create, and displays
+      the thread name of the caller only)
+    <youpi> well, yes, for the main thread libpthread shouldn't be allocating a
+      new tcb
+    <youpi> and just use the existing one
+    <braunr> ?
+    <youpi> the main thread's tcb is initialized before the threading library
+      iirc
+    <braunr> hmm
+    <braunr> it would make sense if we actually had non-threaded programs :)
+    <youpi> at any rate, the address of the tcb allocated by libpthread is not
+      put into registers
+    <braunr> how does it get there for the other threads ?
+    <youpi> __pthread_setup does it
+    <braunr> so
+    <braunr> looks like dl_main is called after init_routine
+    <braunr> and it then calls init_tls
+    <braunr> init_tls returns the tcb for the main thread, and that's what
+      overrides the libpthread one
+    <youpi> yes, _hurd_tls_init is called very early, before init_routine
+    <youpi> __pthread_create_internal could fetch the tcb pointer from gs:0
+      when it's the main thread
+    <braunr> so there is something i didn't get right
+    <braunr> i thought _hurd_tls_init was called as part of dl_main
+    <youpi> well, it's not a bug of yours, it has always been bug :)
+    <braunr> which is called *after* init_routine
+    <braunr> and that explains why the libpthread tcb isn't the one installed
+      in the thread register
+    <braunr> i can actually check that quite easily
+    <youpi> where do you see dl_main called after init_routine?
+    <braunr> well no i got that wrong somehow
+    <braunr> or i'm unable to find it again
+    <braunr> let's see
+    <braunr> init_routine is called by init which is called by _dl_init_first
+    <braunr> which i can only find in the macro RTLD_START_SPECIAL_INIT
+    <braunr> with print traces, i see dl_main called before init_routine
+    <braunr> so yes, libpthread should reuse it
+    <braunr> the tcb isn't overriden, it's just never installed
+    <braunr> i'm not sure how to achieve that cleanly
+    <youpi> well, it is installed, by _hurd_tls_init
+    <youpi> it's the linker which creates the main thread's tcb
+    <youpi> and calls _hurd_tls_init to install it
+    <youpi> before the thread library enters into action
+    <braunr> agreed
+
+
+### IRC, freenode, #hurd, 2014-01-14
+
+    <braunr> btw, are you planning to do something with regard to the main
+      thread tcb initialization issue ?
+    <youpi> well, I thought you were working on it
+    <braunr> ok
+    <braunr> i wasn't sure
+
+
+### IRC, freenode, #hurd, 2014-01-19
+
+    <braunr> i have some fixup code for the main thread tcb
+    <braunr> but it sometimes crashes on tcb deallocation
+    <braunr> is there anything particular that you would know about the tcb of
+      the main thread ?
+    <braunr> (that could help explaining this)
+    <youpi> Mmmm, I don't think there is anything particular
+    <braunr> doesn't look like the first tcb can be reused safely
+    <braunr> i think we should instead update the thread register to point to
+      the pthread tcb
+    <youpi> what do you mean by "the first tcb" exactly?
+
+
+## IRC, freenode, #hurd, 2014-01-03
+
+    <gg0> braunr: hurd from your repo can't boot. restored debian one
+    <braunr> gg0: it does boot
+    <braunr> gg0: but you need everything (gnumach and glibc) in order to make
+      it work
+    <braunr> i think youpi did take care of compatibility with older kernels
+    <teythoon> braunr: so do we need a rebuilt libc for the latest hurd from
+      git ?
+    <braunr> teythoon: no, the hurd isn't the problem
+    <teythoon> ok
+    <teythoon> good
+    <braunr> the problem is the libports_stability patch
+    <teythoon> what about it ?
+    <braunr> the hurd can't work correctly without it since the switch to
+      pthreads
+    <braunr> because of subtle bugs concerning resource recycling
+    <teythoon> ok
+    <braunr> these have been fixed recently by youpi and me (youpi fixed them
+      exactly as i did, which made my life very easy when merging :))
+    <braunr> there is also the problem of the stack sizes, which means the hurd
+      servers could use 2M stacks with an older glibc
+    <braunr> or perhaps it chokes on an error when attempting to set the stack
+      size because it was unsupported
+    <braunr> i don't know
+    <braunr> that may be what gg0 suffered from
+    <gg0> yes, both gnumach and eglibc were from debian. seems i didn't
+      manually upgrade eglibc from yours
+    <gg0> i'll reinstall them now. let's screw it up once again
+    <braunr> :)
+    <braunr> bbl
+    <gg0> ok it boots
+    <gg0> # apt-get install
+      {hurd,hurd-dev,hurd-libs0.3}=1:0.5.git20131101-1+rbraun.7
+      {libc0.3,libc0.3-dev,libc0.3-dbg,libc-dev-bin}=2.17-97+hurd.0+rbraun.1+threadterm.1
+    <gg0> there must a simpler way
+    <gg0> besides apt-pinning
+    <gg0> making it a real "experimental" release might help with -t option for
+      instance
+    <gg0> btw locales still segfaults
+    <gg0> rpctrace from teythoon gets stuck at
+      http://paste.debian.net/plain/74072/
+    <gg0> ("rpctrace locale-gen", last 300 lines)

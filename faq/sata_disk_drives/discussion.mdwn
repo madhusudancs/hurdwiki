@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2013, 2014 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -256,3 +256,93 @@ License|/fdl]]."]]"""]]
     <teythoon> youpi: hm, I think my board has no ahci controller, linux uses
       the sata_via module to talk to it :/
     <youpi> ah :/
+
+
+# IRC, freenode, #hurd, 2014-02-05
+
+    <braunr> teythoon: i don't completely trust the driver
+    <teythoon> oh ?
+    <braunr> it doesn't work on my laptop, and i had a failure once on a "big"
+      partition of 128G
+    <teythoon> hm
+    <teythoon> my hardware does not implement ahci, but in qemu it works fine
+      for me
+    <braunr> well qemu is the only supported "hardware" 
+    <teythoon> but then my partitions are not that big
+    <youpi> braunr: no, it does work on my laptop too
+    <braunr> ok
+
+
+# IRC, freenode, #hurd, 2014-02-12
+
+    <braunr> youpi: hum, sorry to ask but how do you use qemu to provide sata ?
+    <youpi> braunr: there's an important trick: getting it on another IRQ than
+      the eth0 board :/
+    <youpi> -device ahci,id=ahci1
+    <youpi> for nothing
+    <youpi> -device ahci,id=ahci2
+    <youpi> -drive id=root,file=/dev/${HDA}7,cache=writeback,if=none
+    <youpi> -device ide-drive,drive=root,bus=ahci2.1
+    <braunr> ok that's close enough to what i have
+    <braunr> but
+    <braunr> i'm using /dev/sda as the backend
+    <braunr> instead of a regular file
+    <braunr> sda already containing a regular debian linux system
+    <braunr> and grub2 can't boot because it seems to fail reading the
+      partition table
+    <braunr> it works perfectly when accessing it as an ide disk though
+    <braunr> youpi: do you see any reason why grub would fail with ahci ?
+    <braunr> also, why ahci2._1_ instead of 0 ?
+    <braunr> youpi: fyi, the cd installer always booted fine here, both on my
+      workstation and my laptop, i did about 50 tries on each machine
+    <braunr> the graphical mode doesn't seem to work though
+    <braunr> youpi: fyi2 the grub related issue i'm having is
+      https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=692249
+    <youpi> I'm using .1 because I have a /boot .0 before the / .1 :)
+    <braunr> humm
+    <braunr> you have two drives ?
+    <youpi> braunr: (cd installer): you mean, even in semi-graphical mode?
+    <braunr> one for /boot and the other for / ?
+    <youpi> I have 3 actually :)
+    <braunr> youpi: no, xorg
+    <braunr> ok i se
+    <braunr> see
+    <youpi> (cd installer) I'm talking about the working ones :)
+    <youpi> I know xorg does not boot
+    <braunr> ok
+    <braunr> so apparently, adding ,boot=on to the -drive parameter did the
+      trick
+    <youpi> k
+    <braunr> and now, i have a hurd system running from /dev/sda5 (the real
+      disk) in qemu
+    <youpi> for the pseudo-graphical console, I guess his monitor is too dumb
+      to be able to display 640x400
+    <braunr> possible
+    <youpi> most probably because no OS uses that any more nowadays :/
+    <youpi> (and that won't get better)
+    <braunr> so now i can debug ahci on my laptop using that :)
+
+    <braunr> youpi: is there a known limit to the size of an ahci drive in the
+      gnumach driver ?
+    <youpi> in the driver itself, it's simply lba48
+    <youpi> but the mach interface uses 32bit sector number
+    <youpi> thus 2TB limit
+    <braunr> that's plenty :)
+    <youpi> I have a 2TB drive :)
+    <youpi> so it won't be plenty for long
+    <braunr> 2TB for your hurd system ?
+    <youpi> no, for my backups etc.
+    <braunr> i meant plenty for our hurd instances
+    <youpi> but there could have been a hurd vm there
+    <youpi> and not necesseraly below 2TiB
+
+    <braunr> hm, the installer doesn't detect existing partitions on an ahci
+      drive :/
+
+
+## IRC, freenode, #hurd, 2014-02-13
+
+    <braunr> youpi: looks like linux has trouble handling my ahci drive without
+      ioapic/msi
+    <braunr> no wonder gnumach can't either
+    <youpi> erf

@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2013, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -74,3 +75,90 @@ Might be interesting to watch how this develops.
 [AF_BUS, D-Bus, and the Linux
 kernel](http://www.kroah.com/log/linux/af_bus.html), Greg Kroah-Hartman,
 2013-02-08.
+
+
+# kdbus
+
+
+## IRC, freenode, #hurd, 2014-01-28
+
+    <braunr> i would like to see things like dbus and zeromq use an optimized
+      microkernel transport one day
+    <teythoon> we could port kdbus >,<
+    <braunr> why not
+    <braunr> you port cgroups first
+    <teythoon> exactly
+    <braunr> :p
+
+[[systemd]].
+
+
+## IRC, freenode, #hurd, 2014-02-23
+
+In context of [[linux_as_the_kernel]], *IRC, freenode, #hurd, 2014-02-23*.
+
+    <desrt> mach seems like this really simple thing when you first explain
+      what a microkernel is
+    <braunr> and because of that, i think it's better to start the right
+      solution directly
+    <braunr> it looks simple, it's clearly not
+    <desrt> but i did a bit of looking into it... it's a bit non-trivial after
+      all :)
+    <braunr> mach ipc is over complicated and error prone
+    <braunr> it leads to unefficient communication compared to other solutions
+      such as what l4 does
+    <desrt> ya -- i hear that this is a big part of the performance hit
+    <braunr> that's why i've started x15
+    <desrt> i was also doing some reading about how it's based on mapping
+      memory segments between processes
+    <braunr> first, it was a mach clone, but since i've come to know mach
+      better, it's now a "spiritual" mach successor .. :)
+    <desrt> these are two issues that we've been dealing with at another
+      level... in the design of kdbus
+    <braunr> ah kdbus :)
+    <desrt> this is something that started with my masters thesis a long time
+      ago...
+    <braunr> ah you too
+    <desrt> first thing we did is make the serialisation format so that all
+      messages are valid and therefore never need to be checked
+    <desrt> (old dbus format requires checks at every step on the way)
+    <braunr> looks interesting
+    <desrt> then of course we cut the daemon out
+    <desrt> but some other interesting things: security is super-simple... it's
+      based enirely on endpoints
+    <desrt> either you're allowed to send messages between two processes or
+      you're not
+    <desrt> there is no checking for message types, for example
+    <braunr> yes
+    <desrt> and the other thing: memory mapping is usually bad
+    <braunr> that's what i mean when i say mach ipc is over complicated
+    <braunr> it depends
+    <desrt> the kdbus guys did some performance testing and found out that if
+      the message is less than ~512k then the cost of invalidating the TLB in
+      order to change the memory mapping is higher than the cost of just
+      copying the data
+    <braunr> yes, we know that too
+    <braunr> that's why zero copy isn't the normal way of passing small amounts
+      of data over mach either
+    <desrt> nice
+    <desrt> i got the impression in some of my reading (wikipedia, honestly)
+      that memory mapping was being done all the time
+    <braunr> well
+    <braunr> no it's not
+    <braunr> memory mapping is unfortunately a small fraction of the
+      performance overhead
+    <desrt> that's good :)
+    <braunr> that being said
+    <braunr> memory mapping can be very useful
+    <braunr> for example, it's hard for us to comply with posix requirements of
+      being able to read/write at least 2G of data in a single call
+    <braunr> weird bugs occur beyond 512M iirc
+    <braunr> you do want memory mapping for that
+    <desrt> ya... for things of this size.... you don't want to copy that
+      through a socket :)
+    <braunr> monolithic kernels have it naturally, since the kernel is mapped
+      everywhere
+    <braunr> for microkernels, it's a little more complicated
+    <braunr> and the problem gets worse on smp
+    <braunr> again, that's why i preferred starting a new kernel instead of
+      reusing linux

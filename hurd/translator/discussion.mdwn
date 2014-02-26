@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2011, 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2013, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -9,6 +10,8 @@ is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
 [[!tag open_issue_documentation open_issue_hurd]]
+
+[[!toc]]
 
 
 # IRC, freenode, #hurd, 2011-08-25
@@ -45,3 +48,163 @@ License|/fdl]]."]]"""]]
       ..
     <braunr> but at least, thread consumption will correctly decrease with
       inactivity
+
+
+# IRC, freenode, #hurd, 2014-01-30
+
+    <sjbalaji> can any one exmplain me hello translator ? I am new to hurd
+    <teythoon> sjbalaji: sure, what do you want to know ?
+    <teythoon> how to use it ?
+    <sjbalaji> No I mean what is the main reason of that translator. I am
+      familiar with Linux.
+    <gnu_srs> sjbalaji: start with:
+      https://www.gnu.org/software/hurd/hurd/documentation/translator_primer.html
+    <sjbalaji> I ran that example but I am still clueless about the actual
+      reason behind the translators and this simple hello world translator
+      example. 
+    <teythoon> sjbalaji: the Hurd is a multiserver os, almost all functionality
+      lives in userspace servers called 'translators'
+    <teythoon> sjbalaji: the Hurd uses the file system as namespace to lookup
+      these servers
+    <teythoon> e.g. /servers/socket/1 is /hurd/pflocal and handles pipes and
+      unix socket communication
+    <sjbalaji> I can see from the example that a hello file is associated with
+      a /hurd/hello translator 
+    <teythoon> yes
+    <teythoon> think of translators like FUSE-based filesystems, only more
+      general
+    <teythoon> b/c translators are not restricted to provide filesystem-like
+      services
+    <sjbalaji> So this example hello translator just adds hello world in the
+      associated file, am I correct ?
+    <teythoon> it's not adding stuff to a file
+    <teythoon> say you did settrans -ac /tmp/hi /hurd/hello, if you do cat
+      /tmp/hi, cat does some rpc calls to the started /hurd/hello program that
+      returns 'hello world' as the file contents
+    <teythoon> in a sense /hurd/hello is a 'filesystem' that provides a single
+      file
+    <sjbalaji> So is it like hello is the mount moint for that hello server ? 
+    <teythoon> sjbalaji: yes, kind of that, but in a more general sense
+    <sjbalaji> teythoon: How can I see the different servers that are running
+      in the system ? I tried top in the terminal but it returned cannot find
+      /proc/version
+    <teythoon> sjbalaji: so it seems your procfs is not running, try as root:
+      settrans /proc /hurd/procfs -c
+    <sjbalaji> teythoon: But how does one differentiate between a server and a
+      normal process ?
+    <teythoon> one does not
+    <teythoon> for a rule of thumb: anything from /hurd is a translator
+    <teythoon> you can view a nodes passive translator record using showtrans,
+      e.g. showtrans /dev/hd0
+    <sjbalaji> Is there something like a man page for translators ? Like how to
+      work with them or to figure out what services are offered by them ?
+    <teythoon> well, there is --help
+    <teythoon> also, go to /dev and /servers and look around using showtrans or
+      fsysopts
+    <sjbalaji> teythoon: What is the difference between a nodes active and
+      passive translator ?
+    <teythoon> a passive translator record is stored in the file system for the
+      node
+    <teythoon> if the node is accessed, and no translator is currently running,
+      it is started on demand
+    <teythoon> we call a running translator an active one
+    <sjbalaji> So the hello translator in the example is a passive one ?
+    <teythoon> if you used settrans foo /hurd/hello, a node foo is created with
+      an passive translator record
+    <teythoon> if you used settrans -a foo /hurd/hello, the translator is
+      started immediately
+    <sjbalaji> teythoon: What do you mean by a passive translator record ?
+    <teythoon> sjbalaji: it's an argv-vector encoded in the filesystem
+      (currently, only ext2 supports this)
+    <teythoon> in ext2, it is stored in a block and a os-specific field in the
+      inode points to that block
+    <sjbalaji> teythoon: I can't understand the logic behind that :(
+    <teythoon> this way, the servers are started on demand
+    <sjbalaji> But once they are invoked they are always online after that. 
+    <teythoon> yes
+    <sjbalaji> I thought that the server goes down once its used 
+    <gnu_srs> teythoon: shouldn't the passive ones time out if unused?
+    <teythoon> yes, that's how it was intented to be, but that has been
+      patched-out in debian/hurd
+    <gnu_srs> reason?
+    <teythoon> i don't know the details, but there is a race condition
+
+(`libports_stability.patch`.)
+
+
+# IRC, freenode, #hurd, 2014-01-31
+
+    <sjbalaji> How can I see the complete control flow when I run the hello
+      translator example ?
+
+
+# IRC, freenode, #archhurd, 2014-02-05
+
+    <CalimeroTeknik> plus I discussed quickly that idea with Richard Stallman
+      and he told me translators had a conception flaw that would forbid such a
+      system to be usable
+
+
+## IRC, freenode, #archhurd, 2014-02-06
+
+    <antrik_> CalimeroTeknik: the "conceptal problem" rms told you about was
+      probably the simple issue that translators are always followed, even if
+      they are run by another user
+    <antrik> CalimeroTeknik: the conceptal problem is only in that the original
+      designers believed that would be safe, which it isn't. changing that
+      default policy (to be more like FUSE) wouldn't do much harm to the Hurd's
+      features, and it should be easy to do
+    <antrik> it's just nobody bothered so far, because it's not a big deal for
+      typical use cases
+    <antrik> rms isn't really in touch with Hurd development. he was made to
+      believe it was a fundamental issue by a former Hurd developer who got
+      carried away; and he didn't know enough to realise that it's really not a
+      big deal at all
+
+
+# Candidates for Google Summer of Code [[community/gsoc/Project_Ideas]]
+
+## Extend `ls` et al. for Translators
+
+### IRC, freenode, #hurd, 2014-02-08
+
+    <youpi> heh
+    <youpi> I was wondering what that incoming/ directory was in my home
+    <youpi> ls gave me hundreds of packages
+    <youpi> then I remembered I had /hurd/httpfs http://incoming.debian.org/ on
+      it :)
+    <cluck> if only there were an easy and automated way to make ls and file
+      managers (like dired!) aware of links, mounts and translators :)
+    <youpi> cluck: what do you mean by "awaree"?
+    <cluck> someting like: lrwxrwxrwx  1 foo foo          31 Aug 21 18:01
+      my_translator-23.0 -> ../some/fakefs /some_parameters*
+    <cluck> (yes, i realize it goes against some security practices but maybe
+      there could be a distinction like with soft/hard links that made it
+      opaque for some use cases)
+
+
+## Passive Translators
+
+### IRC, freenode, #hurd, 2014-02-12
+
+    <braunr> well don't expect rsync to save passive translator records ..
+    <braunr> i recommend you save either the entire disk image or the partition
+    <gg0> should i expect it from tar/cp ?
+    <braunr> no
+    <braunr> i'm not even sure dumpe2fs does it
+    <braunr> the only reliable way is to save the block device
+    <azeem> might be a worthwhile GSOC
+    <azeem> "implement Hurd specific features in GNU utilities"
+    <azeem> there were some patches floating around for some things in the past
+      IIRC
+    <antrik> azeem: the plan for supporting Hurd features in FS utilities was
+      exposing them as xattrs, like Roland's Linux patch did... cascardos once
+      did some work on this, but don't remember how far he got
+
+[[community/gsoc/project_ideas/xattr]].
+
+    <antrik> you are right though that it would make for a good GSoC project...
+    <antrik> of course, *some* utilities would still benefit from explicit Hurd
+      support -- most notably ls
+    <azeem> IIRC there were also ls patches at one point
+    <antrik> can't recall that... but maybe it was befor my time ;-)

@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2013, 2014 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -132,3 +132,410 @@ In context of [[!message-id "20130918081345.GA13789@dalaran.sceen.net"]].
     <braunr> but murmur is better
     <braunr> we prefer distribution over hashing performances
     <braunr> https://131002.net/siphash/
+
+
+## IRC, freenode, #hurd, 2013-11-21
+
+    <teythoon> btw, about protected payloads in mach
+    <teythoon> I'm thinking about adding a flag to indicate that mach_msg
+      should return the protected payload pointer instead of the local port
+      field in the message header
+    <braunr> when would you set it ?
+    <braunr> i mean, how is it set ?
+    <teythoon> we don't really need the port name, right? and when we do, we
+      look it up in the referenced data structure
+    <teythoon> using a new rpc perhaps
+    <braunr> ok
+    <teythoon> what do you think?
+    <braunr> a new rpc on ports themselves, like mach_port_mod_refs i assume ?
+    <braunr> i think it's a good solution
+    <teythoon> the field is a natural_t, as far as i can see, pointers should
+      fit into it, right?
+    <teythoon> yes
+    <braunr> the big problem is backward compatibility
+    <teythoon> why?
+    <braunr> and your solution solves that
+    <teythoon> yes
+    <braunr> hum
+    <braunr> natural_t was originally intended to be as large as the machine
+      word
+    <braunr> but it may no longer stay true
+    <braunr> i think youpi decided to keep it an int and not a long in his
+      x86_64 branch
+    <braunr> mach uses a trick for in-kernel port rights
+    <braunr> where the right is the port address
+    <teythoon> yes, I've seen that
+    <braunr> but i remember hearing about problems with this strategy in
+      64-bits
+    <braunr> or maybe compat problems in mig interfaces
+    <braunr> i don't remember exactly
+    <braunr> so youpi looked at how macosx mach deals with the problem
+    <teythoon> well, but so far there is no 64 bit mach, so we do not need to
+      worry about compatibility there, no ?
+    <braunr> and if i'm right, they forced the ports on 32-bits
+    <braunr> no you're right
+    <braunr> we can simply force the field to 64-bits, whatever it contains
+    <teythoon> or change the message format from the beginning to include both
+      the name and the payload
+    <teythoon> then again, why bother
+    <braunr> ?
+    <braunr> have a 64-bits specific message format ?
+    <teythoon> well, it's worth discussing, no?
+    <braunr> maybe
+    <braunr> i personally don't like the idea
+    <teythoon> we could fix stuff
+    <braunr> forcing the field to 64-bits should be enough
+    <teythoon> right
+    <teythoon> do you think the idea is worth prototyping ?
+    <braunr> teythoon: yes
+    <teythoon> braunr: cool :)
+    <braunr> teythoon: definitely :p
+    <braunr> actually, doing that can remove a large part (if not all)
+      contention from libports
+    <teythoon> indeed
+    <braunr> i still think we should work on libihash first
+
+[[hurd/libihash]].
+
+    <braunr> converting libihash to murmur2/3 impacts more data structures
+      overall
+    <braunr> it's also much easier
+    <teythoon> what exactly do you mean by that
+    <teythoon> ?
+    <braunr> libports uses libihash
+    <teythoon> yes
+    <braunr> but it's not the only user
+    <braunr> libihash is known to have high collision rates
+    <braunr> that should be fixed
+    <teythoon> right, but what do you mean by using murmur2/3
+    <braunr> that's a hashing algorithm name
+    <teythoon> using the integer finalizer used by murmur?
+    <braunr> hm
+    <braunr> i didn't dig the details
+    <braunr> and simply assumed it could be used for integer hashing as well
+    <teythoon> the way i see it, murmur can hash arbitrary ammounts
+    <braunr> if there are better integer hashing algorithms, let's just use
+      that
+    <teythoon> but that is not what we need
+    <braunr> yes
+    <teythoon> we have a fixed size integer
+    <braunr> but from what i remember, it's also very efficient for integer
+      hashing
+
+
+## IRC, freenode, #hurd, 2013-11-22
+
+    <teythoon> braunr: /test-pp: msgh_protected_payload is 0x12345678
+    <teythoon> :)
+    <braunr> :)
+    <teythoon> but currently I do another ipc_port_translate which is clearly
+      not desireable
+    <teythoon> the msg handling in the kernel is... involved...
+    <teythoon> here is the thing... there are two (kernel) threads involved,
+      the sender and the receiver
+    <teythoon> for the sender, kmsg->ikm_header.msgh_remote_port is a pointer
+      (thanks to ipc_port_translate) to the destination's ipc_port_t
+    <teythoon> that's where the protected_payload is stored
+    <teythoon> but at the receiving thread, the pointer is gone, replaced by a
+      port name
+    <teythoon> so currently I'm doing the lookup there again
+    <braunr> hum
+    <braunr> are you sure kmsg is the general structure for all messages ?
+    <braunr> or is it only for kernel messages ?
+    <braunr> i don't remember exactly
+    <teythoon> no, for all messages
+    <braunr> ok
+    <teythoon> I just need to get this pointer across cleanly
+    <braunr> i thought you wanted to replace that port name in the receiving
+      thread with the payload
+    <teythoon> I do
+    <braunr> i don't see the problem then
+    <teythoon> well, only the sending thread has the pointer, the receiving
+      thread only has the name
+    <braunr> i don't see what makes it hard to change it
+    <braunr> since that's what you want to do
+    <braunr> the sending thread doesn't have the pointer
+    <teythoon> yes it has
+    <braunr> well
+    <braunr> only for in kernel objects
+    <braunr> and it's an optimization
+    <braunr> and you shouldn't have to care much about it
+    <braunr> your work only involves changing how messages are received
+      normally
+    <teythoon> let me push it somewhere, so I can show you the patches
+    <braunr> ok
+    <teythoon> braunr:
+      http://darnassus.sceen.net/gitweb/teythoon/gnumach.git/shortlog/refs/heads/feature-protected-payload-1
+    <braunr> teythoon: where should i look at ?
+    <teythoon> the last commit
+    <braunr> hm
+    <braunr> see what calls mach_msg_receive
+    <braunr> the payload flag must be handled before, when the message is
+      actually transferred
+    <braunr> ipc_kmsg_copyin perhaps
+    <teythoon> well
+    <teythoon> but this is the tricky part
+    <braunr> i'm not sure which of the sender or receiver code actually
+      performs these translations
+    <braunr> yes
+    <teythoon> b/c at this point it is not known whether the receiver has
+      specified the MACH_RCV_PROTECTED_PAYLOAD flag
+    <teythoon> or my understanding of the whole process is still somewhat off,
+      which might very well be...
+    <braunr> it's not something the receiver should set
+    <braunr> i.e. the flag shouldn't be set at mach_msg time
+    <braunr> because it's asynchronous
+    <braunr> it's a flag that should be set near port creation time
+    <teythoon> oh
+    <teythoon> right, I can see how that could work
+    <braunr> mach_reply_port(); mach_port_set_payload(); mach_msg();
+    <teythoon> braunr:
+      http://darnassus.sceen.net/gitweb/teythoon/gnumach.git/log/refs/heads/feature-protected-payload-2
+    <teythoon> I think I found the right spot
+    <braunr> teythoon: looks better indeed :)
+    <teythoon> braunr: yes, thanks for the hint :)
+    <braunr> teythoon: keep in mind gnumach supports moving receive rights
+      between tasks
+    <braunr> i don't think it's much of a burden but don't forget :)
+    <teythoon> right, if that happens, the protected payload field should
+      probably be just reset to 0
+    <teythoon> that preserves the old default behavior
+    <braunr> teythoon: you shouldn't name the payload "address" though
+    <braunr> but really "payload" or "label"
+    <braunr> vm_offset_t isn't the appropriate type either
+    <braunr> i suggest unsigned long payload
+    <teythoon> braunr: noted
+    <braunr> what i mean is
+    <braunr> the payload isn't the userspace structure you want to use
+    <braunr> it's the value stored in that unsigned long
+    <braunr> whether it's used as a pointer or an array index or whatever
+      should be at the application discretion
+    <teythoon> yes, I got that
+    <braunr> concerning vm_offset_t, it's misused a lot, mostly for historical
+      reasons
+    <braunr> vm_offset_t is actually the ancestor of off_t
+    <braunr> i.e. an offset inside a *memory object*
+    <braunr> the size of which may differ from the size of a pointer
+    <teythoon> ok
+    <braunr> historically, physical and virtual addresses, in addition to
+      memory object sizes, were the same, hence the confusion
+    <braunr> today we might have 32-bits virtual addresses, 36-bits physical
+      addresses, and 44- to 64-bits file offsets
+    <braunr> (e.g. PAE with large file support)
+
+
+## IRC, freenode, #hurd, 2013-11-25
+
+    <teythoon> braunr: the object lookup problem is worse than i assumed
+    <teythoon> the lookup is actually done twice...
+    <braunr> teythoon: isn't that usually the case :) ?
+    <braunr> inside gnumach ?
+    <teythoon> no
+    <teythoon> once in libports, once in the intrans function
+    <braunr> which intrans function ?
+    <braunr> can you point at an example ?
+    <teythoon> right
+    <teythoon> routine file_get_fs_options ( file: file_t;
+    <teythoon> file_t is special
+    <teythoon> mig magic
+    <teythoon> type file_t = mach_port_copy_send_t
+    <teythoon> #ifdef FILE_INTRAN
+    <teythoon> intran: FILE_INTRAN
+    <braunr> trivfs_begin_using_protid ?
+    <teythoon> for example, yes
+    <braunr> ugh
+    <teythoon> however, I believe that can be fixed cleanly
+    <teythoon> I revised my gnumach changes
+    <teythoon> it works surprisingly well
+    <braunr> gnumach is largely clean code
+    <teythoon> i patched libports to use the new falicilty
+    <teythoon> all the fs translators i tested work fine
+    <braunr> nice
+    <teythoon> tmpfs, ext2fs, nfs, hello*
+    <teythoon> so does exec
+    <braunr> very nice
+    <teythoon> howevcer, the bootstrap fails
+    <braunr> a lot more straightforward than i expected
+    <teythoon> i believe proc crashes
+    <teythoon> yes
+    <braunr> you can use mach_print to manually trace the bootstrap process
+
+[[microkernel/mach/gnumach/interface/syscall/mach_print]].
+
+    <teythoon> i did that
+    <braunr> ok
+    <teythoon> it's nice
+    <braunr> bare knives are :)
+
+    <teythoon> uh oh, this lookup fix requires some mig changes
+    <braunr> teythoon: have you built some packages on it ?
+    <teythoon> braunr: some clang test builds
+    <braunr> nice
+    <braunr> where is mig getting in the way ?
+    <teythoon> yes, and i compiled lots of stuff
+    <braunr> any debian package ?
+    <teythoon> let me just push my changes somewhere...
+    <teythoon> no, no deb
+    <braunr> ok
+    <teythoon> braunr:
+      http://darnassus.sceen.net/gitweb/teythoon/gnumach.git/log/refs/heads/feature-protected-payload-3
+    <teythoon>
+      http://darnassus.sceen.net/gitweb/teythoon/hurd.git/log/refs/heads/feature-protected-payload-1
+    <teythoon> braunr: in particular,
+      http://darnassus.sceen.net/gitweb/teythoon/hurd.git/blob/refs/heads/feature-protected-payload-1:/libports/manage-multithread.c#l161
+
+
+## IRC, freenode, #hurd, 2013-11-27
+
+    <teythoon> btw, my protected payload work is progressing nicely
+    <teythoon> the system actually boots now :)
+    <braunr> that's great
+    <braunr> looking forward to seeing it in action
+    <teythoon> I'd love to quickly discuss my mig changes if you've got a
+      minute
+    <braunr> sure
+    <teythoon> ok
+    <teythoon> first, please look at this
+      http://darnassus.sceen.net/gitweb/teythoon/hurd.git/blob/refs/heads/feature-protected-payload-1:/libports/manage-multithread.c#l161
+    <teythoon> in line 165, the msgh_local_port is restored
+    <teythoon> b/c later some intrans function might use this for the object
+      (re-)lookup
+    <braunr> yes ok
+    <teythoon>
+      http://darnassus.sceen.net/gitweb/teythoon/mig.git/commitdiff/64b7d34f90a41d017a9e1e8179c0533a97012f6f
+    <braunr> makes sense
+    <teythoon> this makes mig payload aware
+    <teythoon> we'd specify another intrans function that takes a label and
+      returns an object
+    <braunr> let me remind
+    <braunr> you said there were 3 lookups actually
+    <braunr> the mach one
+    <braunr> the libports one
+    <braunr> and is the intran one the last, right ?
+    <teythoon> yes
+    <teythoon> so now i optimized away the second one, the one in libports
+    <braunr> ok so you need intran aware functions to replace that lookup
+    <braunr> well
+    <braunr> payload aware intran functions
+    <teythoon> yes
+    <braunr> ok
+    <teythoon> mostly cast the label, ports_port_ref the object
+    <braunr> i assume they'd be pretty straightforward
+    <teythoon> yes
+    <braunr> and easy to add for all existing intran functions
+    <teythoon> most likely
+    <braunr> the proposed change looks very appropriate
+    <teythoon> :)
+    <braunr> i'd never thought about intran functions because i didn't want
+      that in my clone ;p
+    <braunr> they do add a bit of complexity
+    <braunr> but this upgrade path looks right
+    <teythoon> yes
+    <teythoon> I think so too
+    <braunr> nothing more to say :)
+    <braunr> it's so simple i actually don't understand how i could miss it
+      last time i looked
+    <braunr> i guess i was exhausted heh
+    <teythoon> thanks for the review :)
+    <braunr> thanks for your work
+    <braunr> it's been a long time since we had someone spend that much time on
+      the hurd
+
+
+## IRC, freenode, #hurd, 2013-11-29
+
+    <teythoon> I came to believe that there is actually a lot of room for
+      improvement in our rpc path
+
+
+## IRC, freenode, #hurd, 2013-12-19
+
+    <braunr> teythoon_: how is protected payload branch now ?
+    <braunr> ready for review ?
+    <teythoon_> the kernel and mig patch are
+    <teythoon_> patches
+    <braunr> so pending for approval rathr
+    <braunr> rather
+    <teythoon_> documentation is still missing for those ofc
+    <braunr> the last parts are the mig mutations iirc
+    <teythoon_> err, you lost me
+    <teythoon_> i haven't continued to work on the hurd patch series
+    <teythoon_> the patch series for gnu mach and mig are feature complete from
+      my point of view
+    <braunr> i mean the changes needed to remove the third lookup in the
+      mutation functions
+    <teythoon_> to do that in hurd, we need a patched mig
+    <braunr> i was just trying to remember correctly
+    <teythoon_> those patches need to be reviewed
+    <teythoon_> the hurd patch series is not yet working, but you can see the
+      approach i've taken
+    <braunr> yes
+    <braunr> ok
+    <teythoon_> the next thing i'd do in this regard is to fix all object
+      lookups
+    <braunr> so it didn't change from last time i looked
+    <teythoon_> no
+    <teythoon_> some code, notoriously the control port handling in the *fs
+      libs, uses mach_port_t for the receiver and do the lookup themself. i'd
+      fix that next.
+
+
+## IRC, freenode, #hurd, 2014-01-20
+
+    <teythoon> i've tied up enough loose ends, that i can start working on the
+      protected payload stuff again
+    <teythoon> the next step is fixing the receiver lookups everywhere
+    <braunr> good :)
+    <teythoon> if everyone uses mig magic for that, the switch will be easy
+    <teythoon> undoing the hack in mach-defpager too
+
+
+## IRC, freenode, #hurd, 2014-01-24
+
+    <braunr> teythoon: what are you currently working on ? protected payload ?
+    <teythoon> braunr: yes, i'm working with coccinelle to fix all object
+      lookups in the hurd
+    <teythoon> i figured it is easier and cleaner to just fix them instead of
+      converting pointers back to port names for those functions that want port
+      names
+
+
+## IRC, freenode, #hurd, 2014-02-17
+
+    <teythoon> braunr: do you think it's okay to make the 0 payload special ?
+    <braunr> teythoon: for our needs, sure
+    <braunr> it's similar to NULL or MACH_PORT_NULL
+    <teythoon> yes
+    <teythoon> maybe i should add a symbolic name for that
+    <teythoon> for consistency
+    <braunr> but is it wise to let mach_port_set_protected_payload reset the
+      behaviour on a zero payload ?
+    <braunr> i don't think a symbolic name is needed
+    <braunr> or maybe
+    <braunr> as you want
+    <teythoon> what else should it do then ?
+    <braunr> 00:25 < braunr> but is it wise to let
+      mach_port_set_protected_payload reset the behaviour on a zero payload ?
+    <braunr> it could return invalid argument instead
+    <braunr> and the documentation would clearly state 0 is invalid
+    <braunr> but that would also prevent reverting the mode
+    <teythoon> yes, i consider that not really useful, but i'd be okay with the
+      current behavior
+    <teythoon> but yes, the documentation should make that clear
+
+
+## IRC, freenode, #hurd, 2014-02-22
+
+    <teythoon> braunr: once the pp patch set is in gnumach, i'll make
+      mach-defpager use it
+    <teythoon> it's a good target, as it does not use libports
+    <teythoon> and it's currently abusing the port rename procedure for the
+      lookup, making the rights spill into the splay tree
+    <teythoon> braunr: the wiki mentioned that you once considered to remove
+      the ability to rename ports altogether
+    <braunr> teythoon: ah right
+    <braunr> i actually intend to keep it for x15, but only because i want port
+      names to blend as file descriptors
+    <teythoon> right, for dup and friends
+    <braunr> and the radix tree is a data structure that can cope decently with
+      not too sparsed distributions

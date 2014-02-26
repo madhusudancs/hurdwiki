@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2012, 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2012, 2013, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -812,6 +813,10 @@ In context of [[open_issues/multithreading]] and later [[open_issues/select]].
     <zacts> or both?
     <braunr> probably netbsd drivers
     <zacts> and if netbsd, will it utilize rump?
+
+[[open_issues/user-space_device_drivers]], *External Projects*, *The Anykernel
+and Rump Kernels*.
+
     <braunr> i don't know yet
     <zacts> ok
     <braunr> device drivers and networking will arrive late
@@ -2691,3 +2696,592 @@ freenode, #hurd, 2013-10-24*:
     <braunr> my plan for x15 is to make this "label" part of received messages
     <braunr> which means you need to change the format of messages
     <braunr> that is what i call a big change
+
+
+### IRC, freenode, #hurd, 2013-10-31
+
+    <antrik> neal: you mentioned you want to use Genode as a base... what
+      exactly would you want to build on top of it, different than what the
+      Genode folks are doing?
+
+[[Genode]].
+
+    <neal> antrik: I want to build a secure operating system.
+    <neal> antrik: One focused on user security.
+
+    <neal> braunr: You mean revoke individual send rights?
+    <neal> braunr: Or, what do you mean?
+    <neal> Or do you mean the ability to receive anotification on revocation?
+    <braunr> neal: yes, revoking individual send rights
+    <neal> I don't think it is needed in practice.
+    <braunr> neal: ok
+    <neal> But, you need a membrane object
+    <neal> Here's the idea:
+    <braunr> like a peropen ?
+    <neal> you have say a file server
+    <neal> and a proxy
+    <neal> a process only talks to the file server via the proxy
+    <neal> for the proxy to revoke access to the file object it gave out, it
+      needs to either use your revoke
+    <neal> interpose on all ipcs (which is expensive)
+    <neal> or use a proxy object/membrane
+    <neal> which basically forwards messages to the underlying object
+    <braunr> isn't that also interposing ?
+    <neal> of course
+    <neal> but if it is done in the kernel, it is fast
+    <braunr> ah in the kernel
+    <neal> you just walk a linked list
+    <braunr> what's the difference with a peropen object ?
+    <neal> That's another option
+    <neal> you use a peropen and then provide a call to force the per-open to
+      be closed
+    <neal> so the proxy now invokes the server
+    <neal> the issue here is that the proxy has to trust the server
+    <braunr> yes
+    <braunr> how can you not trust servers ?
+    <neal> that is, if the intent is to prevent further communication between
+      the server and the process, the server may ignore the request
+    <neal> in this case, you probably trust the server
+    <braunr> hum
+    <neal> but it could be that you have two processes communicating
+    <braunr> if the intent is to prevent communication, doesn't the client just
+      need to humm not communicate ? :)
+    <neal> the point is that the two processes are colluding
+    <braunr> what are these two processes ?
+    <neal> I'm not sure this case is of practical relevance
+    <braunr> ok
+    <neal> https://www.cs.cornell.edu/courses/cs513/2002sp/L10.html
+    <braunr> thanks
+
+
+### IRC, freenode, #hurd, 2013-11-14
+
+    <antrik> neal: hm... I was under the impression that the Genode themselves
+      are also interested in user security... what is missing from their
+      version that you want to add?
+    <antrik> err... the Genode folks
+    <neal> antrik: I'm missing some context
+    <antrik> neal: a while back you said that you want to build a secure system
+      on top of Genode
+    <neal> yes
+    <neal> the fact that they are doing what I want is great
+    <neal> but there is more to a secure system than an operating system
+    <antrik> ah, so it's about applications+
+    <antrik> ?
+    <neal> yes, that is part of it
+    <neal> it's also about secure messaging
+    <neal> and hiding "meta-data"
+    <braunr> i'm still wondering how you envision the powerbox
+    <neal> when a program wants the user to select a file, it makes an upcall
+      to the power box application
+    <antrik> braunr: you can probably find some paper from Shapiro ;-)
+    <braunr> well, sure, it looks easy
+    <braunr> but is there always a power box application ?
+    <braunr> is there always a guarantee there won't be recursive calls made by
+      that application ?
+    <braunr> how does it integrate with the various interfaces a system can
+      have ?
+    <neal> there is always a power box application
+    <neal> I don't know what you mean by recursive calls
+    <braunr> aer techniques such as remembering for some time like sudo does
+      applicable to a powerbox application ?
+    <neal> if you mean many calls, then it is possible to rate limit it
+    <braunr> well, the powerbox will use messaging itself
+    <braunr> is it always privileged ?
+    <braunr> privileged enough
+    <neal> it is privileged such like the X11 display manager is privileged and
+      can see all of the video content
+    <braunr> what else other than accessing a file would it be used for ?
+    <braunr> one case i think of is accessing the address space of another
+      application, in debuggers
+    <braunr> 14:56 < neal> there is always a power box application
+    <braunr> what would it be when logging on a terminal ?
+    <antrik> braunr: when running pure command line tools, you can already pass
+      the authority as part of the command line. however, I'm wondering whether
+      it really makes sense to apply this to traditional shell tools...
+    <braunr> that's one of my concerns
+    <braunr> when does it really make sense ?
+    <antrik> for interactive use (opening new files from within a running
+      program), I don't think it can be accomplished in a pure terminal
+      interaction model...
+    <braunr> and you say "you pass the authority"
+    <antrik> braunr: it makes sense for interactive applications
+    <braunr> i thought the point of the powerbox is precisely not to do that
+    <antrik> no, it's still possible and often reasonable to pass some initial
+      authority on startup. the powerbox is only necessary when further access
+      needs to be provided at runtime
+    <braunr> ok
+    <neal> the power box enable dynamic delegation of authority, as antrik said
+    <braunr> ok
+    <braunr> but how practical is it ?
+    <neal> applications whose required authority is known apriori and
+      max(required authority) is approximately min(required authority) can be
+      handled with static policies
+    <braunr> don't application sometimes need a lot of additional authority ?
+    <braunr> ok
+    <antrik> actally, thinking about it, a powerbox should also be possible on
+      a simple terminal, if we make sure the application doesn't get full
+      control of the terminal, but rather allow the powerbox to temporarily
+      take over input/output without the application being able to
+      interpose... so not quite a traditional UNIX terminal, but close enough
+      I'd say
+    <braunr> the terminal itself maybe ?
+    <antrik> hm... that would avoid having to implement a more generic
+      multiplexing approach -- but it would mix things that are normally quite
+      orthogonal...
+    <antrik> BTW, I personally believe terminals need to get smarter anyways
+      :-)
+    <braunr> ok
+    <antrik> the traditional fully linear dialog has some nice properties; but
+      it is also pretty limited, leading to usability problems soon. I have
+      some vague ideas for an approach that still looks mostly like a linear
+      dialog, but is actually more structured
+
+
+## IRC, freenode, #hurd, 2013-11-04
+
+    <braunr> yes the learning curve [of the Hurd] is too hard
+    <braunr> that's an entry barrier
+    <braunr> this is why i use well known posix-like (or other well
+      established) apis in x15
+    <braunr> also why i intend to make port rights blend into file descriptors
+    <teythoon> right
+    <braunr> well
+    <braunr> the real reason is efficiency
+    <braunr> but matching existing practices is very good too
+
+
+## IRC, freenode, #hurd, 2013-11-08
+
+    <gnufreex> braunr, how is work on x-15 progressing? Is there some site to
+      check what  is new?
+    <braunr> gnufreex: stalled for 2 months
+    <braunr> i'm working on the hurd for now, will get back to it later
+    <braunr> no site
+    <braunr> well
+    <gnufreex> so, you hit some design problem, or what? I mean why stalled
+    <braunr> http://git.sceen.net/rbraun/x15.git/ :p
+    <gnufreex> Thanks
+    <braunr> something like that yes
+    <braunr> i came across
+      http://darnassus.sceen.net/~rbraun/radixvm_scalable_address_spaces_for_multithreaded_applications.pdf
+    <gnufreex> I read that, I think I found it on Hurd site.
+    <braunr> and since x15 aims at being performant and scalable, it seems like
+      a major feature to bring in
+    <braunr> but it's not simple to integrate
+    <gnufreex> So you want to add that?
+    <braunr> gnufreex: yes
+    <gnufreex> branur, but what are the problems?
+    <braunr> ?
+    <braunr> ah
+    <braunr> you really want to know ? :)
+    <gnufreex> Well... yeah 
+    <braunr> you need to know both x15 and radixvm for that
+    <braunr> for one, refcache, as described in the radixvm paper, doesn't seem
+      scalable
+    <braunr> it is in practice in their experiments, but only because they
+      didn't push some parameters too high
+    <braunr> so i need to rethink it
+    <gnufreex> I don't know x15... but I read radixvm paper
+    <braunr> next, the bsd-like vm used by x15 uses a red-black tree to store
+      memory areas, which doesn't need external storage
+    <braunr> radixvm as implemented in xv6 is only used for user processes, not
+      the kernel
+    <braunr> which means the kernel allocator is a separate implementation, as
+      it's done in linux
+    <braunr> x15 uses the same implementation for both the kernel and user maps
+    <braunr> which results in a recursion problem
+    <braunr> because a radix tree uses external nodes that must be dynamically
+      allocated
+    <gnufreex> so you would pretty much need to rewrite x15 
+    <braunr> no
+    <braunr> just vm/
+    <braunr> and $arch/pmap
+    <braunr> and yes, pmap needs to handle per-core page tables
+    <braunr> something i wanted to add already but couldn't because of similar
+      recursion problems
+    <gnufreex> Yeah, vm system... but what else did you do with x15... it is at
+      early stage...
+    <braunr> multithreading
+    <gnufreex> That doesn't need to be rewriten?
+    <braunr> no
+    <gnufreex> Ok... good.
+    <braunr> physical memory allocation neither
+    <braunr> only virtual memory
+    <gnufreex> is x15 in runable state? I mean in virtual machine?
+    <braunr> you can start it
+    <braunr> but you won't go far :)
+    <gnufreex> What do you use as development platform?
+    <braunr> it basically detects memory and processors, starts idle, migration
+      and worker threads, and leaves
+    <gnufreex> Is it compilable on fedora 19
+    <braunr> probably
+    <braunr> i use debian stable
+    <braunr> and unstable on the hurd
+    <gnufreex> ok, I will probably try it in KVM...
+    <braunr> better do it on real hardware too in case you find a bug
+    <gnufreex> I cant make new partition now... it seems my hard drive is
+      dying. When I get a new one I will try on real harware. 
+    <braunr> you don't need a new partition
+    <braunr> the reason radixvm is important is twofold
+    <braunr> 1/ ipc will probably make use of the core vm operations used by
+      mmap and munmap
+    <braunr> 2/ no other system currently provides scalable
+      mmap/munmap/mprotect
+    <gnufreex> Yes, that would make x15 pretty special... 
+    <gnufreex> But I read somewhere that you wanted to implement RCU during
+      summer
+    <gnufreex> Did you do that?
+
+
+## IRC, freenode, #hurd, 2013-11-12
+
+    <braunr> neal: about secure operating systems
+    <braunr> i assume you consider clients providing their own memory a strong
+      requirement for that, right ?
+    <neal> no
+    <neal> I'm less interested in availability
+    <neal> or performance guarantees
+    <braunr> ok
+    <braunr> but
+    <braunr> i thought it was a requirement to avoid denial of service
+    <neal> of course
+    <braunr> then why don't you consider it required ?
+    <neal> I want something working in a reasonable amount of time :)
+    <braunr> agreed
+    <neal> more seriously:
+    <neal> my primary requirement is that a program cannot access information
+      that the user has not authorized it to access
+    <braunr> ok
+    <neal> the requirement that you are suggesting is that a program be able to
+      access information that the user has authorized it to access
+    <neal> this is availability
+    <braunr> i'm not following
+    <braunr> what's the difference ?
+    <neal> assume we have two programs: A and B
+    <neal> on Unix, if they run under the same uid, they access access each
+      other files
+    <neal> I want to fix this
+    <braunr> ok, that's not explicit authorization
+    <braunr> but is that what you mean ?
+    <neal> Now, assuming that A cannot access B's data and vice versa
+    <neal> we have an availability problem
+    <neal> A could prevent B from accessing its data
+    <neal> via a DoS attach
+    <neal> I'm not going to try to fix that.
+    <braunr> ok
+    <braunr> and how do you intend to allow A to access B's data ?
+    <braunr> i guess the powerbox mentioned in the critique
+    <braunr> but do you have a more precise description about something
+      practical to use ?
+
+
+## IRC, freenode, #hurd, 2013-11-14
+
+In context of [[hurd/libports]], *Open Issues*, *IRC, freenode, #hurd,
+2013-11-14*.
+
+    <braunr> fyi, x15 will not provide port renaming
+    <braunr> teythoon: also, i'm considering enforcing port names to be as
+      close as possible to 0 when being allocated as part of the interface
+    <braunr> what do you think about that ?
+    <teythoon> braunr: that's probably wise, yes
+    <teythoon> you could hand out receive ports close to 0 and send ports close
+      to ~0
+    <braunr> teythoon: what for ?
+    <teythoon> well, if one stores only one kind in an array, it won't waste as
+      much space
+    <braunr> this also means you need to separate receive from send rights in
+      the interface
+    <braunr> so that you know where to look for them
+    <braunr> i'm not sure it's worth the effort
+    <braunr> using the same code for them both looks more efficient
+    <braunr> the right lookup code is probably one of the hottest path in the
+      system
+    <teythoon> right
+    <neal> one of the nice things about not reusing port names is that it helps
+      catch bugs
+    <neal> you don't want to accidently send a message to the wrong recipient
+    <braunr> how could you, if the same name at different times denotes
+      different rights ?
+    <neal> you forget to clean up something
+    <braunr> if you don't clean, how could you get the same name for a right
+      you didn't release ?
+    <neal> that's not hard to do :)
+    <neal> ah, you cleaned up the port right but not the name
+    <braunr> ah ok
+    <neal> destroy the port and forget that a thread is still working on a
+      response
+    <neal> the data structure says use the port at index X
+    <neal> X is reallocated in the mean time
+    <teythoon> excuse my ignorance, but gnumach *is* reusing port names, isn't
+      it?
+    <braunr> that policy is why i'm not sure i want to enforce allocation
+      policy in the interface :/
+    <neal> This is not about a security property of the system
+    <neal> this is about failing fast
+    <neal> you want to fail as close to the source of the problem as possible
+    <braunr> we could make the kernel use different allocation policies for
+      names, to catch bugs, yes
+    <neal> make the index X valid again and you've potentially masked the bug
+    <teythoon> braunr: if you were to merge your radix tree implementation into
+      gnumach and replace the splay tree with it, would that make using renamed
+      ports fast enough so we can just rename all receive ports doing away with
+      the extra lookup like mach-defpager does ?
+    <braunr> i don't think so
+    <braunr> the radix tree code is able to compress its size when keys are
+      close to 0
+    <braunr> using addresses would add 1, 2, maybe 3 levels of internal nodes
+    <braunr> for every right
+    <braunr> we could use a true integer hash table for that though
+    <braunr> hm no, hurd packages crash ... :/
+    <teythoon> but malloc allocates stuff in a contigious space, so the
+      pointers should be similar in the most significant bits
+    <braunr> if you use malloc, yes
+    <teythoon> sure
+    <teythoon> but that'd make the radix tree representation compact, no?
+    <braunr> it could
+    <braunr> the current code only compresses near 0
+    <teythoon> oh
+    <braunr> better compression could be implemented though
+
+
+## IRC, freenode, #hurd, 2013-11-21
+
+    <teythoon> have you seen liburcu ?
+    <braunr> a bit, yes
+    <teythoon> it might be worth investigating to use it in some servers
+    <braunr> it is
+    <teythoon> the proc server comes to mind
+    <braunr> personally, i think all hurd servers should use rcu
+    <braunr> libports should use rcu
+    <teythoon> yes
+    <braunr> lockless synchronization should be a major feature of x15/propel
+    <braunr> present even during message passing
+
+
+## IRC, freenode, #hurd, 2013-12-09
+
+    <braunr> improving our page cache with arc would be great
+    <braunr> it's on the todo list for x15 :>
+    <braunr> not sure you referred to virtual memory management though
+    <braunr> (actually, it's CAR, not ARC that is planned for x15)
+
+
+## IRC, freenode, #hurd, 2013-12-30
+
+    <braunr> zacts: http://darnassus.sceen.net/~rbraun/x15/qemu_x15.sh
+
+
+## IRC, freenode, #hurd, 2014-01-03
+
+    <braunr> oh, btw, i've started working on x15 again :>
+    <teythoon> saw that :)
+    <braunr> first item on the list: per-cpu page tables
+    <braunr> the magic that will make ipc extremely scalable :)
+    <teythoon> i'm worried about your approach tbh
+    <braunr> too much overhead ?
+    <teythoon> not on any technical level
+    <teythoon> but haven
+    <braunr> ?
+    <teythoon> 't there been enough reimplementation efforts that got nowhere ?
+    <braunr> oh that
+    <teythoon> ^^
+    <braunr> well, i have personal constraints and frustrations with the
+      existing code, and my goal isn't to actually produce anything serious
+      until it actually gets there
+    <braunr> which, yes, it might not
+    <braunr> really, i'm doing it for fun
+    <teythoon> well sure
+    <teythoon> that's a damn good reason ;)
+    <braunr> and if it ever reaches a state where it can actually be used to
+      run stuff, i would be very happy
+    <braunr> and considering how it's done, i'm pretty sure things could be
+      built a lot faster on such a system
+    <teythoon> but you need to reimplement all the userspace servers as well,
+      and the libc stuff
+    <braunr> yes
+    <teythoon> do you plan to reimplement this from scratch or do you have
+      plans to 'bootstrap' propel from hurd ?
+    <braunr> from scratch
+    <teythoon> well... i'm not sure that this is feasible or even a good
+      idea. that's what i meant in a nutshell i guess.
+    <braunr> i'm familiar with that criticism
+    <braunr> and you may be right
+    <braunr> this is also why i keep working on the hurd at the same time
+    <teythoon> we could also talk about making hurd more easily portable
+    <braunr> portable with regard to what ?
+    <teythoon> evolving hurd and mach to the point where it might be feasible
+      to port hurd to another ukernel
+    <braunr> not so easy
+    <teythoon> i know
+    <braunr> i'm not even sure i would want that
+    <braunr> well, since the hurd isn't optimized at all, why not
+    <teythoon> why would it neccessarily hinder optimization ?
+    <braunr> because in practice, it's rare for a microkernel to provide all
+      the features the hurd would require to run really well
+    <braunr> the most severe issue being that they either provide asynchronous
+      ipc, used for signals, or only synchronous ipc, making signal and other
+      event-driven code hard to emulate (usually requiring separate threads)
+
+
+## IRC, freenode, #hurd, 2014-01-20
+
+[[open_issues/translate_fd_or_port_to_file_name]]:
+
+    <teythoon> i wonder if it would not be best to add a description to mach
+      tasks
+    <braunr> i think it would
+    <teythoon> to aid fixing these kind of issues
+    <braunr> in x15, i actually add descriptions (names) to all kernel objects
+    <teythoon> that's probably a good idea, yes
+    <braunr> well, not all, but many
+
+    <braunr> i'd like to push x15 this year
+    <braunr> it currently is the only design of a truely scalable microkernel
+      that i know of
+    <azeem_> push how?
+    <braunr> spend time on it
+    <azeem_> k
+    <azeem_> do you think it will make sense to solicit outside contributions
+      at one point?
+    <braunr> yes
+    <braunr> the roadmap is vm system -> ipc system -> userspace (including RPC
+      handling)
+    <braunr> once we can actually do things in userspace, the priority will be
+      getting a shell with glibc
+    <braunr> people will be able to help "easily" at that point
+    <azeem_> just wondering, apart from scalability, did you write it for
+      performance, for hackability, or something else?
+    <braunr> it's basically the hurd architecture, including improvements from
+      the critique, with performance and scalability in mind
+    <azeem_> ok
+    <braunr> the main improvements i think of currently are resource
+      containers, lexical .. resolution, and lists of trusted users with which
+      to communicate
+    <braunr> it's strongly oriented for posix compatibility though
+    <teythoon> sounds nice, i like it already ;)
+    <azeem_> is it compatible with Mach to some degree?
+    <braunr> so things like running without an identity will be forbidden in
+      the default system personality
+    <braunr> no, not compatible with mach at all
+    <azeem_> this sounds like it is doing more than Mach did
+    <azeem_> braunr: ah, ok
+    <braunr> it's not "x15mach" any more :)
+    <azeem_> right, I missed out on that
+
+
+### IRC, freenode, #hurd, 2014-01-21
+
+    <braunr> i also don't write anything that would prevent real-time
+    <teythoon> b/c that's a potential market for such an operating system ?
+    <braunr> yes
+    <teythoon> well, i can't say i don't like the sound of that ;)
+    <braunr> the ipc interface should be close to that of qnx
+
+
+## IRC, freenode, #hurd, 2014-02-23
+
+    <cluck> braunr: have you looked at genode?
+    <cluck> braunr: i sometimes wonder how hard it'd be to port hurd atop it
+      because i find some similarities with what l4/fiasco/viengos provided
+    <braunr> cluck: i have, but genode seems a bit too far from posix for our
+      tastes
+    <cluck> (and yes, i realize we'd be getting farther from the hw)
+    <braunr> ah you really mean running the hurd on top of it
+    <braunr> i personally don't like the idea
+    <cluck> braunr: well, true, but their noux implementation proves it's not a
+      dealbreaker
+    <cluck> braunr: at least initially that'd be the best implementation
+      approach, no? as time went on integrating hurd servers more tightly at a
+      lower level makes sense but doing so from the get go would be foolhardy
+    <cluck> braunr: or am i missing something obvious?
+    <braunr> cluck: why would it be ?
+    <cluck> braunr: going by what happened with l4 it's too much code to port
+      and optimize at once 
+    <braunr> cluck: i don't think it is
+    <braunr> cluck: problems with l4 didn't have much to do with "too much
+      code"
+    <cluck> braunr: i won't debate that, you have more experience than me with
+      hurd code. anyway that's how i'd go about it, first get it all running
+      then get it running fast. breakage is bad
+    <braunr> and you think moving from something like linux or genode to an
+      implementation closer to hardware won't break things ?
+    <cluck> braunr: yes, i read the paper, obvious unexpected shortcomings but
+      even had them not been there the paradigms are too different and creating
+      proper mappings from one model to the other would at least be time
+      consuming 
+    <braunr> ye
+    <braunr> yes
+    <braunr> i'm convinved the simple approach of a small microkernel with the
+      proper interfacen along with the corresponding sysdeps layer in glibc
+      would be enough to get a small hurd like system quickly
+    <braunr> experience with other systems shows how to directly optimize a lot
+      of things from the start, without much effort
+
+    <cluck> braunr: sorry. back to our talk, i mentioned genode because of the
+      nice features it has that'd be useful on hurd
+    <braunr> cluck: which ones do you refer to ?
+    <cluck> braunr: the security model is the biggest one
+    <braunr> how does it differ from the hurd, except for revocation ?
+    <cluck> braunr: then there's the ease of portability 
+    <braunr> ?
+    <cluck> braunr: it's more strict
+    <braunr> how would that help us ?
+    <cluck> braunr: if hurd was running atop it we'd get extra platforms
+      supported almost for free whenever they did (since we'd be using the same
+      primitives)
+    <braunr> why not choose the underlying microkernel directly ?
+    <cluck> call me crazy but i believe code reuse is a good thing, i see
+      little point in duplicating existing code just because you can
+    <braunr> what part of genode should be reused then ?
+    <cluck> that's what got me thinking about genode in the first place,
+      ideologically they share a lot (if not most) of hurd's goals and code
+      wise they feel close enough to make a merge of sorts not seem crazy talk,
+      thus my asking if i'm missing something obvious
+    <braunr> i think the design is incompatible with our goals of posix
+      compatibility
+    <cluck> braunr: oh, ok. 
+    <cluck> braunr: i was assuming that wasn't an issue, as i mentioned before
+      they have noux already and if hurd's servers got ported they'd provide
+      whatever else that was missing
+    <braunr> noux looks like a unix server for binary compatibility
+    <braunr> i'm not sure it is but that's what the description makes me think
+    <braunr> and if it really, then it's no different than running linux on top
+      of an hypervisor
+    <braunr> ok it's not for binary compatibility but it definitely is a
+      (partial) unix server
+    <braunr> i much prefer the way the hurd is posix compliant without any
+      additional layer for compatibility or virtualization
+    <cluck> braunr: noux is a runtime, as i understand it there's no binary
+      compatibility just source (ie library/api calls)
+    <braunr> yes i corrected that just now
+    <cluck> sorry, i'm having lag issues
+    <braunr> no worries
+    <cluck> braunr: anyway, how's x15 coming along? still far from being a
+      practical replacement?
+    <braunr> yes .. :(
+    <braunr> and it's not a replacement
+    <cluck> (for mach)
+    <braunr> no
+    <cluck> huh?
+    <braunr> it's not a replacement for the hurd
+    <braunr> err, for mach
+    <cluck> braunr: i thought you were writing it to be compatible with mach's
+      interfaces 
+    <braunr> no
+    <braunr> it used to be that way
+    <braunr> but no
+    <cluck> braunr: what changed?
+    <braunr> mach ipc is too ccmplicated
+    <braunr> complicated*
+    <braunr> its supposed benefit (of allowing the creation of computer
+      clusters for single system images) are outdated and not very interesting
+    <braunr> it's error prone
+    <braunr> and it incurrs more overhead than it should
+    <cluck> no arguing there
+    <cluck> braunr: are you still targeting being able to run hurd atop x15 or
+      is it just your pet project now?
+    <braunr> i don't intend the hurd to run on top of it
+    <braunr> the reason it's a rewrite is to fix a whole bunch of major issues
+      in one go
