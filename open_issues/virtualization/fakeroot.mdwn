@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2013, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -65,3 +66,1224 @@ License|/fdl]]."]]"""]]
     < youpi> that's why we still use fakeroot-sysv
     < teythoon> right
     < youpi> err, -tcp
+
+
+## IRC, freenode, #hurd, 2013-11-18
+
+    <teythoon> I believe I figured out the argv[0] issue with fakeroot-hurd
+    <teythoon> but I'm not sure how to fix this
+    <teythoon> first of all, Emilios file_exec_file_name patch set works fine
+    <teythoon> but not with fakeroot
+    <teythoon>
+      http://git.sceen.net/hurd/hurd.git/blob/HEAD:/exec/hashexec.c#l300
+    <teythoon> check_hashexec tries to locate the script file using a heuristic
+    <teythoon> Emilios patch improves the situation with just providing this
+      information
+    <teythoon> but then, the identity port of the "discovered" file is compared
+      with the id port of the script file
+    <teythoon> to verify if the heuristic found the right file
+    <teythoon> but when using fakeroot-hurd, /hurd/fakeroot proxies all
+      requests
+    <teythoon> but the exec server is outside of the /hurd/fakeroot
+      environment, so it gets the id port from the real filesystem
+    <teythoon> we could skip that test if the script name is explicitly
+      provided though
+    <teythoon> that test was meant to see whether a search through $PATH turned
+      up the right file
+    <braunr> teythoon: nice
+    <teythoon> braunr: thanks :)
+    <teythoon> unfortunately, dpkg-buildpackaging hurd with it still fails for
+      some reason
+    <teythoon> but it is faster than fakeroot-tcp :)
+    <braunr> even chown ?
+    <braunr> or chmod ?
+    <teythoon> dunno in detail, but the whole build is faster
+    <braunr> if you can try it, i'm interested
+    <braunr> because chown/chmod is also slow on linux with fakeroot-tcp
+    <teythoon> i can try...
+    <braunr> so it's probably not a hurd bug
+    <teythoon> braunr: yes, it really is
+    <braunr> no i mean
+    <braunr> chown/chmod being slow with fakeroot-tcp is probably not a hurd
+      bug
+    <braunr> but a fakeroot-tcp bug
+    <teythoon> chowning all files in /usr/bin takes 5.930s with fakeroot-hurd
+      (6.09 with startup overhead) vs 26.42s (26.59s) with fakeroot-tcp
+    <braunr> but try it on linux (fakeroot-tcp i mean)
+    <braunr> although you may want to do it on something you don't care much
+      about :p)
+
+
+## IRC, freenode, #hurd, 2013-12-03
+
+    * teythoon is gonna hunt a fakeroot bug ...
+    <teythoon> % fakeroot-hurd /bin/sh -c ":> /tmp/some_file"
+    <teythoon> /bin/sh: 1: cannot create /tmp/some_file: Is a directory
+    <braunr> ah fakeroot-hurd
+    <teythoon> prevents installing stuff with /bin/install
+    <teythoon> sure fakeroot-hurd, why would i work on the slow one ?
+    <braunr> i don't know
+    <braunr> because it makes chmod/chown/maybe others horrenddously slow
+    <braunr> ?
+    <teythoon> yes, fixing this involves fixing fakeroot-hurd
+    <braunr> are you sure ?
+    <braunr> i prefer repeating just in case: i saw that problem on linux as
+      well
+    <braunr> with fakeroot-sysv
+    <teythoon> so ?
+    <braunr> i'm almost certain it's a pure fakeroot bug, not a hurd bug
+    <braunr> so
+    <teythoon> even if this is fixed, it still has to pay the socket
+      communication overhead
+    <braunr> fixing fakeroot-hurd so that i can be used instead of fakeroot-tcp
+      is a very good thing to do, obviously
+    <braunr> it*
+    <braunr> but it won't solve the chown/chmod speed
+    <braunr> (or, probably won't)
+    <teythoon> huh, why not ?
+    <braunr> 15:53 < braunr> i'm almost certain it's a pure fakeroot bug, not a
+      hurd bug
+    <braunr> when i say it's slow, i should be more precise
+    <braunr> it doesn't show up in top
+    <teythoon> yes, but why would fakeroot-hurd suffer from the same issue ?
+    <braunr> the cpu is almost idle
+    <braunr> oh right, it's a completely different tool
+    <braunr> my bad
+    <braunr> right, right, the proper way to implement fakeroot actually :)
+    <teythoon> yes
+    <teythoon> this will bring near-native speed
+
+
+## IRC, freenode, #hurd, 2013-12-05
+
+    <teythoon> fakeroot-hurd just successfully built mig :)
+    <teythoon> hangs in dh_gencontrol when building gnumach or hurd though
+    <teythoon> i believe it hangs waiting for a lock
+    <teythoon> lock like in file lock that is
+    <teythoon> braunr: no more room for vm_map_find_entry in 80220a40
+    <teythoon> 80220a40 <- is that a task ?
+    <braunr> or a vm_map, not sure
+    <braunr> probably a vm_map
+
+
+## IRC, freenode, #hurd, 2013-12-06
+
+    <teythoon> well, aren't threads a source of endless entertainment ... ?
+    <teythoon> well, I found three more bugs in fakeroot-hurd
+    <teythoon> one of them requires fixing the locking used in fakeroot
+    <braunr> ouch
+    <teythoon> the current code does some lock cycling to aquire a lock out of
+      order
+    <braunr> cycling ?
+    <teythoon> in the netfs_node_norefs function
+    <teythoon> release and reaquire
+    <braunr> i see
+    <teythoon> which imho should be better solved with a weak reference
+    <teythoon> working on it, it no longer deadlocks but i broke something else
+      ...
+    <teythoon> endless fun ;)
+    <braunr> such things could have been done right in the beginning
+    <braunr> ...
+    <teythoon> yes, I wonder
+    <teythoon> libports has weak references
+    <teythoon> but pflocal is the only user
+    <braunr> hm
+    <teythoon> none of the lib*fs support that
+    <braunr> didn't i add one in libdiskfs too ?
+    <braunr> anyway, irrelevant
+    <braunr> weak references are a nice feature
+    <braunr> teythoon: i don't see the cycling you mentioned
+    <braunr> only netfs_node_refcnt_lock being dropped temporarily
+    <teythoon> yep, that one
+    <teythoon> line 145
+    <teythoon> note that due to another bug this code is currently never run
+    <braunr> how surprising ..
+    <braunr> the note about some leak actually gave a hint about that
+    <teythoon> yeah, that leak
+    <teythoon> I think i'm actually very close
+    <teythoon> it's just so frustrating, i thought i got it last night
+    <braunr> good luck then
+    <teythoon> thanks :)
+
+
+## IRC, freenode, #hurd, 2013-12-09
+
+    <teythoon> sweet, i fixed fakeroot-hurd :)
+    <braunr>  /clap
+    <braunr> what was the problem ?
+    <teythoon> lots
+    <braunr> i see
+    <teythoon> it's amazing it actually run as well as it did
+    <braunr> mess strikes again
+    <braunr> i hate messy code ..
+    * teythoon is building half a hurd package using this ... stay tuned ;)
+    <azeem> teythoon: is this going to make building faster as well?
+    <teythoon> most likely, yes
+    <teythoon> fakeroot-tcp is known to be slow, even on linux
+    <braunr> teythoon: are you sure about the transparent retry patch ?
+    <teythoon> pretty sure, why ?
+    <braunr> it's about a more general issue that we didn't fix yet
+    <braunr> our last discussions about it lead us to agree that clients should
+      check the identity of a server before interacting with it
+    <teythoon> braunr: i don't understand, what's the problem here ?
+    <braunr> teythoon: fakeroot does the lookup itself, doesn't it ?
+    <teythoon> yes
+    <braunr> teythoon: but was that also the case before your patch ?
+    <teythoon> braunr: yes
+    <braunr> teythoon: then ok
+    <braunr> teythoon: i guess fakeroot handles requests only for a specific
+      set of calls right ?
+    <braunr> and for others, requests are directly relayed
+    <teythoon> braunr: yes
+    <braunr> and that still is the case, right ?
+    <teythoon> yes
+    <braunr> ok
+    <braunr> looks right since it only affects lookups
+    <braunr> ok then
+    <teythoon> well, fakeroot-hurd built half a hurd package in less than 70
+      minutes
+    <teythoon> a new record for my box
+    <braunr> compared to how much before ?
+    <braunr> (and why half of it ?)
+    <teythoon> unfortunately it hung after signing the packages... some perl
+      process with a /usr/bin/tee child
+    <teythoon> killing tee made it succeed though
+    <teythoon> braunr: i don't build the udeb package
+    <braunr> oh ok
+    <teythoon> braunr: compared with ~75 with fakeroot-tcp and my demuxer
+      rework, ~80 before
+    <braunr> teythoon: nice
+
+
+## IRC, freenode, #hurd, 2013-12-18
+
+    <teythoon> there, i fixed the last fakeroot-hurd bug
+    <teythoon> *whee* :)
+    <teythoon> i thought so many times that i got the last fakeroot bug ...
+    <teythoon> last as in it's in a good enough shape to compile the hurd
+      package that is
+    <teythoon> but now it is
+    <braunr> :)
+    <braunr> this will make glibc and others so much faster to build
+
+
+## IRC, freenode, #hurd, 2013-12-19
+
+    <braunr> teythoon_: hum, you should make the behaviour of fakeroot-hurd on
+      the last client exiting optional
+    <teythoon_> y?
+    <teythoon_> fakeroot-tcp does the very same thing
+    <braunr> fakeroot-hurd is different
+    <braunr> it's part of the file system
+    <teythoon_> yes
+    <braunr> users may want it to stay around
+    <braunr> and reuse it without checking it's actually there
+    <teythoon_> but once the last client is gone, who is ever getting another
+      port to it ?
+    <teythoon_> no
+    <teythoon_> that cannot happen
+    <braunr> really ?
+    <teythoon_> yes
+    <braunr> i thought it was like remap
+    <braunr> since remap is based on it
+    <teythoon_> the same thing applies to remap
+    <teythoon_> only settrans has the control port
+    <braunr> hum
+    <teythoon_> and uses it once to get a protid for the working dir of the
+      initial process started inside the chrooted environment
+    <braunr> you may not want to chroot inside
+    <teythoon_> so ?
+    <teythoon_> then, you get another protid
+    <braunr> i'll make an example
+    <braunr> i create a myroot directory implemented by fakeroot
+    <braunr> populate it
+    <braunr> leave and do something else,
+    <braunr> i might want to return to it later
+    <teythoon_> ah
+    <teythoon_> ok, so you are not using settrans --chroot
+    <braunr> or maybe i'm confusing the fakeroot translator and fakeroot-hurd
+    <braunr> 10:48 < braunr> you may not want to chroot inside
+    <braunr> yes
+    <teythoon_> hm
+    <teythoon_> ok, so the patch could be changed to check whether the last
+      control port is gone too
+    <braunr> i have no idea of any practical use, but i don't see a valid
+      reason to make a translator go away just because it has no client
+    <braunr> except for resource usage
+    <braunr> and if it's installed as a passive translator
+    <braunr> although that would make fakeroot loose its state
+    <braunr> though remap state is on the command line so it would be fine for
+      it
+    <braunr> see what i mean ?
+    <teythoon_> yes i do
+    <braunr> fakeroot state could be saved in some db one day so it may apply,
+      if anyone feels the need
+    <teythoon_> so what about checking for control ports too ?
+    <braunr> i'm not too familiar with those
+    <braunr> who has the control port of a passive translator ? the parent ?
+    <teythoon_> that should cover the use case you described
+    <teythoon_> for the parent translator
+    <teythoon_> for fsys_getroot requests it has to keep it around
+    <teythoon_> and for more fsys stuff too
+    <braunr> and if active ? settrans ? who just looses it ?
+    <teythoon_> if settrans is used to start an active translator, the parent
+      fs still gets a right to the control port
+    <braunr> ok
+    <braunr> i don't have a clear view of what this implies for fakeroot-hurd
+    <braunr> we'd want fakeroot-hurd to clean all resources including the
+      fakeroot translator on exit
+    <teythoon_> for fakeroot-hurd (or any child translator) this means that a
+      port from the control port class will still exists
+    <teythoon_> so we do not exit
+    <teythoon_> oh, you're speaking of fakeroot.sh ? the wrapper script ?
+    <braunr> probably
+    <braunr> for me, fakeroot-hurd is the command line too, similar to
+      fakeroot-sysv and fakeroot-tcp
+    <braunr> and fakeroot is the translator
+    <teythoon_> yes, agreed
+    <teythoon_> fakeroot-hurd could use settrans --force --chroot ... to force
+      fakeroot to exit if the main chrooted process dies
+    <teythoon_> but that'd kill anything that outlives that process
+    <teythoon_> that might be legitimate, say a process daemonized
+    <teythoon_> so detecting that noone uses fakeroot is the much cleaner
+      solution
+    <braunr> ok
+    <teythoon_> also, that's what fakeroot-tcp does
+    <braunr> which is why i suggested an option for that
+    <teythoon_> why add an option if we can do the right thing without
+      troubling the user ?
+    <braunr> ah, if we can, good
+    <teythoon_> i think we can
+    <teythoon_> I'll rework the patch, thanks for the hint
+    <braunr> so
+    <braunr> just to be clear
+    <braunr> the way you intend it to work is
+    <braunr> wait for all clients and the control port to drop before shutting
+      down
+    <braunr> the control port is dropped when dettaching the translator, right
+      ?
+    <teythoon_> yes
+    <braunr> but hm
+    <braunr> what if clients spawn other processes ?
+    <braunr> they won't find the translator any more
+    <teythoon_> then, that client get's a port to fakeroot at least for it's
+      working dir
+    <teythoon_> so another protid is created
+    <braunr> ah yes, it's usually choorted for such uses
+    <braunr> chrooted
+    <teythoon_> so fakeroot will stick around
+    <braunr> but clients, even from fakeroot, might simply use absolute paths
+    <teythoon_> so ?
+    <braunr> in which case they won't find fakeroot
+    <teythoon_> it will hit fakeroots dir_lookup
+    <teythoon_> sure
+    <braunr> how so ?
+    <teythoon_> if the path is absolute, it will trigger a magic retry of some
+      kind
+    <teythoon_> so the client uses it's root dir port
+    <braunr> i thought the lookup would be done straight from the root fs port
+      ..
+    <teythoon_> which points to fakeroot of course
+    <braunr> ah, chrooted again
+    <teythoon_> that's the whole point
+    <braunr> so this implies clients are chrooted
+    <teythoon_> they are
+    <teythoon_> even if you do another chroot
+    <braunr> what i mean is
+    <teythoon_> that root port also points to a fakeroot port
+    <braunr> if we detach the translator, and clients outside the chroot spawn
+      processes, say shell scripts, they won't find the fakeroot tree
+    <braunr> now, i wonder if we want to actually handle that
+    <braunr> i'm just uncomfortable with a translator silently shutting down
+      because it has no client
+    <teythoon_> if fakeroot is detached, how are clients outside the chroot
+      ever supposed to get a handle to files inside the fakerooted env ?
+    <braunr> it makes sense for fakeroot, so the expected behaviours here aer
+      conflicting
+    <braunr> they had those before fakeroot being detached
+    <teythoon_> then fakeroot wouldn't go away
+    <braunr> right
+    <braunr> unless there is a race but i don't think there is
+    <teythoon_> there isn't
+    <teythoon_> i call netfs_shutdown
+    <braunr> clients get the rights before the parent has a chance to terminate
+    <teythoon_> and only shutdown if it doesn't return ebusy
+    <braunr> makes sense
+    <braunr> ok go ahead :)
+    <teythoon_> cool, thanks for the walk-through ;)
+    <braunr> on the other hand ..
+    <braunr> that's a complicated topic left unfinished by the original authors
+    <teythoon_> one of many
+    <braunr> having translators automatically go away when there is no client
+      may be a good feature
+    <braunr> but it only makes sense for passive translators
+    <braunr> and this should be automated
+    <braunr> the lib*fs libraries should be able to handle it
+    <teythoon_> or, we could go for proper persistence instead
+    <braunr> stay around if active, leave after a while when no more clients if
+      passive
+    <braunr> why ?
+    <teythoon_> clean solution
+    <braunr> persistence looks much more expensive to me
+    <teythoon_> other benefits
+    <braunr> i mean
+    <braunr> persistence looks so expensive it doesn't make sense in a general
+      purpose system
+    <teythoon_> sure, we could make our *fs libs handle this smarter at a much
+      lower cost
+    <teythoon_> don't we get a handle to the underlying file ?
+    <braunr> i think we do yes
+    <teythoon_> if that's actually a file and not a directory, we could store
+      data into it
+    <braunr> many translators are read-only
+    <teythoon_> so ?
+    <braunr> well, when we can write, we can use passive translators instead
+    <braunr> normally
+    <teythoon_> yes
+    <braunr> depends on the fs type actually but you're right, we could use
+      regular files
+    <braunr> or a special type of file, i don't know
+    <antrik> braunr: BTW, I agree that active translators should only go away
+      when no ports are open anymore, while passive ones can exit when control
+      ports are still open but no protids
+    <teythoon> antrik: you mean as a general rule ?
+    <teythoon> that leaves the question how the translator distinguishes
+      between having a passive translator record and not having one
+    <antrik> I believe I already arrived at that conclusion in some design
+      discussion, probaly regarding namespace-based translator selection
+    <antrik> teythoon: yeah, as a general rule
+    <teythoon> interesting
+    <antrik> currently there are command line arguments controling timeouts,
+      but they don't consider control ports IIRC
+    <teythoon> i thought there are problems with shutting down translators in
+      general
+    <antrik> (also, command line arguments seem inconvenient to distinguish the
+      passive vs. active case...)
+    <teythoon> yeah, but we disregard the timeouts in the debian flavor of hurd
+    <antrik> teythoon: err... no we don't. at least not last time I knew. are
+      you confusing this with thread timeouts?
+    <antrik> simple test: do ls -l on /dev, wait a few minutes, compare
+    <teythoon> what do you expect will happen ?
+    <antrik> the unused translators should go away
+    <teythoon> no
+    <antrik> that must be new then
+    <teythoon> might be, yes
+    <teythoon>
+      http://darnassus.sceen.net/gitweb/teythoon/packaging/hurd.git/blame/HEAD:/debian/patches/libports_stability.patch
+    <braunr> antrik: debian currently disables both the global and thread
+      timeouts in libports
+    <braunr> my work on thread destruction consists in part in reenabling
+      thread timeouts, and my binary packages do that well so far :)
+    <antrik> braunr: any idea why the global timeouts were disabled?
+
+
+## IRC, freenode, #hurd, 2013-12-20
+
+    <braunr> antrik: not sure
+    <braunr> but i suspect there could be races
+    <braunr> if a message arrives while the server is going away, i'm not sure
+      the client can determine this and retry transparently
+    <antrik> good point... not sure how that is supposed to work exactly
+
+
+## IRC, freenode, #hurd, 2013-12-31
+
+    <braunr> btw, we should remove the libports_stability patch and directly
+      change the upstream code
+    <braunr> if you agree, i can force the global timeout to 0 (because we're
+      still not sure what can go wrong when a translator goes away while a
+      message is being delivered to it)
+    <braunr> i didn't experience any slowdown with thread destruction however
+    <braunr> so i'm tempted to set that to an actual reasonable timeout value
+      of 30-300 seconds
+    <teythoon> braunr: if you do, please introduce a macro for the default
+      value so it can be changed easily
+    <braunr> teythoon: yes
+    <braunr> i don't understand why these are left as parameters tbh
+    <teythoon> true
+    <braunr> 30 seconds seems to be plenty enough
+
+
+## IRC, freenode, #hurd, 2014-01-17
+
+    <braunr> time to give fakeroot-hurd a shot
+    <braunr> http://darnassus.sceen.net/~rbraun/darnassus_fakeroot_hurd_assert
+    <teythoon> braunr: (wrt fakeroot-hurd) well in my book that shouldn't
+      happen
+    <teythoon> that's why i put the assertion there ;)
+    <braunr> i assumed so :)
+    <teythoon> then again, /me does not agree with "threads" as concurrency
+      model >,<, and that feeling seems to be mutual :p
+    <braunr> ?
+    <teythoon> well, obviously, the threads do not agree with me wrt to that
+      assertion
+    <braunr> the threads ?
+    <teythoon> well, fakeroot is a multithreaded server
+    <braunr> teythoon: i'm not sure i get the point, are you saying you're not
+      comfortable with threads ?
+    <teythoon> that's exactly what i'm saying
+    <braunr> ok
+    <braunr> coroutines/functional i guess ?
+    <teythoon> csp
+    <teythoon> functional not so much
+
+
+## IRC, freenode, #hurd, 2014-01-20
+
+[[open_issues/libpthread]],
+[[open_issues/libpthread/t/fix_have_kernel_resources]].
+
+    <braunr> teythoon: it's perfectly possible that the bug i had with
+      fakeroot-hurd have been caused by my own glibc thread related patches
+    <braunr> has*
+    <teythoon> ok
+    <teythoon> *phew* :p
+    <braunr> :)
+    <teythoon> i wonder if youpi could reproduce his issue on his machine
+    <braunr> what issue ?
+    <braunr> i must have missed something
+    <teythoon> some package failed
+    <teythoon> but he didn't gave any details
+    <teythoon> he wanted to try it on his vm first
+    <braunr> ok
+
+
+## IRC, freenode, #hurd, 2014-01-21
+
+    <braunr> teythoon: i still get the same assertion failure with
+      fakeroot-hurd
+    <braunr> will take a look at that sometimes too
+    <teythoon> braunr: hrm :/
+    <braunr> teythoon: don't worry, i'm sure it's nothing big
+    <braunr> in the mean time, there are updated hurd and glibc packages on my
+      repository with fixed tls and thread destruction
+    <teythoon> cool :)
+
+
+## IRC, freenode, #hurd, 2014-01-23
+
+    <braunr> teythoon: can you briefly explain this fake reference thing in
+      fakeroot when you have some time please ?
+    <teythoon> braunr: fakeroot creates ports to hand out to clients
+    <teythoon> every port represents a node and references a real node
+    <teythoon> fakeroot allows one to set attributes, e.g. file permissions on
+      any node as if the client was root
+    <teythoon> those faked attributes are stored in the node objects
+    <braunr> let's focus on fake_reference please
+    <teythoon> once some attribute is faked, that node has to be kept alive
+    <teythoon> otherwise, that faked information is lost
+    <teythoon> so if the last peropen object is closed and some information is
+      faked, a fake reference is kept
+    <teythoon> as indicated by a flag
+    <braunr> hm
+    <teythoon> in dir lookup, if a node is looked-up that has a fake reference,
+      it is recycled, i.e. the flag cleared and the referecne count is not
+      incremented
+    <teythoon> so every time fakeroot_netfs_release_protid is called b/c, the
+      node in question should not have the fake reference flag set
+    <braunr> what's the relation between the number of hard links and this fake
+      reference ?
+    <teythoon> i don'
+    <teythoon> i don't think fakeroot has a notion of 'hard links'
+    <braunr> it does
+    <braunr> the fake reference is added on nodes with a hard link count
+      greater than 0
+    <braunr> but i guess that just means the underlying node still exists
+    <teythoon> ah yes
+    <teythoon> right
+    <teythoon> currently, if the real node is deleted, the fake node is still
+      kept around
+    <braunr> let's say it's ok for now
+    <teythoon> that's what the comment is talking about, the one that indicates
+      that garbage collection could help here
+    <teythoon> yes
+    <teythoon> properly fixing this is difficult
+    <braunr> agreed
+    <braunr> it would require something like inotify anyway
+    <teythoon> b/c of the way file deletion works
+    <braunr> let's just ignore the issue, that's not what i'm hunting
+    <teythoon> agreed
+    <braunr> the assertion i have is telling us that we're dropping a fake
+      reference
+    <braunr> are we certain this isn't possible ?
+    <teythoon> that function is called if a client dereferences a port
+    <teythoon> in order to have a port in the first place, it has to get it
+      from a dir_lookup
+    <teythoon> the dir lookup turns a fake reference into a real one
+    <teythoon> so i'm certain of that (barring a race condition somewhere)
+    <braunr> ok
+    <braunr> netfs_S_dir_lookup grabs idport_ihash_lock (line 354) but doesn't
+      release it if nn == NULL (lines 388-392)
+    <teythoon> hm, my file numbers are slightly different o_O
+    <braunr> i have printfs around
+    <braunr> sorry :)
+    <teythoon> ok
+    <teythoon> new node unlocks it
+    <teythoon> new_node
+    <braunr> oh
+    <braunr> how unintuitive ..
+    <teythoon> yes, don't blame me ;) that's how it was
+    <braunr> :)
+    <braunr> worse, the description says "if successful" ..
+    <braunr> ah no, the node lock
+    <braunr> ok
+    <teythoon> yes, badly worded description
+    <braunr> i strongly doubt it's a race
+    <teythoon> how do you trigger that assertion failure ?
+    <braunr> dpkg-buildpackage -rfakeroot-hurd -uc -us
+    <braunr> for the hurd package
+    <braunr> very similar to one of your test cases i think
+    <teythoon> umm :-/
+    <braunr> one thing that i find confusing is that fake_reference seems to
+      apply to nodes, whereas release_protid is about, well, protids
+    <braunr> is there a 1:1 relationship ?
+    <braunr> since there is a peropen in the protid, i assume not
+    <braunr> it may be a race actually
+    <braunr> np->references must be accessed with netfs_node_refcnt_lock locked
+    <braunr> hm no, that's not it
+    <teythoon> no, it's not a 1:1 relationship
+    <teythoon> note that the lock idport_ihash_lock serializes most operations,
+      despite it's name indicating that it's only for the hash table
+    <teythoon> the "interesting" operations being dir_lookup and release_protid
+    <braunr> yes
+    <braunr> again, that's another issue
+    <teythoon> why ? that's a pretty strong guarantee already
+    <braunr> ah yes, i was referring to scalability
+    <teythoon> sure
+    <braunr> the assertion is triggered from ports_port_deref in
+      ports_manage_port_operations_multithread
+    <teythoon> but i found it hard to reason about fakeroot, there are multiple
+      locks involved, two kinds of reference counting across different libs
+    <braunr> yes
+    <teythoon> yes, that's to be expected
+    <braunr> teythoon: do we agree that the fake reference is reused by a
+      protid ?
+    <teythoon> braunr: yes
+    <braunr> why is there a ref counter for the protid as well as the peropen
+      then ? :/
+    <teythoon> funny... i thought there was no refcnt for the peropen objects,
+      but there is
+    <teythoon> but for fakeroot-hurd that shouldn't matter, right ?
+    <braunr> i don't know
+    <teythoon> here, one protid object is associated with one peropen object
+    <braunr> yes
+    <teythoon> and the other way around, i.e. it's 1:1
+    <teythoon> so the refcount for those should be identical
+    <braunr> but i get a case where protid has a refcnt of 0 while the peropen
+      has 2 ..
+    <teythoon> umm, that doesn't sound right
+    <braunr> teythoon: ok, it does look like a race on np->references
+    <braunr> node references are protected by a global lock in lib*fs libs
+    <teythoon> yes
+    <braunr> you check it without holding it
+    <braunr> which means another protid can be closed at the same time, setting
+      the flag on the underlying node
+    <braunr> i'll make a proper patch soon
+    <teythoon> they cannot both hold the hash lock
+    <braunr> hm
+    <braunr> teythoon: actually, i don't see why that's relevant
+    <braunr> one thread closes its protid, sets the fakeref flag
+    <braunr> the other does the same, chokes on the assertion
+    <braunr> serially
+    <teythoon> i'm always a little fuzzy when exactly the references get
+      decremented
+    <teythoon> but shouldn't only the second thread set the fakeref flag ?
+    <braunr> well, that's not what i see
+    <braunr> i'll check what happens to this ref counter
+    <teythoon> see how my release_protid function calls netfs_release_protid
+      just after the out label
+    <teythoon> *while holding the big hash lock
+    <teythoon> so, any refcounting should happen while the lock is being held,
+      no ?
+    <braunr> perhaps
+    <braunr> now, my logs show something new
+    <braunr> a case where the protid being released was never printed before
+    <braunr> i.e. not obtained from dir_lookup
+    <braunr> or at least, not fakeroot dir_lookup
+    <teythoon> huh, where did it came from then ?
+    <braunr> no idea
+    <teythoon> only dir_lookup hands out those
+    <braunr> check_openmodes calls dir_lookup too
+    <teythoon> yes, but that's not our dir_lookup
+    <braunr> that's what i mean
+    <braunr> it bypasses fakeroot's custom dir_lookup
+    <braunr> but i guess the reference already exists at this point
+    <teythoon> bypass ? i wouldn't call it that
+    <braunr> you're right, wrong wording
+    <teythoon> it accesses files on other translators
+    <braunr> yes
+    <braunr> the netnode is already present
+    <teythoon> yes
+    <braunr> could it be the root node ?
+    <teythoon> i do not believe so
+    <teythoon> the root node is always faked
+    <teythoon> and is handed out to the first process in the fakeroot env for
+      it's current directory port
+    <teythoon> so you could try something that chdirs away to test that
+      hypothesis
+    <braunr> the assertion looks triggered by a chdir
+    <teythoon> how do you know that ?
+    <braunr> dh_auto_install: error: unable to chdir to build-deb
+    <teythoon> ah
+    <teythoon> well, or that is just the operation after fakeroot died and
+      completely unrelated
+    <braunr> maybe
+    <teythoon> can you trigger this reliably ?
+    <braunr> yes
+    <braunr> i'm trying to write a shell script for that
+    <teythoon> so for you, fakeroot-hurd never succeeded in building a hurd
+      package ?
+    <braunr> no
+    <teythoon> on darnassus ?
+    <braunr> yes
+    <teythoon> b/c i stopped working on fakeroot-hurd when it was in a
+      good-enough shape to build the hurd package
+    <teythoon> >,<
+    <teythoon> maybe my system is not fast enough to hit this race (if it turns
+      out to be one)
+    <braunr> some calls seems to decrease the refcount of the root node
+    <braunr> call*
+    <teythoon> have you confirmed that it's the root node ?
+    <braunr> almost
+    <braunr> i could say yes
+    <braunr> teythoon: actually no, it's not ..
+    <braunr> could be ..
+    <braunr> teythoon: on what node does fakeroot-hurd install the fakeroot
+      translator when used to build debian packages ?
+    <braunr> hum
+    <braunr> could it simply be that the check on np->references should be
+      moved above the assertion ?
+    <teythoon> braunr: it is not bound to any node, check settrans --chroot
+    <braunr> oh right
+    <braunr> teythoon: ok i mean
+    <braunr> does it shadow / ?
+    <braunr> looks very likely, otherwise the chroot wouldn't work
+    <teythoon> i'm not sure what you mean by shadow
+    <braunr> settrans --chroot cmd -- / /hurd/fakeroot ?
+    <teythoon> but yes, for any process in the chroot-like env every real node
+      is replaced, including /
+    <braunr> makes sense
+    <braunr> teythoon: moving the assertion seems to fix the issue
+    <braunr> intuitively, it seems reasonable to assume the fakeref flag can
+      only be set when there is only one reference, namely the fake reference
+    <braunr> (well, the fake ref, recycled by the last open)
+    <teythoon> no, i don't follow
+    <teythoon> i'd still say, that if ...release_protid is called, then there
+      is no way for the fake flag to be set in the first place
+    <teythoon> that's why i put the assertion in ;)
+    <braunr> on the other hand, you check the refcnt precisely because other
+      threads may have reacquired the node
+    <teythoon> but why would moving the assertion change anything ?
+    <teythoon> if we would do that, we'd "lose" all threads that see
+      np->reference being >1
+    <teythoon> but for those objects the fake_reference flag should never be
+      set anyways
+    <teythoon> i cannot see why this would help
+    <teythoon> (does it help ?)
+    <teythoon> (and if it does, it points to a serious problem imho)
+    <braunr> i'm recreating the traces that made me think that
+    <braunr> to get a clearer view of what's happening
+    <braunr> the problem i have with the current code is this
+    <braunr> there can be multiple protid referring to the same node occurring
+      at the same time
+    <braunr> they are serialized by the hash table lock, ok
+    <braunr> but there apparently are cases where the first (of two) protids
+      being closed sets the fakeref flag
+    <braunr> and the following chokes because the flag is set
+    <braunr> i assume you put this refcount check because you assumed only the
+      last protid being closed can set the flag, right ?
+    <braunr> but then, why > 1 ? why not > 0 ?
+    <teythoon> yes, that's what i was trying to assert
+    <teythoon> b/c the 1 is our reference
+    <braunr> which one exactly ?
+    <teythoon> >1 is anyone *beside* us
+    <teythoon> ?
+    <braunr> hm
+    <braunr> you mean the reference held by the protid being destroyed
+    <teythoon> yes
+    <braunr> isn't that reference already dropped before calling the cleanup
+      function ?
+    <braunr> ah no, it's the node ref
+    <teythoon> yes
+    <braunr> released by netfs_release_protid
+    <teythoon> exactly
+    <braunr> which is called without the hash table lock held
+    <braunr> hm no
+    <braunr> it's locked
+    <braunr> damn my brain is slow today
+    <teythoon> i actually think that it's the combination of manual reference
+      counting and the primitive concurrency model that makes it hard to reason
+      about this
+    <braunr> well
+    <braunr> the model is quite simple too
+    <braunr> accesses to refcounters must be protected by the appropriate lock
+    <braunr> this isn't done here, on the assumption that all referencing
+      operations are protected by another global lock all the time
+    <teythoon> even if a model is simple, this does not mean that it is a good
+      model for human beings to comprehend and reason about
+    <braunr> i don't know
+    <braunr> note that netfs_drop_node is designed to be called with
+      netfs_node_refcnt_lock locked
+    <braunr> implying the refcount must remain stable between checking it and
+      dropping the node
+    <braunr> netfs_make_peropen is called without the hash table lock held in
+      dir_lookup
+    <braunr> and this increases the refcount
+    <braunr> although the problem is rather that something decreases it without
+      the lock held
+    <teythoon> we should port libtsan and just ask gcc -fsanitize=thread
+    <braunr> what about the netfs_nput call at the end of dir_lookup ?
+    <braunr> the fake ref should be set by the norefs function
+    <teythoon> that should not decrease the count to 0 b/c the caller holds a
+      reference too
+    <braunr> yes that's ugly
+    <braunr> ugh
+    <braunr> i'm unable to think clearly right now
+    <teythoon> as mentioned in the commit message, you cannot do something like
+      this in the norefs function
+    <teythoon> bbl ;)
+    <braunr> bye teythoon 
+    <braunr> thanks for your time
+    <braunr> for when you come back :
+    <braunr> instead of maintaining this "fake" reference, why not assumeing
+      the hash table holds a reference, and simply count it
+    <braunr> the same way a cache does
+    <braunr> and drop that reference when removing a node, either to reflect
+      the current state of the underlying node, or because the translator is
+      being shut down ?
+    <braunr> why not assume*
+    <braunr> bbl too
+    <teythoon> sure, refactoring is definitively an option
+
+
+## IRC, freenode, #hurd, 2014-01-24
+
+    <braunr> teythoon: ok, i'll take care of fakeroot
+    <teythoon> braunr: thanks. tbh i was a little fed up with that little
+      bugger >,<
+    <braunr> i can imagine
+    <braunr> considering the number of patches you've sent already
+
+    <braunr> teythoon: are you sure about your call to fshelp_lock_init ?
+    <teythoon> yes, why do you ask ?
+    <teythoon> (the test case is given in the commit message)
+    <braunr> it doesn't look right to me to call "init" while the node is
+      potentially locked
+    <braunr> i noticed libdiskfs peropen release function takes care of
+      releasing locks
+    <braunr> it looks better to me
+    <teythoon> it's not about releasing the lock
+    <teythoon> it's about faking the file being closed which implicitly
+      releases the lock
+    <braunr> the file is being close
+    <braunr> closed
+    <braunr> since it's in the cleanup function
+    <teythoon> yes, but we keep it b/c the file has faked attributes
+    <teythoon> did you look at the problem description in the commit message ?
+    <braunr> we keep the node
+    <braunr> not the peropen
+    <teythoon> so ?
+    <teythoon> the lock is in the node
+    <braunr> why would libdiskfs do it in the peropen release then ?
+    <braunr> there is an inconsistency somwhere
+    <braunr> actually, the lock looks to be per open
+    <braunr> or rather, the lock is per node, but its status is recorded per
+      open
+    <braunr> allowing the implementation to track if a file descriptor was used
+      to install a lock and release it when that file descriptor goes away
+    <teythoon> why would the node be locked ?
+    <teythoon> locked in what way, file-locking locked ?
+    <braunr> yes
+    <braunr> posix explicitely says that file locks must be implicitely removed
+      when closing the file descriptor used to install them, so that makes
+      sense
+    <teythoon> isn't hat exactly what i'm doing ?
+    <braunr> no
+    <braunr> you're initializing the file lock
+    <braunr> init != unlock
+    <braunr> and it's specific to fakeroot, while it looks like libnetfs should
+      be doing it
+    <teythoon> libnetfs would do it
+    <teythoon> but we prevent that by keeping the node alive
+    <braunr> again, it's a per open thing
+    <braunr> and no, libnetfs doesn't release locks implicitely in the current
+      version
+    <teythoon> didn't we agree that for fakeroot one peropen object is
+      associated with one protid object ?
+    <braunr> yes
+    <braunr> and don't keep those alive
+    <braunr> so let them die peacefully, and fix libnetfs so it releases the
+      lock as it's supposed to
+    <braunr> and we* don't
+    <teythoon> we don't keep those alive
+    <teythoon> why would we ?
+    <braunr> yes that's what i wanted to say
+    <braunr> what i mean is
+    <braunr> since letting peropens die is already what is being done
+    <braunr> there is no need for a special handling of locks in fakeroot
+    <teythoon> oh
+    <braunr> on the other hand, libnetfs must be fixed
+    <teythoon> ok, that might very well be true
+    <teythoon> (we need to bring libnetfs and diskfs closer so that they can be
+      diff'ed easily)
+    <braunr> i just wanted to check your reason for using lock_init in the
+      first place
+    <braunr> yes ..
+    <braunr> teythoon: also, i think we actually do have what's necessary to
+      deal with garbage collection
+    <braunr> namely, dead-name notifications
+    <braunr> i'll see if i can cook something simple enough
+    <braunr> otherwise, merely keeping every node around is also acceptable
+      considering the use cases
+    <teythoon> dead-name notifications won't help if the real node disappears,
+      no ?
+    <braunr> teythoon: dead name notifications on the real node port :)
+    <braunr> teythoon: at least i can reliably build the hurd package using
+      fakeroot-hurd now
+    <braunr> let's try glibc :)
+
+## IRC, freenode, #hurd, 2014-01-25
+
+    <teythoon> braunr: awesome :)
+    <braunr> teythoon: hm not sure :/
+    <braunr> darnassus got oom
+    <braunr> teythoon: could be unrelated though
+    <braunr> teythoon: something has apprently made /home unresponsive :(
+    <braunr> teythoon: i suspect bots hitting apache and in particular the git
+      repositories to have increased memory usage
+
+
+## IRC, freenode, #hurd, 2014-01-26
+
+    <braunr> teythoon: btw, fakeroot interacts very very badly with other netfs
+      file systems
+    <braunr> e.g., listing /proc through it creates lots of nodes
+    <braunr> i'm not yet sure how to fix that
+    <braunr> using a dead name notification doesn't seem appropriate (at least
+      not directly) because fakeroot holds a true reference that prevents the
+      deallocation of the target node
+
+
+## IRC, freenode, #hurd, 2014-01-27
+
+    <braunr> teythoon: good news (more or less): fakeroot is actually leaking a
+      lot when crossing file systems
+    <braunr> which means if i fix that, there is a good chance we can use it to
+      build all packages with it
+    <braunr> -with it
+    <teythoon> what do you mean exactly ?
+    <braunr> if target nodes are from /, there is no such leak
+    <braunr> as soon as the target nodes are from another file system, ports
+      rights are leaked
+    <braunr> that's what fills the kernel allocator actually
+    <teythoon> oh, so dir_lookup leaks ports when crossing translator
+      boundaries ?
+    <braunr> seems so
+    <teythoon> yeah, that might very well be it
+    <teythoon> the dir_lookup logic in lib*fs is quite involved :/
+    <braunr> yes, my simple attempts were unsuccessful
+    <braunr> but i'm confident i can fix it soon
+    <teythoon> that sounds good :)
+    <braunr> i also remove the fake_ref flag and replace it with "accounting
+      the reference in the hash table" as soon as a node is faked
+    <teythoon> fine with me
+    <braunr> these will be the expected leak
+    <braunr> but they're far less in numbers than what i observe
+    <braunr> and garbage collection can be implemented later
+    <braunr> although i would prefer notifications a lot more
+    <braunr> end of the news, bbl :)
+    <braunr> found it :>
+    <teythoon> braunr: -v ;)
+    <braunr> err = dir_lookup (...);
+    <braunr> if (dir != dnp->nn->file) mach_port_deallocate (mach_task_self (),
+      dir);
+    <braunr> in other words, deallocate ports for intermediate file system root
+      directories .. :)
+    <braunr> teythoon: currently building hurd and glibc packages
+    <braunr> but i intend to improve some more with the addition of a default
+      faked state
+    <braunr> so that only nodes with modified faked states are retained
+    <teythoon> how do you mark nodes as having the default faked state ?
+    <braunr> i don't
+    <teythoon> ok, right, makes sense :)
+    <teythoon> this sounds awesome, thanks for following up on this
+    <braunr> i'm quite busy with other stuff so, with proper testing, it should
+      take me the week to get merged
+    <braunr> teythoon: well thanks for all the fixes you've done
+    <braunr> fakeroot was completely unusable before that
+    <teythoon> if you push your changes somewhere i'll integrate them into my
+      packages and test them
+    <braunr> ok
+    <braunr> implementing fakeroot -u could also be a good thing
+    <braunr> and this should work easily with that default faked state strategy
+
+
+## IRC, freenode, #hurd, 2014-01-28
+
+    <braunr> teythoon: i should be able to test fakeroot-hurd with the default
+      faked attributes strategy today on glibc
+    <teythoon> braunr: very nice :)
+    <braunr> azeem_: do you happen to know if fakeroot -u is used by debian ?
+    <braunr> i mean when building packages
+    <teythoon> braunr: how does fakeroot-hurd perform on darnassus ?
+    <teythoon> i mean, does it yield a noticeable improvement over fakeroot-tcp
+      just like on my slow box ?
+    <braunr> i'm not measuring that :/
+    <teythoon> ok, no problem
+    <braunr> and since nodes are removed from the hash table, performance might
+      decrease slightly
+    <braunr> but the number of rights is kept very low, as expected
+    <teythoon> that's good
+    <braunr> i keep seeing leaks though
+    <braunr> when switching cwd between file systems
+    <teythoon> humm
+    <braunr> so i assume something is wrong with the identity of . or ..
+    <braunr> it's so insignificant compared to the previous problems that i
+      won't waste time on that
+    <braunr> teythoon: the problem with measuring on darnassus is that it's a
+      public machine
+    <teythoon> right
+    <braunr> often scanned by ssh worms or http bots
+
+[[cannot_create__dev_null__interrupted_system_call]].
+
+    <braunr> but it makes complete sense to get better performance with
+      fakeroot-hurd
+    <braunr> that's actually one of the reasons i'm working on it
+    <braunr> if not the main one
+    <teythoon> :)
+    <teythoon> that was my motivation too
+    <braunr> it shows how you can get an interchangeable unix tool that
+      directly plugs well with the low level system
+    <braunr> and make it work better
+    <teythoon> nicely put :)
+
+    <braunr> teythoon: i still can't manage to build glibc with fakeroot-hurd
+    <braunr> but i'm not sure why :/
+    <braunr> there was no kernel memory exhaustion this time
+    <teythoon> :/
+    <braunr> cp: cannot create regular file `debian/libc-bin.dirs': Permission
+      denied
+    <braunr> hum
+    <braunr> youpi: do you know if building debian packages requires fakeroot
+      -u option ?
+    <youpi> I don't know
+    <gg0> braunr: man dpkg-buildpackage says it just runs "fakeroot
+      debian/rules <target>"
+    <gg0> sources confirm that
+      http://sources.debian.net/src/dpkg/1.17.6/scripts/dpkg-buildpackage.pl#L465
+    <braunr> gg0: ok
+
+
+## IRC, freenode, #hurd, 2014-01-29
+
+    <braunr> it seems that something sets the permissions of this
+      debian/libc-bin.dirs file to 000 ...
+    <teythoon> i've seen this too
+    <braunr> oh
+    <braunr> do you think it's a fakeroot-hurd bug ?
+    <teythoon> have i mentioned something like this in a commit message ?
+    <teythoon> yes
+    <teythoon> it is
+    <braunr> ok
+    <braunr> i didn't see any mention of it
+    <braunr> but i could have missed it
+    <teythoon> hm, i cannot recall it either
+    <teythoon> but i've seen this issue with fakeroot-hurd
+    <braunr> ok
+    <braunr> it's probably the last issue to fix to get it to work for our
+      packages
+    <braunr> teythoon: i think i have a solution for that last mode bug
+    <braunr> fakeroot doesn't relay chmod requests, unless they change an
+      executable bit
+    <braunr> i don't see the point, and simply removed that condition to relay
+      any chmod request
+    <teythoon> braunr: did it work ?
+    <braunr> no
+    <braunr> fakeroot still consumes too many ports
+    <braunr> and for each file, there are at least two ports, the faked one,
+      and the real one
+    <braunr> it should be completely reworked
+    <braunr> but i don't have time to do that
+    <braunr> i'll see if it works when building from scratch
+    <braunr> actually, it's not even a quantity problem but a fragmentation
+      problem
+    <braunr> the function that fails is kmem_realloc ..
+    <braunr> ipc spaces are arrays in kernel space ....
+    <teythoon> it's more like three ports per file, you forgot the identity
+      port
+    <braunr> ah yes
+
+
+## IRC, freenode, #hurd, 2014-02-03
+
+    <braunr> teythoon: i'll commit my changes on fakeroot tonight
+    <braunr> they do improve the tool, but not enough to build glibc with it
+    <teythoon> braunr: cool :), so how do we make it fully usable ?
+    <braunr> teythoon: i don't know ..
+    <braunr> i'll try re adding detection of nodes with no hard links for one
+    <braunr> but imho, it needs a rework based on what the real fakeroot does
+    <braunr> i won't work on it though
+
+    <braunr> teythoon: also, it looks like i've tested building glibc with a
+      wrong test binary of my fakeroot version :/
+    <braunr> so consider all test results irrelevant so far
+
+
+## IRC, freenode, #hurd, 2014-02-04
+
+    <braunr> fakeroot-hurd might turn out to be easily usable for our debian
+      packages with the fixed binary :)
+
+    <braunr> teythoon: hum, can you explain
+      672005782e57e049c7c8f4d6d0b2a80c0df512b4 (trans: fix locking issue in
+      fakeroot) when you have time please ?
+    <braunr> it looks like it introduces a deadlock by calling new_node (which
+      acquires the hash table lock) while dir is locked, violating the hash
+      table -> node locking order
+
+    <teythoon> braunr: awesome, then there still is hope for fakeroot-hurd :)
+
+    <braunr> teythoon: i've been able to build glibc packages several times
+      this night
+    <braunr> so except for this deadlock i've seen once, it looks good
+    <teythoon> right
+    <teythoon> that deadlock
+    <teythoon> right, it does indeed violate the partial order of the locks :-/
+
+    <braunr> teythoon: can you explain why you moved the lock in attempt_mkfile
+      please ?
+
+    <braunr> teythoon: i've just tested a fakeroot binary without the patch
+      introducing the deadlock, and glibc built without any problem
+    <teythoon> braunr: well, this is very good news :)
+    <braunr> teythoon: but i still wonder why you made this patch in the first
+      place, i don't want to revert it blindly and reintroduce a potential
+      regression
+    <teythoon> braunr: i thought i was fixing the order in which locks were
+      taken. if the commit message does not specify that it fixes an issue,
+      then i was probably just wrong and you can revert it
+    <braunr> oh ok
+    <braunr> good
+
+    <braunr> teythoon: another successful build :)
+    <braunr> i'll commit my changes
+    <teythoon> awesome :)
+    <braunr> there might still be concurrency issues but it's much better
+    <teythoon> i'm curious what you did :)
+    <braunr> so little :)
+    <braunr> i was sick all week heh
+    <braunr> you'll se
+    <braunr> see
+    <teythoon> well, that's good actually ;)
+    <braunr> yes
+
+    <braunr> teythoon: actually there was another debugging line left over, and
+      again, my test results are irrelevant @#!
+
+
+## IRC, freenode, #hurd, 2014-02-05
+
+    <braunr> teythoon: i got an assertion about nn->np->nn not being equal to
+      nn atfer the hash table lookup is dir_lookup
+    <braunr> +failure
+    <teythoon> that's bad
+    <braunr> not over yet
+    <teythoon> i had a couple of those too
+    <teythoon> i guess it's a use after free
+    <braunr> yes
+    <teythoon> i used to poison the pointers and comment out the frees to track
+      them down iirc
+    <braunr> teythoon: one of your patches stores netnodes instead of nodes in
+      the hash table, citing some overwriting issue
+    <braunr> teythoon: i don't understand why using netnodes fixes this
+    <teythoon> braunr: libihash has this cookie for fast deletes
+    <teythoon> that has to be stored somewhere
+    <teythoon> the node structure has no room for it
+    <braunr> uh
+    <teythoon> yes
+    <teythoon> it was that bad
+    <braunr> ...
+    <teythoon> hence the uglyish back pointers
+    <braunr> i see
+    <teythoon> looking back i cannot even say why it worked at all
+    <braunr> well, it didn't
+    <teythoon> i believe libihash must have destroyed a linked list in the node
+      struct
+    <braunr> possibly
+    <teythoon> no, it did not >,<, but for simple tests it kind of did
+    <braunr> yes fakeroot sometimes corrupts memory badly ....
+    <braunr> and yes, turns out the assertion is triggered on nodes with 0 refs
+      ..
+    <braunr> teythoon: it looks like even the current version makes wrong usage
+      of the ihash interface
+    <braunr> locp_offset is defined as "The offset of the location pointer from
+      the hash value"
+    <braunr> and indeed, it's an intptr_t
+    <braunr> teythoon: hm no, it looks ok actually, forget what i said :)
+    <teythoon> *phew
+    <teythoon> :p
+
+    <braunr> hmm, still occasional double frees in fakeroot, but it looks in
+      good shape for single threaded tasks like package building
+
+    <braunr> teythoon: i've just sent my fakeroot patches
+    <teythoon> braunr: sweet, i'll have a closer look tomorrow :)
+    <braunr> teythoon: i couldn't debug the double frees though :/
+
+
+## IRC, freenode, #hurd, 2014-02-06
+
+    <braunr> btw, i'm able to successfully use fakeroot-hurd to build glibc
+      packages, but is there a way to make sure the resulting archives contain
+      the right privileges and ownerships ?
+    <youpi> I don't remember whether debdiff checks permissions
+
+    <youpi> braunr: I've just got  fakeroot-hurd debian/rules clean
+    <youpi> dh_clean 
+    <youpi> fakeroot: ../../trans/fakeroot.c:161: netfs_node_norefs: Assertion
+      `np->nn->np == np' failed.
+    <youpi> while building eglibc
+    <teythoon> youpi: yes, that lockup is most annoying... :/
+    <braunr> youpi: with the new version ?
+    <youpi> yes
+    <braunr> hum
+    <braunr> i only had rare double frees, not that any more :/
+    <braunr> youpi: ok i got the error too
+    <braunr> still not good enough
+    <youpi> ok
+
+
+## IRC, freenode, #hurd, 2014-02-07
+
+    <braunr> youpi: debdiff seems to handle permissions
+    <braunr> i've found the cause of the assertions
+    <youpi> braunr: groovie :)
+
+
+## IRC, freenode, #hurd, 2014-02-08
+
+    <teythoon> braunr: nice :)
+    <braunr> http://darnassus.sceen.net/~rbraun/debdiff_report
+
+
+## IRC, freenode, #hurd, 2014-02-10
+
+    <braunr> and, on a completely different topic, here is a crash i can
+      reproduce when using fakeroot:
+      http://darnassus.sceen.net/~rbraun/fakeroot_hurd_rpctrace_o_var_tmp_out_rm_rf_dir.png
+
+
+## IRC, freenode, #hurd, 2014-02-11
+
+    <braunr> still working on fakeroot
+    <braunr> there are still races (not disturbing for package building but
+      still ..)
+    <braunr> there may be wrong right handling
+    <teythoon> i believe i have witnessed a fakeroot deadlock :/
+    <braunr> aw
+    <teythoon> not sure though, buildbot killed the build process before i
+      could investigate
+    <braunr> teythoon: was it a big package ?
+    <teythoon> half of the hurd package
+    <braunr> that's not a port right overflow then

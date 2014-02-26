@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2012, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -23,3 +24,91 @@ IRC, freenode, #hurd, 2011-10-21:
     <youpi> it's simply on the so-long TODO list
 
 [[glibc/t/tls-threadvar]].
+
+2012-12-28:
+
+Hurd commit 3a3fcc811e6b50b21124a5c5a128652e788a3b67 `libports: remove the
+threadvars stack size hack`.
+
+IRC, freenode, #hurd, 2014-01-09:
+
+    <teythoon> braunr: i'm afraid it might be your patch 3a3fcc81 that breaks
+      proc
+    <teythoon> w/ the current debian libc that is
+    <teythoon> braunr: i reverted that patch and now it boots again
+    <gnu_srs> is alternate stack and arbitrary stack sizes supported by now, or
+      upcoming?
+    <braunr> gnu_srs: supported
+    <braunr> well
+    <braunr> considering what teythoon just said, maybe not
+    <gg0> need to remove __pthread_stack_default_size from
+      libpthread_hurd_cond_wait patch too i guess
+    <braunr> teythoon: i don't understand why this change has any negative
+      effect :/
+    <braunr> or
+    <braunr> hm no ..
+    <braunr> there may be a bug in the latest glibc, where changing the stack
+      is allowed on the ground that threadvars have been replaced with tls, but
+      the libpthread stack handling code does it wrong
+    <braunr> see 714413a7694ff534855e9e5904899695eac6c9bb in libpthread
+    <braunr> which the thread destruction patches already did before it was
+      fixed in libpthread
+    <braunr> and may explain why my packages work
+
+
+IRC, freenode, #hurd, 2014-01-14:
+
+    <youpi> teythoon: Mmm, I tried to update to the latest hurd commits, but
+      init dies early at boot
+    <youpi> exec init proc auth, and then init crashes
+    <youpi> downgrading libports to previous makes the issue go away
+    <braunr> youpi: previous ?
+    <youpi> previous debian package
+    <braunr> which patch makes it fail ?
+    <youpi> I'm bisecting
+    <braunr> i remember teythoon saying he had failures with the patch that
+      removes the threadvars stack size hack
+    <youpi> I'll try that already, ok
+    <youpi> yes, boots fine without this change
+    <braunr> ok
+    <youpi> perhaps some missing patches in the current 2.17-97 glibc
+    <braunr> or libpthread reacting badly to new stack sizes
+    <braunr> is 714413a7694ff534855e9e5904899695eac6c9bb included in your glibc
+      ?
+    <braunr> (714413a7694ff534855e9e5904899695eac6c9bb from libpthread)
+    <braunr> or maybe that's not the problem
+    <braunr> anyway, it's normally fixed with the thread destruction patch
+    <braunr> i did test it and checked the stack size were correct
+    <braunr> sizes*
+    <youpi> yes, debian's glibc has it
+    <youpi> ok
+    <youpi> so that can wait
+    <braunr> is 959f7365fccd1c89be9938c2655eba9122171e6a (Drop threadvars
+      entirely) also in your glibc ?
+    <youpi> yes
+    <braunr> that's weird :/
+    <braunr> the only thing i can think of is __pthread_stack_alloc miserably
+      failing with 2M stacks and "many" threads for some odd reason ..
+    <braunr> anyway, see you tomorrow
+    <gg0> hurd-i386/libpthread_hurd_cond_wait.diff keeps using
+      __pthread_stack_default_size. isn't it the problem?
+    * youpi wonders what that change is doing there
+    <youpi> and it's there from the start of that patch...
+    <braunr> +  if (&__pthread_stack_default_size != NULL)
+    <braunr> checks if the symbol is actually resolved
+    <braunr> that's what allows regular applications to work
+    <braunr> it should be the same for hurd servers
+
+
+# sigaltstack
+
+Likewise, `sigaltstack` is not usable at the moment.
+
+IRC, freenode, #hurd, 2014-02-25:
+
+    <gnu_srs> braunr: are the split/alternate stack etc problems solved by now
+      so gccgo can work properly?
+    <braunr> i don't know
+    <braunr> i suspect it wouldn't require much work now that tls is well
+      supported
+    <youpi> alternate stack is supposed to be working

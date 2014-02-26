@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011, 2012, 2013 Free Software Foundation,
+[[!meta copyright="Copyright © 2011, 2012, 2013, 2014 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -98,6 +98,146 @@ License|/fdl]]."]]"""]]
 
     <teythoon> more complete, now with index:
       https://teythoon.cryptobitch.de/qa/2013-10-17/scan-build-2/
+
+
+### IRC, freenode, #hurd, 2013-11-04
+
+    <teythoon> btw, why does the nested functions stuff needs the executable
+      stack? for trampolines?
+    <braunr> yes
+    <teythoon> I didn't even realize that, that's one more reason to avoid them
+      indeed
+
+    <teythoon> braunr: kern/slab.c (1471): vm_size_t info_size = info_size;
+    <braunr> yes ?
+    <teythoon> braunr: what's up with that?
+    <braunr> that's one way to silence gcc warnings about uninitialized
+      variables
+    <braunr> this warning can easily result in false positives when gcc is
+      unable to determine dependencies
+    <braunr> e.g. if (flag & FLAG_CREATE) myvar = create(); ...; ... if (flag &
+      FLAG_CREATE) use(myvar)
+    <teythoon> well, ok, that's a shortcomming of gcc
+    <teythoon> braunr: your way of silencing that in gcc still shows up in
+      scan-build and most likely any more advanced analysis tool
+    <teythoon> as it should of course, but it is noisy
+    <braunr> teythoon: there is a gcc attribute for that
+    <braunr> __attribute__((unused))
+    <braunr> analysis tools might know that better
+    <teythoon> braunr: could you have a quick look at
+      http://darnassus.sceen.net/~teythoon/qa/gnumach/scan-build/2013-11-04/report-mXqstT.html#EndPath
+      ?
+    <braunr> nice
+    <braunr> anything else on the rbtree code ?
+    <teythoon> well
+    <teythoon>
+      http://darnassus.sceen.net/~teythoon/qa/gnumach/scan-build/2013-11-04/report-LyiOO1.html#EndPath
+    <teythoon> but this is of length 18, so it might be far-fetched
+    <braunr> ??
+    <teythoon> the length of the chain of argumentation
+    <braunr> i don't understand that issue
+    <braunr> isn't 18 the analysis step ?
+    <teythoon> well, the greater the length, the more assumption the tool
+      makes, the more likely it is that it just does not "get" some invariant
+    <braunr> probably yes
+    <braunr> the code can segfault if input parameters are invalid
+    <braunr> that's expected
+    <teythoon> right, looks like this only happens if the tree is invalid
+    <teythoon> if in line 349 brother->children[right] is NULL
+    <teythoon> this is a very good target for verification using frama-c
+    <braunr> :)
+    <teythoon> the code already has many assertions that will be picked up by
+      it automatically
+    <teythoon> so what about the dead store, is it a bug or is it harmless ?
+    <braunr> harmless probably
+    <braunr> certainly
+    <braunr> a simple overlook when polishing
+
+
+### IRC, freenode, #hurd, 2014-01-16
+
+    <mcsim> braunr: hi. Once, when I wrote a lot if inline gcc functions in
+      kernel you said me not to use them. And one of the arguments was that you
+      want to know which binary will be produced. Do you remember that?
+    <braunr> not exactly
+    <braunr> it seems likely that i advice not to use many inline functions
+    <braunr> but i don't see myself stating such a reason
+    <mcsim> braunr: ok
+    <mcsim> so, what do you think about using some high level primitives in
+      kernel
+    <mcsim> like inline-functions
+    <mcsim> ?
+    <braunr> "high level primitives" ?
+    <braunr> you mean switching big and important functions into inline code ?
+    <mcsim> braunr: something that is hard to translate in assembly directly
+    <mcsim> braunr: I mean in general
+    <braunr> i think it's bad habit
+    <mcsim> braunr: why?
+    <braunr> don't inline anything at first, then profile, then inline if
+      function calls really are a bottleneck
+    <mcsim> my argument would be that it makes code more readable
+    <braunr> https://www.kernel.org/doc/Documentation/CodingStyle <= see the
+      "inline disease"
+    <braunr> uh
+    <braunr> more readable ?
+    <braunr> the only difference is an inline keyword
+    <mcsim> sorry
+    <mcsim> i confused with functions that you declare inside functions
+    <mcsim> nested
+    <mcsim> forgot the word
+    <mcsim> sorry 
+    <braunr> ah nested
+    <braunr> my main argument against nested functions is that they're not
+      standard and hard to support for non-gcc tools
+    <braunr> another argument was that it required an executable stack but
+      there is apparently a way to reliably make nested functions without this
+      requirement
+    <braunr> so, at the language level, they bring nice closures
+    <braunr> the problem for me is at the machine level
+    <braunr> i don't know them well so i'm unable to predict the kind of code
+      they generate
+    <braunr> but i guess anyone who would take the time to study their
+      internals would be able to do that
+    <mcsim> and why this last argument is important?
+    <braunr> because machine code runs on machines
+    <braunr> one shouldn't ignore the end result ..
+    <braunr> if you don't know the implications of what you're doing precisely,
+      you loose control over the result
+    <braunr> if you can trust the tool, fine
+    <kilobug> mcsim: in general, when you use something you don't really
+      understand how it works internally, you've a much higher risk of making
+      bugs or inefficient code because you just didn't realize it couldn't work
+      or would be inefficient
+    <braunr> but in the case of a kernel, it often happens that you can't, or
+      at least not in a straightforward way
+    <braunr> s/loose/lose/
+    <mcsim> kilobug: and that's why for kernel programming you try to use the
+      most straightforward primitives as possible?
+    <braunr> no
+    <kilobug> mcsim: not necessarily the most straightforward ones, but ones
+      you understand well
+    <braunr> keeping things simple is a way to keep control complexity in any
+      software
+    <braunr> as long as you understand, and decouple complicated things apart,
+      you can keep things simple
+    <braunr> nested functions doesn't have to do with complexity
+    <braunr> don't*
+    <braunr> it's just that, since they're not standard and commonly used
+      outside gnu projects, they're not well known
+    <braunr> i don't "master" them
+    <teythoon> also, they decouple the data flow from the control flow
+    <teythoon> which in my book is bad for imparative languages
+    <teythoon> and support for them in tools like gdb is poor
+    <mcsim> braunr: I remembered nested functions because now I use C++ and I
+      question myself if I may use all these C++ facilities, like lambdas,
+      complicated templates and other stuff.
+    <mcsim> kilobug: And using only things that you understand well sounds
+      straightforward and logical
+    <braunr> that's why i don't write c++ code :)
+    <braunr> it's very complicated and requires a lot of effort for the
+      developer to actually master it
+    <braunr> mcsim: you can use those features, but sparsely, when they really
+      do bring something useful
 
 
 # Leak Detection

@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2011, 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2013, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -158,6 +159,9 @@ In context of [[select]].
     <braunr> my brain can't correctly compute variable sized types in mig
       definition files
     <braunr> i wanted something that would remain correct for the 64-bit port
+
+[[64-bit_port]], [[mig_portable_rpc_declarations]].
+
     <youpi> ah, you mean because tv_nsec is a long, which will not be the same
       type?
     <braunr> and tv_sec being a time_t (thus a long too)
@@ -208,3 +212,129 @@ In context of [[select]].
 
 
 # Candidate for [[vDSO]] code?
+
+
+# IRC, freenode, #hurd, 2014-02-23
+
+    <desrt> GLib (gthread-posix.c): Unexpected error from C library during
+      'pthread_condattr_setclock': Invalid argument.  Aborting.
+    <desrt> uh oh...
+    <desrt> time to go digging in glibc i guess...
+    <braunr> what are you trying to run ?
+    <desrt> glib
+    <braunr> with what ?
+    <desrt> just running glib's test suite under jhbuild
+    <desrt> i maintain glib and i made some changes recently -- i wanted to
+      make sure they didn't break the hurd
+    <desrt> and it seems they have ;/
+    <braunr> well
+    <braunr> the hurd doesn't completely comply with posix 2008
+    <desrt> long story short: we've keyed our timed waits on condition
+      variables to the monotonic clock for a long time now, but we never tested
+      that it actually worked
+    <desrt> so i just added an assert -- and indeed it fails on hurd
+    <braunr> our glibc lies about supporting timers
+    <braunr> good thinking
+    <braunr> we don't support the monotonic clock
+    <desrt> clock_gettime(CLOCK_MONOTONIC) seems to work
+    <braunr> and you should know that, even if clock selection and timers are
+      available (which posix 2008 requires), it's still optional
+    <braunr> no, glibc lies
+    <desrt> !!
+    <braunr> our "support" is a mere hack shifting CLOCK_REALTIME
+    <desrt> it should at least lie consistently :)
+    <braunr> we need to implement CLOCK_MONOTONIC properly
+    <desrt> ya... that would be very nice indeed
+    <braunr> not that hard either
+    <desrt> i agree!
+    <braunr> we just have to do it right
+    <desrt> fwiw, i plan to keep this assert in glib
+    <braunr> yes, it's good
+    <desrt> is there anywhere i can file a bug to give you guys some advance
+      warning?
+    <braunr> i don't think it's needed
+    <braunr> we know the problem
+    <desrt> k -- consider yourself warned, then :)
+    <braunr> and it's been a bigger concern recently
+    <desrt> awesome.  glad i don't have to do anything :)
+    <braunr> if it's not already done, i suggest you check for the
+      CLOCK_MONOTONIC option
+    <desrt> fwiw, i'm trying to get a regular debian/gnu/hurd build of
+      glib/gtk/etc setup
+    <braunr> regular ?
+    <desrt> ya... out of git master on a daily basis
+    <braunr> from sources ?
+    <braunr> oh nice
+    <desrt> we recently set this up for freebsd as well
+    <braunr> few maintainers take the pain :)
+    <desrt> our non-linux 'problem discovery' is a bit crap before now :/
+    <braunr> i guess that's pretty normal
+    <braunr> i don't consider it the responsibility of the maintainers to test
+      every possible platform
+    <desrt> glib is a bit unique -- portability is our business
+    <braunr> taking our patches into consideration is what we ask most
+    <braunr> right
+    <desrt> and the "please take the patches" thing is something we want to
+      stop doing
+    <braunr> why ?
+    <desrt> mostly because we often look at a patch that someone sent a few
+      years ago and say "do we even still need this?"
+    <desrt> and have no way to know
+    <braunr> uh
+    <desrt> you would not believe how many patches like this we've
+      accumulated...
+    <braunr> but if we send it now ? :)
+    <desrt> braunr: new policy is roughly this:
+      https://wiki.gnome.org/Projects/GLib/SupportedPlatforms
+    <desrt> ie: fixes for issues that are general portability improvements and
+      POSIX compliance are welcome...
+    <desrt> patches that introduce platform-specific #ifdef sections are
+      rejected unless we have a regular builder to test that code
+    <braunr> i see
+    <braunr> again, regarding portability, don't consider CLOCK_MONOTONIC to be
+      readily available, check for it
+    <braunr> an #error would be enough but it has to be checked
+    <desrt> it basically comes down to: we don't want to have code in our
+      version control that we have no possible way of testing
+    <braunr> yes
+    <desrt> braunr: we do check for it
+    <braunr> ok
+    <desrt> we assert() if clock_gettime(CLOCK_MONOTONIC) fails
+    <braunr> no i mean
+    <desrt> as POSIX said it should if CLOCK_MONOTONIC is not supported
+    <desrt> if you lie to us.... well, not much we can do
+    <braunr> POSIX_MONOTONIC_CLOCK
+    <braunr> _POSIX_MONOTONIC_CLOCK
+    <desrt> this is actually defined to 0 on most platforms...
+    <desrt> which does not mean that it's unsupported -- it means that the
+      runtime must be ready to deal with it not actually existing at runtime
+    <braunr> really ?
+    <desrt> yes
+    <desrt> we used to rely on this and got a bug that we were doing it wrong
+      :)
+    <desrt> and indeed, even on linux, both with glibc and uclibc:
+    <desrt> /usr/include/bits/posix_opt.h:#define _POSIX_MONOTONIC_CLOCK
+      0
+    <desrt> /usr/include/uClibc/bits/posix_opt.h:#define _POSIX_MONOTONIC_CLOCK
+      0
+    <braunr> ok it's described in 2.1.6 Options
+    <braunr> so your check is appropriate
+    <desrt> so does clock_gettime(MONOTONIC) on debian/hurd get me realtime?
+    <braunr> either that, or a value shifted from it
+    <desrt> if so, i'll just hack out the condattr_setclock() check and proceed
+      trying to build past glib...
+    * desrt checks
+    <desrt> as it is, even the build of glib fails since we use some tools
+      linked against ourselves during the build process...
+    <desrt> 1393124084790000 1393124084790000
+    <desrt> those look the same....
+    <braunr> heh
+    <desrt> i also notice that your clocks are not very high precision :)
+    <braunr> that's right
+    <desrt> HZ = 100, i guess
+    <braunr> yes
+    <desrt> fair enough
+    <desrt> our mainloop doesn't support better-than-millisecond accuracy yet
+      anyway :)
+    <desrt> (although it will soon...)
+    <braunr> nice

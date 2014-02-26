@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2011, 2013, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -35,3 +36,67 @@ when they are not used.  ([[!taglink open_issue_hurd]]: there used to be bugs
 in this area, [[!message-id "87hev152we.fsf@becket.becket.net"]], but it may be
 fixed as of [[!message-id "20111030210045.GA4983@myhost"]],
 [[!GNU_Savannah_Git_hurd_hurd 9b5429e834cde56f73b8ff605e36afc7d9bb6e1b]].)
+
+
+# Open Issues
+
+## Several on the [[/Open_Issues]] page
+
+## IRC, freenode, #hurd, 2013-11-14
+
+    <teythoon> # portinfo $(pgrep mach-defpager) | tail -n 1
+    <teythoon> 16819001: receive
+    <teythoon> is that normal ?
+    <braunr> it can be, yes
+    <braunr> port names can be renamed
+    <braunr> there are a few occurrences in the code
+    <braunr> see
+      http://www.gnu.org/software/hurd/gnumach-doc/Port-Names.html#Port-Names
+    <teythoon> I know
+    <braunr> mach-defpager/default_pager.c:  kr = mach_port_rename(
+      default_pager_self,
+    <teythoon> heh, it is a pointer
+    <teythoon> I thought that'd make stuff inefficient in gnumach?
+    <braunr> it does
+    <braunr> such rights are moved from a regular fast-access table to a splay
+      tree
+    <braunr> but when i looked into it, there were never more than a few dozen
+      rights in these trees
+    <braunr> (which is why i didn't merge my radix tree in gnumach)
+    <teythoon> I've been contemplating to replace the libihash usage in
+      libports with a simple array
+    <braunr> consider a radix tree too then :)
+    <teythoon> well, I did
+    <braunr> ok
+    <teythoon> but I'm not convinced that it would do better than a simple
+      array (or the current ihash implementation)
+    <braunr> really ?
+    <teythoon> what do you hope to gain?
+    <braunr> i'm practically certain it would do better than the current ihash
+      code
+    <braunr> uh, speed
+    <braunr> the problem with an array or a hash table is resizing
+    <braunr> a well tuned radix tree (say 64 ot 512 items per node) can reduce
+      to a simple array for the common case
+    <teythoon> right
+    <teythoon> but consider the use case
+    <braunr> and scale very well for massive users such as file systems which
+      can reach several hundred thousand rights
+    <teythoon> hm
+    <braunr> an array could be very efficient as well
+    <braunr> i'm just concerned about resizing
+    <teythoon> but this is a problem with the current implementation as well
+    <braunr> sure
+    <braunr> we're not considering keeping it anyway
+    <braunr> this discussion is about array vs radix tree
+    <braunr> the radix tree also has the advantage to efficiently deal with
+      sparsely populated port name spaces
+    <braunr> to some degree
+    <braunr> which is probably what you're currently concerned with about this
+      weird port name in defpager :)
+    <teythoon> http://paste.debian.net/65780/
+    <teythoon> yes, but mach-defpager does not use libports
+    <braunr> ok
+
+See also discussion on [[microkernel/mach/deficiencies]], *X15*, *IRC,
+freenode, #hurd, 2013-11-14*.

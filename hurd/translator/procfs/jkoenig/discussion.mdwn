@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2011, 2012, 2013 Free Software Foundation,
-Inc."]]
+[[!meta copyright="Copyright © 2010, 2011, 2012, 2013, 2014 Free Software
+Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -348,6 +348,35 @@ Disadvantage is that every program using this needs to be patched.
 This is used in `[LLVM]/lib/Support/Unix/Path.inc`.
 
 
+### IRC, OFTC, #debian-hurd, 2013-11-10
+
+    <mjt> Hello.  Does hurd have /proc/self/exe equivalent, to "re-exec myself"
+      ?
+    <youpi> no, only argv[0]
+    <mjt> busybox uses /proc/self/exe by default to re-exec itself when running
+      one of its applets, or failing that, tries to find it in $PATH.  I guess
+      it doesn't work on hurd... :)
+    <mjt> and argv0 is unreliable
+    <youpi> some discussion on the hurd wiki talks about using Dl_info DLInfo
+    <youpi> which contains DLInfo.dli_fname
+    <youpi> err, I mean, callling dladdr(&main, &DLInfo);
+    <youpi> this is kernel-agnostic, provided one uses glibc
+    <mjt> um. -ldl. nice for static linking
+    <mjt> gcc t.c -ldl -static
+    <mjt> ./a.out 
+    <mjt> fname=AVA� �j
+    <mjt> bah :)
+    <mjt> (it just prints dli_fname)
+    <teythoon> :/
+    <youpi> ah, yes, that won't work with static linking
+    <teythoon> fixing /proc/self is on my todo list, it shouldn't be too hard
+    <youpi> since in that case it's the exec server which sets the process up,
+      not dl.so
+    <teythoon> but we do not have the exe link either
+    <mjt> (the above test run was on linux not on hurd, fwiw_
+    <mjt> )
+
+
 # `/proc/[PID]/fd/`
 
 ## IRC, freenode, #hurd, 2012-04-24
@@ -500,6 +529,23 @@ Also used in `[GCC]/intl/relocatable.c`:`find_shared_library_fullname` for
     <braunr> camm`: i'm not sure at all
     <braunr> sbrk isn't even posix
     <camm`> thanks
+
+
+## IRC, freenode, #hurd, 2014-02-22
+
+    <ignaker> i'm trying to implement proc/maps 
+    <ignaker> actually I can't well evaluate complexity of tasks. However, I
+      appreciate your comments
+    <braunr> the complexity can be roughly estimated from the number of
+      components involved
+    <braunr> proc/maps involves procfs, ports, virtual memory, and file systems
+    <braunr> the naive implementation would merely be associating names to
+      memory objects, and why not, but a more complete one would go ask file
+      system servers about them
+    <braunr> perhaps more
+    <braunr> although personally i'd go for the naive one because less
+      dependencies usually means better reliability
+    <braunr> something similar to task_set_name could do the job
 
 
 # `/proc/[PID]/mem`

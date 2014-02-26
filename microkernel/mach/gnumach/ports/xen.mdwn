@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2007, 2008, 2009, 2011 Free Software Foundation,
-Inc."]]
+[[!meta copyright="Copyright © 2007, 2008, 2009, 2011, 2013, 2014 Free Software
+Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -96,6 +96,176 @@ Download http://youpibouh.thefreecat.org/hurd-xen/pv-grub.gz into /boot, and use
 
 extra is now the path to the grub config file.
 
+
+## IRC, freenode, #hurd, 2013-11-09
+
+    <phcoder> youpi: would a limitation of 32 modules to hurd in pvgrub2 be a
+      problem?
+    <phcoder> *31
+    <youpi> phcoder: probably not
+    <phcoder> youpi: ok
+
+    <phcoder> youpi: gnumach goes into infinite loop with "warning: nsec
+      0x000096dae65d2697 < lastnsec 0x000096db11dee20d". Second value stays
+      constant, first value loops from 0x000096da14968a59 to
+      0x000096db08bf359e. Not sure if the problem is on GRUB or gnumach ide
+    <youpi> loops?!
+    <youpi> that's the time coming from the hypervisor
+    <youpi> not a problem from GRUB anyway
+    <phcoder> Yes, loops in steps of around 0x40 and comes back regularly.
+    <youpi> Mmm, maybe it could be grub not properly setting up
+      hyp_shared_info.vcpu_info[], actually
+    <youpi> i.e. the mfn in boot_info.shared_info
+    <phcoder> I don't think we write to shared page at all
+    <phcoder> could gnumach suffer from overflow on fast CPU?
+    <phcoder>   next_start.shared_info = grub_xen_start_page_addr->shared_info;
+    <phcoder> And shared_info is machine address, so no need to adjust it
+    <phcoder> tsc_shift can be negative. Does gnumach handle this?
+    <youpi> yes
+    <youpi> here it's the base which doesn't change, actually
+    <phcoder> Do you mean this: 		system_time	=
+      time->system_time; ?
+    <phcoder> But wait: ((delta * (unsigned64_t) mul) >> 32)
+    <phcoder> this overflows after 2^32 nanoseconds
+    <phcoder> which is about 4 seconds
+    <phcoder> I think this is the mistake
+    <phcoder> which is more or less what I see
+    <phcoder> Let me make a patch
+    <youpi> does xen have some tickless  feature now?
+    <youpi> I'd expect the clock to get updated at least sometimes during 4
+      seconds :)
+    <phcoder> Hm, can't compile master:
+    <phcoder> ./include/mach/xen.h:52:18: error: ‘MACH2PHYS_VIRT_START_PAE’
+      undeclared (first use in this function)
+    <phcoder>  #define PFN_LIST MACH2PHYS_VIRT_START_PAE
+    <phcoder> Here is the patch: http://paste.debian.net/64857/
+    <youpi> it's defined in xen/public/arch-x86/xen-x86_32.h
+    <phcoder> yes it is. Let's see why it's not included
+    <phcoder> Hm, for some reason it pulls 64-bit headers in
+    <youpi> how do you cross-compile?
+    <youpi> I use
+    <youpi> ./configure --host=i686-gnu CC='gcc -m32' LD='ld -melf_i386' 
+    <phcoder> Yes. GRUB adds those itself
+    <phcoder> youpi: confirmed: my patch solves the problem
+    <phcoder> any yes: I tried with unpatched master and it fails
+    <youpi> ok
+    <youpi> phcoder: thanks!
+
+    <phcoder> Now I get plenty of "getcwd: cannot access parent directories:
+      Inappropriate file type or format". But I don't think it's grub-related
+    <youpi> what do you get before that?
+    <youpi> perhaps ext2fs doesn't get properly initialized
+    <youpi> which module commande line do you get in the boot log?
+    <youpi> perhaps it's simply a typo in there
+    <phcoder> http://paste.debian.net/64865/
+    <youpi>  $(task-create) $(task-resume) is missing at the end of the ext2fs
+      line indeed
+    <youpi> in your paste it stops at $(
+    <phcoder> this is at the end of my console. I believe it to be
+      cosmetic. Let me reset console to some sane state
+    <youpi> ok
+    <youpi> the spurious event at the start is probably worth checking up
+    <youpi> it looks like events that pvgrub2 should have eaten
+    <youpi> (in its own drivers, before finishing shutting them down)
+    <phcoder> when redirecting console to file: http://paste.debian.net/64868/
+    <phcoder> could swapon have sth to do with it?
+    <youpi> I'd be surprised
+    <phcoder> my guess it's because I use older userland (debian about May) and
+      new kernel (fresh from master)
+    <youpi> the kernel hasn't really changed
+    <youpi> you could rebuild the may-debian kernel with your patch to make
+      sure
+    <youpi> but probably better trying to fix swapon first, at least
+    <youpi> (even if that'd surprise me)
+    <youpi> "trying fixiing* swapon", actually
+    <youpi> it makes a difference :)
+    <phcoder> We actually never eat event on evtchn, we look into buffers to
+      check for response
+    <youpi> ah, that's why
+    <youpi> you should really eat the events too
+    <youpi> in principle it wouldn't hurt not to, but you'd probably get
+      surprises
+
+    <phcoder> youpi: would doing EVTCHNOP_reset at the end be enough?
+    <youpi> possibly, I don't know that one
+    <youpi> looks like a good thing to do before handing control, indeed
+    <youpi>     /* Clear pending event to avoid unexpected behavior on
+      re-bind. */
+    <youpi>     evtchn_port_clear_pending(d1, chn1);
+    <youpi> yes, it does clear the pending events
+    <phcoder> http://paste.debian.net/64870/
+    <phcoder> I did this: http://paste.debian.net/64871/
+    <youpi> well, closing the event channels would be a good idea too
+    <youpi> (reset does not only clear pending events, it also closes the event
+      channels)
+    <phcoder> well we can't close console one. So it leave to close disk ones
+      (the ones we allocated)
+    <phcoder> http://paste.debian.net/64875/
+    <phcoder> New log: http://paste.debian.net/64876/ (swapon fixed, given 1G
+      of memory)
+    <youpi> ok, so it really is something else
+    <phcoder> looks like there is a space after $(task-resume) but can't tell
+      if it's real or comes from message
+    <phcoder> tottally artefact
+
+    <phcoder> youpi: this happens when booted in qemu with old kernel now. Now
+      my bet is on weird fs corruption or because I accessed it with Linux in
+      rw. In any case I feel like it's time to call it a port and commit
+    <youpi> I'd say so, yes
+    <phcoder> Let's look what's remaining: vfb, vkbd and vif: don't need them
+      for first port commit. Hm, there is an issue of default configfile. What
+      is pvgrub default behaviour?
+    <youpi> iirc it just enters the shell
+    <youpi> I had implemented vfb and vkbd to get the graphical support, but
+      that's optional indeed
+    <youpi> vif is useful for netboot only
+    <youpi> ah, no, by default it runs dhcp --with-configfile
+    <phcoder> youpi: port committed to trunk
+    <youpi> \o/
+    <youpi> I was lamenting for 5 years that that wasn't happening :)
+    <youpi> Citrix could have asked one of his engineers to work on it, really
+    <phcoder> documentation on using the port is still missing though
+    <youpi> amazon EC2 users will be happy to upgrade from pv-grub to pv-grub2
+      :)
+    <youpi> I asked some amazon guy at SuperComputing whether he knew how many
+      people were using pv-grub, but he told me that was customer private
+      information
+    <phcoder> Another interesting idea would be to switch between 64-bit and
+      32-bit domains somehow
+    <youpi> yes, we were discussing about it at XenSource when I implemented
+      pv-grub
+    <youpi> that's not really an easy thing
+    <youpi> pvh would probably help there, again
+    <youpi> in the end, we considered that it was usually not hard to select a
+      32bit or 64bit pv-grub depending on the userland bitness
+    <youpi> we considered adding a hypercall to change the bitness of a domU,
+      but that's really involved
+    <phcoder> Well when you discussed i386 domains were still around
+    <phcoder> now it's only PAE and amd64 and they are very similar. Only few
+      gdt differ
+    <youpi> well, switching from 32-PAE to 64 is not *so* hard
+    <youpi> since a 32bit-loaded OS can fit in 64bit
+    <youpi> the converse is more questionable of course
+    <phcoder> yes
+    <youpi> still, it's really not easy for the hypervisor
+    <youpi> it'd mean converting stuff here and there
+    <youpi> most probably missing things here and there :)
+    <phcoder> Ok, not that important anyway
+    <youpi> we felt it was too dangerous to promise the feature as working :)
+    <youpi> heh, 5000 lines patch, just like my patch adding support to Mach :)
+    <phcoder> BTW do you know how to check if kernel supports dom0 ? Apparently
+      there is feature "privilegied" and dom0 kernels are supposed to have it
+      in notes but my linux one doesn't even though I'm in xen now
+    <youpi> it's XENFEAT_dom0
+    <youpi> called dom0 in the notes
+    <phcoder> http://paste.debian.net/64894/
+    <youpi> well, maybe the hypervisor doesn't actually check it's there
+    <youpi> phcoder: what does grub-mkstandalone?
+    <phcoder> puts all modules in memdisk which is embed into core
+    <youpi> ah, ok
+    <youpi> we didn't have to care about that in grub1 indeed :)
+
+
 # Partitions
 
 You will need the following notation for the gnumach root= parameter:
@@ -107,6 +277,23 @@ to access the second partition of hd0, for instance.
 You will also need to use the parted storeio module for the /dev entries, for instance:
 
 settrans -fgap /dev/hd0s1 /hurd/storeio -T typed part:1:device:hd0
+
+
+## IRC, freenode, #hurd, 2013-11-09
+
+    <phcoder> youpi: now I get "hd0: dom0's VBD 768
+      (/home/phcoder/diskimg/debian-hurd-20130504.img,w) 3001MB"
+    <phcoder> but "start ext2fs: ext2fs: device:hd0s1: No such device or
+      address"
+    <phcoder> disk = [
+      'file:/home/phcoder/diskimg/debian-hurd-20130504.img,hda,w' ]
+    <phcoder> Hm, using "disk = [ 'phy:loop0,hda1,w' ]" instead worked (loop0
+      is an offset loop)
+    <youpi> yes, xen disks don't support partitioning
+    <youpi> and we haven't migrated userland to userland partitioning yet
+
+[[hurd/libstore/part]].
+
 
 # Miscellaneous
 
@@ -125,3 +312,20 @@ IRC, freenode, #hurd, 2011-06-08
     <braunr> youpi: does xen provide disk caching options ?
     <youpi> through a blktap, probably
     <braunr> ok
+
+
+# IRC, freenode, #hurd, 2013-11-09
+
+    <phcoder> youpi: debian-hurd-20130504.img apparently has a kernel without
+      xen note. Do I have to do sth special to get xen kernel?
+    <youpi> phcoder: there's the -xen package for that
+    <youpi> I haven't made the kernel hybrid
+    <phcoder> youpi: easiest way is probably to have different entry
+      points. You could even just link both of them at different addresses and
+      then glue together though it's not very efficient
+    <youpi> it's also about all the privileged operations that have to be
+      replaced with PV operations
+    <youpi> PVH will help with that regard
+
+    <phcoder> youpi: btw, I recommend compiling xen kernel for 686 and drop
+      non-pae

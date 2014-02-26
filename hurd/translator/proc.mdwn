@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2012, 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2012, 2013, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -102,3 +103,68 @@ It is stated by `/hurd/init`.
     < braunr> teythoon: i agree with you on proc process-to-task mapping
     < braunr> that's something i intend to completely rework on propel
     < braunr> in a way similar to how pid namespaces work on linux
+
+
+# PID "Races"
+
+## IRC, freenode, #hurd, 2014-01-26
+
+    <quotemstr> Does Hurd have anything that generally solves PID races?
+    <youpi> what kind of race are you thinking about?
+    <youpi> I'm not sure, but I guess keeping a reference to a task port will
+      prevent the proc server from recycling the corresponding pid
+    <quotemstr> Yep.
+    <quotemstr> How does the Hurd avoid the obvious denial-of-service attack
+      that results?
+    <youpi> well quotas would probably be enough
+    <youpi> that's not a new issue :)
+    <quotemstr> Fair enough.
+    <quotemstr> Returning to the POSIX-y world after a few year stint over in
+      NT-land, it's infuriating that it's still not possible to write a
+      reliable killall(1) under Linux or the BSDs.
+    <quotemstr> I'm glad Hurd solves the problem. :-)
+    <braunr> but it doesn't
+    <braunr> how can you write a reliable killall ?
+    <youpi> so keeping a reference to the task port is not enough?
+    <braunr> i'm not sure
+    <braunr> first i'd like quotemstr to clearly define the reliability problem
+      of killall
+    <quotemstr> braunr: The possibility that a PID might be used between the
+      time you decide to kill it and the time you actually kill it.
+    <braunr> well, it would have to wrap around for that
+    <quotemstr> braunr: So? It's possible.
+    <braunr> i guess that's what you refer to
+    <braunr> ok
+    <braunr> well yes, it's possible to easily create a routine that atomically
+      increases the number of references on a task/process when looking it up
+    <braunr> preventing its removal from the list of processes reported by the
+      proc server
+    <quotemstr> Like OpenProcess? :-) Would this reference count be
+      automatically decremented if the task owning the reference is killed?
+    <braunr> it would clearly not be a "posixy killall" then, but i suppose we
+      don't care about that at all
+    <braunr> no
+    <quotemstr> Oh.
+    <braunr> destroying an object doesn't remove its references 
+    <quotemstr> So it's possible to leak the reference and prevent reuse of
+      that PID forever.
+    <braunr> hardly
+    <braunr> for that, killall would have to run a long time
+    <quotemstr> braunr: No, I'm talking about our hypothetical killall itself
+      being killed after taking out a reference on another process, but before
+      releasing it
+    <braunr> but a malicious killall could
+    <braunr> when a task is destroyed, its capability space is destroyed too
+    <braunr> removing all the references it previously had
+    <quotemstr> Ah, I see.
+    <braunr> the leaks we have occur in servers
+    <braunr> which sometimes act as clients to other servers
+    <braunr> and run forever
+
+
+# Crashes due to rpctrace
+
+## IRC, freenode, #hurd, 2014-02-18
+
+    <braunr> something is wrong in the proc server
+    <braunr> rpctrace is often causing it to crash ..

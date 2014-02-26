@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2013, 2014 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -130,6 +130,101 @@ Now in unstable.
     <pinotree> btw i saw too the segmentation fault when generating locales
 
 
+## IRC, freenode, #hurd, 2014-02-04
+
+    <bu^> hello
+    <bu^> I just updated
+    <bu^> Setting up locales (2.17-98~0) ...
+    <bu^> Generating locales (this might take a while)...
+    <bu^>   en_US.UTF-8...Segmentation fault
+    <bu^>  done
+    <gnu_srs> bu^: That's known, it still seems to work, though. If you have
+      the time please debug. I've tried but not found the solution yet:-(
+    <bu^> ok, just wanted to notify
+
+
+## IRC, freenode, #hurd, 2014-02-19
+
+    <braunr> for info, the localedef segfault has been fixed upstream
+    <braunr> or rather, upstream has been written in a way that won't trigger
+      the segfault
+    <braunr> it is caused by the locale archive code that maps the locale
+      archive file in the address space, enlarging the mapping as needed, but
+      unmaps the complete reserved size of 512M on close
+    <braunr> munmap is implemented through vm_deallocate, but it looks like the
+      latter doesn't allow deallocating unmapped regions of the address space
+    <braunr> (to be confirmed)
+    <braunr> upstream code tracks the mapping size so vm_deallocate won't whine
+    <braunr> i expect we'll have that in eglibc 2.18
+    <braunr> hm actually, posix says munmap must refer to memory obtained with
+      mmap :)
+    <braunr> (or actually, that the behaviour is undefined, which most unix
+      systems allow anyway, but not us)
+
+    <braunr> also, before i leave, i have partially traced the localedef
+      segfault
+    <youpi> ah, cool
+    <braunr> localedef maps the locale archive, and enlarges the mapping as
+      needed
+    <braunr> but munmaps the complete 512m reserved area
+    <braunr> and i strongly suspect it unmaps something it shouldn't on the
+      hurd
+    <braunr> since linux mmap has different boundaries depending on the mapping
+      use
+    <braunr> while our glibc will happily maps stacks below text
+    <braunr> the good news is that it looks fixed upstream
+    <youpi> ah :)
+    <braunr>
+      https://sourceware.org/git/?p=glibc.git;a=commitdiff;h=17db6e8d6b12f55e312fcab46faf5d332c806fb6
+    <braunr> see the change about close_archive
+    <braunr> i haven't tested it though
+
+
+## IRC, freenode, #hurd, 2014-02-21
+
+    <gg0> just upgraded to 2.18, locales still segfaults
+    <braunr> ok
+
+
+## IRC, freenode, #hurd, 2014-02-23
+
+    <braunr> ok, as expected, the localdef bug is because of some mmap issue
+
+[[glibc/mmap]].
+
+    <braunr> looks like our mmap doesn't like mapping files with PROT_NONE
+    <braunr> shouldn't be too hard to fix
+    <braunr> gg0: i should have a fix ready soon for localedef
+
+    <braunr> youpi: i have a patch for glibc about the localedef segfault
+    <youpi> is that the backport we talked about, or something else?
+    <braunr> something else
+    <braunr> in short
+    <braunr> mmap() PROT_NONE on files return 0
+    <youpi> ok
+    <youpi> seems like fixable indeed
+    <braunr> nothing is mapped, and the localdef code doesn't consider this an
+      error
+    <braunr> my current fix is to handle PROT_NONE like PROT_READ
+    <youpi> doesn't vm_protect allow to map something without giving read
+      right?
+    <braunr> it probably does
+    <braunr> the problem is in glibc
+    <youpi> ok
+    <braunr> when i say like PROT_READ, i mean a memory object gets a reference
+    <braunr> on the read port returned by io_map
+    <braunr> since it's not accessible anyway, it shouldn't make a difference
+    <braunr> but i preferred to have the memory object referenced anyway to
+      match what i expect is done by other systems
+
+
+## IRC, freenode, #hurd, 2014-02-24
+
+    <youpi> braunr: ah ok
+
+    <braunr> ok that mmap fix looks fine, i'll add comments and commit it soon
+
+
 # IRC, OFTC, #debian-hurd, 2013-06-20
 
     <youpi> damn
@@ -173,3 +268,62 @@ Now in unstable.
     <youpi> I'd warmly welcome a way to detect whether being the / translator
       process btw
     <youpi> it seems far from trivial
+
+
+# glibc 2.18 vs. GCC 4.8
+
+## IRC, freenode, #hurd, 2013-11-25
+
+    <youpi> grmbl, installing a glibc 2.18 rebuilt with gcc-4.8 brings an
+      unbootable system
+
+
+## IRC, freenode, #hurd, 2013-11-29
+
+    <teythoon> so, what do I do? rebuild the glibc 2.18 package with gcc4.8 and
+      see what breaks ?
+    <teythoon> when I boot a system with that libc that is ?
+    <teythoon> I wish youpi would have been more specific, I've never built the
+      libc before...
+    <braunr> debian/rules build in the debian package
+    <braunr> ctrl-c when you see gcc invocations
+    <braunr> cd buildir; make lib others
+    <braunr> although hm
+    <braunr> what breaks is at boot time right ?
+    <teythoon> yes
+    <braunr> heh ..
+    <braunr> then dpkg-buildpackage
+    <braunr> DEB_BUILD_OPTIONS=nocheck speeds things up
+    <braunr> just answer on the mailing list and ask him
+    <braunr> he usually answers quickly
+
+
+## IRC, freenode, #hurd, 2013-12-18
+
+    <gnu_srs> teythoon: k!, any luck with eglibc-2.18?
+    <teythoon> tbh i didn't look into this after two unsuccessful attempts at
+      building the libc package
+    <teythoon> there was a post over at the libc-alpha list that sounded
+      familiar
+    <teythoon> http://www.cygwin.com/ml/libc-alpha/2013-12/msg00281.html
+    <braunr> wow
+    <teythoon> ?
+    <braunr> this looks tricky
+    <braunr> and why ia64 only
+    <teythoon> indeed
+    <braunr> it's rare to see aurel32 ask such questions
+
+
+## IRC, freenode, #hurd, 2014-01-22
+
+    <youpi> btw, did anybody investigate the glibc-built-with-gcc-4.8 issue?
+    <youpi> oddly enough, a subhurd boots completely fine with it
+    <braunr> i didn't
+    <teythoon> no, sorry
+    <youpi> I was wondering whether the bogus deallocation at boot might have
+      something to do
+    <braunr> which one ?
+    <braunr> ah
+    <braunr> yes
+    <braunr> maybe
+    <youpi> quoted earlier here

@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2013, 2014 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -16,3 +16,89 @@ Typically available as `/dev/time`, [[hurd/translator/storeio]].
 Using that, [[hurd/libshouldbeinlibc]]'s `<maptime.h>` provides `maptime_map`
 and `maptime_read`, see the [[hurd/reference_manual]].  Candidate for
 replacement with [[open_issues/vDSO]] code?
+
+
+# IRC, freenode, #hurd, 2013-11-20
+
+    <teythoon> braunr: about the mach device interface, if i open a device, and
+      then create a memory mapping using device_map, does that increment the
+      open count of the device ?
+    <teythoon> can i call device_close w/o destroying the mapping directly
+      after mapping it ?
+    <antrik> teythoon: I have a vague recollection that the mapping (or more
+      precisely, the memory object) is not bound to the open once
+      established... but don't take my word on it -- it's been some years since
+      I played with that stuff :-)
+    <teythoon> antrik: yes, that would actually match my expectation
+    <braunr> hum
+    <braunr> normally, mapping increments the usage count of the resource
+      mapped, but not the open count
+    <braunr> i don't know if that's the case for mach devices
+    <braunr> teythoon: which mach device btw ?
+    <teythoon> time
+    <teythoon> libshouldbeinlibc/maptime.c line ~53
+    <teythoon> the device is opened but never closed
+    <braunr> is that a problem ?
+    <teythoon> not sure, but I'd think so, yes
+    <braunr> why ?
+    <teythoon> the open count is incremented each time
+    <braunr> at map time ?
+    <braunr> ah no, since that's your question
+    <braunr> the open count is normally decremented when the send right for the
+      device is destroyed, which occurs when tasks exit
+    <teythoon> hm
+    <teythoon> but wouldn't only important long running servers use the mach
+      device ?
+    <braunr> all tasks do
+    <braunr> a simple call to gettimeofday will use it
+    <teythoon> well, but only privileged processes may get teh device master
+      port
+    <braunr> the device is probably accessible through some other method
+    <teythoon> yes. /dev/time
+    <teythoon> err, have you looked at the function ? ;)
+    <braunr> no
+    <braunr> which one ?
+    <teythoon> maptime_map
+    <braunr> i did once but quickly
+    <teythoon> if use_mach_dev, the mach device is used, /dev/time otherwise
+    <braunr> gettimeofday apparently uses __host_get_time
+    <braunr> mhmm
+    <braunr> ok so i was wrong
+    <braunr> the time device, whether it is the mach or the hurd one, seems to
+      be mapped only by translators
+    <braunr> 14:10 < teythoon> but wouldn't only important long running servers
+      use the mach device ?
+    <braunr> so yes :)
+    <teythoon> so we should close the device
+    <braunr> why ?
+    <teythoon> to prevent an overflow in the open count
+    <braunr> when is it open multiple times ?
+    <teythoon> isn't it ? maybe /me lacks some context ;)
+    <braunr> it's called once at init time
+    <teythoon> well, ok then
+    <braunr> gettimeofday-like functions then only read the mapped memory
+    <braunr> at least, that's how it's done in the servers i've looked at such
+      as pfinet
+    <teythoon> makes sense, yes
+    <braunr> something i learnt from experience and failures: check the problem
+      actually exists before fixing it :p
+    <teythoon> well, if the memory mapping is independent of the device, then
+      there is a problem
+    <teythoon> the device is kept open for no reason
+    <braunr> teythoon: if you can determine that the device doesn't need to
+      stay open for the mapping to remain, then you can close it
+    <braunr> otherwise, it's such a minor leak that we don't care at all
+    <braunr> i wouldn't even consider it a leak more than a small static
+      variable used at init time only
+    <teythoon> looks like, yes
+    <teythoon> also, it's only in the rootfs translator
+    <braunr> ?
+    <teythoon> only the root filesystem uses the mach device directly
+    <braunr> ok
+    <braunr> well, /dev/time too right ?
+    <teythoon> yes, but that is a storeio translator that does not use this
+      code
+    <braunr> yes
+    <braunr> hm
+    <teythoon> only the root filesystem uses the mach device directly *using
+      this function*

@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2013, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -33,3 +34,45 @@ system call is implemented (primarily by means of [[RPC]]) inside [[glibc]].
       provide system services
     <braunr> e.G. open() is a call to a file system server (and maybe several
       actually)
+
+
+# IRC, freenode, #hurd, 2013-11-02
+
+    <Hiryu> how do system calls work in the hurd?
+    <Hiryu> is it like in linux
+    <braunr> yes and no
+    <Hiryu> you set the number in %eax and then in0x80?
+    <Hiryu> int, even
+    <braunr> no
+    <braunr> but that's really a detail
+    <Hiryu> I'm just curious how the flow goes
+    <braunr> gnumach uses call gates, not interrupt gates
+    <braunr> but that's just another way to enter the kernel
+    <braunr> the mechanism itself is almost irrelevant, it matters only for
+      performances
+    <Hiryu> ah
+    <braunr> what's truely interesting is that there are very few system calls
+    <Hiryu> so it goes straight to gnumach, which then figures out where to
+      relay the call to?
+    <braunr> the main one being mach_msg
+    <braunr> yes
+    <braunr> one of the arguments to mach_msg is the name of a right
+    <braunr> (as file descriptors are names for open files)
+    <Hiryu> hmm okay, so we get to the kernel, go to a kernel server (one
+      context switch), then get back to the calling process, and that's 2
+      context switches per system call?
+    <braunr> a receive right or send right
+    <braunr> no
+    <braunr> if you send-recv, it's only one
+    <braunr> but i'm not sure we do that on the hurd
+    <braunr> again, that's a detail
+    <Hiryu> what is send-recv?
+    <braunr> send and receive in the same system call
+    <Hiryu> hmm
+    <braunr> then, we also use system calls to denote the unix-like RPCs of the
+      hurd
+    <braunr> i mean
+    <braunr> i also call them system calls
+    <braunr> for example, read, write, stat, etc..
+    <Hiryu> I see
+    <Hiryu> braunr: thanks

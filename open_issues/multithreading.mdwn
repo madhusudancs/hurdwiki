@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2011, 2012, 2013 Free Software Foundation,
-Inc."]]
+[[!meta copyright="Copyright © 2010, 2011, 2012, 2013, 2014 Free Software
+Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -362,6 +362,8 @@ Tom Van Cutsem, 2009.
     <braunr> having servers go away when unneeded is a valuable and visible
       feature of modularity
 
+[[open_issues/libpthread/t/fix_have_kernel_resources]].
+
 
 ### IRC, freenode, #hurd, 2013-04-03
 
@@ -379,6 +381,184 @@ Tom Van Cutsem, 2009.
       between timeout/2 and timeout
     <youpi> and that should just nicely fix the issue
     <braunr> ok
+
+
+### IRC, freenode, #hurd, 2013-11-30
+
+"Thread storms".
+
+    <braunr> if you copy a large file for example, it is loaded in memory, each
+      page is touched and becomes dirty, and when the file system requests them
+      to be flushed, the kernel sends one message for each page
+    <braunr> the file system spawns a thread as soon as a message arrives and
+      there is no idle thread left
+    <braunr> if the amount of message is large and arrives very quickly, a lot
+      of threads are created
+    <braunr> and they compete for cpu time
+    <Gerhard> How do you plan to work around that?
+    <braunr> first i have to merge in some work about pagein clustering
+    <braunr> then i intend to implement a specific thread pool for paging
+      messages
+    <braunr> with a fixed size
+    <Gerhard> something compareable for a kernel scheduler?
+    <braunr> no
+    <braunr> the problem in the hurd is that it spawns threads as soon as it
+      needs
+    <braunr> the thread does both the receiving and the processing
+    <Gerhard> But you want to queue such threads?
+    <braunr> what i want is to separate those tasks for paging
+    <braunr> and manage action queues internally
+    <braunr> in the past, it was attempted to limit the amount ot threads in
+      servers, but since receiving is bound with processing, and some actions
+      in libpager depend on messages not yet received, file systems would
+      sometimes freeze
+    <Gerhard> that's entirely the task of the hurd? One cannot solve that in
+      the microkernel itself?
+    <braunr> it could, but it would involve redesigning the paging interface
+    <braunr> and the less there is in the microkernel, the better
+
+
+#### IRC, freenode, #hurd, 2013-12-03
+
+    <braunr> i think our greatest problem currently is our file system and our
+      paging library
+    <braunr> if someone can spend some time getting to know the details and
+      fixing the major problems they have, we would have a much more stable
+      system
+    <TimKack> braunr: The paging library because it cannot predict or keep
+      statistics on pages to evict or not?
+    <TimKack> braunr: I.e. in short - is it a stability problem or a
+      performance problem (or both :) )
+    <braunr> it's a scalability problem
+    <braunr> the sclability problem makes paging so slow that paging requests
+      stack up until the system becomes almost completely unresponsive
+    <TimKack> ah
+    <TimKack> So one should chase defpager code then 
+    <braunr> no
+    <braunr> defpager is for anonymous memory
+    <TimKack> vmm?
+    <TimKack> Ah ok ofc
+    <braunr> our swap has problems of its own, but we don't suffer from it as
+      much as from ext2fs
+    <TimKack> From what I have picked up from the mailing lists is the ext2fs
+      just because no one really have put lots of love in it? While paging is
+      because it is hard?
+    <TimKack> (and I am not at that level of wizardry!)
+    <braunr> no
+    <braunr> just because it was done at a time when memory was a lot smaller,
+      and developers didn't anticipate the huge growth of data that came during
+      the 90s and after
+    <braunr> that's what scalability is about
+    <braunr> properly dealing with any kind of quantity
+    <teythoon> braunr: are we talking about libpager ?
+    <braunr> yes
+    <braunr> and ext2fs
+    <teythoon> yeah, i got that one :p
+    <braunr> :)
+    <braunr> the linear scans are in ext2fs
+    <braunr> the main drawback of libpager is that it doesn't restrict the
+      amount of concurrent paging requests
+    <braunr> i think we talked about that recently
+    <teythoon> i don't remember
+    <braunr> maybe with someone else then
+    <teythoon> that doesn't sound too hard to add, is it ?
+    <teythoon> what are the requirements ?
+    <teythoon> and more importantly, will it make the system faster ?
+    <braunr> it's not too hard
+    <braunr> well
+    <braunr> it's not that easy to do reliably because of the async nature of
+      the paging requests
+    <braunr> teythoon: the problem with paging on top of mach is that paging
+      requests are asynchronous
+    <teythoon> ok
+    <braunr> libpager uses the bare thread pool from libports to deal with
+      that, i.e. a thread is spawned as soon as a message arrives and all
+      threads are busy
+    <braunr> if a lot of messages arrive in a burst, a lot of threads are
+      created
+    <braunr> libports implies a lot of contention (which should hopefully be
+      lowered with your payload patch)
+
+[[community/gsoc/project_ideas/object_lookups]].
+
+    <braunr> that contention is part of the scalability problem
+    <braunr> a simple solution is to use a more controlled thread pool that
+      merely queues requests until user threads can process them
+    <braunr> i'll try to make it clearer : we can't simply limit the amout of
+      threads in libports, because some paging requests require the reception
+      of future paging requests in order to complete an operation
+    <teythoon> why would that help with the async nature of paging requests ?
+    <braunr> it wouldn't
+    <teythoon> right
+    <braunr> thaht's a solution to the scalability problem, not to reliability
+    <teythoon> well, that kind of queue could also be useful for the other hurd
+      servers, no ?
+    <braunr> i don't think so
+    <teythoon> why not ?
+    <braunr> teythoon: why would it ?
+    <braunr> the only other major async messages in the hurd are the no sender
+      and dead name notification
+    <braunr> notifications*
+    <teythoon> we could cap the number of threads
+    <braunr> two problems with that solution
+    <teythoon> does not solve the dos issue, but makes it less interruptive,
+      no?
+    <braunr> 1/ it would dynamically scale
+    <braunr> and 2/ it would prevent the reception of messages that allow
+      operations to complete
+    <teythoon> why would it block the reception ?
+    <teythoon> it won't be processed, but accepting it should be possilbe 
+    <braunr> because all worker threads would be blocked, waiting for a future
+      message to arrive to complete, and no thread would be available to
+      receive that message
+    <braunr> accepting, yes
+    <braunr> that's why i was suggesting a separate pool just for that
+    <braunr> 15:35 < braunr> a simple solution is to use a more controlled
+      thread pool that merely queues requests until user threads can process
+      them
+    <braunr> "user threads" is a poor choice
+    <braunr> i used that to mirror what happens in current kernels, where
+      threads are blocked until the system tells them they can continue
+    <teythoon> hm
+    <braunr> but user threads don't handle their own page faults on mach
+    <teythoon> so how would the threads be blocked exactly, mach_msg ?
+      phread_locks ?
+    <braunr> probably a pthread_hurd_cond_wait_np yes
+    <braunr> that's not really the problem
+    <teythoon> why not ? that's the point where we could yield the thread and
+      steal some work from our queue
+    <braunr> this solution (a specific thread pool of a limited number of
+      threads to receive messages) has the advantage that it solves one part of
+      the scalability issue
+    <braunr> if you do that, you loose the current state, and you have to use
+      something like continuations instead
+    <teythoon> indeed ;)
+    <braunr> this is about the same as making threads uninterruptible when
+      waiting for IO in unix
+    <braunr> it makes things simpler
+    <braunr> less error prone
+    <braunr> but then, the problem has just been moved
+    <braunr> instead of a large number of threads, we might have a large number
+      of queued requests
+    <braunr> actually, it's not completely asynchronous
+    <braunr> the pageout code in mach uses some heuristics to slow down
+    <braunr> it's ugly, and is the reason why the system can get extremely slow
+      when swap is used
+    <braunr> solving that probably requires a new paging interface with the
+      kernel
+    <teythoon> ok, we will postpone this
+    <teythoon> I'll have to look at libpager for the protected payload series
+      anyways
+    <braunr> 15:38 < braunr> 1/ it would dynamically scale
+    <braunr> + not
+    <teythoon> why not ?
+    <braunr> 15:37 < teythoon> we could cap the number of threads
+    <braunr> to what value ?
+    <teythoon> we could adjust the number of threads and the queue size based
+      on some magic unicorn function
+    <braunr> :)
+    <braunr> this one deserves a smiley too
+    <teythoon> ^^
 
 
 ## Alternative approaches:

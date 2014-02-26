@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2008, 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2008, 2013, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -19,3 +20,228 @@ It is stated by `/hurd/init`.
 [[*The_Authentication_Server*|documentation/auth]], the transcript of a talk
 about the details of the authentication mechanisms in the Hurd by Wolfgang
 Jährling.
+
+
+## IRC, freenode, #hurd, 2013-10-31
+
+[[!tag open_issue_documentation]]
+
+    <braunr> is there an in-depth documentation somewhere about the auth server
+      that explains why there are "reauthenticate" operations everywhere ?
+    <braunr> nice, hammar's thesis does it :)
+
+[[hurd/documentation]], *Generalizing mobility for the Hurd*, Carl Fredrik
+Hammar.
+
+
+## IRC, freenode, #hurd, 2013-11-01
+
+    <gnu_srs> neal: Thanks, I'm trying to  to call auth_server_authenticate
+      from a libc function, but that fails. That function returns MIG_NO_REPLY.
+    <gnu_srs> auth_user_authenticate works OK, but I need the IDs from the
+      auth_server_authenticate. What to do, implement a new RPC, 
+    <gnu_srs> modify auth_user_authenticate (probably not) ?
+    <gnu_srs> or modify auth_server_authenticate (probably not)
+    <youpi> gnu_srs: show the source code you have written. MIG_NO_REPLY is not
+      expected, unless you called server_authenticate on the wrong port
+    <gnu_srs> S_auth_server_authenticate does not have any other exits than
+      MIG_NO_REPLY (and errors)
+    <gnu_srs> auth/auth.c
+    <youpi> yes, but it does do auth_server_authenticate_reply, which is what
+      matters
+    <youpi> i.e. what provides the answer
+    <youpi> (and the uids etc.)
+    <gnu_srs> I don't seem to be able to call that function directly from libc?
+    <youpi> eh? You're not supposed to call auth_server_authenticate_reply
+      yourself, it's auth which is supposed to
+    <youpi> precisely to provide the reply to the auth_server_authenticate RPC
+    <youpi> again, please show your source code
+    <youpi> there must be some mistake
+    <gnu_srs> Please show me how to call auth_server_authenticate and that
+      function returning 0 
+    <youpi> there are plenty of examples in the hurd source code
+    <youpi> e.g. ext2fs
+    <youpi> or libdiskfs, I can't remember where it is exactly inside ext2fs
+    <gnu_srs> I've tried all, on avail:(
+    <gnu_srs> no*
+    <youpi> € git grep auth_server_auth
+    <youpi> libiohelp/iouser-reauth.c:    err = auth_server_authenticate
+      (authserver,
+    <youpi> was it so hard?
+    <gnu_srs> I did, and tried every combination, nothing works!
+    <youpi> something has to work, otherwise we'd have no uid authentication
+      against ext2fs
+    <youpi> so there must be a combination you missed
+    <youpi> did you understand how the authentication protocol works, for a
+      start?
+    <youpi> otherwise, random code will most probably never work, for sure :)
+    <gnu_srs> called from libc?
+    <gnu_srs> a libc function?
+    <youpi> being from a libc function or from an io_reauthenticate callback
+      does not really matter
+    <gnu_srs> well, random or not, please show me then
+    <youpi> it's already there in ext2fs
+    <youpi> again, if you don't understand *that* code, no need to try to write
+      other code, take time to understand what exactly happens in the ext2fs
+      case
+    <gnu_srs> ok, can you tell me how a function only returning MIG_NO_REPLY
+      can return 0 when called?
+    <gnu_srs> by a server or client
+    <youpi> maybe one thing you are missing: in the ext2fs case, we have the
+      sender use io_reauthenticate to provide the receiver (ext2fs) with the
+      reference port, in the sendmsg/recvmsg, it'll be the message which will
+      hold the ref port
+    <youpi> but otherwise it's all the same
+    <youpi> gnu_srs: as I said, by being called on the proper port,
+    <youpi> i.e. the auth port, with the ref port provided by the sender
+    <youpi> but again, without seeing your code, I can't divine what mistake
+      you may have done
+    <youpi> all I can do is that your code is supposed to really look very much
+      like the ext2fs case
+    <gnu_srs> there is a difference between io_reauthenticarte and
+      proc_reauthenticate, a subsequent call to auth_user_authenticate returns
+      0 in the second case.
+    <youpi> i.e. _hurd_setauth in hurd/setauth.c and iohelp_reauth in
+      libiohelp/iouser-reauth.c
+    <youpi> why are you talking about io_reauthenticate an proc_reauthenticate?
+    <youpi> again, without seeing your source code, I can't understand what you
+      are talking about
+    <gnu_srs> first: (17:06:23) srs: ok, can you tell me how a function only
+      returning MIG_NO_REPLY can return 0 when called?
+    <youpi> and I can't afford the time to divine
+    <youpi> yes, that's iohelp_reauth in libiohelp/iouser-reauth.c
+    <youpi> for an example that works
+    <youpi> by using the proper ports
+    <youpi> if you don't get a reply, it's most probably simply because the
+      reply goes to the wrong port
+    <gnu_srs> again, where/how is the return value communicated by
+      auth_server_authenticate to the client/caller?
+    <youpi> again, it's the auth/auth.c code
+    <youpi> which calls auth_server_authenticate_reply
+    <gnu_srs> but that function ends with return MIG_NO_REPLY?
+    <youpi> yes, because auth_server_authenticate_reply() already did provide
+      the reply
+    <youpi> so the RPC function does not return a reply
+    <youpi> since it already explicitly sent one
+    <youpi> through auth_server_authenticate_reply
+    <gnu_srs> and exits earlier?
+    <youpi> it doesn't exit earlier
+    <youpi> it first calls auth_serveru_authenticate_reply
+    <youpi> and then returns with MIG_NO_REPLY
+    <gnu_srs> how the fck should i know that?
+    <youpi> by reading MIG documentation?
+    <youpi> I believe that _request/_reply mechanism is documented there
+    <gnu_srs> MIG magic again:( It strikes back, whatever you do to avoid it
+    <youpi> at least I don't think I have divined how it was working, so I must
+      have read that in some documentation
+    <youpi> it's not magic
+    <youpi> you just have to read the doc to understand how it works
+    <gnu_srs> I've not found any good doc on MIG yet.
+    <youpi> depends what you call "good"
+    <youpi> MIG is a complex thing, so documentation is complex, yes
+    <youpi> that can't really be avoided
+    <gnu_srs> mig.pdf
+    <gnu_srs> again: how can a function returning MIG_NO_REPLY return 0 when
+      called (as current implementations show)?
+    <youpi> again, by using the proper ports
+    <youpi> if not using the proper ports, the reply goes to another port
+    <youpi> and thus no reply
+    <youpi> and again, without showing the source code, we can't divine how you
+      didn't use the proper ports
+    <gnu_srs> so you mean a reply to a port is the same as the error code
+      returned?
+    <youpi> not always exactly, but basically yes
+    <youpi> gnu_srs: *again* , *really*, showing us what you've come up with
+      would very *most* probably allow us to help you
+    <youpi> otherwise it's just guess work and misunderstandings
+    <gnu_srs> FYI: there is no libc function calling auth_server_authenticate
+      directly
+    <youpi> sure
+    <youpi> that doesn't mean it can't
+    <gnu_srs> and here is one code example, not even trying to send+receive, it
+      is only in recvmsg.c:  http://paste.debian.net/63374/
+    <youpi> why is that code doing both auht_user_auth and auth_server_auth ?
+    <youpi> it's the sender side which is supposed to call auth_user_auth
+    <youpi> and why are you calling proc_reauthenticate, that has nothing to do
+      with the matter at stake
+    <gnu_srs> sorry, you can remove that part, same result
+    <youpi> ok but auth_user_authenticate should really go to the sender side
+    <youpi> s/should/must
+    <youpi> it is supposed to hang until auth_server_authenticate gets called
+      by the receiver
+    <youpi> so putting both on the receiver can not work
+    <youpi> at best auth_user_authenticate would hang, waiting for the
+      auth_server_authenticate which is called just after that...
+    <youpi> don't try random code, that can't work
+    <youpi> follow what I said
+    <youpi> in my mail
+    <gnu_srs> I did issue auth_user_authenticate on the send side, and
+      auth_server_authenticate on the receive side.
+    <gnu_srs> that was the path I followed, then when nothing worked,. I tried
+      the receive side only.
+    <youpi> that's why I said don't try random code
+    <youpi> it can't work with receive side only
+    <youpi> really, go as I said
+    <youpi> send / receive
+    <youpi> there must be something you made wrong
+    <gnu_srs> in the beginning it was not random code;)
+    <youpi> but it's not a reason for stabbing in the dark with random code,
+      that just can't work
+    <youpi> then stay with the code at the beginning
+    <youpi> and don't start writing random code
+    <youpi> that approach can *not* work
+    <gnu_srs> still when issuing  __proc_reauthenticate followed by
+      auth_user_authenticate on the send side the port delivered is 0,
+      i.e. unusable
+    <youpi> why calling proc_reauthenticate??
+    <youpi> it has nothing to do with the auth_*_authenticate protocol
+    <youpi> really
+    <youpi> what made you believe it was part of it?
+    <gnu_srs> dunno, if you say so;)
+    <youpi> it's not even mentioned in the documentation I referred to in my
+      mail
+    <youpi> again, make sure you actually *understand* the auth_*_authenticate
+      protocol
+    <gnu_srs> I found it in the already implemented code.
+    <gnu_srs> and process.defs
+    <youpi> for the proc_authenticate protocol, sure
+    <youpi> but that has nothing to do with the auth_*_authenticate protocol
+    <gnu_srs> well, the hurd documentation does not cover the proc case only
+      the io case, unfortunately:( Marcus, please write more documentation:-D
+    <youpi> it's just the same
+    <youpi> exactly the same
+    <youpi> ok, now I understand what happend: you followed some code which was
+      doing the auth protocol with the proc translator, not with the ext2fs
+      translator
+    <youpi> and you had *not* understood what proc_reauthenticate was doing
+      there
+    <youpi> you should have followed some code which was doing the auth
+      protocol with the ext2fs translator, i.e. through io_reauthenticate, of
+      course
+    <youpi> if you read random code, there's no way you can understand it of
+      coruse
+    <youpi> again, read hurd/setauth.c
+    <youpi> it does the reauthentication with ext2fs, through io_reauth to give
+      the ref prot
+    <youpi> s/prot/port
+    <youpi> io_reauth has to be replace with a port send over the socket of
+      course
+    <youpi> if that's obvious, don't write code, and ask yourself whether you
+      have really understood the auth protocol at all
+    <youpi> s/that's obvious/that's not obvious/
+    <youpi> understand means being able to match the source code of setauth.c
+      with the explanation from marcus
+    <gnu_srs> I'm learning all the time, in a few years I will be able to
+      contribute seriously;-) but the MIG stuff, I dunno:(
+    <youpi> well, the problem is that it takes us a hell lot of time to explain
+      you things
+    <youpi> just because you don't seem to manage to learn without going
+      randomly
+    <gnu_srs> just reading source code is a random process, unfortunately.
+    <youpi> ?!
+    <youpi> sure not
+    <youpi> if you do it randomly, then it's not wonder you're getting random
+    <youpi> don't read it randomly
+    <youpi> follow paths
+    <youpi> I've never read code randomly, it's a loss of time and a way to
+      just mix everything together without understanding anything

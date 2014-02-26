@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2000, 2008, 2013 Free Software Foundation,
+[[!meta copyright="Copyright © 2000, 2008, 2013, 2014 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -166,6 +166,14 @@ In context of the item on [[/contributing]].
     <braunr> rekado: development pace on the hurd has always been slow, no need
       to apologize
 
+
+### IRC, freenode, #hurd, 2014-02-12
+
+    <braunr> youpi: btw, the patch you finally decided to write yourself making
+      pfinet continue on driver failure is as expected quite handy :)
+    <youpi> :)
+
+
 ## MAC Addresses
 
 [[!tag open_issue_hurd]]
@@ -192,6 +200,82 @@ In context of the item on [[/contributing]].
     <youpi> it's not plugged inside pfinet anyway
 
 
+## IRC, freenode, #hurd, 2014-01-15
+
+    <braunr> 2014-01-14 23:06:38 IPv4 socket creation failed: Computer bought
+      the farm
+    <braunr> :O
+    <youpi> hum :)
+    <youpi> perhaps related with your change for "lo" performance?
+    <braunr> unlikely
+    <youpi> I don't see what would have changed in pfinet otherwise
+    <braunr> mig generated code if i'm right
+    <braunr> lib*fs
+    <braunr> libfshelp
+    <braunr> looks plenty enough
+    <braunr> teythoon's output has been quite high, it's not so suprising to
+      spot such integration issues
+
+
+### IRC, freenode, #hurd, 2014-01-16
+
+    <braunr> teythoon: so, did you see we have bugs on the latest hurd packages
+      :)
+    <braunr> for some reason, exim4 starts nicely on darnassus, but not on
+      another test vm
+    <braunr> and there is a "deallocate invalid name" error at boot time
+    <braunr> it's also present with your packages
+    <teythoon> yes
+
+    <braunr> not being able to start exim4 and other servers on some machines,
+      apparently randomly, is a bit frightening to me
+    <braunr> as the message says, "most probably a bug"
+    <teythoon> yes
+    <braunr> so we have to get rid of it as soon as possible so we can get to
+      the more interesting stuff
+    <teythoon> but there is no way to attribute this message to a process
+    <braunr> well, for those at boot time, there is
+    <teythoon> ?
+    <braunr> if i disable exim, i don't get it :p
+    <teythoon> oh ?
+    <braunr> but again, it doesn't occur on all machines
+    <braunr> and that part is the one i don't like at all
+    <teythoon> still, is it in exim, pfinet, pflocal, ... ?
+    <teythoon> no way to answer that
+    <braunr> ah right sorry
+    <braunr> it's probably pfinet, since exim says computer bought the farm on
+      a socket
+    <braunr> pflocal had its same pid
+    <teythoon> ok
+    <braunr> and after an upgrade, i don't reproduce that
+    <braunr> good, in a way
+    <braunr> there still is the one, after auth
+    <teythoon> yes
+    <teythoon> i'm seeing that too
+    <braunr> (as in "exec init proc auth"
+    <braunr> shouldn't be too hard to fix
+    <braunr> i'll settle on this one after i'm done with libps
+    <gnu_srs> (15:21:34) braunr: it's probably pfinet, since exim says computer
+      bought the farm on a socket:
+    <gnu_srs> remember my having problems with removing a socket file, maybe
+      related, probably not pfinet then?
+    <braunr> gnu_srs: unlikely
+    <braunr> that pfinet bug may have been completely transient
+    <braunr> fixed by upgrading packages
+    <gnu_srs> braunr: k!
+
+    <braunr> and exim4 keeps crashing on my hurd instance at home
+    <braunr> (pfinet actually)
+    <braunr> uh, ok, a stupid typo ..
+    <braunr> teythoon: --natmask in the /servers/socket/2 node, but correct
+      options in the 26 one .... :)
+
+
+### IRC, freenode, #hurd, 2014-01-17
+
+    <teythoon> braunr: *phew*
+
+
 # Reimplementation, [[!GNU_Savannah_task 5469]]
 
 ## [[community/gsoc/project_ideas/tcp_ip_stack]]
@@ -205,6 +289,10 @@ In context of the item on [[/contributing]].
     <braunr> hm, why not
     <braunr> i would still prefer using code from netbsd
     <braunr> especially now with the rump kernel project making it even easier
+
+[[open_issues/user-space_device_drivers]], *External Projects*, *The Anykernel
+and Rump Kernels*.
+
     <youpi> well, whatever is easy to maintain up to date actually
     <braunr> netbsd's focus on general portability normally makes it easy to
       maintain
@@ -225,3 +313,93 @@ In context of the item on [[/contributing]].
 
 Cloudius OSv apparently have isolated/re-used a BSD networking stack,
 <http://www.osv.io/>, <https://github.com/cloudius-systems/osv>.
+
+
+## IRC, freenode, #hurd, 2014-02-06
+
+    <akshay1994> Hello Everyone! Just set up my Hurd system. I need some help
+      now, in selecting a project on which i can work, and delving further into
+      this. 
+    <braunr> akshay1994: what are you interested in ?
+    <akshay1994> I was going through the project ideas. Found TCP/IP Stack, and
+      CD Audio grabbing interesting.
+    <braunr> cd audio grabbing ?
+    <braunr> hm why not
+    <braunr> akshay1994: you have to understand that, when it come to drivers,
+      we prefer reusing existing implementations in contained servers than
+      rewriting ourselves
+    <braunr> the networking stack project would be very interesting, yes
+    <akshay1994> Yes. I was indeed reading about the network stack. 
+    <akshay1994> So we need an easily modularise-able userspace stack, which we
+      can run as a server for now. 
+    <akshay1994> And split into different protocol layers later.
+    <braunr> hum no
+    <braunr> we probably want to stick to the model we're currently using with
+      pfinet
+    <braunr> for network drivers, yes
+    <braunr> i strongly suspect we want the whole IPv4/IPv6 networking stack in
+      a single server
+    <braunr> and writing glue code so that it works on the hurd
+    <braunr> then, you may want to add hooks for firewall/qos/etc...
+    <braunr> (although i think qos should be embedded to)
+    <braunr> sjbalaji: i also suggest reusing the netbsd networking stack,
+      since netbsd is well known for its clean portable code, and it has a
+      rather large user base (compared to us or other less known projects) and
+      is well maintained
+    <braunr> the rump project might make porting even easier
+
+[[open_issues/user-space_device_drivers]], *External Projects*, *The Anykernel
+and Rump Kernels*.
+
+    <akshay1994> okay! I was reading the project idea, where they mention that
+      a true hurdish stack will use a set of translator processes , each
+      implementing a different protocol layer
+    <braunr> a true hurdish stack would
+    <braunr> i strongly doubt we'll ever have the man power to write one
+    <braunr> i don't really see the point either to be honest :/
+    <akshay1994> haha! 
+    <braunr> but others have better vision than me for these things so i don't
+      know
+    <akshay1994> So, what are the problems we are facing with the current
+      pfinet implementation?
+    <braunr> it's old
+    <braunr> meaning it doesn't implement some features that may be important,
+      and has a few bugs due to lack of maintenance
+    <braunr> maintenance here being updating the code base with a newer
+      version, and we don't particularly want to continue grabbing code from
+      linux 2.2 :)
+    <akshay1994> I see. I was just skimming through google, about userspace
+      network stacks, but I think I might need to first understand how the
+      current one works and interacts with the system, before proceeding
+      further!
+    <braunr> yes
+    <braunr> the very idea of a userspace stack itself has little implications
+    <braunr> it basically means it doesn't run in system mode, and instead of
+      directly calling functions, it uses RPCs to communicate with other parts
+      of the system
+
+    <akshay1994> braunr: I looked at the netBSD net-stack, and also how hurd
+      (and mach) work. I'm starting with the hacking guide. Seems a little
+      difficult :p
+    <akshay1994> But i feel, I'll get over it. Any tips?
+    <braunr> akshay1994: it's not straightforward
+    <akshay1994> I know. Browsing through pfinet gave me an idea, how complex a
+      thing I'm trying to deal with in first try :p
+
+
+### IRC, freenode, #hurd, 2014-02-09
+
+    <antrik> braunr: the point of a hurdisch network stack is the same as a
+      hurdish block layer, and in fact anything hurdish: you can do things like
+      tunelling in a natural manner, rather than needing special loopback code
+      and complex control interfaces
+    <braunr> antrik: i don't see how something like the current pfinet would
+      prevent that
+
+
+# IRC, freenode, #hurd, 2013-10-31
+
+    <braunr> looks like there is a deadlock in pfinet
+    <braunr> maybe triggered or caused by my thread destruction patch
+
+[[open_issues/libpthread/t/fix_have_kernel_resources]].

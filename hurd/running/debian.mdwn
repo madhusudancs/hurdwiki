@@ -22,3 +22,87 @@
   *Debian GNU/Hurd*, [[MichaelBanck]], LinuxTag 2004 Karlsruhe
 - [[Status]]
 - [Archive Qualification](http://wiki.debian.org/ArchiveQualification/hurd-i386)
+
+
+# IRC, freenode, #hurd, 2014-01-18
+
+    <anatoly> From http://darnassus.sceen.net/~hurd-web/hurd/running/debian/
+      "Just in case you were wondering: the root password is root.". I think
+      it's not correct because it allows me to login witout password in hurd
+      console
+    <anatoly> Tried it in latest qemu image (from 2013 05 04)
+    <braunr> anatoly: you probably can change it yourself since it's a wiki
+    <anatoly> braunr: ok
+
+
+# `/etc/mtab` -> `/proc/mounts`
+
+## IRC, freenode, #hurd, 2014-02-12
+
+    <braunr> hm, there is something weird
+    <braunr> after successfully installing (with the new installer cd), and
+      rebooting, system init fails because fsck can't be run on /home (a
+      separate partition)
+    <braunr> it can't fsck because at that point, /home is already mounted, and
+      indeed the translator is running
+    <braunr> teythoon: any idea what might cause that ?
+    <teythoon> me ?
+    <teythoon> no
+    <braunr> ok
+    <braunr> ah no, actually /home isn't mounted oO
+    <braunr> but fsck still refuses to check it, stating that reason
+    <braunr> hm, /etc/mtab isn't a link to /proc/mounts here, might explain
+
+
+## IRC, freenode, #hurd, 2014-02-12
+
+    <braunr> yes, better with a proper symlink :)
+    <teythoon> good
+    <youpi> Mmm, what is supposed to create that symlink?
+    <teythoon> one debian init script did that at one time
+    <teythoon> i believe they dropped that
+    <youpi> err, but something must be creating it for newer systems
+    <teythoon> good point
+    <braunr> well, except for these small details, everything went pretty
+      smooth
+    <braunr> both on ide and ahci
+    <youpi> it seems /etc/mtab gets created at boot
+    <youpi> (on Linux I mean)
+    <teythoon> youpi: i cannot find the init script, but i'm sure that it was
+      there
+    <youpi> I can't find it either on the installed system...
+    <azeem> maybe pere or rleigh in #debian-hurd can help
+
+
+## IRC, freenode, #hurd, 2014-02-13
+
+    <braunr>   6<--60(pid1698)->dir_lookup ("var/run/mtab" 4194305 0) = 0 3
+      "/run/mtab"  (null)
+    <braunr> looks like /etc/mtab isn't actually used anymore
+    <teythoon> it never was on hurd
+    <tomodach1> braunr: well it is generated i believe from mounted filesystems
+    <tomodach1> if its still around there is a reason for it, like posix
+      compatiblity perhaps?
+    <braunr> well the problem is that, as mentioned in pere's thread on
+      bug-hurd, some tools now expect /var/run/mtab instead of /etc/mtab
+    <braunr> and since nothing currently creates this file, these tools, such
+      as df, are lost
+    <braunr> they can't find the info they're looking for
+
+
+## IRC, freenode, #hurd, 2014-02-17
+
+    <braunr> i still don't have mtab at the proper location on darnassus
+    <pere> is there something missing with sysvinit on hurd?
+    <braunr> is that normal ?
+    <pere> yes.  I recommended fixing it in the hurd package. (BTS #737759)
+    <braunr> yes i saw but was there any action taken ?
+    <pere> did not check
+    <teythoon> i thought youpi mentioned that it is fixed in the libc and we
+      just need to rebuild coreutils or something
+    <pere> yes
+    <braunr> oh ok
+    <braunr> but doesn't that mean it will use /etc/mtab ?
+    <pere> if I was a hurd porter, I would fix it in hurd while waiting for a
+      fix in coreutils, just to save people for wondering about the breakage,
+      but I am not the most patient of developers. :)

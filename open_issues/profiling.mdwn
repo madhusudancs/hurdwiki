@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2010, 2011, 2013 Free Software Foundation,
+[[!meta copyright="Copyright © 2010, 2011, 2013, 2014 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -138,3 +138,234 @@ done for [[performance analysis|performance]] reasons.
       know what happen and how happen, maybe just suitable for newbie, hope
       more young hack like it
     <braunr> once it's done, everything else is just sugar candy around it
+
+
+# IRC, freenode, #hurd, 2014-01-05
+
+    <teythoon> braunr: do you speak ocaml ?
+    <teythoon> i had this awesome idea for a universal profiling framework for
+      c
+    <teythoon> universal as in not os dependent, so it can be easily used on
+      hurd or in gnu mach
+    <teythoon> it does a source transformation, instrumenting what you are
+      interested in
+    <teythoon> for this transformation, coccinelle is used
+    <teythoon> i have a prototype to measure how often a field in a struct is
+      accessed
+    <teythoon> unfortunately, coccinelle hangs while processing kern/slab.c :/
+    <youpi> teythoon:  I do speak ocaml
+    <teythoon> awesome :)
+    <teythoon> unfortunately, i do not :/
+    <teythoon> i should probably get in touch with the coccinelle devs, most
+      likely the problem is that coccinelle runs in circles somewhere
+    <youpi> it's not so complex actually
+    <youpi> possibly,  yes
+    <teythoon> do you know coccinelle ?
+    <youpi> the only really peculiar thing in ocaml is lambda calculus
+    <youpi> +c
+    <youpi> I know a bit, although I've never really written an semantic patch
+      myself
+    <teythoon> i'm okay with that
+    <youpi> but I can understand them
+    <youpi> then ocaml should be fine for you :)
+    <youpi> just ask the few bits that you don't understand :)
+    <teythoon> yeah, i haven't really made an effort yet
+    <youpi> writing ocaml is a bit more difficult because you need to
+      understand the syntax, but for putting printfs it should be easy enough
+    <youpi> if you get a backtrace with ocamldebug (it basically works like
+      gdb), I can probably explain you what might be happening
+
+
+## IRC, freenode, #hurd, 2014-01-06
+
+    <teythoon> braunr: i'm not doing microoptimizations, i'm developing a
+      profiler :p
+    <braunr> teythoon: nice :)
+    <teythoon> i thought you might like it
+    <braunr> teythoon: you may want to look at
+      http://pdos.csail.mit.edu/multicore/dprof/
+    <braunr> from the same people who brought radixvm
+    <teythoon> which data structure should i test it with next ?
+    <braunr> uh, no idea :)
+    <braunr> the ipc ones i suppose
+    <teythoon> yeah, or the task related ones
+    <braunr> but be careful, there many "inline" versions of many ipc functions
+      in the fast paths
+    <braunr> and when they say inline, they really mean they copied it
+    <braunr> +are
+    <teythoon> but i have a microbenchmark for ipc performance
+    <braunr> you sure have been busy ;p
+    <braunr> it's funny you're working on a profiler at the same time a
+      collegue of mine said he was interested in writing one in x15 :)
+    <teythoon> i don't think inlining is a problem for my tool
+    <teythoon> well, you can use my tool for x15
+    <braunr> i told him he could look at what you did
+    <braunr> so i expect he'll ask soon
+    <teythoon> cool :)
+    <teythoon> my tool uses coccinelle to instrument c code, so this works in
+      any environment
+    <teythoon> one just needs a little glue and a method to get the data
+    <braunr> seems reasonable
+    <teythoon> for gnumach, i just stuff a tiny bit of code into the kdb
+
+    <teythoon> hm debians bigmem patch with my code transformation makes
+      gnumach hang early on
+    <teythoon> i don't even get a single message from gnumach
+    <braunr> ouch
+    <teythoon> or it is somethign else entirely
+    <teythoon> it didn't even work without my patches o_O
+    <teythoon> weird
+    <teythoon> uh oh, the kmem_cache array is not properly aligned
+    <teythoon> braunr: http://paste.debian.net/74588/
+    <braunr> teythoon: do you mean, with your patch ?
+    <braunr> i'm not sure i understand
+    <braunr> are you saying gnumach doesn't start because of an alignment issue
+      ?
+    <teythoon> no, that's unrelated
+    <teythoon> i skipped the bigmem patch, have a running gnumach with
+      instrumentation
+    <braunr> hum, what is that aliased column ?
+    <teythoon> but, despite my efforts with __attribute__((align(64))), i see
+      lot's of accesses to kmem_cache objects which are not properly aligned
+    <braunr> is that reported by the performance counters ?
+    <teythoon> no
+    <teythoon> http://paste.debian.net/74593/
+    <braunr> aer those the previous lines accessed by other unrelated code ?
+    <braunr> previous bytes in the same line*
+    <teythoon> this is a patch generated to instrument the code
+    <teythoon> so i instrument field access of the form i->a
+    <teythoon> but if one does &i->a, my approach will no longer keep track of
+      any access through that pointer
+    <teythoon> so i do not count that as an access but as creating an alias for
+      that field
+    <braunr> ok
+    <teythoon> so if that aliased count is not zero, the tool might
+      underestimate the access count
+    <teythoon> hm
+    <teythoon> static struct kmem_cache kalloc_caches[KALLOC_NR_CACHES]
+      __attribute__((align(64)));
+    <teythoon> but
+    <teythoon> nm gnumach|grep kalloc_caches
+    <teythoon> c0226e20 b kalloc_caches
+    <teythoon> ah, that's fine
+    <braunr> yes
+    <teythoon> nevr mind
+    <braunr> don't we have a macro for the cache line size ?
+    <teythoon> ah, there are a great many more kmem_caches around and noone
+      told me ...
+    <braunr> teythoon: eh :)
+    <braunr> aren't you familiar with type-specific caches ?
+    <teythoon> no, i'm not familiar with anything in gnumach-land
+    <braunr> well, it's the regular slab allocator, carrying the same ideas
+      since 1994
+    <braunr> it's pretty much the same in linux and other modern unices
+    <teythoon> ok
+    <braunr> the main difference is likely that we allocate our caches
+      statically because we have no kernel modules and know we'll never destroy
+      them, only reap them
+    <teythoon> is there a macro for the cache line size ?
+    <teythoon> there is one burried in the linux source
+    <teythoon> L1_CACHE_BYTES from linux/src/include/asm-i386/cache.h
+    <braunr> there is one in kern/slab.h
+    <teythoon> but it is out of date
+    <teythoon> there is ?
+    <braunr> but it's commented out
+    <braunr> only used when SLAB_USE_CPU_POOLS is defined
+    <braunr> but the build system should give you CPU_L1_SHIFT
+    <teythoon> hm
+    <braunr> and we probably should define CPU_L1_SIZE from that
+      unconditionnally in config.h or a general param.h file if there is one
+    <braunr> the architecture-specific one perhaps
+    <braunr> although it's exported to userland so maybe not
+
+
+## IRC, freenode, #hurd, 2014-01-07
+
+    <teythoon> braunr: linux defines ____cacheline_aligned :
+      http://lxr.free-electrons.com/source/include/linux/cache.h#L20
+    <teythoon> where would i put a similar definition in gnumach ?
+    <taylanub> .oO( four underscores ?!? )
+    <teythoon> heh
+    <teythoon> yes, four
+    <braunr> teythoon: yes :)
+
+    <teythoon> are kmem_cache objects ever allocated dynamically in gnumach ?
+    <braunr> no
+    <teythoon> hm
+    <braunr> i figured that, since there are no kernel modules, there is no
+      need to allocate them dynamically, since they're never destroyed
+    <teythoon> so i aligned all statically declarations with
+      __attribute__((align(1 << CPU_L1_SHIFT)))
+    <teythoon> but i still see 77% of all accesses being to objects that are
+      not properly aligned o_O
+    <teythoon> ah
+    <teythoon> >,<
+    <braunr> you could add an assertion in kmem_cache_init to find out what's
+      wrong
+    <teythoon> *aligned
+    <braunr> eh :)
+    <braunr> right
+    <teythoon> grr
+    <teythoon> sweet, the kmem_caches are now all properly aligned :)
+    <braunr> :)
+
+    <braunr> hm
+    <braunr> i guess i should change what vmstat reports as "cache" from the
+      cached objects to the external ones (which map files and not anonymous
+      memory)
+    <teythoon> braunr: http://paste.debian.net/74869/
+    <teythoon> turned out that struct kmem_cache was actually an easy target
+    <teythoon> no bitfields, no embedded structs that were addressed as such
+      (and not aliased)
+    <braunr> :)
+
+
+## IRC, freenode, #hurd, 2014-01-09
+
+    <teythoon> braunr: i didn't quite get what you and youpi were talking about
+      wrt to the alignment attribute
+    <teythoon> define a type for struct kmem_cache with the alignment attribute
+      ? is that possible ?
+    <teythoon> ah, like it's done for kmem_cpu_pool
+    <braunr> teythoon: that's it :)
+    <braunr> note that aligning a struct doesn't change what sizeof returns
+    <teythoon> heh, that save's one a whole lot of trouble indeed
+    <braunr> you have to align a member inside for that
+    <teythoon> why would it change the size ?
+    <braunr> imagine an array of such structs
+    <teythoon> ah
+    <teythoon> right
+    <teythoon> but it fits into two cachelines exactly
+    <braunr> that wouldn't be a problem with an array either
+    <teythoon> so an array of those will still be aligned element-wise
+    <teythoon> yes
+    <braunr> and it's often used like that, just as i did for the cpu pools
+    <braunr> but then one is tempted to think the size of each element has
+      changed too
+    <braunr> and then use that technique for, say, reserving a whole cache line
+      for one variable
+    <teythoon> ah, now i get that remark ;)
+    <braunr> :)
+
+    <teythoon> braunr: i annotated struct kmem_cache in slab.h with
+      __cacheline_aligned and it did not have the desired effect
+    <braunr> can you show the diff please ?
+    <teythoon> http://paste.debian.net/75192/
+    <braunr> i don't know why :/
+    <teythoon> that's how it's done for kmem_cpu_pool
+    <braunr> i'll try it here
+    <teythoon> wait
+    <teythoon> i made a typo
+    <teythoon> >,<
+    <teythoon> __cachline_aligned
+    <teythoon> bad one
+    <braunr> uh :)
+    <braunr> i don't see it
+    <braunr> ah yes
+    <braunr> missing e
+    <teythoon> yep, works like a charme :)
+    <teythoon> nice, good to know :)
+    <braunr> :)
+    <teythoon> given the previous discussion, shall i send it to the list or
+      commit it right away ?
+    <braunr> i'd say go ahead and commit

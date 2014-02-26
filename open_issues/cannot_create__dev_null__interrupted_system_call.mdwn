@@ -1,0 +1,193 @@
+[[!meta copyright="Copyright © 2013, 2014 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_hurd]]
+
+
+# IRC, freenode, #hurd, 2013-12-05
+
+    <teythoon> Creating device nodes: fd fdX std vcs hdX hdXsY hdXs1Y sdX sdXsY
+      sdXs1Y cdX netdde ethX loopX ttyX ptyp ptyq/sbin/MAKEDEV: 75:
+      /sbin/MAKEDEV: cannot create /dev/null: Interrupted system call
+    <teythoon> that's new
+    <braunr> teythoon: ouch
+    <teythoon> braunr: everything works fine though
+    <braunr> teythoon: that part isn't too surprising
+    <teythoon> y?
+    <braunr> teythoon: /dev/null already existed, didn't it ?
+    <teythoon> braunr: sure, yes
+
+
+## IRC, freenode, #hurd, 2013-12-19
+
+    <braunr> hm
+    <braunr> i'm seeing those /sbin/MAKEDEV: cannot create /dev/null:
+      Interrupted system call messages too
+
+
+## IRC, freenode, #hurd, 2013-12-20
+
+    <teythoon> braunr: interesting, I've seen some of those as well
+
+
+## IRC, freenode, #hurd, 2014-01-26
+
+    <gg0> cannot create /dev/null: Interrupted system call
+    <gg0>
+      http://gnashdev.org:8010/builders/z-sid-hurd-i386/builds/26/steps/system_upgrade/logs/stdio
+
+
+## IRC, freenode, #hurd, 2014-01-27
+
+    <anatoly> gg0: I had same /dev/null error after upgrading my old image
+      (more than 6 months old) a week ago. But I got such message only on boot
+      and it didn't autostart hurd console.
+    <anatoly> Tried to upgrade current qemu image (from topic) to reproduce it
+      but it works OK after upgrade
+    <gg0> i can reproduce it with # apt-get install --reinstall python2.7 dbus
+      # for instance
+    <gg0> http://paste.debian.net/plain/78566/
+    <teythoon> gg0: i've seen those as well, but i cannot reliably reproduce it
+      to track it down
+    <teythoon> i believe it's benign though
+    <gg0> in shell scripts if -e is set, it aborts on failures like those
+    <teythoon> uh, it does? :/
+    <gg0> so if this happens in prerm/postinst scripts, package is not properly
+      installed/removed/configured and it fails
+    <gg0> redirecting stdout and strerr to /dev/null shouldn't be so
+      problematic, anything wrong in my setup?
+    <gg0> can you reproduce it?
+    <teythoon> not reliably
+    <teythoon> gg0: but i do not believe that anything is wrong with your
+      machine
+    <gg0> any way to debug it?
+    <teythoon> having a minimal test case that triggers this reliably would be
+      great
+    <teythoon> but i fear it might be a race
+
+
+## IRC, freenode, #hurd, 2014-01-28
+
+    <teythoon> have you seen the /dev/null issue ?
+    <braunr> yes
+    <teythoon> what do you make of it ?
+    <braunr> no idea
+    <teythoon> i believe it is related to the inlining work i've done
+    <braunr> just like the bogus deallocation at boot, it needs debugging :)
+    <braunr> hm i don't think so
+    <teythoon> no ?
+    <braunr> i think we saw it even before your started working on the hurd ;p
+    <teythoon> i've never seen it before my recent patches
+    <teythoon> maybe i made it worse
+    <braunr> not worse, just exposed more
+    <teythoon> right
+
+
+## IRC, freenode, #hurd, 2014-01-29
+
+    <gg0> cannot reproduce "cannot create /dev/null: Interrupted system call"
+      on a faster VM
+    <gg0> might depend on that?
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-02
+
+    <pere> but now saw a strange message at the end of the boot:
+      /etc/init.dhurd-console: 55: /etc/init.d/hurd-console: cannot create
+      /dev/null: Interrupted system call
+    <gg0> oh well known on a slow VM (even old qemu/kvm btw), i can't reproduce
+      it on a faster/more recent one
+    <gg0> slow VM = gnash buildbot slave
+      http://gnashdev.org:8010/builders/z-sid-hurd-i386/builds/26/steps/system_upgrade/logs/stdio
+    <gg0> especially bad on system upgrade because it doesn't finish to run
+      prerm/postinst scripts :/
+
+
+## IRC, freenode, #hurd, 2014-02-05
+
+    <gg0> Creating device nodes: fd fdX std vcs hdX hdXsY/sbin/MAKEDEV: 75:
+      /sbin/MAKEDEV: cannot create /dev/null: Interrupted system call hdXs1Y
+      sdX sdXsY sdXs1Y cdX netdde ethX loopX ttyX ptyp ptyq lprX comX random
+      urandom kbd mouse shm.
+
+
+## IRC, freenode, #hurd, 2014-02-11
+
+    <gg0> typical dist-upgrade http://paste.debian.net/plain/81346/
+    <gg0> many fewer cannot create /dev/null: Interrupted system call
+    <gg0> on a faster machine
+    <teythoon> gg0: wow, so many interrupted system call messages
+    <teythoon> i don't get as many, but makedev produces a few every time i run
+      it as well
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-16
+
+    <pere> anyone here got any idea why upgrading initscripts fail on the hurd
+      gnash autobuilder, as reported on <URL:
+      http://gnashdev.org:8010/builders/z-sid-hurd-i386/builds/28/steps/system_upgrade/logs/stdio
+      >?
+    <gg0> pere: cannot create /dev/null: Interrupted system call
+    <pere> gg0: I noticed the message, but fail to understand how this could
+      happen.
+    <gg0> 13:16 < gg0> oh well known on a slow VM (even old qemu/kvm btw), i
+      can't reproduce it on a faster/more recent one
+    <gg0> 13:17 < gg0> slow VM = gnash buildbot slave
+      http://gnashdev.org:8010/builders/z-sid-hurd-i386/builds/26/steps/system_upgrade/logs/stdio
+    <gg0> 13:18 < gg0> especially bad on system upgrade because it doesn't
+      finish to run prerm/postinst scripts :/
+    <gg0> i remember teythoon talking about something racy
+    <teythoon> gg0: the /dev/null issue is known for a long time
+    <teythoon> gg0: some of the recent work (i believe mine) has made the
+      problem more apparent
+    <teythoon> gg0: that's what braunr told me
+    <gg0> i see. it would be really nice fixing it. really annoying. i
+      workaround it by moving null away and moving it back under /dev before
+      halting/rebooting
+
+
+## IRC, freenode, #hurd, 2014-02-17
+
+    <tschwinge> Earlier today, I upgraded my Debian GNU/Hurd installation from
+      several months ago, and I'm now seeing bogus things as follows; is that a
+      known issue?
+    <tschwinge>  checking for i686-unknown-gnu0.5-ar... ar
+    <tschwinge>  configure: updating cache ./config.cache
+    <tschwinge>  configure: creating ./config.status
+    <tschwinge> +./config.status: 299: ./config.status: cannot create
+      /dev/null: Interrupted system call
+    <tschwinge>  config.status: creating Makefile
+    <tschwinge> (The plus is from a build log diff.)
+    <azeem> 13:36 < gg0> pere: cannot create /dev/null: Interrupted system call
+    <azeem> 20:10 < teythoon> gg0: the /dev/null issue is known for a long time
+    <tschwinge> Anyone working on resolving this?  I't causing build issues:
+    <tschwinge> checking for i686-unknown-gnu0.5-ranlib... (cached) ranlib
+    <tschwinge> checking command to parse nm output from gcc-4.8
+      object... [...]/opcodes/configure: 6760: ./configure.lineno: cannot
+      create /dev/null: Interrupted system call
+    <tschwinge> failed
+    <tschwinge> checking for dlfcn.h... yes
+    <tschwinge> Anyway, will go researching IRC logs.
+    <azeem> tschwinge: (that one was from #debian-hurd)
+    <azeem> I assume teythoon and/or braunr can comment once he's back
+    <azeem> they're*
+    <braunr> tschwinge: we've been seing this more often lately but noone has
+      attempted to fix it yet
+    <braunr> tschwinge: if you have a reliable way to reproduce that /dev/null:
+      Interrupted system call error, please let us know
+
+
+## IRC, freenode, #hurd, 2014-02-23
+
+    <gg0> braunr: cool. i'd vote /dev/null one as next one in your todo
+    <gg0> still frequent on this slow vm
+      http://gnashdev.org:8010/builders/z-sid-hurd-i386/builds/30/steps/system_upgrade/logs/stdio
+    <gg0> especially during setup-translators -k
+    <braunr> yes

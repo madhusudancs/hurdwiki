@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011, 2012, 2013 Free Software Foundation,
+[[!meta copyright="Copyright © 2011, 2012, 2013, 2014 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -365,3 +365,138 @@ See [[glibc]], *Missing interfaces, amongst many more*, *`SOCK_CLOEXEC`*.
     <braunr> anyway
     <braunr> how do you plan to implement credential checking ?
     <gnu_srs> I'll mail patches RSN
+
+
+# IRC, freenode, #hurd, 2013-11-03
+
+    <gnu_srs> Finally, SCM_CREDS (IDs) works:) I was on the right track all the
+      time, it was just a small misunderstanding.
+    <gnu_srs> remains to solve the PID check
+    <youpi> gnu_srs: it should be a matter of adding
+      proc_user/server_authenticate
+    <gnu_srs> there are no proc_user/server_authenticate RPCs?
+    <gnu_srs> do you mean adding them to process.defs (and implement them)?
+    <youpi> gnu_srs: I mean that, yes
+
+
+# IRC, freenode, #hurd, 2013-11-13
+
+    <gnu_srs> BTW: I have to modify the SCM_RIGHTS patch to work together with
+      SCM_CREDS, OK?
+    <youpi> probably
+    <youpi> depends on what you change of course
+
+
+# IRC, freenode, #hurd, 2013-11-15
+
+    <gnu_srs> Hi, any ideas where this originates, gdb? warning: Error setting
+      exception port for process 9070: (ipc/send) invalid destination port
+    <braunr> gnu_srs: what's process 9070 ?
+    <gnu_srs> braunr: It's a test program for sending credentials over a
+      socket. Have to create a reproducible case, it's intermittent.
+    <gnu_srs> The error happens when running through gdb and the sending
+      program is chrooted:
+    <gnu_srs> -rwsr-sr-x 1 root root 21156 Nov 15 15:12
+      scm_rights+creds_send.chroot
+
+
+## IRC, freenode, #hurd, 2013-11-16
+
+    <gnu_srs> Hi, I have a problem debugging a suid program, see
+      http://paste.debian.net/66171/
+    <gnu_srs> I think this reveals a gnumach/hurd bug, it makes things behave
+      strangely for other programs.
+    <gnu_srs> How to get further on with this?
+    <gnu_srs> Or can't I debug a suid program as non-root?
+    <pochu> gnu_srs: if gdb doesn't work for setuid programs on hurd, I suppose
+      you could chmod -s the binary you're trying to debug, login as root and
+      run it under gdb
+    <gnu_srs> pochu: When logged in as root the program works, independent of
+      the s flag setting.
+    <pochu> right, probably the setuid has no effect in that case because your
+      effective uid is already fine
+    <pochu> so you don't hit the gdb bug in that case
+    <pochu> (just guessing)
+    <gnu_srs> It doesn't work in Linux either, so it might be futile.
+    <gnu_srs> trying
+    <pochu> hmm that may be the expected behaviour. after all, gdb needs to be
+      priviledged to debug priviledged processes
+    <gnu_srs> Problem is that it was just the suid properties I wanted to
+      test:(
+    <braunr> gnu_srs: imagine if you could just alter the code or data of any
+      suid program just because you're debugging it
+
+
+## IRC, freenode, #hurd, 2013-11-18
+
+    <gnu_srs> Hi, is the code path different for a suid program compared to run
+      as root?
+    <gnu_srs> Combined with LD_PRELOAD?
+    <teythoon> gnu_srs: afaik LD_PRELOAD is ignored by suid programs for
+      obvious security reasons
+    <gnu_srs> aha, thanks:-/
+    <braunr> gnu_srs: what's your problem with suid ?
+    <gnu_srs> I made changes to libc and tried them out with
+      LD_PRELOAD=... test_progam. It worked as any user (including root),
+    <gnu_srs> but not with suid settings. Justus explained why not.
+    <braunr> well i did too
+    <braunr> but is that all ?
+    <braunr> i mean, why did you test with suid programs in the first place ?
+    <gnu_srs> to get different euid and egid numbers
+
+    <gnu_srs> hi, anybody seen this with eglibc-2.17-96: locale: relocation
+      error: locale: symbol errno,
+    <gnu_srs> version GLIBC_PRIVATE not defined in file libc.so.0.3 with link
+      time reference
+    <teythoon> yes, I have
+    <teythoon> but afaics nothing did break, so I ignored it
+
+
+## IRC, freenode, #hurd, 2013-11-23
+
+    <gnu_srs> Finally 8-)
+    <gnu_srs> Good news: soon both SCM_CREDS _and_ SCM_RIGHTS is supported
+      jointly. RFCs will be sent soon.
+
+
+## IRC, freenode, #hurd, 2013-12-05
+
+    <gnu_srs> I have a problem with the SCM_CREDS patch and dbus. gamin and my
+      test code runs fine.
+    <gnu_srs> the problem with the dbus code is that it won't work well with 
+    <gnu_srs> auth_user_authenticate in sendmsg and auth_server_authenticate in
+      recvmsg.
+    <gnu_srs> Should I try to modify the dbus code to make it work?
+    <youpi> unless you manage to prove that dbus is not following the posix
+      standard, there is no reason why you should have to modify dbus
+    <gnu_srs> I think the implementation is correct,
+    <gnu_srs> but auth_user_authenticate hangs sendmsg until
+      auth_seerver_authenticate is executed in recvmsg.
+    <gnu_srs> and dbus is not doing that, so it hangs in sendmsg writing a
+      credentials byte.
+    <gnu_srs> well the credentials byte is definitely non-posix.
+    <gnu_srs> I found a bug related to the HURD_DPORT_USE macro too:-(
+    <youpi> ah, yes, auth_user_authenticate might be synchronous indeed, let me
+      think about it
+    <gnu_srs> Nevertheless, I think it's time to publish the code so it can be
+      commented on:-D
+    <youpi> sure
+    <youpi> publish early, publish often
+
+
+# IRC, freenode, #hurd, 2014-01-17
+
+    <gnu_srs> youpi: as a start all our requested dbus changes are now
+      committed, and in Debian unstable
+    <youpi> good :)
+
+
+# IRC, freenode, #hurd, 2014-01-30
+
+    <pochu> dbus has some known problems
+    <pere> known fixes too?
+    <pochu> http://www.gnu.org/software/hurd/open_issues/dbus.html
+    <gnu_srs> pochu: Maybe that page should be updated:
+      http://lists.nongnu.org/archive/html/bug-hurd/2013-12/msg00150.html
+    <youpi> gnu_srs: well, maybe you can do it :
+    <youpi> )

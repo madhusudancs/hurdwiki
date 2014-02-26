@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2009, 2012 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2009, 2012, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -593,3 +594,61 @@ In context of the [[select]] issue.
 
     <braunr> i understand now why my bpf translator was so buggy
     <braunr> the condition_timedwait i wrote at the time was .. incomplete :)
+
+
+## IRC, freenode, #hurd, 2014-02-04
+
+    <teythoon> btw, why is there a bpf filter in gnumach ?
+    <teythoon> braunr: didn't you put it there ?
+    <braunr> teythoon: ah yes i did
+    <braunr> teythoon: i completed the work of a friend
+    <braunr> teythoon: the original filters in mach were netf filters
+    <braunr> teythoon: we added bpf so that libpcap could directly upload them
+      to the kernel
+    <braunr> in order to apply filters as close as possible to the packet
+      source and save copies
+    <teythoon> so they were used with the in-kernel network drivers ?
+    <braunr> only by experimental code and pfinet which sets a
+      receive-all-inet4/6 filter
+    <braunr> i also have a pcap-hurd.c file for libpcap but integration is a
+      bit tricky because of netdde
+    <braunr> maybe i could work on it again some day
+    <braunr> it should be easy to get into the debian package at least
+    <teythoon> so they can still be used with a netdde-based driver ?
+    <braunr> i'm not sure
+    <braunr> the pcap-hurd.c file i wrote uses the libpcap bpf filter
+    <teythoon> oh, ok, i misinterpreted what you said wrt netdde
+    <braunr> the problem caused by netdde is about where to get packets from,
+      but devnode should take care of that
+    <teythoon> did you mean that the integration is tricky b/c when netdde is
+      used, a different approach is necessary and that would have to be
+      detected at runtime ?
+    <braunr> something like that
+    <teythoon> right
+    <braunr> i didn't want to detect anything
+    <teythoon> right
+    <braunr> i was waiting for things to settle but netdde is still debian only
+    <braunr> but that's ok, this oculd be a debian only patch for now
+    <teythoon> so is eth-filter the netdde equivalent or am i getting a wrong
+      picture here ?
+    <braunr> i don't know
+    <teythoon> it seems to implement bpf filters as well
+    <braunr> it could very well be
+    <braunr> whatever the driver, pfinet must be able to install a filter
+    <braunr> even if it's almost a catch-all
+    <teythoon> i guess it could start a eth-filter and use this, why not
+    <braunr> sure
+
+
+### IRC, freenode, #hurd, 2014-02-06
+
+    <antrik> teythoon: the BPF filter in Mach can also be used by
+      eth-multiplexer or eth-filter when running on in-kernel network
+      drivers... in fact the implementation was finished by the guy who created
+      eth-multiplexer; it was not fully working before
+    <antrik> it's not useful at all when using netdde I believe
+    <antrik> teythoon: IIRC eth-filted both relies on BPF being implemented by
+      the layer below it (whatever it is) to do the actual filtering, as well
+      as implements BPF itself so any layer on top of it can in turn use BPF
+    <antrik> netdde should provide BPF filters too I'd say... but don't
+      remember for sure

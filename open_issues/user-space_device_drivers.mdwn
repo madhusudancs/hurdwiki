@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2009, 2011, 2012, 2013 Free Software Foundation,
-Inc."]]
+[[!meta copyright="Copyright © 2009, 2011, 2012, 2013, 2014 Free Software
+Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -19,7 +19,7 @@ Also see [[device drivers and IO systems]].
 [[!toc levels=2]]
 
 
-# Issues
+# Open Issues
 
 ## IRQs
 
@@ -248,6 +248,297 @@ A similar problem is described in
       completely
     <braunr> so worth testin
     <teythoon> cool :)
+
+
+#### IRC, freenode, #hurd, 2014-02-10
+
+    <teythoon> braunr: i have a question wrt memory allocation in gnumach
+    <teythoon> i made a live cd with a rather large ramdisk
+    <teythoon> it works fine in qemu, when i tried it on a real machine it
+      failed to allocate the buffer for the ramdisk
+    <teythoon> i was wondering why
+    <teythoon> i believe the function that failed was kmem_alloc trying to
+      allocate 64 megabytes
+    <braunr> teythoon: how much memory on the real machine ?
+    <teythoon> 4 gigs
+    <braunr> so 1.8G
+    <teythoon> yes
+    <braunr> does it fail systematically ?
+    <teythoon> but surely enough
+    <teythoon> uh, i must admit i only tried it once
+    <braunr> it's likely a 64M kernel allocation would fail
+    <braunr> the kmem_map is 128M wide iirc
+    <braunr> and likely fragmented
+    <braunr> it doesn't take much to prevent a 64M contiguous virtual area
+    <teythoon> i see
+    <braunr> i suggest you try my last gnumach patch
+    <teythoon> hm
+    <teythoon> surely there is a way to make this more robust, like using a
+      different map for the allocation ?
+    <braunr> the more you give to the kernel, the less you have for userspace
+    <braunr> merging maps together was actually a goal
+    <braunr> the kernel should never try to allocate such a large region
+    <braunr> can you trace the origin of the allocation request ?
+    <teythoon> i'm pretty sure it is for the ram disk
+    <braunr> makes sense but still, it's huge
+    <teythoon> well...
+    <braunr> the ram disk should behave as any other mapping, i.e. pages should
+      be mapped in on demand
+    <teythoon> right, so the implementation could be improved ?
+    <braunr> we need to understand why the kernel makes such big requests first
+    <teythoon> oh ? i thought i asked it to do so
+    <braunr> ?
+    <teythoon> for the ram disk
+    <braunr> normally, i would expect this to translate to the creation of a
+      64M anonymous memory vm object
+    <braunr> the kernel would then fill that object with zeroed pages on demand
+      (on page fault)
+    <braunr> at no time would there be a single 64M congituous kernel memory
+      allocation
+    <braunr> such big allocations are a sign of a serious bug
+    <braunr> for reference, linux (which is even more demanding because
+      physical memory is directly mapped in kernel space) allows at most 4M
+      contiguous blocks on most architectures
+    <braunr> on my systems, the largest kernel allocation is actually 128k
+    <braunr> and there are only two such allocations
+    <braunr> teythoon: i need you to reproduce it so we understand what happens
+      better
+    <teythoon> braunr: currently the ramdisk implementation kmem_allocs the
+      buffer in the kernel_map
+    <braunr> hum
+    <braunr> did you add this code ?
+    <teythoon> no
+    <braunr> where is it ?
+    <teythoon> debian/patches
+    <braunr> ugh
+    <teythoon> heh
+    <braunr> ok, don't expect that to scale
+    <braunr> it's a quick and dirty hack
+    <braunr> teythoon: why not use tmpfs ?
+    <teythoon> i use it as root filesystem
+    <braunr> :/
+    <braunr> ok so
+    <braunr> update on what i said before
+    <braunr> kmem_map is exclusively used for kernel object (slab) allocations
+    <braunr> kmem_map is a submap of kernel_map
+    <braunr> which is 192M on i386
+    <braunr> so a 64M allocation can't work at all
+    <braunr> it would work on xen, where the kernel map is 224M large
+    <braunr> teythoon: do you use xen ?
+    <teythoon> ok, thanks for the pointers :)
+    <teythoon> i don't use xen
+    <braunr> then i can't explain how it worked in your virtual machine
+    <braunr> unless the size was smaller
+    <teythoon> i'll look into improving the ramdisk patch if time permits
+    <teythoon> no it wasnt
+    <braunr> :/
+    <teythoon> and it works reliably in qemu
+    <braunr> that's very strange
+    <braunr> unless the kernel allocates nothing at all inside kernel_map on
+      qemu
+
+
+##### IRC, freenode, #hurd, 2014-02-11
+
+    <teythoon> braunr: http://paste.debian.net/81339/
+    <braunr> teythoon: oO ?
+    <braunr> teythoon: you can't allocate memory from a non kernel map
+    <braunr> what you're doing here is that you create a separate, non-kernel
+      address space, that overlaps kernel memory, and allocate from that area
+    <braunr> it's like having two overlapping heaps and allocating from them
+    <teythoon> braunr: i do?  o_O
+    <teythoon> so i need to map it instead ?
+    <braunr> teythoon: what do you want to do ?
+    <teythoon> i'm currently reading up on the vm system, any pointers ?
+    <braunr> teythoon: but what do you want to achieve here ?
+    <braunr> 12:24 < teythoon> so i need to map it instead ?
+    <teythoon> i'm trying to do what you said the other day, create a different
+      map to back the ramdisk
+    <braunr> no
+    <teythoon> no ?
+    <braunr> i said an object, not a map
+    <braunr> but it means a complete rework
+    <teythoon> ok
+    <teythoon> i'll head back into hurd-land then, though i'd love to see this
+      done properly
+    <braunr> teythoon: what you want basically is tmpfs as a rootfs right ?
+    <teythoon> sure
+    <teythoon> i'd need a way to populate it though
+    <braunr> how is it done currently ?
+    <teythoon> grub loads an ext2 image, then it's copied into the ramdisk
+      device, and used by the root translator
+    <braunr> how is it copied ?
+    <braunr> what makes use of the kernel ramdisk ?
+    <teythoon> in ramdisk_create, currently via memcpy
+    <teythoon> the ext2fs translator that provides /
+    <braunr> ah so it's a kernel device like hd0 ?
+    <teythoon> yes
+    <braunr> hm ok
+    <braunr> then you could create an anonymous memory object in the kernel,
+      and map read/write requests to object operations
+    <braunr> the object must not be mapped in the kernel though, only temporary
+      on reads/writes
+    <teythoon> right
+    <teythoon> so i'd not use memcpy, but one of the mach functions that copy
+      stuff to memory objects ?
+    <braunr> i'm not sure
+    <braunr> you could simply map the object, memcpy to/from it, and unmap it
+    <teythoon> what documentation should i read ?
+    <braunr> vm/vm_map.h for one
+    <teythoon> i can only find stuff describing the kernel interface to
+      userspace
+    <braunr> vm/vm_kern.h may help
+    <braunr> copyinmap and copyoutmap maybe
+    <braunr> hm no
+    <teythoon> vm_map.h isn't overly verbose :(
+    <braunr> vm_map_enter/vm_map_remove
+    <teythoon> ah, i actually tried vm_map_enter
+    <braunr> look at the .c files, functions are described there
+    <teythoon> that leads to funny results
+    <braunr> vm_map_enter == mmap basically
+    <braunr> and vm_object.h
+    <teythoon> panic: kernel thread accessed user space!
+    <braunr> heh :)
+    <teythoon> right, i hoped vm_map_enter to be the in-kernel equivalent of
+      vm_map
+
+    <teythoon> braunr: uh, it worked
+    <braunr> teythoon: ?
+    <teythoon> weird
+    <teythoon> :)
+    <braunr> teythoon: what's happening ?
+    <teythoon> i refined the ramdisk patch, and it seems to work
+    <teythoon> not sure if i got it right though, i'll paste the patch
+    <braunr> yes please
+    <teythoon> http://paste.debian.net/81376/
+    <braunr> no it can't work either
+    <teythoon> :/
+    <braunr> you can't map the complete object
+    <teythoon> (amusingly it does)
+    <braunr> you have to temporarily map the pages you want to access
+    <braunr> it does for the same obscure reason the previous code worked on
+      qemu
+    <teythoon> ok, i think i see
+    <braunr> increase the size a lot more
+    <braunr> like 512M
+    <braunr> and see
+    <braunr> you could also use the kernel debugger to print the kernel map
+      before and after mapping
+    <teythoon> how ?
+    <braunr> hm
+    <braunr> see show task
+    <braunr> maybe you can call the in kernel function directly with the kernel
+      map as argument
+    <teythoon> which one ?
+    <braunr> the one for "show task"
+    <braunr> hm no it shows threads, show map
+    <braunr> and show map crashes on darnassus ..
+    <teythoon> here as well
+    <braunr> ugh
+    <braunr> personally i'd use something like vm_map_info in x15
+    <braunr> but you may not want to waste time with that
+    <braunr> try with a bigger size and see what it does, should be quick and
+      simple enough
+    <teythoon> right
+    <teythoon> braunr: ok, you were right, mapping the entire object fails if
+      it is too big
+    <braunr> teythoon: fyi, kmem_alloc and vm_map have some common code, namely
+      the allocation of an virtual area inside a vm_map
+    <braunr> kmem_alloc requires a kernel map (kernel_map or a submap) whereas
+      vm_map can operate on any map
+    <braunr> what differs is the backing store
+    <teythoon> braunr: i believe i want to use vm_object_copy_slowly to create
+      and populate the vm object
+    <teythoon> for that, i'd need a source vm_object
+    <teythoon> the data is provided as a multiboot_module
+    <braunr> kmem_alloc backs the virtual range with wired down physical memory
+    <braunr> whereas vm_map maps part of an object that is usually pageable
+    <teythoon> i see
+    <braunr> and you probably want your object to be pageable here
+    <teythoon> yes :)
+    <braunr> yes object copy functions could work
+    <braunr> let me check
+    <teythoon> what would i specify as source object ?
+    <braunr> let's assume a device write
+    <braunr> the source object would be where the source data is
+    <braunr> e.g. the data provided by the user
+    <teythoon> yes
+    <teythoon> trouble is, i'm not sure what the source is
+    <braunr> it looks a bit complicated yes
+    <teythoon> i mean the boot loader put it into memory, not sure what mach
+      makes of that
+    <braunr> i guess there already are device functions that look up the object
+      from the given address
+    <braunr> it's anonymous memory
+    <braunr> but that's not the problem here
+    <teythoon> so i need to create a memory object for that ?
+    <braunr> you probably don't want to populate your ramdisk from the kernel
+    <teythoon> wire it down to the physical memory ?
+    <braunr> don't bother with the wire property
+    <teythoon> oh ?
+    <braunr> if it can't be paged out, it won't be
+    <teythoon> ah, that's not what i meant
+    <braunr> you probably want ext2fs to populate it, or another task loaded by
+      the boot loader
+    <teythoon> interesting idea
+    <braunr> and then, this task will have a memory object somewhere
+    <braunr> imagine a task which sole purpose is to embedd an archive to
+      extract into the ramdisk
+    <teythoon> sweet, my thoughts exactly :)
+    <braunr> the data section of a program will be backed by an anonymous
+      memory object
+    <braunr> the problem is the interface
+    <braunr> the device interface passes addresses and sizes
+    <braunr> you need to look up the object from that
+    <braunr> but i guess there is already code doing that in the device code
+      somewhere
+    <braunr> teythoon: vm_object_copy_slowly seems to create a new object
+    <braunr> that's not exactly what we want either
+    <teythoon> why not ?
+    <braunr> again, let's assume a device_write scenario
+    <teythoon> ah
+    <braunr> you want to populate the ramdisk, which is merely one object
+    <braunr> not a new object
+    <teythoon> yes
+    <braunr> teythoon: i suggest using vm_page_alloc and vm_page_copy
+    <braunr> and vm_page_lookup
+    <braunr> teythoon: perhaps vm_fault_page too
+    <braunr> although you might want wired pages initially
+    <braunr> teythoon: but i guess you see what i mean when i say it needs to
+      be reworked
+    <teythoon> i do
+    <teythoon> braunr: aww, screw that, using a tmpfs is much nicer anyway
+    <teythoon> the ramdisk strikes again ...
+    <braunr> teythoon: :)
+    <braunr> teythoon: an extremely simple solution would be to enlarge the
+      kernel map
+    <braunr> this would reduce the userspace max size to ~1.7G but allow ~64M
+      ramdisks
+    <teythoon> nah
+    <braunr> or we could reduce the kmem_map
+    <braunr> i think i'll do that anyway
+    <braunr> the slab allocator rarely uses more than 50-60M
+    <braunr> and the 64M remaining area in kernel_map can quickly get
+      fragmented
+    <teythoon> braunr: using a tmpfs as the root translator won't be straight
+      forward either ... damn the early boostrapping stuff ...
+    <braunr> yes ..
+    <teythoon> that's one of the downsides of the vfs-as-namespace approach
+    <braunr> i'm not sure
+    <braunr> it could be simplified
+    <teythoon> hm
+    <braunr> it could even use a temporary name server to avoid dependencies
+    <teythoon> indeed
+    <teythoon> there's even still the slot for that somewhere
+    <antrik> braunr: hm... I have a vague recollection that the fixed-sized
+      kmem-map was supposed to be gone with the introduction of the new
+      allocator?...
+    <braunr> antrik: the kalloc_map and kmem_map were merged
+    <braunr> we could directly use kernel_map but we may still want to isolate
+      it to avoid fragmentation
+
+See also the discussion on [[gnumach_memory_management]], *IRC, freenode,
+\#hurd, 2013-01-06*, *IRC, freenode, #hurd, 2014-02-11* (`KENTRY_DATA_SIZE`).
 
 
 ### IRC, freenode, #hurd, 2012-07-17
@@ -725,7 +1016,133 @@ A similar problem is described in
 
   * <http://gelato.unsw.edu.au/IA64wiki/UserLevelDrivers>
 
+
+## The Anykernel and Rump Kernels
+
   * [Running applications on the Xen
     Hypervisor](http://blog.netbsd.org/tnf/entry/running_applications_on_the_xen),
     Antti Kantee, 2013-09-17.  [The Anykernel and Rump
     Kernels](http://www.netbsd.org/docs/rump/).
+
+
+### IRC, freenode, #hurd, 2014-02-13
+
+    <cluck> is anyone working on getting netbsd's rump kernel working under
+      hurd? it seems like a neat way to get audio/usb/etc with little extra
+      work (it might be a great complement to dde)
+    <braunr> noone is but i do agree
+    <braunr> although rump wasn't exactly designed to make drivers portable,
+      more subsystems and higher level "drivers" like file systems and network
+      stacks
+    <braunr> but it's certainly possible to use it for drivers to without too
+      much work
+    <curious_troll> cluck: I am reading about rumpkernels and his thesis.
+    <cluck> braunr: afaiu there is (at least partial) work done on having it
+      run on linux, xen and genode [unless i misunderstood the fosdem'14 talks
+      i've watched so far]
+    <cluck> "Generally speaking, any driver-like kernel functionality can be
+      offered by a rump server. Examples include file systems, networking
+      protocols, the audio subsystem and USB hardware device drivers. A rump
+      server is absolutely standalone and running one does not require for
+      example the creation and maintenance of a root file system."
+    <cluck> from http://www.netbsd.org/docs/rump/sptut.html
+    <braunr> cluck: how do they solve resource sharing problems ?
+    <cluck> braunr: some sort of lock iiuc, not sure if that's managed by the
+      host (haven't looked at the code yet)
+    <braunr> cluck: no, i mean things like irq sharing ;p
+    <braunr> bus sharing in general
+    <braunr> netbsd has a very well defined interface for that, but i'm
+      wondering what rump makes of it
+    <cluck> braunr: yes, i understood
+    <cluck> braunr: just lacking proper terminology to express myself
+    <cluck> braunr: at least from the talk i saw what i picked up is it behaves
+      like netbsd inside but there's some sort of minimum support required from
+      the "host" so the outside can reach down to the hw
+    <braunr> cluck: rump is basically glue code
+    <cluck> braunr: but as i've said, i haven't looked at the code in detail
+      yet
+    <cluck> braunr: yes
+    <braunr> but host support, at least for the hurd, is a bit more involved
+    <braunr> we don't merely want to run standalone netbsd components
+    <braunr> we want to make them act as real hurd servers
+    <braunr> therefore tricky stuff like signals quickly become more
+      complicated
+    <braunr> we also don't want it to use its own RPC format, but instead use
+      the native one
+    <cluck> braunr: antti says required support is minimal
+    <braunr> but again, compared to everything else, the porting effort / size
+      of reusable code base ratio is probably the lowest
+    <braunr> cluck: and i say we don't merely want to run standalone netbsd
+      components on top of a system, we want them to be our system
+    <cluck> braunr: argh.. i hate being unable to express myself properly
+      sometimes :|
+    <cluck> ..the entry point?!
+    <braunr> ?
+    <cluck> dunno what to call them
+    <braunr> i understand what you mean
+    <braunr> the system specific layer
+    <braunr> and *againù i'm telling you our goals are different
+    <cluck> yes, anyways.. just a couple of things, the rest is just C
+    <braunr> when you have portable code such as found in netbsd, it's not that
+      hard to extract it, create some transport between a client and a server,
+      and run it
+    <braunr> if you want to make that hurdish, there is more than that
+    <braunr> 1/ you don't use tcp, you use the native microkernel transport
+    <braunr> 2/ you don't use the rump rpc code over tcp, you create native rpc
+      code over the microkernel transport (think mig over mach)
+    <braunr> 3/ you need to adjust how authentication is performed (use the
+      auth server instead of netbsd internal auth mechanisms)
+    <braunr> 4/ you need to take care of signals (if the server generates a
+      signal, it must correctly reach the client)
+    <braunr> and those are what i think about right now, there are certainly
+      other details
+    <cluck> braunr: yes, some of those might've been solved already, it seems
+      the next genode release already has support for rump kernels, i don't
+      know how they went about it
+    <cluck> braunr: in the talk antii mentions he wanted to quickly implement
+      some i/o when playing on linux so he hacked a fs interface 
+    <cluck> so the requirements can't be all that big
+    <cluck> braunr: in any case i agree with your view, that's why i found rump
+      kernels interesting in the first place
+    <braunr> i went to the presentation at fosdem last year
+    <braunr> and even then considered it the best approach for
+      driver/subsystems reuse on top of a microkernel
+    <braunr> that's what i intend to use in propel, but we're far from there ;p
+    <cluck> braunr: tbh i hadn't paid much attention to rump at first, i had
+      read about it before but thought it was more netbsd specific, the genode
+      mention piked my interest and so i went back and watched the talk, got
+      positively surprised at how far it has come already (in retrospect it
+      shouldn't have been so unexpected, netbsd has always been very small,
+      "modular", with clean interfaces that make porting easier)
+    <braunr> netbsd isn't small at all
+    <braunr> not exactly modular, well it is, but less than other systems
+    <braunr> but yes, clean interfaces, explicitely because their stated goal
+      is portability
+    <braunr> other projects such as minix and qnx didn't wait for rump to reuse
+      netbsd code
+    <cluck> braunr: qnx and minix have had money and free academia labor done
+      in their favor before (sadly hurd doesn't have the luck to enjoy those
+      much)
+    <cluck> :)
+    <braunr> sure but that's not the point
+    <braunr> resources or not, they chose the netbsd code base for a reason
+    <braunr> and that reason is portability
+    <cluck> yes
+    <cluck> but it's more work their way
+    <braunr> more work ?
+    <cluck> with rump we'd get all those interfaces for free
+    <braunr> i don't know
+    <braunr> not for free, certainly not
+    <cluck> "free"
+    <braunr> but the cost would be close to as low as it could possibly be
+      considering what is done
+    <cluck> braunr: the small list of dependencies makes me wonder if it's
+      possible it'd build under hurd without any mods (yes, i know, very
+      unlikely, just dreaming here)
+    <braunr> cluck: i'd say it's likely
+    <youpi> I quickly tried to build it during the talk
+    <youpi> there are PATH_MAX everywhere
+    <braunr> ugh
+    <youpi> but maybe that can be #defined
+    <youpi> since that's most probably for internal use
+    <youpi> not interaction with the host

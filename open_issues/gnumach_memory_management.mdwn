@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011, 2012, 2013 Free Software Foundation,
+[[!meta copyright="Copyright © 2011, 2012, 2013, 2014 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -2229,6 +2229,132 @@ There is a [[!FF_project 266]][[!tag bounty]] on this task.
     <braunr> (i mean, when i made my tests, it looked like there were few
       kernel map entries, but i may have missed corner cases that could cause
       more of them to be needed)
+
+
+## IRC, freenode, #hurd, 2014-02-11
+
+    <braunr> youpi: what's the issue with kentry_data_size ?
+    <youpi> I don't know
+    <braunr> so back to 64pages from 256 ?
+    <youpi> in debian for now yes
+    <braunr> :/
+    <braunr> from what i recall with x15, grub is indeed allowed to put modules
+      and command lines around as it likes
+    <braunr> restricted to 4G
+    <braunr> iirc, command lines were in the first 1M while modules could be
+      loaded right after the kernel or at the end of memory, depending on the
+      versions
+    <youpi> braunr: possibly VM_KERNEL_MAP_SIZE is then not big enough
+    <braunr> youpi: what's the size of the ramdisk ?
+    <braunr> youpi: or kmem_map too big
+    <braunr> we discussed this earlier with teythoon 
+
+[[user-space_device_drivers]], *Open Issues*, *System Boot*, *IRC, freenode,
+\#hurd, 2011-07-27*, *IRC, freenode, #hurd, 2014-02-10*
+
+    <braunr> or maybe we want to remove kmem_map altogether and directly use
+      kernel_map
+    <youpi> it's 6.2MiB big
+    <braunr> hm
+    <youpi> err no
+    <braunr> looks small
+    <youpi> 70MiB
+    <braunr> ok yes
+    <youpi> (uncompressed)
+    <braunr> well
+    <braunr> kernel_map is supposed to have 64M on i386 ...
+    <braunr> it's 192M large, with kmem_map taking 128M
+    <braunr> so at most 64M, with possible fragmentation
+    <teythoon> i believe the compressed initrd is stored in the ramdisk
+    <youpi> ah, right it's ext2fs which uncompresses it
+    <braunr> uncompresses it where 
+    <braunr> ?
+    <teythoon> libstore does that
+    <youpi> module --nounzip /boot/${gtk}initrd.gz 
+    <youpi> braunr: in userland memory
+    <youpi> it's not grub which uncompresses it for sure
+    <teythoon> braunr: so my ramdisk isn't 64 megs either
+    <braunr> which explains why it sometimes works
+    <teythoon> yes
+    <teythoon> mine is like 15 megs
+    <braunr> kentry_data_size calls pmap_steal_memory, an early allocation
+      function which changes virtual_space_start, which is later used to create
+      the first kernel map entry
+    <braunr> err, pmap_steal_memory is called with kentry_data_size as its
+      argument
+    <braunr> this first kernel map entry is installed inside kernel_map and
+      reduces the amount of available virtual memory there
+    <braunr> so yes, it all points to a layout problem
+    <braunr> i suggest reducing kmem_map down to 64M
+    <youpi> that's enough to get d-i back to boot
+    <youpi> what would be the downside?
+    <youpi> (why did you raise it to 128 actually? :) )
+    <braunr> i merged the map used by generic kalloc allocations into kmem_map
+    <braunr> both were 64M
+    <braunr> i don't see any downside for the moment
+    <braunr> i rarely see more than 50M used by the slab allocator
+    <braunr> and with the recent code i added to collect reclaimable memory on
+      kernel allocation failures, it's unlikely the slab allocator will be
+      starved
+    <youpi> but then we need that patch too
+    <braunr> no
+    <braunr> it would be needed if kmem_map gets filled
+    <braunr> this very rarely happens
+    <youpi> is "very rarely" enough ? :)
+    <braunr> actualy i've never seen it happen
+    <braunr> i added it because i had port leaks with fakeroot
+    <braunr> port rights are a bit special because they're stored in a table in
+      kernel space
+    <braunr> this table is enlarged with kmem_realloc
+    <braunr> when an ipc space gets very large, fragmentation makes it very
+      difficult to successfully resize it
+    <braunr> that should be the only possible issue
+    <braunr> actually, there is another submap that steals memory from
+      kernel_map: device_io_map is 16M large
+    <braunr> so kernel_map gets down to 48M
+    <braunr> if the initial entry (that is, kentry_data_size + the physical
+      page table size) gets a bit large, kernel_map may have very little
+      available room
+    <braunr> the physical page table size obviously varies depending on the
+      amount of physical memory loaded, which may explain why the installer
+      worked on some machines
+    <youpi> well, it works up to 1855M
+    <youpi> at 1856 it doesn't work any more :)
+    <braunr> heh :)
+    <youpi> and that's about the max gnumach can handle anyway
+    <braunr> then reducing kmem_map down to 96M should be enough
+    <youpi> it works indeed
+    <braunr> could you check the amount of available space in kernel_map ?
+    <braunr> the value of kernel_map->size should do
+    <youpi> printing it "multiboot modules" print should be fine I guess?
+
+
+### IRC, freenode, #hurd, 2014-02-12
+
+    <braunr> probably
+    <teythoon> ?
+    <braunr> i expect a bit more than 160M
+    <braunr> (for the value of kernel_map->size)
+    <braunr> teythoon: ?
+    <youpi> well, it's 2110210048
+    <teythoon> what is multiboot modules printing ?
+    <youpi> almost last in gnumach bootup
+    <braunr> humm
+    <braunr> it must account directly mapped physical pages
+    <braunr> considering the kernel has exactly 2G, this means there is 36M
+      available in kernel_map
+    <braunr> youpi: is the ramdisk loaded at that moment ?
+    <youpi> what do you mean by "loaded" ? :)
+    <braunr> created
+    <youpi> where?
+    <braunr> allocated in kernel memory
+    <youpi> the script hasn't started yet
+    <braunr> ok
+    <braunr> its size was 6M+ right ?
+    <braunr> so it leaves around 30M
+    <youpi> something like this yes
+    <braunr> and changing kmem_map from 128M to 96M gave us 32M
+    <braunr> so that's it
 
 
 # IRC, freenode, #hurd, 2013-04-18

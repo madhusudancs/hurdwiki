@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2010, 2011, 2013 Free Software Foundation,
+[[!meta copyright="Copyright © 2010, 2011, 2013, 2014 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -154,6 +154,91 @@ License|/fdl]]."]]"""]]
     <braunr> don't do anything just yet
     <braunr> we need to sort a few details out first
     <braunr> see bug-hurd
+
+
+## IRC, freenode, #hurd, 2013-12-05
+
+    <teythoon> braunr: no more room for vm_map_find_entry in 80220a40
+    <teythoon> 80220a40 <- is that a task ?
+    <braunr> or a vm_map, not sure
+    <braunr> probably a vm_map
+    <teythoon> hm
+    <teythoon> let's fix this kind of reporting
+    <braunr> :)
+    <teythoon> let one process register for kernel log messages
+    <teythoon> make a rich interface, say klog_thread and friends
+    <teythoon> a userspace process gets the port name, looks it up in proc,
+      logs nicely to syslog
+    <teythoon> if noone registered for this notifications, fall back to the old
+      reporting
+    <braunr> i tend to think using internal names is probably better
+    <teythoon> how would i use them to see wich process caused the issue ?
+    <braunr> you give the name of the task
+    <braunr> (which means tasks have names, yes)
+    <teythoon> ok
+    <braunr> the reason is that reporting is often used for debugging
+    <braunr> and debugging usually means there is a bug
+    <braunr> if the bug prevents from reporting, it's not very useful
+    <braunr> and we're talking about the kernel here, the low level stuff
+    <teythoon> incidentally, i got myself a stuck process
+    <teythoon> ah, got it killed
+    <teythoon> braunr: so you propose to add a task rpc to set a name ?
+    <braunr> i don't want to push such things
+    <braunr> which is why this hasn't been done until now
+    <braunr> but that's what i'd do in x15, yes
+    <teythoon> y not ?
+    <braunr> and instead of a process registered to gather kernel messages, i'd
+      use a dmesg-like interface, where the kernel manages its message buffer
+      itself
+    <braunr> i didn't feel the need to
+    <braunr> the tools i've had until now were sufficient
+    <braunr> don't forget you still need to fix mtab :p
+    <braunr> or is it done ?
+    <teythoon> i sometimes see tasks deallocating invalid ports
+    <teythoon> no
+    <teythoon> there is an un-acked patche series on the list
+    <braunr> ok
+    <teythoon> so, i want to identify which process caused it
+    <teythoon> is that possible right now ?
+    <braunr> not easily, no
+    <teythoon> so that's a valid use case
+    <braunr> it is
+    <teythoon> good
+    <teythoon> :)
+    <teythoon> so proc would register a string describing each task and mach
+      would use this for printing nicer messages ?
+    <braunr> for example, yes
+    <braunr> one problem with that approach is that it doesn't fit well with
+      subhurds
+    <teythoon> *bingbingbing
+    <braunr> but i personally wouldn't care much, they're kernel messages
+    <braunr> in the future, we could make mach more a hypervisor, and register
+      names for each domains
+    <teythoon> yet unanswered proposal about hierachical proc servers on the
+      list...
+    <teythoon> that'd also fix subhurds, so that the parents processes won't
+      appear in the subhurd
+    <teythoon> making it sandboxier
+    <teythoon> and killall5 couldn't slaughter the host system if the subhurd
+      shuts down with sysvinit
+
+
+## IRC, freenode, #hurd, 2014-01-20
+
+    <teythoon> i wonder if it would not be best to add a description to mach
+      tasks
+    <braunr> i think it would
+    <teythoon> to aid fixing these kind of issues
+    <braunr> in x15, i actually add descriptions (names) to all kernel objects
+    <teythoon> that's probably a good idea, yes
+    <braunr> well, not all, but many
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-05
+
+    <teythoon> youpi: about that patch implementing task_set_name, may i merge
+      the amended version ?
+    <youpi> yes
 
 
 # IRC, freenode, #hurd, 2011-07-13

@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2007, 2008, 2009, 2010, 2011, 2012, 2013 Free
-Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014
+Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -224,6 +224,126 @@ See `rpctrace --help` about how to use it.
       some glue code
     <braunr> select is partially hand written
     <braunr> but it's a special case so that's ok
+
+* IRC, freenode, #hurd, 2013-12-11
+
+    <gnu_srs> teythoon: Congrats regarding rpctrace, is it now fully
+      functional?
+    <teythoon> should be
+    <teythoon> well, you should be able to use it on any application that uses
+      select
+    <teythoon> other than that, it's as functional as it ever was
+    <teythoon> i was annoyed that i couldn't rpctrace ping, and the fix was
+      much easier than expected
+    <gnu_srs> and fork is no problem anymore?
+    <teythoon> was it ever ?
+    <braunr> yes, fork and some issues
+    <teythoon> rpctrace should pick up any forked processes
+    <teythoon> oh ?
+    <braunr> thanks for rpctrace too
+    <braunr> it was indeed on the todo list for a long time
+    <braunr> ah fork with regard to rpctrace
+    <braunr> no i don't think so
+    <braunr> but
+    <braunr> rpctrace can't be a perfect proxy
+    <braunr> because some calls just go directly through the kernel
+    <teythoon> really ?
+    <teythoon> we could install custom functions for any such call
+    <braunr> system calls
+    <braunr> yes
+    <teythoon> so why couldn't it be perfect ?
+    <braunr> i don't see how custom functions would do the trick
+    <braunr> i mean
+    <braunr> it would help, but not guarantee applications have to use these
+      functions
+    <braunr> the real solution would be something like strace
+    <teythoon> huh ?
+    <teythoon> why wouldn't there be any guarantee like that ?
+    <braunr> rpctrace catches messages, not system calls
+    <braunr> you don't see calls to mach_reply_port() obviously
+    <braunr> you just hope that such reply ports are sent through messages
+      rpctrace will see
+    <teythoon>
+      http://www.gnu.org/software/hurd/gnumach-doc/Syscall-Emulation.html
+    <teythoon> sure one does
+    <braunr> ah that
+    <braunr> we don't want that :p
+    <teythoon> why not ?
+    <braunr> it's a hack
+    <braunr> and checking for those impacts performances a bit
+    <braunr> it would be better to change the system calls into RPCs
+    <teythoon> so ? it would only affect tasks running in rpctrace, and the
+      documentation does not call that interface a hack ;)
+    <braunr> oh i agree
+    <braunr> i was saying we don't want them the same way we don't want async
+      ipc
+    <teythoon> yeah sure, i agree
+    <braunr> but since that's how mach works, why not
+    <braunr> although iirc, checking for emulated syscalls is done by the
+      syscall entry code
+    <teythoon> so ?
+    <braunr> so it has an impact on every system call
+    <teythoon> we could make that a compile time option and use it in rpctrace
+      only when available
+    <teythoon> so anyone who needs good traces, could run that kind of kernel
+    <braunr> no need
+    <teythoon> for what ?
+    <braunr> mach and the hurd are already too slow for this to be noticeable
+    <braunr> let's just live with it and use syscall emulation
+    <teythoon> why do you say that, i mean, do you have numbers ?
+    <braunr> from what i see, it's a bunch of less than 5 instructions
+    <teythoon> ok
+    <braunr> i'm just being picky
+    <braunr> i really don't like the idea of emulated system calls
+    <braunr> RPCs are much cleaner
+    <braunr> and frankly, the system calls that i'd like to see in rpctrace are
+      those like mach_thread_self()
+    <braunr> to spot reference leaks
+    <braunr> not too annoying actually
+
+* IRC, freenode, #hurd, 2013-12-13
+
+    <teythoon> hm
+    <teythoon> i briefly looked into the haskell test suite failure youpi wrote
+      about
+    <teythoon> i looked at one of the haskell-http-conduit failures
+    <teythoon> i think it starts a dummy web server and does one request to
+      itself
+    <teythoon> the binary is using select, so i used the fixed rpctrace to
+      obtain a trace
+    <teythoon> it looks strange ...
+    <teythoon> the http request is answered before the request is sent
+
+    <gnu_srs> teythoon: Nice to see that you added escape of non-printable
+      characters in rpctrace:-D
+    <teythoon> yeah, makes rpctrace less trippy though ;)
+
+* IRC, OFTC, #debian-hurd, 2014-02-20
+
+        * pere really misses strace.
+        <pere> rpctrace is not even close.
+        <teythoon> pere: why do you say that ?
+        <teythoon> pere: it is not that we couldn't write strace for mach, it
+          would just be very boring
+        <pere> teythoon: because strace tell me what a program does in details,
+          without too much irrelevant information, while rpctrace is just so
+          verbose that it is hard to see the relevant parts.
+        <youpi> well, they are mostly equivalent
+        <youpi> strace ls / gives me 200 lines, while rpctrace ls / gives me
+          300 lines
+        <youpi> there are spurious lines like term_getctty, but otherwise it's
+          mostly the same level of details
+        <youpi> (also, mach_port_deallocate get in the way)
+        <pere> strace also have the great advantage for C programmers that the
+          output look like the equivalent C calls.
+        <youpi> well, twice as many lines is not so much more verbose :)
+        <youpi> but yes, having internal RPC names doesn't help
+        <youpi> another way would be to use sotruss
+        <pere> sotruss just gave me 'killed'
+        <youpi> yes, it probably needs fixing, nobody worked on it AFAIK
+        <youpi> that's why I said "would", not "is" :)
+        <pere> in the mean time, I'll just keep dreaming of something with
+          output like strace. :)
 
 
 # See Also

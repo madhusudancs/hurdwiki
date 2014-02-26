@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2011, 2012, 2013 Free Software Foundation,
+[[!meta copyright="Copyright © 2011, 2012, 2013, 2014 Free Software Foundation,
 Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
@@ -23,22 +23,8 @@ the [[microkernel/mach/gnumach/ports/Xen]] platform.
     <braunr> i guess it wouldn't be too hard to have a special mach kernel for
       64 bits processors, but 32 bits userland only
     <youpi> well, it means tinkering with mig
-    <braunr> like old sparc systems :p
-    <youpi> to build the 32bit interface, not the 64bit one
-    <braunr> ah yes
-    <braunr> hm
-    <braunr> i'm not sure
-    <braunr> mig would assume a 32 bits kernel, like now
-    <youpi> and you'll have all kinds of discrepancies in vm_size_t & such
-    <braunr> yes
-    <braunr> the 64 bits type should be completely internal
-    <braunr> types*
-    <braunr> but it would be far less work than changing all the userspace bits
-      for 64 bit (ofc we'll do that some day but in the meanwhile ..)
-    <youpi> yes
-    <youpi> and it'd boost userland addrespace to 4GiB
-    <braunr> yes
-    <youpi> leaving time for a 64bit userland :)
+
+[[mig_portable_rpc_declarations]].
 
 
 # IRC, freenode, #hurd, 2012-10-03
@@ -60,87 +46,7 @@ the [[microkernel/mach/gnumach/ports/Xen]] platform.
     <braunr> i think i'll go the second way with x15, so you'll have the two :)
 
 
-# IRC, freenode, #hurd, 2012-12-12
-
-In context of [[microkernel/mach/gnumach/memory_management]].
-
-    <tschwinge> Or with a 64-bit one?  ;-P
-    <braunr> tschwinge: i think we all had that idea in mind :)
-    <pinotree> tschwinge: patches welcome :P
-    <youpi> tschwinge: sure, please help us settle down with the mig stuff
-    <youpi> what was blocking me was just deciding how to do it
-    <braunr> hum, what's blocking x86_64, except time to work on it ?
-    <youpi> deciding the mig types & such things
-    <youpi> i.e. the RPC ABI
-    <braunr> ok
-    <braunr> easy answer: keep it the same
-    <youpi> sorry, let me rephrase
-    <youpi> decide what ABI is supposed to be on a 64bit system, so as to know
-      which way to rewrite the types of the kernel MIG part to support 64/32
-      conversion
-    <braunr> can't this be done in two steps ?
-    <youpi> well, it'd mean revamping the whole kernel twice
-    <youpi> as the types at stake are referenced in the whole RPC code
-    <braunr> the first step i imagine would simply imply having an x86_64
-      kernel for 32-bits userspace, without any type change (unless restricting
-      to 32-bits when a type is automatically enlarged on 64-bits)
-    <youpi> it's not so simple
-    <youpi> the RPC code is tricky
-    <youpi> and there are alignments things that RPC code uses
-    <youpi> which become different when build with a 64bit compiler
-    <pinotree> there are also things like int[N] for io_stat_struct and so on
-    <braunr> i see
-    <youpi> making the code wrong for 32
-    <youpi> thus having to change the types
-    <youpi> pinotree: yes
-    <pinotree> (doesn't mig support structs, or it is too clumsy to be used in
-      practice?)
-    <braunr> pinotree: what's the problem with that (i explcitely said changing
-      int to e.g. int32_t)
-    <youpi> that won't fly for some of the calls
-    <youpi> e.g. getting a thread state
-    <braunr> pinotree: no it doesn't support struct
-    <pinotree> braunr: that some types in struct stat are long, for instance
-    <braunr> pinotree: same thing with longs
-    <braunr> youpi: why wouldn't it ?
-    <youpi> that wouldn't work on a 64bit system
-    <youpi> so we can't make it int32_t in the interface definition
-    <braunr> i understand the alignment issues and that the mig code adjusts
-      the generated code, but not the content of what is transfered
-    <braunr> well of course
-    <braunr> i'm talking about the first step here
-    <braunr> which targets a 32-bits userspace only
-    <youpi> ok, so we agree
-    <youpi> the second step would have to revamp the whole RPC code again
-    <braunr> i imagine the first to be less costly
-    <braunr> well, actually no
-    <braunr> you're right, the mig stuff would be easy on the application side,
-      but more complicated on the kernel side, since it would really mean
-      dealing with 64-bits values there
-    <braunr> (unless we keep a 3/1 split instead of giving the full 4g to
-      applications)
-
-See also [[microkernel/mach/gnumach/memory_management]].
-
-    <youpi> (I don't see what that changes)
-    <braunr> if the kernel still runs with 32-bits addresses, everything it
-      recevies from or sends through mig can be stored with the user side
-      32-bits types
-    <youpi> err, ok, but what's the point of the 64bit kernel then ? :)
-    <braunr> and it simply uses 64-bits addresses to deal with physical memory
-    <youpi> ok
-    <youpi> that could even be a 3.5/0.5 split then
-    <braunr> but the memory model forces us to run either at the low 2g or the
-      highest ones
-    <youpi> but linux has 3/1, so we don't need that
-    <braunr> otherwise we need an mcmodel=medium
-    <braunr> we could do with mcmodel=medium though, for a time
-    <braunr> hm actually no, it would require mcmodel=large
-    <braunr> hum, that's stupid, we can make the kernel run at -2g, and use 3g
-      up to the sign extension hole for the kernel map
-
-
-# IRC, freenode, #hurd, 2013-07-02
+## IRC, freenode, #hurd, 2013-07-02
 
 In context of [[mondriaan_memory_protection]].
 
@@ -157,8 +63,10 @@ In context of [[mondriaan_memory_protection]].
     <braunr> as passed between userspace and kernel
 
 
-# IRC, OFTC, #debian-hurd, 2013-10-05
+## IRC, OFTC, #debian-hurd, 2013-10-05
 
     <dharc> and what about 64 bit support, almost done?
     <youpi> kernel part is done
     <youpi> MIG 32/64 trnaslation missing
+
+[[mig_portable_rpc_declarations]].
