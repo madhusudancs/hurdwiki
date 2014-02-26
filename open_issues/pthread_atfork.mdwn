@@ -18,3 +18,89 @@ can probably be borrowed from `nptl/sysdeps/unix/sysv/linux/register-atfork.c`.
 
     <pinotree> SRCDIR/opal/mca/memory/linux/arena.c:387: warning: warning:
       pthread_atfork is not implemented and will always fail
+
+
+# Samuel's implementation
+
+TODO.
+
+
+## IRC, OFTC, #debian-hurd, 2013-10-08
+
+    <pinotree> youpi: if you need/want to test your pthread_atfork
+      implementation, you can check libposix-atfork-perl and its test suite
+      (whose test 004 hangs now, with eglibc -93)
+    <youpi> while it failed previously indeed
+    <youpi> we might simply need to rebuild perl against it
+    <youpi> (I see ifdef pthread_atfork in perl)
+
+
+## IRC, freenode, #hurd, 2013-10-16
+
+    <teythoon> tschwinge: I'd love to try your cross-gnu tool, the wiki page
+      suggests that the list of required source packages is outdated. can you
+      give me some hints?
+    <teythoon> tschwinge: I got this error running cross-gnu:
+      http://paste.debian.net/58303/
+        make[4]: Leaving directory `/home/teythoon/repos/hurd/cross/src/glibc/setjmp'
+        make subdir=string -C ../string ..=../ objdir=/home/teythoon/repos/hurd/cross/obj/glibc -f Makefile -f ../elf/rtld-Rules rtld-all rtld-modules='rtld-strchr.os rtld-strcmp.os rtld-strcpy.os rtld-strlen.os rtld-strnlen.os rtld-memchr.os rtld-memcmp.os rtld-memmove.os rtld-memset.os rtld-mempcpy.os rtld-stpcpy.os rtld-memcpy.os rtld-rawmemchr.os rtld-argz-count.os rtld-argz-extract.os rtld-stpncpy.os'
+        make[4]: Entering directory `/home/teythoon/repos/hurd/cross/src/glibc/string'
+        make[4]: Leaving directory `/home/teythoon/repos/hurd/cross/src/glibc/string'
+        make[4]: Entering directory `/home/teythoon/repos/hurd/cross/src/glibc/string'
+        make[4]: Nothing to be done for `rtld-all'.
+        make[4]: Leaving directory `/home/teythoon/repos/hurd/cross/src/glibc/string'
+        make[3]: Leaving directory `/home/teythoon/repos/hurd/cross/src/glibc/elf'
+        i686-pc-gnu-gcc   -shared -static-libgcc -Wl,-O1  -Wl,-z,defs -Wl,-dynamic-linker=/lib/ld.so.1  -B/home/teythoon/repos/hurd/cross/obj/glibc/csu/  -Wl,--version-script=/home/teythoon/repos/hurd/cross/obj/glibc/libc.map -Wl,-soname=libc.so.0.3 -Wl,-z,combreloc -Wl,-z,relro -Wl,--hash-style=both -nostdlib -nostartfiles -e __libc_main -L/home/teythoon/repos/hurd/cross/obj/glibc -L/home/teythoon/repos/hurd/cross/obj/glibc/math -L/home/teythoon/repos/hurd/cross/obj/glibc/elf -L/home/teythoon/repos/hurd/cross/obj/glibc/dlfcn -L/home/teythoon/repos/hurd/cross/obj/glibc/nss -L/home/teythoon/repos/hurd/cross/obj/glibc/nis -L/home/teythoon/repos/hurd/cross/obj/glibc/rt -L/home/teythoon/repos/hurd/cross/obj/glibc/resolv -L/home/teythoon/repos/hurd/cross/obj/glibc/crypt -L/home/teythoon/repos/hurd/cross/obj/glibc/mach -L/home/teythoon/repos/hurd/cross/obj/glibc/hurd -Wl,-rpath-link=/home/teythoon/repos/hurd/cross/obj/glibc:/home/teythoon/repos/hurd/cross/obj/glibc/math:/home/teythoon/repos/hurd/cross/obj/glibc/elf:/home/teythoon/repos/hurd/cross/obj/glibc/dlfcn:/home/teythoon/repos/hurd/cross/obj/glibc/nss:/home/teythoon/repos/hurd/cross/obj/glibc/nis:/home/teythoon/repos/hurd/cross/obj/glibc/rt:/home/teythoon/repos/hurd/cross/obj/glibc/resolv:/home/teythoon/repos/hurd/cross/obj/glibc/crypt:/home/teythoon/repos/hurd/cross/obj/glibc/mach:/home/teythoon/repos/hurd/cross/obj/glibc/hurd -o /home/teythoon/repos/hurd/cross/obj/glibc/libc.so -T /home/teythoon/repos/hurd/cross/obj/glibc/shlib.lds /home/teythoon/repos/hurd/cross/obj/glibc/csu/abi-note.o /home/teythoon/repos/hurd/cross/obj/glibc/elf/soinit.os /home/teythoon/repos/hurd/cross/obj/glibc/libc_pic.os /home/teythoon/repos/hurd/cross/obj/glibc/elf/sofini.os /home/teythoon/repos/hurd/cross/obj/glibc/elf/interp.os /home/teythoon/repos/hurd/cross/obj/glibc/elf/ld.so /home/teythoon/repos/hurd/cross/obj/glibc/mach/libmachuser-link.so /home/teythoon/repos/hurd/cross/obj/glibc/hurd/libhurduser-link.so -lgcc
+        /home/teythoon/repos/hurd/cross/obj/glibc/libc_pic.os: In function `__fork':
+        /home/teythoon/repos/hurd/cross/src/glibc/posix/../sysdeps/mach/hurd/fork.c:70: undefined reference to `__start__hurd_atfork_prepare_hook'
+        /home/teythoon/repos/hurd/cross/lib/gcc/i686-pc-gnu/4.8.1/../../../../i686-pc-gnu/bin/ld: /home/teythoon/repos/hurd/cross/obj/glibc/libc_pic.os: relocation R_386_GOTOFF against undefined hidden symbol `__start__hurd_atfork_prepare_hook' can not be used when making a shared object
+        /home/teythoon/repos/hurd/cross/lib/gcc/i686-pc-gnu/4.8.1/../../../../i686-pc-gnu/bin/ld: final link failed: Bad value
+        collect2: error: ld returned 1 exit status
+        make[2]: *** [/home/teythoon/repos/hurd/cross/obj/glibc/libc.so] Error 1
+        make[2]: Leaving directory `/home/teythoon/repos/hurd/cross/src/glibc/elf'
+        make[1]: *** [elf/subdir_lib] Error 2
+        make[1]: Leaving directory `/home/teythoon/repos/hurd/cross/src/glibc'
+        make: *** [all] Error 2
+        + rm -f /home/teythoon/repos/hurd/cross/sys_root/lib/ld.so
+        + exit 100
+        
+        binutils-2.23.2,
+        gcc-4.8.1,
+        everything else is from git as specified in the wiki.
+
+
+## IRC, freenode, #hurd, 2013-10-24
+
+    <AliciaC> in recent glibc commits (tschwinge/Roger_Whittaker branch) there
+      are references to _hurd_atfork_* symbols in sysdeps/mach/hurd/fork.c, and
+      some _hurd_fork_* symbols, some of the _hurd_fork_* symbols seem to be
+      defined in Hurd's boot/frankemul.ld (mostly guessing by their names being
+      mentioned, I don't know linker script syntax), but those _hurd_atfork_*
+      symbols don't seem to be defined there, are they supposed to be defined
+      elsewhere or is th
+    <AliciaC> does anyone know where the _hurd_atfork_* group of symbols
+      referenced in glibc are defined (if anywhere)?
+    <youpi> AliciaC: it's the DEFINE_HOOK (_hurd_atfork_prepare_hook, (void));
+      in glibc/sysdeps/mach/hurd/fork.c
+    <AliciaC> hm, is that not just a declaration?
+    <youpi> no, it's a definition, as its name suggests :
+    <AliciaC> (despite the macro name)
+    <youpi> :)
+    <AliciaC> ok
+    <AliciaC> I should look into it more, I could have sworn I was getting
+      undefined references, but maybe the symbol names used are different from
+      those defined, but that'd be odd as well, in the same file and all
+    <AliciaC> I mean, I do get undefined references, but question is if it's to
+      things that should have been defined or not
+    <youpi> what undefined references do you gaT?
+    <youpi> s/gaT/get
+    <AliciaC> I'll get back to you once I have that system up again
+    <AliciaC> youpi: sysdeps/mach/hurd/fork.c:70: undefined reference to
+      `__start__hurd_atfork_prepare_hook'
+    <AliciaC> fork.c:70: 'RUN_HOOK (_hurd_atfork_prepare_hook, ());'
+    <AliciaC> DEFINE_HOOK (_hurd_atfork_prepare_hook, (void)); is higher up in
+      the file
+    <AliciaC> though there is also this message: build/libc_pic.os: relocation
+      R_386_GOTOFF against undefined hidden symbol
+      `__start__hurd_atfork_prepare_hook' can not be used when making a shared
+      object

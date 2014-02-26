@@ -1,17 +1,21 @@
-[[!meta copyright="Copyright © 2007, 2008 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2007, 2008, 2013 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
 document under the terms of the GNU Free Documentation License, Version 1.2 or
 any later version published by the Free Software Foundation; with no Invariant
 Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
-is included in the section entitled
-[[GNU Free Documentation License|/fdl]]."]]"""]]
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
 
-UIDs on the Hurd are separate from processes.  A process has
+UIDs on the Hurd are separate from [[glibc/process]]es.  A process has
 [[capabilities|capability]] designating so-called UID vectors that
 are implemented by an [[translator/auth]] server.  This
 makes them easily [[virtualizable|virtualization]].
+
+The standard POSIX interfaces to a [[glibc/process]]' UID management are
+implemented in [[glibc]].
 
 When a process wishes to gain access to a resource provided by a third
 party (e.g., a file system) and that party wishes to authenticate the client
@@ -25,3 +29,237 @@ naming a newly authenticated session with the server
 and the server is delivered the client's designated UID vector.
 
 For more details, see section 2.3 of the [[critique]].
+
+
+# Open Issues
+
+[[!tag open_issue_hurd]]
+
+
+## IRC, freenode, #hurd, 2013-09-26
+
+    <braunr> teythoon: hum, i just saw something disturbing
+    <braunr> teythoon: to isolate the leak, i created my own proc directory
+    <braunr> and the mtab translators it spawns seem to be owned by root oO
+    <teythoon> braunr: but how is that possible? are you sure? have you checked
+      with 'ids'?
+    <braunr> no i'm not sure
+    <braunr> also, ext2fs seems to ignore --writable when started as a passive
+      translator
+    <braunr> < teythoon> braunr: but how is that possible?
+    <braunr> messup with passive translators i guess
+    <braunr> teythoon: actually, it looks like it has effective/available id
+    <braunr> it has no*
+    <braunr> this feature doesn't map well in unix
+    <teythoon> braunr: ah yes, htop doesn't handle this well and shows root
+      indeed, our ps shows - as username
+    <braunr> yes
+
+
+## IRC, freenode, #hurd, 2013-09-28
+
+    <braunr> mhmm
+    <braunr> this process has no uid
+    <braunr> isn't it a security issue that processes can remove their identity
+      ?
+    <braunr> i really don't like that we allow processes to loose their
+      identity ...
+    <teythoon> braunr: y not? I think that's a killer feature
+    <teythoon> one that is notoriously absent in unices
+    <braunr> not exactly
+    <braunr> gaining rights to switch your identity is ok
+    <braunr> since you have proven that you are allowed to do it
+    <braunr> now, if you can remove your identity, you can create "ghost"
+      processes
+    <braunr> processes that can spend their day causing denial of services
+      without the possibility for the administrator to know who is responsible
+    <braunr> the unix "way" of dealing with DoS is to warn and ban users after
+      they violated the rules
+    <braunr> we need to have at least that possibility
+    <youpi> perhaps we need to add an "initial" uid
+    <teythoon> otoh the unix way of dropping privileges is hardly being able to
+      do so at all ;)
+    <braunr> teythoon: ?
+    <braunr> on unix, you need privileges to drop your identity :)
+    <braunr> i understand it involves security risks, but that's understandable
+    <braunr> the thing is, we actually don't care about dropping privileges
+    <braunr> we care about gaining them
+    <teythoon> you cannot drop your identity, you can just use another one
+    <braunr> exactly
+    <braunr> that's what i want
+    <braunr> and the way the hurd does it is superior
+    <braunr> let's keep that
+    <braunr> processes that should run with least privileges can simply have
+      their own user/group as it's done on unix
+    <teythoon> then how do you obtain such a uid/gid?
+    <braunr> teythoon: you gain the right, use it to prove who you can be, and
+      ask an identity switch
+    <braunr> identities would then be managed at server side (in proc for
+      example)
+    <teythoon> I know how it's done on the Hurd, but who creates them for you?
+    <braunr> the password server
+    <braunr> well no
+    <braunr> the password server gives you the right you need to prove who you
+      can be
+    <braunr> then i'd assume you'd ask the proc server for the switch
+    <teythoon> but who creates the uid for you in the first place, who sets up
+      a passwd entry
+    <braunr> the administrator ?
+    <braunr> what bothers me is that it goes directly against the main goal of
+      the hurd
+    <teythoon> indeed
+    <braunr> but i think it's a better compromise of freedom/order
+    <teythoon> I always thought that the ability to drop the unix-like
+      credentials is really nice
+
+
+### IRC, freenode, #hurd, 2013-09-29
+
+    <antrik> braunr: dropping privileges doesn't unregister a process from the
+      proc server... so it shouldn't be too hard to find out who is
+      responsible. however, there are more effective ways to create ghost
+      processes -- a special executable skipping the ordinary bootstrap won't
+      be registered with proc at all...
+    <antrik> however, that would be a non-issue if we had proper resource
+      accounting
+    <teythoon> antrik: I do not believe that this is correct. every mach task
+      will eventually be picked up by the proc server
+    <teythoon> eventually being next time someone fork(2)s or so
+    <teythoon> but if noone uses proc_child to claim the new process ones
+      child, it will not be presented by the proc server as unix process (aiui)
+    <antrik> teythoon: not sure what you mean by "pick up"
+    <antrik> of course proc will see the process when listing all tasks on the
+      system; but it will have no additional knowlegde about it
+    <antrik> (which is the whole purpose of proc)
+
+
+### IRC, freenode, #hurd, 2013-09-30
+
+    <braunr> antrik: proc should be redesigned to fix these issues
+    <braunr> in particular, the way that proc lists mach tasks to show them to
+      the rest of the system is something i find deeply disturbing
+    <braunr> hurd processes should be forced to go through proc
+    <antrik> braunr: well, if we are talking about fundamentally fixing things,
+      I believe the central proc server is not a good idea in the first place
+      :-)
+    <antrik> I believe hierarchical management of resource management and
+      information flow -- cf. nghurd and genode -- is a much better approach
+    <braunr> antrik: i agree with hierarchical management of resources, but i
+      don't see why this prevents a central proc server
+    <braunr> i.e. one proc server per hurd instance
+
+
+### IRC, freenode, #hurd, 2013-10-06
+
+    <antrik> braunr: hierarchical management of resources doesn't prevent a
+      central proc server of course; but a central proc server would fit really
+      ill with hierarchical management of permissions...
+
+
+### IRC, freenode, #hurd, 2013-10-07
+
+    <braunr> antrik: does proc manage permissions ?
+    <antrik> braunr: well, it manages some permissions... like who is allowed
+      to send signals
+    <antrik> hm... or perhaps proc is not involved in signal delivery itself?
+      don't remember. but at any rate, proc decides whether it hands out
+      privileged task ports
+    <braunr> antrik: yes, it decides whether or not a client is allowed to
+      obtain the message port of another task
+    <braunr> antrik: but i don't see why this is a problem
+    <braunr> what we have now is one proc server per hurd instance
+    <braunr> how is that not both central (inside the hurd instance) and
+      hierarchical with regard to resource management ?
+    <antrik> braunr: we are probably talking past each other
+    <antrik> all I'm saying is that in an ideal world, there should not be a
+      central server deciding who is allowed to see and/or control other
+      processes
+    <braunr> antrik: how should it be structured then ?
+    <braunr> i mean, how would you see it ?
+    <antrik> child processes should be fully controlled by their parent --
+      including outside communication
+    <antrik> (like in genode AIUI)
+    <braunr> isn't that conflicting with the unix design ?
+    <kilobug> antrik: maybe I'm saying silly stuff since I don't have all the
+      background, but seems problematic to me with SUID/SGID programs
+    <kilobug> antrik: in which a child can be more privilegied than the parent
+    <braunr> kilobug: that's part of my question too
+    <kilobug> and it's even "worse" with Hurd's addauth in which any process
+      can be given additional rights in runtime, but not its parent
+    <antrik> braunr: one of the conclusions from ngHurd was that suid as such
+      is problematic. it makes more sense to have privileged services actually
+      run by the privileged user, and only requested by the unprivileged one
+      using RPC
+    <antrik> admittedly, I'm not sure how this interacts with UNIX
+      compatibility ;-)
+    <antrik> kilobug: in the genode approach, the parent would control that as
+      well
+    <braunr> in unix, the idea of parent processes doesn't imply much
+    <braunr> parents merely exist to reap resources from their children
+    <braunr> and as templates when forking
+    <antrik> yeah, but that's one of the major shortcomings of UNIX in my
+      book...
+    <braunr> sure
+    <braunr> i'm just thinking out loud
+    <braunr> if we want to maintain posix compatibility, it seems reasonable to
+      keep it that way
+    <braunr> despite the shortcomings
+    <braunr> does that imply a centralized proc server anyway ?
+    <antrik> I suspect we could similate suid in the hierarchical design, only
+      that the resources would be accounted to the user under whose ID the
+      process runs, rather than to the one who invoked it
+    <braunr> i also have a hard time seeing what the completely hierarchical
+      model brings compared to what the hurd does (isolating system instances)
+    <antrik> and I don't think we need a central proc server. it could probably
+      be done similar to the VFS: each process implements the interfaces,
+      passing on to the children as appropriate
+    <antrik> braunr: it's much easier to isolate parts of the system for
+      security and/or customisation
+    <antrik> that's actually one of the things discussed in the "critique"
+      IIRC...
+    <braunr> i'm not sure
+    <braunr> anyway, processes implementing the interface looks bad to me
+    <braunr> that's already a problem with the current hurd
+    <braunr> using normal client processes as servers means we rely on them to
+      behave nicely
+    <antrik> you have a point there: while untrusted filesystems can be ignored
+      easily, ignoring untrusted proc providers would be problematic...
+    <antrik> (I don't think it's strictly necessary to know about other user's
+      processes; but we could hardly keep a UNIX feel without it...)
+    <antrik> other users'
+    <braunr> i feel the hierarchical model may imply some unnecessary burden
+    <braunr> capabilities along with resource containers look much more
+      flexible
+    <braunr> and not less secure
+    <braunr> children would share the same container as their parent by
+      default, unless they obtain the right to use another or create their own
+    <antrik> braunr: decoupling control from resource ownership is *always*
+      problematic. that's pretty much the major takeaway from ngHurd
+      discussions (and the major reason why Coyotos was abandoned as a base for
+      ngHurd)
+    <antrik> if a process runs on your resources, you should have full control
+      over it. anything else faciliates DRM & Co.
+    <braunr> antrik: i see
+    <braunr> nonetheless, i don't see the point of that restriction, since the
+      simplest way to avoid drms in the first place is not using them
+    <braunr> and that restriction makes posix compatibility hard to provide
+    <antrik> I'm not sure it's really all that hard...
+    <antrik> IIRC genode is aiming at POSIX compatibility
+    <antrik> I'm not sure it's any harder than with the current Hurd
+      architecture
+    <braunr> i didn't see anything like that
+    <braunr> they provide posix compatibility by running legacy systems on top
+      of it
+    <braunr> well, namely linux
+    <antrik> hm... they have some UNIX compatibility at least... perhaps not
+      aiming at full POSIX. don't remember the details
+    <antrik> Linux on genode? that's news to me... I know they do run genode on
+      Linux
+    <braunr> anyway, i'll probably stick with the close unix approach for x15
+    <braunr> http://genode.org/documentation/general-overview/
+    <braunr>  In an preliminary study, a user-level version of the Linux kernel
+      (L4Linux) was successfully ported to the Genode OS Framework running on a
+      L4 kernel. This study suggests that Genode combined with an appropriate
+      kernel or hypervisor is suited as a virtual-machine hosting platform.
+    <antrik> hm... that's boring though ;-)
+    <braunr> isn't it :)

@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2006, 2007, 2008, 2010 Free Software Foundation,
-Inc."]]
+[[!meta copyright="Copyright © 2006, 2007, 2008, 2010, 2013 Free Software
+Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -9,7 +9,13 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
-The magic translator provides `/dev/fd`.
+The `magic` translator returns magic retry results, which are then resolved by
+[[glibc]]'s *name lookup* routines.
+
+[[!toc]]
+
+
+# `/dev/fd`.
 
     $ showtrans /dev/fd
     /hurd/magic --directory fd
@@ -20,3 +26,253 @@ individually like this:
 
     $ ls -l /dev/fd/0
     crw--w----  1 bing tty 0, 0 Nov 19 18:00 /dev/fd/0
+
+
+# `/dev/tty`
+
+    $ showtrans /dev/tty
+    /hurd/magic tty
+
+
+## Open Issues
+
+### IRC, OFTC, #debian-hurd, 2013-06-18
+
+    <XTaran> http://www.zsh.org/mla/workers/2013/msg00547.html
+
+
+#### IRC, OFTC, #debian-hurd, 2013-06-19
+
+    <XTaran> youpi: http://www.zsh.org/mla/workers/2013/msg00548.html -- Is
+      that realistic? If yes, can someone of you test it? I though would expect
+      that if /dev/tty exists everywhere, it's a chardev everywhere, too.
+    <youpi> that's not impossible indeed
+    <youpi> I've noted it on my TODO list
+
+
+#### IRC, OFTC, #debian-hurd, 2013-06-20
+
+    <pinotree> youpi: wrt the /dev/tty existance,
+      https://buildd.debian.org/status/fetch.php?pkg=mksh&arch=hurd-i386&ver=46-2&stamp=1371553966
+    <pinotree> For the build logs, demonstrate that /dev/null and /dev/tty
+      exist:
+    <pinotree> ls: cannot access /dev/tty: No such device or address
+    <youpi> uh?!
+    <youpi> ah, ENODEV
+    <youpi> so that's what we was thinking, no tty -> no /dev/tty
+
+
+#### IRC, OFTC, #debian-hurd, 2013-09-20
+
+    <XTaran> Hi. zsh still FTBFS on Hurd due to some test failure:
+      https://buildd.debian.org/status/package.php?p=zsh -- IIRC I checked last
+      time on some porterbox and couldn't reproduce the failure there. Any
+      insight if /dev/tty is not accessible on the buildds inside the chroot?
+      Or is it no character device there? I checked on strauss and there it is
+      a character device.
+    <XTaran> My only other option to debug this (didn't think of that yesterday
+      before the upload unfortunately) would be to override dh_auto_test with
+      "ls -l /dev/tty; dh_auto_test". Do you think that would be helpful?
+    <pinotree> i see /dev/tty on exodar, in the root system and in the chroot
+    <XTaran> pinotree: And it is a character device?
+    <XTaran> ... in both cases?
+    <pinotree> crw--w---- 1 pino tty 0, 0 Sep 20 10:20 /dev/tty
+    <pinotree> yes
+    <XTaran> pinotree: Hrm.
+    <pinotree> (/dev in the chroot is a firmlink to the system /dev, iirc)
+    <XTaran> pinotree: What is a firmlink? :)
+    <XTaran> pinotree: /dev/tty belongs to your user in the example above.
+    <pinotree> something between a (sym)link and an union mount
+    <XTaran> pinotree: Is it possible that /dev/tty is not visible if the
+      buildd runs without a connected terminal?
+    <pinotree> that i'm not sure
+    <XTaran> I see.
+    <pinotree> wouldn't it be possible to skip only that check, instead of the
+      whole test suite?
+    <pinotree> maybe something like
+    <pinotree> tty=$(find /dev/ -name 'tty*' -type c -print)
+    <pinotree> if [[ -n $tty ]]; then / [[ -c $tty[(f)1] && ! -c $zerolength ]]
+      / else / print -u$ZTST_fd 'Warning: Not testing [[ -c tty ]] (no tty
+      found)' / [[ ! -c $zerolength ]] / fi
+    <pinotree> (never used zsh, so please excuse me if i wrote something silly
+      above)
+    <XTaran> re
+    <XTaran> pinotree: Yeah, sure. That would be one way to get the thing
+      building again, if that's really the cause.
+    <pinotree> i guess it would find any of the available tty* devices
+    <pinotree> it does that for block devices, why not with tty devices, after
+      all? :)
+    <XTaran> pinotree: I just wonder if the failing test is because the test
+      doesn't work properly on that architecture or because it indicates that
+      there is a bug in zsh which only is present on hurd.
+    <pinotree> wouldn't the change proposed above help in determining it?
+    <XTaran> If I'm sure that it's a broken test, I'll try to disable that
+      one. If not I'd report (more details) to upstream. :)
+    <XTaran> pinotree: Oh, indeed.
+    <pinotree> if you get no warning, then a tty device was found with find
+      (using its -type c option), so the failing condition would be a zsh (or
+      maybe something in the stack below) bug
+    <pinotree> with the warning, somehow there were no tty devices available,
+      hence nothing to test -c with
+    <XTaran> So basically doing a check with dash to see if we should run the
+      zsh test.
+    <pinotree> dash?
+    <XTaran> Well, whatever /bin/sh points to. :)
+    <pinotree> ah, do you mean because of $(find ...)?
+    <XTaran> Ah, right, -type c is from find not /bin/sh
+    <XTaran> pinotree: That's my try:
+      http://anonscm.debian.org/gitweb/?p=collab-maint/zsh.git;a=commitdiff;h=ba5c7320d4876deb14dba60584fcdf5d5774e13b
+    <pinotree> o_O
+    <pinotree> isn't that a bit... overcomplicated?
+    <XTaran> pinotree: Yeah, it's a little bit more complicated as the tests
+      itself are not pure shell code but some format on their own.
+    <pinotree> why not the "thing" i wrote earlier?
+    <XTaran> pinotree: Actually it is what I understand you wanted to do, just
+      with more debug output. Or I dunderstood 
+    <XTaran> pinotree: Actually it is what I understand you wanted to do, just
+      with more debug output. Or I understood your thing wrongly.
+    <pinotree> <pinotree> tty=$(find /dev/ -name 'tty*' -type c -print)
+    <pinotree> <pinotree> if [[ -n $tty ]]; then / [[ -c $tty[(f)1] && ! -c
+      $zerolength ]] / else / print -u$ZTST_fd 'Warning: Not testing [[ -c tty
+      ]] (no tty found)' / [[ ! -c $zerolength ]] / fi
+    <XTaran> pinotree: Yeah, I know.
+    <pinotree> that is, putting these lines instead of the current two
+      tty=/dev/tty + following
+    <pinotree> imho that should be fit for upstream
+    <XTaran> pinotree: You mean inside C02cond.ztst?
+    <pinotree> yep
+    <XTaran> pinotree: No, IMHO that's a bad idea.
+    <pinotree> why?
+    <XTaran> pinotree: That file is to test the freshly compiled zsh. I can't
+      rely on their code if I'm testing it.
+    <pinotree> uh?
+    <pinotree> the test above for -b is basically doing the same
+    <XTaran> pinotree: Indeed. Hrm.
+    <pinotree> that's where i did c&p most of it :)
+    <XTaran> So upstream relies on -n in the testsuite before it has tested it?
+      Ugly.
+    <pinotree> if upstream does it, why cannot i too? :D
+    <XTaran> pinotree: You've got a point there.
+    <XTaran> Ok, rethinking. :)
+    <pinotree> otoh you could just move the testcase for -n up to that file, so
+      after that you know it works already
+    <XTaran> pinotree: Well, if so, upstream should do that, not me. :)
+    <pinotree> you could suggest them to, given the -n usage in the -b testcase
+    <XTaran> pinotree: Looks alphabetically sorted, so I guess that's at least
+      not accidentially.
+    <XTaran> pinotree: Ok, you've convinced me. :)
+    <pinotree> :D
+    <XTaran> Especially because this is upstream-suitable once it proved to fix
+      the Hurd FTBFS. :)
+    <XTaran> pinotree: The previous upstream code (laast change 2001) instead
+      of the hardcoded /dev/tty was btw "char=(/dev/tty*([1]))", so I suspect
+      that the find may work on Cygwin, too.
+    <XTaran> s/aa/a/
+    <pinotree> ah, so that's that comment about globbing on cygwin was
+      referring to
+    <XTaran> Yep
+    <pinotree> cool, so incidentally i've solved also that small issue :9
+    <pinotree> :)
+    <XTaran> pinotree: I hope so. :)
+    <XTaran> Then again, I hope, external commands like find are fine for
+      upstream.
+    <pinotree> then they should rework the already existing testcases ;)
+    <XTaran> pinotree: Ah, I fall again for the same assumptions. :)
+    <XTaran> Seems as I would really build test suites with a different
+      approach. :)
+    <pinotree> nothing bad in that, i'd say
+    <XTaran> I'd try to make the tests as far as possible independent from
+      other tools or features to be sure to test only the stuff I want to test.
+    <XTaran> Warning: Not testing [[ -c tty ]] (no tty found)
+    <XTaran> Interesting. I didn't expect that outside a chroot. :)
+    <pinotree> where's that?
+    <XTaran> pinotree: A plain "debuild on my Sid VM.
+    <pinotree> ah
+    <XTaran> Linux, amd64
+    <XTaran> (and Debian of course ;-)
+    <XTaran> pinotree: Ah, my fault, I kept upstreams char= but didn't change
+      it in your code. :)
+    <pinotree> hehe
+    <XTaran> pinotree: Will be included in the next zsh upload. But I don't
+      want to upload a new package before the current one moved to testing (or
+      got an RC bug report to fix :-)
+    <pinotree> oh sure, that's fine
+    <XTaran> pinotree:
+      http://anonscm.debian.org/gitweb/?p=collab-maint/zsh.git;a=commitdiff;h=22bc9278997a8172766538a2ec6613524df03742
+    <XTaran> (I've reverted my previous commit)
+    <pinotree> \o/
+
+
+#### IRC, OFTC, #debian-hurd, 2013-09-30
+
+    <XTaran> Anyone knows why the building of zsh on ironforge restarted? It
+      was at something like "building 4h20m" when I looked last and it now is
+      at "building 1h17m" but there's no old or last log, so it does still look
+      like the first build.
+    <pinotree> most probably got stuck
+    <XTaran> Oh, ok.
+    <XTaran> pinotree: So there are cases where the log is not kept?
+    <pinotree> looks so
+    <youpi> when the machine crashes, yes :)
+    <XTaran> youpi: Ooops. Was that me?
+    <youpi> no, I just rebooted the box
+    <youpi> I didn't easily find which process to kill
+    <XTaran> Ok. Then I'll check back tomorrow morning if pinotree's fix for
+      zsh's test suite on hurd worked. :)
+    <youpi> it seems to be hung on
+      /build/buildd-zsh_5.0.2-5-hurd-i386-vO9pnz/zsh-5.0.2/obj/Test/../Src/zsh
+    <youpi> ../Src/zsh   ../../Test/ztst.zsh ../../Test/Y02compmatch.ztst
+    <XTaran> :(
+    <XTaran> At least pinotree's patch worked as it then likely passed
+      C02cond.ztst. :)
+    <XTaran> youpi: For how long? There are multiple tests which take at least
+      3 seconds per subtest.
+    <youpi> one hour already
+    <XTaran> Ok.
+    <XTaran> That's far too long
+
+
+#### IRC, OFTC, #debian-hurd, 2013-10-01
+
+    <XTaran> pinotree: I've just checked
+      https://buildd.debian.org/status/fetch.php?pkg=zsh&arch=hurd-i386&ver=5.0.2-5&stamp=1380608100
+      manually: Your fix unfortunately seemed not to help, but another test
+      failed, too, and that one came later and was hence suspected as primary
+      failing issue.
+    <XTaran> pinotree: But "+ find: `/dev/tty': No such device or address"
+      gives some hint. I just have no idea, why find issues that message.
+    * XTaran really wonders how that message can be caused.
+    <XTaran> So find sees /dev/tty, but gets an error if it tries to access
+      (maybe only stat) it while not being connected to a terminal.
+    <XTaran> Bingo: This reproduces the issue (note the missing -t option to
+      ssh): ssh exodar.debian.net "find /dev/ -nowarn -maxdepth 1 -name 'tty*'
+      -type c -ls"
+    <XTaran> Even clearer: $  ssh exodar.debian.net "ls -l /dev/" | grep 'tty$'
+    <XTaran> ls: cannot access /dev/tty: No such device or address
+    <XTaran> ?????????? ? ?    ?       ?            ? tty
+    <XTaran> I'd say this is a bug somewhere deep down, either in libc or the
+      kernel.
+    <pinotree> or in the console translator
+    <XTaran> pinotree: Never heard of that so far. :)
+    <XTaran> pinotree: Someone from zsh upstream suggests to use /dev/null or
+      /dev/zero instead of /dev/tty* -- will try that for the next upload.
+    <pinotree> ah right, /dev/null should be standard POSIX
+    <XTaran> I hope so. :)
+    <pinotree> http://pubs.opengroup.org/onlinepubs/9699919799/ check in POSIX
+    <pinotree> in any case, sorry for the troubles it is giving you...
+    <XTaran> pinotree: I'm more concerned about the hanging second test. I
+      think I can get that test working with using /dev/null.
+    <XTaran> Now that I've understood why the original test is failing.
+    <XTaran> pinotree: Shall I write a bug report for that issue? If so,
+      against which package?
+    <pinotree> XTaran: not sure it is worth at this stage, having a clearer
+      situation on what happens could be useful
+    <pinotree> it is something that can happen sporadically, though
+    <XTaran> pinotree: Well, it seems a definitely unwanted inconsistency
+      between what the directory listing shows and which (pseudo) files are
+      accessible. Independently of where the bug resides, this needs to be
+      fixed IMHO.
+    <pinotree> sure, nobody denies that
+    <XTaran> pinotree: I'd call it easily reproducible. :)
+    <pinotree> not really
+    <XTaran> ... once you know where to look for.

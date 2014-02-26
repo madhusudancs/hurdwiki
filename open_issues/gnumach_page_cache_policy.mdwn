@@ -811,3 +811,63 @@ License|/fdl]]."]]"""]]
     <braunr> have*
     <braunr> and even if laggy, it doesn't feel much more than the usual lag of
       a network (ssh) based session
+
+
+# IRC, freenode, #hurd, 2013-10-08
+
+    <braunr> hmm i have to change what gnumach reports as being cached memory
+
+
+## IRC, freenode, #hurd, 2013-10-09
+
+    <braunr> mhmm, i'm able to copy files as big as 256M while building debian
+      packages, using a gnumach kernel patched for maximum memory usage in the
+      page cache
+    <braunr> just because i used --sync=30 in ext2fs
+    <braunr> a bit of swapping (around 40M), no deadlock yet
+    <braunr> gitweb is a bit slow but that's about it
+    <braunr> that's quite impressive
+    <braunr> i suspect thread storms might not even be the cataclysmic event
+      that we thought it was
+    <braunr> the true problem might simply be parallel fs synces
+
+
+## IRC, freenode, #hurd, 2013-10-10
+
+    <braunr> even with the page cache patch, memory filled, swap used, and lots
+      of cached objects (over 200k), darnassus is impressively resilient
+    <braunr> i really wonder whether we fixed ext2fs deadlock
+
+    <braunr> youpi: fyi, darnassus is currently running a patched gnumach with
+      the vm cache changes, in hope of reproducing the assertion errors we had
+      in the past
+    <braunr> i increased the sync interval of ext2fs to 30s like we discussed a
+      few months back
+    <braunr> and for now, it has been very resilient, failing only because of
+      the lack of kernel map entries after several heavy package builds
+    <gg0> wait the latter wasn't a deadlock it resumed after 1363.06 s
+    <braunr> gg0: thread storms can sometimes (rarely) fade and let the system
+      resume "normally"
+    <braunr> which is why i increased the sync interval to 30s, this leaves
+      time between two intervals for normal operations
+    <braunr> otherwise writebacks are queued one after the other, and never
+      processed fast enough for that queue to become empty again (except
+      rarely)
+    <braunr> youpi: i think we should consider applying at least the sync
+      interval to exodar, since many DDs are just unaware of the potential
+      problems with large IOs
+    <youpi> sure
+
+    <braunr> 222k cached objects (1G of cached memory) and darnassus is still
+      kicking :)
+    <braunr> youpi: those lock fixing patches your colleague sent last year
+      must have helped somewhere
+    <youpi> :)
+
+
+## IRC, freenode, #hurd, 2013-10-13
+
+    <youpi> braunr: how are your tests going with the object cache?
+    <braunr> youpi: not so good
+    <braunr> youpi: it failed after 2 days of straight building without a
+      single error output :/

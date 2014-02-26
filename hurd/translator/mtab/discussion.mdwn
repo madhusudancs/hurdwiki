@@ -2103,7 +2103,173 @@ In context of [[open_issues/mig_portable_rpc_declarations]].
     <youpi> anyway, got to run
 
 
-## IRC, freenode, #hurd, 2013-09-20
+## Memory Leak
+
+Fixed in 2013-09-28 Hurd commit a81c0c28ea606b0d0a2ad5eeb74071c746b7cdeb
+(libdiskfs), and 2013-10-04 Hurd commit
+98b6f846b628e858acbae9258bac78cf54126d27 (libnetfs).
+
+### IRC, freenode, #hurd, 2013-09-18
+
+    <braunr> ext2fs is using a ginormous amount of memory on darnassus since i
+      last updated the hurd package :/
+    <braunr> i wonder if my ext2fs large store patches rework have introduced a
+      regression
+    <braunr> the order of magnitude here is around 1.5G virtual space :/
+    <braunr> it used to take up to 3 times less before that
+    <braunr> looks like my patches didn't make it into the latest hurd package
+    <braunr> teythoon: looks like there definitely is a new leak in ext2fs
+    <teythoon> :/
+    <braunr> memory only
+    <braunr> the number of ports looks stable relative to file system usage
+    <teythoon> braunr: I tested my patches on my development machine, it's up
+      for 14 days (yay libvirt :) and never encountered problems like this
+    <braunr> i've been building glibc to reach that state
+    <teythoon> hm, that's a heavy load indeed
+    <teythoon> could be the file name tracking stuff, I tried to make sure that
+      everything is freed, but I might have missed something
+    <braunr> teythoon: simply running htop run shows a slight, regular increase
+      in physical memory usage in ext2fs
+    <pinotree> old procfs stikes again? :)
+    <teythoon> braunr: I see that as well... curious...
+    <braunr> 16:46 < teythoon> could be the file name tracking stuff, I tried
+      to make sure that everything is freed, but I might have missed something
+    <braunr> how knows, maybe completely unrelated
+    <teythoon> the tracking patch isn't that big, I've gone over it twice today
+      and it still seems reasonable to me
+    <braunr> hm
+
+
+### IRC, freenode, #hurd, 2013-09-25
+
+    <braunr> seems like a small leak per file access
+    <braunr> but htop makes it obvious because it makes lots of them
+    <braunr> shouldn't be too hard to find
+    <braunr> since it might also come from the large store patch, i'll take a
+      look at it
+
+
+### IRC, freenode, #hurd, 2013-09-27
+
+    <braunr> teythoon: found the leak :)
+    <braunr> although its origin is weird
+    <teythoon> braunr: where is it?
+    <braunr> i'm still building packages to make sure that's it
+    <braunr> see
+      http://darnassus.sceen.net/gitweb/savannah_mirror/hurd.git/blob/HEAD:/libdiskfs/dir-lookup.c
+    <braunr> which you changed in
+      http://darnassus.sceen.net/gitweb/savannah_mirror/hurd.git/commit/06d49cdadd9e96361f3fe49b9c940b88bb869284
+    <braunr> line 306 is "return error" instead of "goto out"
+    <braunr> has been so since 1994
+    <braunr> what is unclear is why this code path is now run
+    <braunr> patch is here:
+      http://darnassus.sceen.net/~rbraun/0001-Fix-memory-leak-in-libdiskfs.patch
+    <teythoon> I see, weird indeed
+    <braunr> teythoon: the system also feels slower somehow
+    <braunr> such errors might have introduced unexpected retries
+    <teythoon> i think it's possible to write a coccinelle patch to find such
+      errors
+
+
+### IRC, freenode, #hurd, 2013-09-28
+
+    <youpi> braunr: bah, I havent noticed the leak on my box, even after
+      building eglibc & hurd several times
+    <braunr> that's weird
+    <braunr> are you sure it's up to date ?
+    <braunr> also, is procfs correctly attached to /proc ?
+    <braunr> that's what seems to trigger it
+    <youpi> yes, 20130924-2, with procfs on /proc
+
+    <teythoon> braunr: that turned out to be the leak indeed? and somehow my
+      changes triggered it? did you discover why?
+    <braunr> teythoon: yes, yes, no
+    <braunr> but youpi didn't see the leak on his system
+    <teythoon> ^^ cool that you found it
+    <teythoon> I did
+    <braunr> oh yes you mean you saw the leak
+    <teythoon> yes
+
+
+### IRC, freenode, #hurd, 2013-10-01
+
+    <braunr> the fix i did in libdiskfs might have fixed other issues
+    <braunr> apparently, it's the code path taken when error isn't ENOENT,
+      including no error (translator started)
+    <pinotree> the memory leak fix, you mean?
+    <braunr> yes
+    <braunr> it might haved fixed reference counting too
+    <braunr> although i'm not sure if we actually ever run into that issue in
+      the past
+    <braunr> the weird thing is, that path is taken when starting a passive
+      translator
+    <braunr> (i think)
+    <braunr> (it might be any kind of translator, and just doing nothing if
+      alcready active)
+    <braunr> already*
+    <braunr> anyway, the fact that the leak was so visible means this code was
+      run very often
+    <braunr> which doesn't make sense
+    <braunr> hm ok, it seems that code was run every time actually
+    <braunr> but the leak became visible when it concerned memory
+    <pinotree> which side-effects did the old code produce?
+    <braunr> teythoon added a dynamically allocated path that wasn't freed
+    <braunr> reference leaks
+    <braunr> which might explain the assertion on reference we sometimes see
+      with ext2fs
+    <braunr> when a counter overflows and becomes 0
+
+[[open_issues/ext2fs_libports_reference_counting_assertion]]?
+
+    <pinotree> hmm
+    <braunr> which is why i'm mentioning it
+    <braunr> :)
+    <braunr> i'll try to reproduce the assertion
+    <braunr> pinotree: actually, after a more in-depth look, reference counting
+      looks valid before the fix too
+    <pinotree> ok, thanks for checking
+    <braunr> pinotree: the assertion affects the root translator, and is
+      triggered by a test that stresses memory
+    <pinotree> memory as in ram, or as in disk storage?
+    <braunr> malloc
+    <pinotree> ok
+    <braunr> i suspect the code doesn't handle memory failure well
+
+
+### IRC, freenode, #hurd, 2013-10-02
+
+    <teythoon_> braunr: btw, did you fix the leak?
+    <braunr> yes
+    <braunr>
+      http://darnassus.sceen.net/gitweb/savannah_mirror/hurd.git/commit/a81c0c28ea606b0d0a2ad5eeb74071c746b7cdeb
+    <braunr> 1h after tagging 0.5 (
+    <braunr> :(
+    <teythoon> ah yes, I've seen that commit
+    <teythoon> I just wanted to know whether this settled the issue
+    <braunr> it does :)
+    <teythoon> good
+    <braunr> i still can't figure out why youpi didn't had it
+    <braunr> the code path is run when no error (actually error != ENOENT)
+    <braunr> which explains why the leak was so visible
+    <teythoon> so my patch exposed this b/c of the allocation I added, makes
+      sense
+    <teythoon> it's funny actually, b/c this wasn't an issue for me as well, I
+      had my development vm running on that patches for two weeks
+
+
+### IRC, freenode, #hurd, 2013-10-02
+
+    <braunr> libnetfs suffers from the same leak as libdiskfs when looking up a
+      translator
+    <braunr> i'll fix it too
+
+
+## Multiple mtab Translators Spawned
+
+Fixed in 2013-10-05 procfs commit c87688a05a8b49479ee10127470cc60acebead4a?
+
+
+### IRC, freenode, #hurd, 2013-09-20
 
     <braunr> teythoon: how come i see three mtab translators running ?
     <braunr> 6 now oO
@@ -2113,10 +2279,231 @@ In context of [[open_issues/mig_portable_rpc_declarations]].
     <braunr> teythoon: more bug fixing for you :)
 
 
-## IRC, freenode, #hurd, 2013-09-23
+### IRC, freenode, #hurd, 2013-09-23
 
     <teythoon> so it might be a problem with either libnetfs (which afaics has
       never supported passive translator records before) or procfs, but tbh I
       haven't investigated this yet
 
 [[open_issues/libnetfs_passive_translators]].
+
+
+### [[!debbug 724868]]
+
+
+### IRC, freenode, #hurd, 2013-10-03
+
+    <braunr> i can't manage to find out where the hurd stores information about
+      active translators ...
+    <braunr> there is this transbox per node
+    <braunr> but where are nodes stored ?
+    <braunr> what if they are are dropped ?
+    <pinotree> braunr: iirc, see libfshelp
+    <braunr> well i have
+    <braunr> i still can't find it
+    <braunr> i fear that it works for ext2fs because that particular translator
+      implements a cache of open nodes
+    <braunr> whereas things like procfs drop and recreate nodes per open
+    <braunr> which would be the root cause for the multiple mtab bug
+    <pinotree> doesn't tmpfs support translators?
+    <braunr> good idea
+    <braunr> although it's still a libdiskfs based one
+    <braunr> no problem for tmpfs, so it would be a netfs/procfs issue
+    <braunr> better than what i feared :)
+    <braunr> now, how is libdiskfs able to find active translators ..
+    <braunr> ah, there is a name cache in libdiskfs ..
+    <braunr> nope, looks fine
+
+
+### IRC, freenode, #hurd, 2013-10-04
+
+    <braunr> nodes with a translator seem to keep a reference in libdiskfs and
+      not in libnetfs
+    <braunr> mhmmpf
+    <braunr> oh great ..
+    <braunr> each libdiskfs that "works" seems to implement its own
+      diskfs_cached_lookup function
+    <braunr> so both ext2fs and tmpfs actually maintain a list of nodes,
+      keeping a reference on those with a translator
+    <braunr> while procfs simply doesn't
+    <braunr> teythoon: ^
+    <braunr> *sigh*
+    <teythoon> braunr: ok, thanks, I'll look into that
+    <braunr> i'm not sure how to fix it
+    <braunr> we can either fix node destruction to cleanly shut down
+      translators
+    <braunr> but this would mean starting mtab on each access
+    <braunr> or we could implement a custom cache in procfs
+    <braunr> or perhaps a very custom change in the lookup callback for mounts
+    <braunr> i'll try the latter
+    <teythoon> err, shouldn't we try to fix this in lib*fs?
+    <braunr> unless you really want to work on it
+    <braunr> i dont' know
+    <teythoon> ah, so the node is destroyed but the translator is kept running?
+      that's what you mean by the above?
+    <teythoon> and ext2fs makes an effort of killing it in its node cleanup
+      code?
+    <braunr> yes
+    <braunr> grmbl, i'm lagging a lot
+    <braunr> i'm not sure
+    <braunr> ext2fs maintains it
+    <braunr> with ext2fs, translators can only be explicitely removed
+    <braunr> i mean, ext2fs keeps all node descriptors alive once accessed
+    <braunr> while procfs doesn't
+    <braunr> teythoon: ok, looks like i have a working patch that merely caches
+      the node for mounts
+
+    <braunr> i installed my fixed procfs on darnassus, only one mtab :)
+    <teythoon> nice :)
+
+    <braunr> i have a fix for the multiple mtab issue, will send a patch
+      tonight
+
+
+## `/home` Missing
+
+### IRC, freenode, #hurd, 2013-10-04
+
+    <braunr> now, why is there no /home in df output ?
+    <teythoon> not sure
+    <teythoon> note how /dev/tty* end up in /proc/mounts, those are passive
+      translators too, no?
+    <braunr> yes
+    <braunr> but that's a good thing i guess
+    <braunr> or was mounts intended for file systems only ?
+    <braunr> well, in the unix traditional meaning
+    <teythoon> I think its nice too, yes
+    <teythoon> but why are they fine and your /home is not...
+    <braunr> that's weirder
+    <braunr> also, mounts actually doesn't show passive translators
+    <braunr> teythoon: does your code perform any kind of comparison ?
+    <braunr> i see /servers/socket/26 but not /servers/socket/2
+    <braunr> s/comparison/filter/g
+    <teythoon> hmm
+    <teythoon> well, yes, try /hurd/mtab --insecure /
+    <teythoon> (I cannot connect to darnassus from here...)
+    <braunr> ok but that looks unrelated
+    <braunr> both /servers/socket/26 and /servers/socket/2 refer to the same
+      translator
+    <braunr> i was wondering if mtab was filtering similar entries based on
+      that
+    <teythoon> no
+    <braunr> that's weird too then, isn't it ?
+    <teythoon> yes ;)
+    <braunr> ok
+    <teythoon> btw, how is that done with the same traanslator being bound to
+      two nodes? settrans cannot do that, can it?
+    <braunr> no it can't
+    <braunr> the translator does it when started
+    <teythoon> ah
+    <braunr> (which means there is a race if both are started simulatneously,
+      although it's very rare and not hard to solve)
+    <teythoon> a weird beaving translator then :)
+
+    <braunr> teythoon: if ext2fs is set active, mtab output reports it
+
+    <braunr> teythoon: looks like this bug is what allows mtab not to deadlock
+    <braunr> teythoon: when i attach it as an active translator, cat freezes
+
+    <braunr> teythoon: if (control && control->pi.port_right == fsys)
+    <braunr> that's the filtering i was previously talking about
+
+    <braunr> oh please don't name global variables "path" ...
+
+
+### IRC, freenode, #hurd, 2013-10-06
+
+    <antrik> teythoon: pty-s also bind to two nodes, not only pfinet
+
+
+### IRC, freenode, #hurd, 2013-10-07
+
+    <braunr> teythoon: please tell us when you're available, we need to work
+      out the last mtab issues
+    <teythoon> braunr: I'm available now :)
+    <teythoon> I'm sorry, I've been very busy the last two weeks, but I've
+      plenty of time now
+    <braunr> great :)
+    <braunr> did you see youpi's mail ?
+    <braunr> i have the exact same question
+    <teythoon> I did
+    <braunr> it seems your code registers active translators
+    <braunr> but parent translators don't seem to register them when they're
+      created from passive translators
+    <braunr> or am i mistaken ?
+    <teythoon> I'll need a moment to get my hurd machine and myself up to
+      speed...
+    <teythoon> braunr: I concur with youpi, hooking into fshelp_fetch_root
+      should do just fine
+    <teythoon> I'll just try that
+    <braunr> ok
+    <braunr> how do you deal with mtab reporting itself ?
+    <teythoon> o_O does it do that?
+    <braunr> no, but it should
+    <braunr> when i set it as an active translator, i get a deadlock
+    <braunr> hm
+    <braunr> teythoon: before you change libfshelp, i'd like you to try
+      something else
+    <braunr> use more appropriate names for global variables in mtab.c
+    <braunr> in particular, the variable path clashes with local names
+    <teythoon> noted
+    <braunr> teythoon: as a side note (i'm not asking to rewrite anything)
+    <braunr> i strongly recommend a very explicit object oriented style of
+      coding
+    <braunr> (or data-oriented as it's sometimes called)
+    <braunr> use prefixes for all your interfaces so they can be made public if
+      needed (which acts as a namespace and avoids lots of collisions
+      naturally)
+    <braunr> use "constructors" and "destructors" (functions that both allocate
+      and initialize)
+    <braunr> this helps avoiding leaks a lot too
+    <teythoon> hm, I thought I did that, could you be more specific?
+    <braunr> ok didn't see the comment
+    <braunr> /* XXX split up */ error_t mtab_populate (...
+    <braunr> :)
+    <braunr> as a better example, see your code in libfshelp/translator-list.c
+    <braunr> struct translator should have been treated as an object
+    <braunr> this would probably have completely avoided any leaks in the first
+      place
+    <teythoon> braunr: right, I deviated from that style there
+    <braunr> teythoon: these are minor details, don't mind them too much, i
+      just find it helps me a lot
+    <teythoon> braunr: sure, I appreciate the feedback :)
+
+
+### IRC, freenode, #hurd, 2013-10-08
+
+    <teythoon> braunr: I'm on to the passive translator not getting registered
+      issue
+    <teythoon> however, removing them from the list if the active translator is
+      killed does not work as expected... I still need to fiddle with the
+      notifications to get this right
+    <braunr> ok
+
+
+### IRC, freenode, #hurd, 2013-10-16
+
+    <teythoon> braunr: btw, I fixed the 'passive translator not showing up in
+      proc/mounts'-issue
+    <teythoon> but 4 ports do leak each time a translator is killed and
+      reinstalled
+    <teythoon> this happens with passive ones as well as active ones
+    <braunr> teythoon: is that issue tied to your changed ?
+    <braunr> changes*
+    <teythoon> I'm not sure tbh, testing that is on my list of things to do
+    <braunr> ok
+    <braunr> first thing to know i guess
+    <teythoon> yes
+
+
+## Memory Leak in `translator_ihash_cleanup`
+
+### IRC, freenode, #hurd, 2013-10-04
+
+    <braunr> teythoon: isn't there a leak in translator_ihash_cleanup ?
+    <teythoon> braunr: looks like, yes
+    <teythoon> braunr: I probably forgot to add the free (element->name) when I
+      added the name field
+    <braunr> teythoon: ok
+    <braunr> teythoon: i let you fix that :p
+    <teythoon> braunr: sure ;)
