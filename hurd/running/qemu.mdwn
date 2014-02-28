@@ -366,6 +366,23 @@ Once you have logged in as `root` run the `pfinet` translator with values that a
 
 That should do it! Do not forget to edit/update `/etc/resolv.conf` to get DNS working.
 
+# QEMU Multiboot
+
+See [[open_issues/debugging_gnumach_startup_qemu_gdb/#index2h1]].
+See "Linux/Multiboot boot specific" section on QEMU manpage.
+
+    # take for instance cdimage boot components
+    $ wget http://people.debian.org/~sthibault/hurd-i386/installer/cdimage/current/{gnumach.gz,initrd.gz,ext2fs.static,ld.so.1}
+
+gnumach needs to be uncompressed
+
+    $ gunzip gnumach.gz
+    $ sudo qemu-kvm \
+    --kernel gnumach \
+    --initrd " \
+    initrd.gz \$(ramdisk-create), \
+    ext2fs.static --multiboot-command-line=\${kernel-command-line} --host-priv-port=\${host-port} --device-master-port=\${device-port} --exec-server-task=\${exec-task} -T typed gunzip:device:rd0 \$(task-create) \$(task-resume), \
+    ld.so.1 /hurd/exec \$(exec-task=task-create)"
 
 # Related Links
 
