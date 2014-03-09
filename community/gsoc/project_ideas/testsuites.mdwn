@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2010, 2011 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2010, 2011, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -8,7 +9,13 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
-[[!meta title="Fix Compatibility Problems Exposed by Testsuites"]]
+[[!meta title="Fix Compatibility Problems Exposed by Testsuites, Implement
+Missing Interfaces"]]
+
+[[!toc]]
+
+
+# Fix Compatibility Problems Exposed by Testsuites
 
 A number of software packages come with extensive testsuites.
 Some notable ones are [[open_issues/glibc]], gnulib, Perl,
@@ -36,25 +43,61 @@ The goal is to analyze all failures in one or more of the listed testsuites,
 to find out what shortcomings in the Hurd implementation cause them (if any),
 and to fix at least some of these shortcomings.
 
-Note that this task somewhat overlaps with the [[Perl/Python task|perl_python]] listed above.
+Note that this task somewhat overlaps with the [[Perl/Python task|perl_python]].
 Here the focus however is not on improving the support for any particular program,
 but on fixing general problems in the Hurd.
 
-This is a very flexible task:
+A complementary task is adding a proper [[open_issues/unit_testing]] framework
+to the GNU Hurd's code base, and related packages.
+
+
+# <a name="missing">Implement Missing Interfaces for GNU Hurd</a>
+
+A related project is to [implement missing interfaces for GNU
+Hurd](http://www.gnu.org/software/soc-projects/ideas-2014.html#glibc_hurd_missing_interfaces)
+([glibc
+wiki](https://sourceware.org/glibc/wiki/GSoC#Implement_Missing_Interfaces_for_GNU_Hurd)),
+primatily in [[open_issues/glibc#missing]].
+
+In glibc's Linux kernel port, most simple POSIX interfaces are in fact just
+forwarded to (implemented by) Linux kernel system calls. In contrast, in the
+[[GNU Hurd port|/glibc]], the POSIX (and other) interfaces are actually
+implemented in glibc on top of the [[Hurd RPC protocols|hurd/rpc]]. A few
+examples:
+[getuid](https://sourceware.org/git/?p=glibc.git;a=blob;f=sysdeps/mach/hurd/getuid.c),
+[open](https://sourceware.org/git/?p=glibc.git;a=blob;f=sysdeps/mach/hurd/open.c),
+[rmdir](https://sourceware.org/git/?p=glibc.git;a=blob;f=sysdeps/mach/hurd/rmdir.c),
+[setresuid](https://sourceware.org/git/?p=glibc.git;a=blob;f=sysdeps/mach/hurd/setresuid.c),
+[socketpair](https://sourceware.org/git/?p=glibc.git;a=blob;f=sysdeps/mach/hurd/socketpair.c).
+
+When new interfaces are added to glibc (new editions of POSIX and similar
+standards, support for new editions of C/C++ standards, new GNU-specific
+extensions), generally [ENOSYS
+stubs](https://sourceware.org/git/?p=glibc.git;a=blob;f=posix/execve.c) are
+added, which are then used as long as there is no real implementation, and
+often these real implementations are only done for the Linux kernel port, but
+not GNU Hurd. (This is because most of the contributors are primarily
+interested in using glibc on Linux-based systems.)  Also, there is quite a
+backlog of [[missing implementations|open_issues/glibc#missing]] for GNU Hurd.
+
+In coordination with the [[GNU Hurd developers|mailing_lists/bug-hurd]], you'd
+work on implementing such missing interfaces.
+
+---
+
+These are very flexible tasks:
 while less experienced students should be able to tackle at least a few of the easier problems,
 other issues will be challenging even for experienced hackers.
-No specific previous knowledge is required for this task;
+No specific previous knowledge is required;
 only fairly decent C programming skills.
 While tracking down the various issues,
 the student will be digging into the inner workings of the Hurd,
 and thus gradually gaining the knowledge required for Hurd development in general.
 
-A complementary task is adding a proper [[open_issues/unit_testing]] framework
-to the GNU Hurd's code base, and related packages.
-
 Possible mentors: Samuel Thibault (youpi)
 
 Exercise: Take a stab at one of the testsuite failures,
+or missing implementation,
 and write a minimal testcase exposing the underlying problem.
 Actually fixing it would be a bonus of course --
 but as it's hard to predict which issues will be easy and which will be tricky,
