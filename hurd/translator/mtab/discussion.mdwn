@@ -3046,3 +3046,141 @@ Fixed in 2013-10-05 procfs commit c87688a05a8b49479ee10127470cc60acebead4a?
     <braunr> teythoon: ok
     <braunr> teythoon: i let you fix that :p
     <teythoon> braunr: sure ;)
+
+
+## <a name="chroot">`chroot`</a>
+
+### IRC, OFTC, #debian-hurd, 2014-03-05
+
+In context of [[open_issues/nightly_builds_deb_packages]].
+
+    <gg0> installer gets stuck running os-prober, seems because
+      /target/proc/mounts gets unreadable, sometimes Resource lost sometimes it
+      gets stuck reading it
+    <gg0> there are two proc translators: one /proc, one /target/proc
+    <gg0> anything known that could have broken /target one?
+    <gg0> anything else to check?
+    <gg0> what's unusual is that cat'ing /proc takes few seconds before giving
+      output. does initrd slow down things?
+    <gg0> */proc/mounts
+    <gg0> what does "Resource lost" mean? i get it since the beginning of
+      install
+
+
+### IRC, freenode, #hurd, 2014-03-05
+
+    <gg0> debian installer mounts installation disk under /target then probably
+      it debootstraps on it
+    <gg0> we have 2 procfs: one outside, one inside /target
+    <gg0> outside it works fine, inside cat'ing /proc/mounts it gives Resource
+      lost the first time. the second one it gets stuck
+    <gg0> oh there's only one /hurd/mtab though. inside one might have bought
+      the farm, correct?
+    <braunr> ?
+    <gg0> two /proc/mounts means you have to have two mtab translators afaiu
+    <gg0> i can't reproduce on a clean chroot
+    <teythoon> gg0: two mtab instances should be fine
+    <teythoon> also, the one under /target should only list translators "under
+    <teythoon> "under" /target
+    <gg0> teythoon: yeah i restart the dead one but at first access i get
+      "Resource lost" again and mtab dies
+    <teythoon> hm
+    <gg0> wait
+    <gg0> "Resource lost" means mtab is not running
+    <teythoon> are you sure ?
+    <teythoon> the mtab translator queries other translators
+    <teythoon> that can lead to the delay you described
+    <teythoon> and severe enough errors are handed back to the client, e.g. if
+      mtab itself gets resource lost on the very first translator it queries
+    <gg0> i'd like to clean up chroot proc and mtab stuff but settrans -fg gets
+      stuck
+    <gg0> or it gives
+    <gg0> settrans: /proc/mounts: Computer bought the farm
+    <gg0> settrans: /proc/mounts: Operation not supported
+    <teythoon> gg0: try settrans --recursive ...
+    <teythoon> then again, i never used this and it should work without, no ?
+    <gg0> same behavior
+    <gg0> root@hurd01:~# settrans --recursive -fg sid-chroot/proc/mounts
+    <gg0> settrans: sid-chroot/proc/mounts: Computer bought the farm
+    <gg0> root@hurd01:~# settrans --recursive -fg sid-chroot/proc/mounts
+    <gg0> settrans: sid-chroot/proc/mounts: Operation not supported
+    <gg0> root@hurd01:~# settrans --recursive -fg sid-chroot/proc/mounts
+    <teythoon> hm
+    <gg0> (last got stuck)
+    <teythoon> eh, i thought of settrans --recursive -fg sid-chroot
+    <gg0> i doesn't work. it gives no output but showtrans shows translators
+      didn't go away
+    <teythoon> showtrans shows passive translator records
+    <gg0> ah
+    <teythoon> better use fsysopts to query the active one
+    <gg0> both still active, even with fsysopts
+    <teythoon> hm
+    <teythoon> i recently improved the mtab translator, but that change has not
+      made its way into debian yet
+    * gg0 adding hurd-ci
+
+[[open_issues/nightly_builds_deb_packages]].
+
+    <gg0> btw Resource lost/mtab dying i can't reproduce on hurd01 seems
+      breaking debian installer
+    <gg0> teythoon: dist-upgraded hurd-ci, it behaves pretty same way besides
+      settrans -fg sid-chroot/proc/mounts gives "Operation not supported" right
+      away, without "Computer..farm" first
+    <gg0> following attempts it simply gets stuck
+    <braunr> time to quickdraw gdb :p
+    <gg0> teythoon: i think easy to reproduce, just need to debootstrap
+    <gg0> anything stronger than -fg?
+    <teythoon> kill
+    <gg0> well mtab has been already manually killed
+    <gg0> i could kill procfs too
+    <teythoon> yes, but then it seems to me that the translator linking in
+      netfs is buggy
+    <braunr> kill -KILL :p
+    <teythoon> :D
+    <teythoon> aka double kill
+    <gg0> ok by killing chroot procfs then accessing sid-chroot/proc/mounts
+      makes both restarting
+    <teythoon> ok, even more likely to be a netfs issue then
+    <teythoon> which is to be expected
+    <teythoon> afaik procfs is the first netfs based translator to support
+      passive translator records
+    <braunr> it is
+    <gg0> did the same on debian installer machine: both restarted, cat
+      /target/proc/mounts -> Resource lost
+    <gg0> and mtab died
+    <gg0> Computer wanted to buy the farm but it was out of resources
+
+
+### IRC, OFTC, #debian-hurd, 2014-03-05
+
+    <gg0> btw problem is cat /target/proc/mounts gives Resource lost, what
+      package could cause that?
+    <gg0> and mtab dies
+    <youpi> Resource lost often means the same as Computer bought the farm:
+      some translator has died somehow
+    <youpi> or dropped something
+    <gg0> procfs+mtab outside /target work well. inside mtab crashes
+    <gg0> http://postimg.org/image/vgz541z81/
+    <gg0> tbh i unmounted a couple, they are not all fs mounted by install, a
+      couple missing
+    <gg0> could any of them cause mtab crash?
+    <youpi> see ldd /hurd/mtab
+    <youpi> it only uses hurd libraries and pthread
+    <gg0> hurd libs and pthread _outside_ chroot, right?
+    <youpi> in principle it's the outside /hurd/mtab which gets triggered
+    <youpi> since the /target ext2fs doesn't know people use it chrooted
+    <youpi> do you have two processes?
+    <youpi> (mtab processes I mean)
+    <gg0> yes two mtabs children of their two procfs
+    <youpi> k
+    <youpi> and does setting up an mtab translator by hand gets the same?
+    <gg0> to restart mtab i have to kill its father procfs
+    <youpi> tell that to teythoon, not me, he implemented the thing :)
+    <gg0> then first access to /proc/mounts should make procfs and mtab restart
+    <gg0> yeah there's already been some troubleshooting on #hurd
+    <teythoon> youpi: i suspect some bugs in netfs translator linking
+    <teythoon> procfs is the first netfs based translator to make use of
+      passive translators
+    <gg0> you can see dead mtab and os-prober trying to grep /proc/mounts
+      http://postimg.org/image/z4fm981p7/
+    <gg0> well, there can't be problems on /target if there's not /target yet
