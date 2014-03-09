@@ -14,6 +14,8 @@ This page discusses things for [[Unix]] systems, there is a separate page for
 
 See the discussion about [[hurd/running/qemu/writeback_caching]].
 
+[[!toc]]
+
 # Readily Available Images
 
 You can use the following images to give the GNU/Hurd a try.
@@ -366,6 +368,25 @@ Once you have logged in as `root` run the `pfinet` translator with values that a
 
 That should do it! Do not forget to edit/update `/etc/resolv.conf` to get DNS working.
 
+# QEMU Multiboot
+
+See [[open_issues/debugging_gnumach_startup_qemu_gdb#multiboot]].
+See "Linux/Multiboot boot specific" section on QEMU manpage.
+
+Get for instance cdimage boot components
+
+    $ wget http://people.debian.org/~sthibault/hurd-i386/installer/cdimage/current/{gnumach.gz,initrd.gz,ext2fs.static,ld.so.1}
+
+gnumach needs to be uncompressed
+
+    $ gunzip gnumach.gz
+    $ sudo qemu-system-i386 -m 512 \
+    --kernel gnumach \
+    --initrd "\
+    initrd.gz \$(ramdisk-create),\
+    ext2fs.static --multiboot-command-line=\${kernel-command-line} --host-priv-port=\${host-port} --device-master-port=\${device-port} --exec-server-task=\${exec-task} -T typed gunzip:device:rd0 \$(task-create) \$(task-resume),\
+    ld.so.1 /hurd/exec \$(exec-task=task-create)" \
+    <other_qemu_options>
 
 # Related Links
 
