@@ -539,3 +539,93 @@ In context of [[!message-id "20130918081345.GA13789@dalaran.sceen.net"]].
     <teythoon> right, for dup and friends
     <braunr> and the radix tree is a data structure that can cope decently with
       not too sparsed distributions
+
+
+## IRC, freenode, #hurd, 2014-02-27
+
+    <braunr> teythoon: ah, just saw the commit that will make our network
+      faster :)
+    <teythoon> network ?
+    <braunr> eh no, it's about ioctls actually
+    <braunr> :)
+    <braunr> i read a bit too quickly
+    <teythoon> one more small step towards fixing all receiver lookups in the
+      hurd...
+    <teythoon> i did not anticipate how much the hurd has to be changed first
+      in order to make use of the protected payloads
+    <braunr> that was my main reason not to do it actually :/
+    <braunr> but you're almost finished with it, aren't you ?
+    <teythoon> not sure tbh
+    <teythoon> i believe the fsys stuff was the largest chunk
+
+
+## IRC, freenode, #hurd, 2014-03-02
+
+    <teythoon> youpi: i cleaned up most of the receiver lookups in hurd by now
+    <teythoon> but there are some tricky cases left
+    <teythoon> 1/ the pager stuff
+    <teythoon> the mig declarations are in gnumach, and do not have the
+      necessary intran declarations that we can mutate
+    <teythoon> 2/ some uses of mach_port_t instead of some_type_t in the hurd
+      rpc definitions
+    <teythoon> (e.g. fsys_forward)
+    <teythoon> for 1/, i'd like to extend the definitions in gnumach
+    <teythoon> i'm not so sure what to do for the second case
+    <teythoon> we could introduce some types for each case
+    <teythoon> or, we do not touch the definitions
+    <teythoon> my protected payload prototype allows us to map payloads back to
+      port names for the functions that want a name
+    <teythoon> i did this by redefining the mach_port_t type for mig that uses
+      the payload to port-name intran function
+    <teythoon> mig allows type redefinitions, but emits a warning message
+    <teythoon> though i consider that a useful feature, it allows one to refine
+      a type
+
+
+## IRC, freenode, #hurd, 2014-03-04
+
+    <teythoon> braunr: i fixed the object lookups in libpager yesterday, a
+      pretty mechanic change
+    <braunr> teythoon: can't be bad :)
+    <teythoon> amusingly, the resulting packages boot about half way through
+      o_O
+    <braunr> teythoon: ?
+    <teythoon> it hangs while cleaning left-over files from /tmp
+    <braunr> ugh, libpager ..
+    <teythoon> yes
+    <teythoon> tricky pager stuff is tricky ?
+    <braunr> tricky buggy pager stuff is tricky and buggy
+    <teythoon> ^^
+    <braunr> let's assume you made things faster, increasing the likelihood of
+      deadlocks ..
+    <braunr> we had a patch once for a libpager deadlock
+    <teythoon> well, i'm not yet at the point where things might get faster
+    <braunr> see 901c61a1d25e7c8963e51012760a82730eda1910
+    <braunr> the same problem exists elsewhere i think, you might have hit it
+    <teythoon> i'm still just moving the object lookups from the server
+      functions to the mig translation functions
+    <braunr> hm
+    <teythoon> but yes, i might have influenced the timing, not sure
+    <braunr> shouldn't cost too much to add some prints
+    <braunr> iirc, the other potential deadlock is in libpager/pager-attr.c
+    <braunr> when memory_object_change_attributes is called
+    <braunr> (which loops back into libpager when the kernel sends data back
+    <braunr> )
+    <braunr> tricky ..
+    <teythoon> i'll try that when i get home
+
+    <braunr> aren't you almost done ?
+    <teythoon> not sure tbh
+    <braunr> :(
+    <braunr> althouhg libpager would be really great
+    <teythoon> and mach-defpager
+    <braunr> since this is actually one of the biggest points of contention
+    <teythoon> i'll do that next, and return to libpager later
+    <braunr> ok
+    <teythoon> for both i needed to change some rpc type definitions in gnu
+      mach
+    <braunr> skipping lookups in libpager would make it harder to suffer
+      writeback thread storms
+    <teythoon> so i want to make sure that these changes are fine so that i can
+      propose them
+    <braunr> ok
