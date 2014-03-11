@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2012, 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2012, 2013, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -152,29 +153,13 @@ architecture.
     <tschwinge> matty3269: I think that's better than starting on real
       hardware.
     <braunr> tschwinge: you can use -kernel with a multiboot binary now
+
+[[hurd/running/qemu#multiboot]].
+
     <braunr> tschwinge: and even creating iso images is so fast it's not any
       slower
-    <tschwinge> braunr: Yeah, I thought so, but never checked this out --
-      recently I saw in qemu --help's output some »multiboot« thing flashing
-      by.  :-)
-    <braunr> i think it only supports 32-bits executables though
-    <matty3269> braunr: Yeah, I just tried passing gnumach as the -kernel
-      parameter to qemu, but it segged qemu :S
-    <braunr> otherwise i'd be using it for x15
-    <matty3269> qemu: fatal: Trying to execute code outside RAM or ROM at
-      0xc0100000
-    <braunr> how much ram did you give qemu ?
-    <matty3269> I used '-m 512'
-    <braunr> hum, so the -kernel option doesn't correctly implement elf loading
-      or something like that
-    <braunr> anyway, i'm not sure how well building gnumach on a non-hurd
-      system is supported
-    <braunr> so you may want to simply develop inside your VM for the time
-      being, and reboot
-    <matty3269> doing an objdump of it seems fine...
-    <braunr> ?
+
     <braunr> ah, the gnumach executable is a correct elf image
-    <braunr> that's not the point
     <matty3269> Is there particular reason that mach is linked at 0xc0100000?
     <matty3269> or is that where it is expected to be in VM>
     <tschwinge> That's my understanding.
@@ -192,21 +177,6 @@ architecture.
     <braunr> the .text section of linux on x86 actually starts at c1000000
       (above 16 MiB, certainly to preserve as much dma-able memory since modern
       machines now have a lot more)
-    <tschwinge> Surely the GRUB multiboot loader is not that much used/tested?
-    <braunr> unfortunately, no
-    <braunr> matty3269: FYI, my kernel starts at 0xfff00000 :p
-    <matty3269> braunr: hmm, you could be right, I know it's arround there
-      someone
-    <matty3269> somewhere*
-    <matty3269> braunr: that's an interesting address :S
-    <matty3269> braunr: is that the PA address of the kernel or the VA inside a
-      process?
-    <braunr> the VA
-    <matty3269> hmm
-    <braunr> it can't be a PA
-    <braunr> such high addresses are normally device memory
-    <braunr> but don't worry, i have good reasons to have chosen this address
-      :)
     <matty3269> so with gnumach, does the boot-up sequence use PIC until VM is
       active and the kernel mapped to the linking address?
     <braunr> no
@@ -217,37 +187,6 @@ architecture.
     <braunr> and uses offsets when accessing data
     <braunr> (which is why the kernel text is at 3 GiB + 1 MiB, and not 3 GiB)
     <matty3269> hmm,
-    <matty3269> gah, I need to learn x86
-    <braunr> that would certainly help
-    <matty3269> I've just had a look at boothdr.S; I presume that there must be
-      something else that is executed before this to setup VM, switch to 32-bit
-      more etc...?
-    <matty3269> mode*
-    <braunr> have a look at the multiboot specification
-    <braunr> it sets protected mode
-    <braunr> but not paging
-    <braunr> (i mean, the boot loader does, before passing control to the
-      kernel)
-    <matty3269> Ah, I see
-    <tschwinge> matty3269: Multiboot should be documented in the GRUB package.
-    <matty3269> tschwinge: yep, got that, thanks
-    <matty3269> hmm, I can't find any reference to CR0 in gnumach so paging
-      must be enabled elsewhere
-    <matty3269> oh wait, found it
-    <braunr> $ git grep -i '\<cr0\>'
-    <braunr> i386/i386/proc_reg.h, linux/dev/include/asm-i386/system.h
-    <braunr> although i suspect only the first one is relevant to us :)
-    <matty3269> Yeah, that seems to have the setup code for paging :)
-    <matty3269> I'm still confused how it could run that without paging or PIC
-      though
-    <matty3269> I think I need to watch the boot sequence with qemu
-    <braunr> it's a bit tricky
-    <braunr> but actually simple
-    <braunr> 00:44 < braunr> either special sections are linked at physical
-      addresses
-    <braunr> 00:44 < braunr> or it relies on the fact that all executable code
-      uses near jumps
-    <braunr> that's really all there is
     <braunr> but you shouldn't worry about that i suppose, as the protocol
       between the boot loader and an arm kernel will certainly not be the saem
     <braunr> same*

@@ -368,25 +368,33 @@ Once you have logged in as `root` run the `pfinet` translator with values that a
 
 That should do it! Do not forget to edit/update `/etc/resolv.conf` to get DNS working.
 
-# QEMU Multiboot
+# <a name="multiboot">Multiboot</a>
 
-See [[open_issues/debugging_gnumach_startup_qemu_gdb#multiboot]].
 See "Linux/Multiboot boot specific" section on QEMU manpage.
 
-Get for instance cdimage boot components
+Get the multiboot modules.  Either extract them from the disk image, or,
+download:
 
-    $ wget http://people.debian.org/~sthibault/hurd-i386/installer/cdimage/current/{gnumach.gz,initrd.gz,ext2fs.static,ld.so.1}
+    $ wget http://people.debian.org/~sthibault/hurd-i386/installer/cdimage/current/{gnumach.gz,ext2fs.static,ld.so.1}
 
-gnumach needs to be uncompressed
+Generally, these files need to correspond to the ones in the disk image, so
+don't forget to keep them up to date.
 
-    $ gunzip gnumach.gz
-    $ sudo qemu-system-i386 -m 512 \
-    --kernel gnumach \
-    --initrd "\
-    initrd.gz \$(ramdisk-create),\
-    ext2fs.static --multiboot-command-line=\${kernel-command-line} --host-priv-port=\${host-port} --device-master-port=\${device-port} --exec-server-task=\${exec-task} -T typed gunzip:device:rd0 \$(task-create) \$(task-resume),\
-    ld.so.1 /hurd/exec \$(exec-task=task-create)" \
-    <other_qemu_options>
+The kernel image needs to be uncompressed (`gunzip gnumach.gz`), as otherwise
+you'll get told: *qemu: linux kernel too old to load a ram disk*.
+
+    $ qemu [...] \
+    > --kernel gnumach \
+    > --initrd \
+    > 'ext2fs.static --multiboot-command-line=${kernel-command-line} --host-priv-port=${host-port} --device-master-port=${device-port} --exec-server-task=${exec-task} -T typed device:hd0s1 $(task-create) $(task-resume)',\
+    > 'ld.so.1 /hurd/exec $(exec-task=task-create)'
+
+Note that, contrary to [[GRUB]]'s configuration file, you don't specify
+"`argv[0]`" here, and it's fortunate that neither ext2fs nor exec need a comma
+on their command line...
+
+You can also use `--append [...]`, which will show up in `/proc/cmdline`.
+
 
 # `qemu: fatal: Trying to execute code outside RAM or ROM at 0x000000010010001e`
 

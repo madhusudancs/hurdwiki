@@ -67,16 +67,16 @@ See also [[nightly_builds]].
     <teythoon> there has been talk here the other day about using qemus
       multiboot capabilities to directly boot the hurd
 
-[[debugging_gnumach_startup_qemu_gdb]], *Multiboot*
+[[hurd/running/qemu#multiboot]].
 
-    <teythoon> i always wanted to try that out
-    <pere> the jenkins rules to test the install uses --kernel, --initrd and
-      --append in qemu to specify the preseed file.  without a similar method
-      to boot hurd, it will be hard to automate the test.  rewriting the iso
-      might be an option, but not a very nice one.
-    <teythoon> i believe that it is possible to use those options to boot a
-      hurd
-    <teythoon> i'll report back to you
+For d-i purposes, you'll additionally need:
+
+    $ wget http://people.debian.org/~sthibault/hurd-i386/installer/cdimage/current/initrd.gz
+
+..., and to the `--initrd` option prepend `'initrd.gz $(ramdisk-create)',`
+before the `ext2fs.static`, and refer the latter to `gunzip:device:rd0` instead
+of `device:hd0s1`.
+
     <pere> I tried adding an url= option to grub when booting the installer,
       but it seem to be ignored.
     <pere> perhaps the preseed udeb is missing, or the network support was
@@ -84,8 +84,6 @@ See also [[nightly_builds]].
     <teythoon> uh, i don't know about that stuff, youpi creates the d-i images
     <pere> ok.  seem to me that the d-i images do not support preseeding at the
       moment.
-    <teythoon> pere: when i try to use qemus multiboot support to boot the
-      hurd, qemu crashes :/
     <teythoon> youpi: ^ did you succeed? if so, can you share how?
     <pere> teythoon: nope, I concluded it didn't work, and left it to other to
       fix. :)
@@ -112,158 +110,8 @@ See also [[nightly_builds]].
     <pere> #debian-qa will understand. :)
 
 
-## IRC, OFTC, #debian-hurd, 2014-02-27
-
-    <gg0> almost managed to multiboot
-    <gg0> it gets stuck at "start ext2fs.static"
-    <gg0> any idea?
-    <teythoon_> multiboot what ?
-    <pere> gg0: that sound like the race blocking boot some times.
-    <teythoon_> no
-    <teythoon_> that'd print more
-    <gg0> teythoon: booting hurd with qemu without grub
-    <teythoon> oh cool
-    <teythoon> can you paste your qemu arguments somewhere ?
-    <azeem> probably ext2fs.static got passed a wrong commandline?
-    <gg0> they are the grub ones but gnumach needs to be uncompressed
-    <gg0> otherwise qemu complains saying linux kernel is too old
-    <teythoon> yes, i got past that one
-    <teythoon> but my qemu keeps crashing
-    <teythoon> can you please paste the command you used ?
-    <gg0> "qemu: linux kernel too old to load a ram disk"
-    <gg0> well, my fun level would really decrease :)
-    <azeem> if you pasted the commands you used?
-    <youpi> gg0: if it talks about "linux", it's not actually using multiboot
-    <gg0> azeem: yep :)
-    <gg0> youpi: i think it just can't distinguish, btw bt uncompressing it, it
-      boots
-    <youpi> gg0: well, "any idea?" means you are requesting help
-    <youpi> but without pasting the line, we can't divine what can be going
-      wrong
-    <youpi> gg0: well, if it can't see that gnumach *can* handle multiboot
-      modules, qemu is very broken
-    <gg0> modules are all loaded, multiboot options seems working well
-    <gg0> ie. -initrd "file1 arg=foo,file2"
-    <azeem> arg=foo?
-    <teythoon> fwiw, i tried http://paste.debian.net/84408/
-        kvm -m 256 \
-        -kernel gnumach \
-        -append 'gnumach root=device:hd0s1' \
-        -initrd "0.master/hurd/ext2fs.static ext2fs \
-                        --multiboot-command-line='\${kernel-command-line}' \
-                        --host-priv-port='\${host-port}' \
-                        --device-master-port='\${device-port}' \
-                        --exec-server-task='\${exec-task}' -T typed device:hd0s1 \
-                        '\$(task-create)' '\$(task-resume)',\
-        0.master/lib/ld.so.1 exec /hurd/exec '\$(exec-task=task-create)'" \
-        -drive 'file=/media/pool/hurd-tests/image.qcow2,cache=writeback' -snapshot
-    <gg0> http://postimg.org/image/esywbywh9/
-    <gg0> azeem: pasted from man qemu
-    <gg0> here screenshot ^
-    <teythoon> is this the stock debian ext2fs.static ?
-    <azeem> gg0: are the ext2fs.static arguments cutoff at
-      "-exec-server-[...]"?
-    <gg0> teythoon: yes, everything from last CD image
-    <teythoon> which you copied to the host ?
-    <gg0> azeem: as you can see just below --exec-server-task=3
-    <gg0> teythoon: loop mounted, like jenkins does
-    <teythoon> ok
-    <teythoon> the early hurd bootstrap code is very delicate
-    <teythoon> and often, the bootstrap just hangs with no indication why
-    <teythoon> we won't even notice the rootfs or the exec server crashing for
-      example
-    <gg0> replace gnumach, initrd.gz, ext2fs.static, ld.so.1 paths with yours:
-    <gg0> --kernel gnumach --initrd "initrd.gz initrd
-      \$(ramdisk-create),ext2fs.static ext2fs
-      --multiboot-command-line=\${kernel-command-line}
-      --host-priv-port=\${host-port} --device-master-port=\${device-port}
-      --exec-server-task=\${exec-task} -T typed gunzip:device:rd0
-      \$(task-create) \$(task-resume),ld.so.1 exec /hurd/exec
-      \$(exec-task=task-create)"
-    <teythoon> you are missing the kernel command line, no?
-    <gg0> teythoon: afaiu it takes it at runtime from itself if any
-    <gg0> if anyone passes --append
-    <gg0> in pasted screenshot i pass desktop=lxde
-    <gg0> need to pass something like gunzip:device:rd0? on cd image it doesn't
-      pass anything
-    <youpi> no, it's already passed to ext2fs in the multiboot command line
-    <gg0> ok
-    <gg0> -T typed
-    <teythoon> i do not see any significant difference between your arguments
-      and mine
-    <teythoon> for me, kvm/qemu still crashes
-    <teythoon> % kvm --version
-    <teythoon> QEMU emulator version 1.1.2 (qemu-kvm-1.1.2+dfsg-6, Debian),
-      Copyright (c) 2003-2008 Fabrice Bellard
-    <gg0> teythoon: i don't have any "'" :) and too many gnumach, one in append
-      too
-    <teythoon> yes
-    <teythoon> but that shouldn't cause kvm to crash
-    <gg0> oh
-    <gg0> here QEMU emulator version 1.7.0 (Debian 1.7.0+dfsg-3)
-    <gg0> jessie on amd64
-    <gg0> seems quite older
-    <teythoon> indeed
-    <gg0> wheezy vs current jessie
-    <teythoon> yes
-    <gg0> teythoon: qemu 1.7.0 is on wheezy-backports
-    <gg0> anyone tried to reproduce it?
-
-
-## IRC, freenode, #hurd, 2014-02-27
-
-    <gg0> options to boot hurd with qemu multiboot:
-    <gg0> 17:54 < gg0> replace gnumach, initrd.gz, ext2fs.static, ld.so.1 paths
-      with yours:
-    <gg0> 17:54 < gg0> --kernel gnumach --initrd "initrd.gz initrd
-      \$(ramdisk-create),ext2fs.static ext2fs
-      --multiboot-command-line=\${kernel-command-line}
-      --host-priv-port=\${host-port} --device-master-port=\${device-port}
-      --exec-server-task=\${exec-task} -T typed gunzip:device:rd0
-      \$(task-create) \$(task-resume),ld.so.1 exec /hurd/exec
-      \$(exec-task=task-create)"
-    <gg0> gnumach needs to be uncompressed
-    <gg0> this gets stuck at "start ext2fs.static:"
-    <teythoon> indeed, same for me
-    <braunr> i strongly suspect qemu multiboot support to be incomplete
-    <braunr> i couldn't make it work well enough with x15 either
-    <gg0> if gnumach is compressed, "qemu: linux kernel too old to load a ram
-      disk"
-    <braunr> i think that's a grub specific feature
-
-
-## IRC, freenode, #hurd, 2014-02-28
-
-    <gg0> start ext2fs.static2: ext2fs: device:rd0: panic: get_hypermetadata:
-      bad magic number 0xd7f0 (should be 0xef53)
-    <gg0> \o/ it boots
-    <teythoon> gg0: what was wrong ?
-    <gg0> --kernel /path/to/uncompressed-gnumach --initrd "/path/to/initrd.gz
-      \$(ramdisk-create),/path/to/ext2fs.static
-      --multiboot-command-line=\${kernel-command-line}
-      --host-priv-port=\${host-port} --device-master-port=\${device-port}
-      --exec-server-task=\${exec-task} -T typed gunzip:device:rd0
-      \$(task-create) \$(task-resume),/path/to/ld.so.1 /hurd/exec
-      \$(exec-task=task-create)"
-    <teythoon> gg0: uh, using absolute paths fixes this ?
-    <gg0> teythoon: not necessary, just to be clearer
-    <gg0> solved by removing initrd between initrd.gz and ramdisk-create, and
-      ext2fs between ext2fs.static and multiboot-command-line
-    <gg0> also exec between ld.so.1 and /hurd/exec
-    <teythoon> gg0: oh, i see
-
-
 ## IRC, OFTC, #debian-hurd, 2014-02-28
 
-    <gg0> --kernel /path/to/uncompressed-gnumach --initrd "/path/to/initrd.gz
-      \$(ramdisk-create),/path/to/ext2fs.static
-      --multiboot-command-line=\${kernel-command-line}
-      --host-priv-port=\${host-port} --device-master-port=\${device-port}
-      --exec-server-task=\${exec-task} -T typed gunzip:device:rd0
-      \$(task-create) \$(task-resume),/path/to/ld.so.1 /hurd/exec
-      \$(exec-task=task-create)"
-    <gg0> multiboot works
-    <pere> cool.
     <pere> gg0: are you able to feed the installer one of the preseed files at
       <URL: http://jenkins.debian.net/d-i-preseed-cfgs/ >?
     <gg0> though jenking translates double quotes, need to escape the world
@@ -271,7 +119,6 @@ See also [[nightly_builds]].
     <gg0> pere: i'm working on that, stuck at working around that mandatory
       double quote
     <gg0> *initrd double quote
-    <youpi> gg0: could you paste your command line on the hurd wiki?
     <gg0> ok got a g-i-installation_debian_sid_daily_hurd_lxde able to boot
     <gg0> let's provide a preseed
     <gg0> shouldn't there be some info/debug consoles from tty 2 to 4?
@@ -320,10 +167,6 @@ See also [[nightly_builds]].
 
 
 ## IRC, OFTC, #debian-hurd, 2014-03-02
-
-    <gg0> teythoon: curiosity, correct qemu multiboot options still make old
-      qemu crashing?
-    <teythoon> gg0: no idea, i'll try it later
 
     <gg0> youpi: any chance to have monthly/weekly (daily would be too much i
       guess) isos/images? can i help somehow?
@@ -619,31 +462,11 @@ See also [[nightly_builds]].
     <youpi> possibly
     <gg0> oh wait here qemu multiboot
     <youpi> that shouldn't have any impact
-    <youpi> did you leave the command line somewhere on the wiki so I can try
-      with it, just to be sure?
-    <gg0>
-      http://darnassus.sceen.net/~hurd-web/hurd/running/qemu/#QEMU_Multiboot
     <gg0> 5€ on qemu multiboot as the culprit
     <gg0> you should also see it sometimes double-mounts /dev/hd0s1 under
       /target and /target/./media/cdrom(!)
     <gg0> but that's due to new apt it in-targets (= installs under /target)
-    <youpi> gg0: rather use the gnumach, ld.so and ext2fs.static from the ISO
-      image you are booting
-    <youpi> especially for ld.so, which has to be the same as the libc
-      installed in the initrd
-    <youpi> ah, you're getting the initrd there too
-    <youpi> well, really use the same as the ISO
-    <gg0> i already do
-    <youpi> ah, ok, so the wiki example is just with current
-    <youpi> but the wiki example doesn't use -cdrom to provide the ISO ?
-    <gg0> no it doesn't even mention you could also use a cdrom
-    <gg0> it just shows how to use qemu multiboot options
-    <youpi> it seems one have to avoid any blanks in the multiboot option
-    <youpi> notably before file names
-    <gg0> well, actually it works but it's rather incomplete
-    <youpi> well, it shows how to boot the installer
-    <youpi> not how to boot an installed system
-    <gg0> removed spaces, added <other_qemu_options> option
+
     <gg0> any luck reproducing mtab issue?
     <youpi> still not
 
@@ -781,7 +604,7 @@ See also [[nightly_builds]].
       Resource lost
     <gg0> didn't manage to reproduce so far
     <gg0> environment is pretty the same: booting with qemu multiboot
-      http://darnassus.sceen.net/~hurd-web/hurd/running/qemu/#QEMU_Multiboot
+      http://darnassus.sceen.net/~hurd-web/hurd/running/qemu/#multiboot
     <gg0> so root on initrd + chroot on real disk 
     <gg0> what's weird is that issue vanishes by removing console=com0 from
       -append options
@@ -820,19 +643,14 @@ See also [[nightly_builds]].
       zero everytime
     <youpi> first thing to do when developping is first take the time to find
       ways to work efficiently
-    <gg0> i'd want to try multiboot with teythoon's gnumach/hurd but boot gets
-      stuck with old initrd
     <youpi> unfortunately I had to apply some patches
     <youpi> first in d-i because isc-dhcp doens't work -> use the debian-ports
       version
-    <gg0> so i could simply copying whole /hurd dir to new initrd
-    <gg0> -ing
     <youpi> then in d-i to automatically enable the debian-ports mirror
     <youpi> and last in the debian-cd to include debian-ports-archive-keyring
-    <youpi> you'd also need to copy the libs
+
     <gg0> anything missing here?
       http://people.debian.org/~sthibault/hurd-i386/installer/README-d-i
-    <gg0> libc0.3 on initrd is still 2.17
     <gg0> mini.iso doesn't like any mirror
     <gg0> "mirror does not support the specified release"
     <gg0> something wrong/missing in my rebuilt
@@ -862,22 +680,6 @@ See also [[nightly_builds]].
 
 ## IRC, freenode, #hurd, 2014-03-09
 
-    <gg0> http://postimg.org/image/oca8ormaj/
-    <gg0> with teythoon's repo too ^
-
-
-## IRC, OFTC, #debian-hurd, 2014-03-09
-
-    <gg0> ok i'm out of tests, i get Resource lost with teythoon's gnumach/hurd
-      packages in initrd too
-    <gg0> http://postimg.org/image/oca8ormaj/
-    <gg0> thread storms, dead locks, resource lost
-    <gg0> i find assonance
-
-
-## IRC, freenode, #hurd, 2014-03-09
-
-    <teythoon> gg0: strange
     <gg0> teythoon: shouldn't there be a patch which shows pid instead of task?
     <gg0> 20:43 < teythoon> task /hurd/procfs(19) <EF><BF><BD>O<EF><BF><BD>
       deallocating an invalid port 1049744, most probably a bug.
@@ -937,23 +739,6 @@ See also [[nightly_builds]].
       version 4.8.2 (Debian 4.8.2-7) ) #1 SMP Debian 3.11.10-1 (2013-12-04)
     <gg0> user01@jessie01 ~$ uname -v
     <gg0> #1 SMP Debian 3.11.10-1 (2013-12-04)
-
-
-## IRC, freenode, #hurd, 2014-03-10
-
-    <gg0> teythoon: err, i had unpacked your packages to initrd but
-      gnumach/ext2fs.static i was using for multiboot were debian ones
-    <gg0> now with yours by reading system /proc/mounts (not chroot one) i get
-      read error: (ipc/mig) bad request message ID
-    <gg0> mixing up things
-    <teythoon> gg0: yes, that is to be expected. the message ids for the
-      relevant rpcs changed "recently". i'm really sorry about that.
-    <teythoon> but in general, you should use the hurd components from one
-      source together
-    <teythoon> gg0: yes, that is to be expected. the message ids for the
-      relevant rpcs changed "recently". i'm really sorry about that.
-    <teythoon> but in general, you should use the hurd components from one
-      source together
 
 
 ## IRC, OFTC, #debian-hurd, 2014-03-10
