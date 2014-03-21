@@ -67,33 +67,23 @@ See also [[nightly_builds]].
     <teythoon> there has been talk here the other day about using qemus
       multiboot capabilities to directly boot the hurd
 
-[[debugging_gnumach_startup_qemu_gdb]], *Multiboot*
+[[hurd/running/qemu#multiboot]].
 
-    <teythoon> i always wanted to try that out
-    <pere> the jenkins rules to test the install uses --kernel, --initrd and
-      --append in qemu to specify the preseed file.  without a similar method
-      to boot hurd, it will be hard to automate the test.  rewriting the iso
-      might be an option, but not a very nice one.
-    <teythoon> i believe that it is possible to use those options to boot a
-      hurd
-    <teythoon> i'll report back to you
+For d-i purposes, you'll additionally need:
+
+    $ wget http://people.debian.org/~sthibault/hurd-i386/installer/cdimage/current/initrd.gz
+
+..., and to the `--initrd` option prepend `'initrd.gz $(ramdisk-create)',`
+before the `ext2fs.static`, and refer the latter to `gunzip:device:rd0` instead
+of `device:hd0s1`.
+
     <pere> I tried adding an url= option to grub when booting the installer,
       but it seem to be ignored.
-    <pere> I suspect it did not make it to /proc/cmdline, but am not sure.
-    <teythoon> um
-    <teythoon> it should
-    <pere> could be.  I am unable to get a shell in the installer, so I do not
-      know.
-    <teythoon> root@pluto ~ # cat /proc/cmdline
-    <teythoon> root=device:hd0s1
-    <teythoon> oh ? select expert install, then spawn a shell or something
     <pere> perhaps the preseed udeb is missing, or the network support was
       enabled after preseed looked for the file?
     <teythoon> uh, i don't know about that stuff, youpi creates the d-i images
     <pere> ok.  seem to me that the d-i images do not support preseeding at the
       moment.
-    <teythoon> pere: when i try to use qemus multiboot support to boot the
-      hurd, qemu crashes :/
     <teythoon> youpi: ^ did you succeed? if so, can you share how?
     <pere> teythoon: nope, I concluded it didn't work, and left it to other to
       fix. :)
@@ -108,3 +98,650 @@ See also [[nightly_builds]].
     <pere> I would like to see something like <URL:
       http://jenkins.debian.net/view/g-i-installation/job/g-i-installation_debian_sid_daily_lxde/lastBuild/
       > for hurd.
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-26
+
+    * gg0 setting up jenkins, almost time to give up
+    <pere> gg0: why do you set up jenkins?
+    <gg0> because i want to fail at doing all things, not just something ;)
+    <gg0> oops seems my setup just sent emails to jenkins+debian-qa
+      holger@layer-acht.org :/
+    <pere> #debian-qa will understand. :)
+
+
+## IRC, OFTC, #debian-hurd, 2014-02-28
+
+    <pere> gg0: are you able to feed the installer one of the preseed files at
+      <URL: http://jenkins.debian.net/d-i-preseed-cfgs/ >?
+    <gg0> though jenking translates double quotes, need to escape the world
+    <pere> debian_sid_daily_lxde_preseed.cfg seem like a good candiate. :)
+    <gg0> pere: i'm working on that, stuck at working around that mandatory
+      double quote
+    <gg0> *initrd double quote
+    <gg0> ok got a g-i-installation_debian_sid_daily_hurd_lxde able to boot
+    <gg0> let's provide a preseed
+    <gg0> shouldn't there be some info/debug consoles from tty 2 to 4?
+    <youpi> there should be
+    <gg0> maybe i can't send alt+NUM from vlc
+    <youpi> ah, yes
+    <youpi> you need to use the menu for that
+    <youpi> press f8
+    <gg0> great
+    <gg0> (found out C+A+{1,2,3} give interesting monitor,serial,parallel
+      consoles btw)
+    <gg0> not much options on menu
+    <gg0> just clipboard management, quit, full screen, send ctrl-alt-del, send
+      F8
+    * gg0 takes "great" back
+    <gg0> i guess it depends on vnc implementation
+    <gg0> don't ask me how i found out one can switch console with
+      ... left/right arrow keys
+    <youpi> without alt pressed?
+    <gg0> without alt pressed
+    <youpi> I've already seen that with qemu, when focusing into/out from the
+      qemu window by using alt
+    <youpi> somehow the alt state gets stuck
+    <gg0> so you mean if i close viewer then reattach it, it doesn't happen
+      anymore? let's see
+    <gg0> you're right
+    <gg0> though yes alt+left/right switches consoles
+    <youpi> the last is expected :)
+    <gg0> it says kbd-udeb doesn't exist so it falls back to
+      hurd-debian-ports-udeb
+    <youpi> that's not a problem
+    <gg0> no partman-auto?
+    <youpi> it should be working
+    <gg0> i meant if it was installed but yes it gets it along with others
+
+
+## IRC, OFTC, #debian-hurd, 2014-03-01
+
+    <gg0> partman-auto would need to be patched to be able to discover
+      available disks
+    <gg0> worked around by forcing /dev/hd1, jenkins creates disk with index=1
+    <gg0> stuck at installation-report installed. seems it can't manage to
+      umount(then remount) /cdrom gracefully
+    <gg0> or better it gets stuck at apt-cdrom ident
+    <gg0> something like https://bugs.debian.org/598457
+
+
+## IRC, OFTC, #debian-hurd, 2014-03-02
+
+    <gg0> youpi: any chance to have monthly/weekly (daily would be too much i
+      guess) isos/images? can i help somehow?
+    <youpi> I am wondering why having that
+    <youpi> since we have up-to-date mirrors
+    <gg0> i'd say to install with latest installer/gnumach/hurd/eglibc 
+    <youpi> so that means also rebuilding the d-i image
+    <gg0> and in general to not have to manually produce them
+    <pere> youpi: the point is to automatically test the current images using
+      jenkins.debian.net, I believe.  for that to work, current images need to
+      exist. :)
+    <gg0> not only. i think saving youpi's time is also important
+    <youpi> gg0: it doesn't really take me much time to generate images
+    <youpi> it's about a few command lines to start, and then work on something
+      else :)
+    <gg0> well though it still requires manual intervention which is not
+      scheduled and also error prone btw
+    <youpi> gg0: I guess the most important help you could provide would be to
+      actually track when the autobuild breaks :)
+    <gg0> what pros keeping it manual? i don't think disk space saving
+    <youpi> it's not really a question of manual, but the frequency
+    <youpi> I prefer to test manually before uploading something on my
+      somehow-official directory on people, anyway
+    <youpi> but that doesn't mean we can't have weekly builds somewhere else
+      indeed
+    <youpi> it's just that for tests it's good to have several images backlog,
+      but then it takes disk
+    <gg0> well we could keeping "official" ones + say 6 monthly and say 4
+      weekly
+    * gg0 randomizes retention
+    <gg0> -ing
+    <teythoon> gg0: check out my hurdtest program
+    <teythoon> it updates qemu images automatically, and runs a test suite,
+      creates snapshots
+    <gg0> youpi: you'd just take actually care of official ones
+    <teythoon> and it can zero-fill the disk images to compact them for
+      publication
+    <youpi> gg0: and have a cron for the others
+    <youpi> on mirror.ftp-master
+    <gg0> nice, we already have a disk image generator then
+    <teythoon> i shall clean it up and merge stuff that i have changed locally
+    <teythoon> i covered it in my early blog posts
+    <teythoon> i use it extensively to test the packages from hurd-ci
+    <gg0> great. so usually at this point /me can't do anything so good work!
+      lol
+    <youpi> crontabs are in place, scheduled on monday mornings
+    <youpi> I have already completed a run, can be seen in weekly-0
+    <gg0> great!
+    <gg0> assuming it will work forever without maintenance, how many minutes
+      you'll save per month? :)
+    <youpi> I don't think that'll save me time per month
+    <youpi> since it's just an additional thing
+    <gg0> youpi: so weekly-0 will always be the latest weekly (same about
+      monthly) ?
+    <youpi> yes
+    <gg0> how about adding -YYYYMMDD after -1 CD/DVD/NETINST number?
+    <youpi> that'd mean more scripting
+    <gg0> just to distinguish them
+    <youpi> we already have timestamps from the server
+    <gg0> unfortunately i can't script myself, i can suggest though :)
+    <gg0> or scripts are available somewhere?
+    <gg0> so current/ should be a link to weekly-0?
+    <youpi> on mirror.ftp-master.debian.org, but I guess you don't have access
+      to it
+    <youpi> no
+    <youpi> definitely no
+    <youpi> the point of current/ is to have something tested
+    <gg0> ok
+    <youpi> while weekly/monthly are most probably to get broken
+    <youpi> so let's not point people at that
+    <gg0> same story about diskimage? how do you generate them?
+    <gg0> how about teythoon's way?
+    <youpi> I do it by hand at the moment, but scripts would be welcome indeed
+    <youpi> http://people.debian.org/~sthibault/hurd-i386/debian-hurd.img.txt
+    <gg0> ok now stuck at grub install
+
+
+## IRC, OFTC, #debian-hurd, 2014-03-03
+
+    <gg0> i probably should force /dev/hd0 as i did for /dev/hd0s1 as root
+      device
+    <gg0> if it's possible
+    <youpi> what do you mean by forcing /dev/hd0s1 as root device ?
+    <youpi> you shouldn't have to do that
+    <youpi> my fear is that these additional images will mostly just bring
+      additionnal reports
+    <gg0> i had to specify it in preseed
+    <youpi> which won't really decrease the amount of work
+    <gg0> as partman-auto/disk
+    <gg0> it can recognize available disks
+    <gg0> that's also because it can't list root partitions on rescue mode
+    <youpi> well, all I can say without having (again) to spend time on it, is
+      that you're not supposed to have to do that
+    <youpi> why are you using rescue mode?
+    <youpi> if it can't list root partitions, then of course partman can't work
+    <gg0> well, rescue mode should work
+    <youpi> if you delve into non-tested parts of d-i, you'll surely encounter
+      bugs
+    <youpi> well, less "should" than plain "d-i"
+    <youpi> in that I've never really tested it
+    <youpi> so don't be surprised that some bugs remain
+    <gg0> no problem
+    <youpi> but again, we don't really need  more bug reports
+    <youpi> but rather bug fixing
+    <youpi> we already have enough to fix, no need to delve into advanced
+      things
+    <gg0> sure, i'm just trying to make it work with all its limitations
+    <gg0> it autopartition the disk well, it can't just make one choose among
+      disks because it can't probe and list them
+    <youpi> then fix the probe & list
+    <gg0> i'd like doing it, i'm better at working around for now though :)
+    <gg0> one blocker is mount/umount stuff
+
+[[glibc#mount]].
+
+    <youpi> well, you'll have to get into fixing bugs for real someday
+    <youpi> otherwise this is just adding to TODO lists
+    <youpi> what mount/umount stuff?
+    <gg0> (took a quick look at partconf)
+    <gg0> non-existent mount.h for instance
+    <gg0> do we have replacements?
+    <youpi> not that I know of
+    <gg0> 21:53 < teythoon> gnu_srs1: i put a small hacks entry in the list
+      about moving the mount/umount functionality from our utilities to the
+      libc
+    <youpi> ok
+    <gg0> another thing i'd really like to see would be a physical shutdown,
+      halt-hurd which actually poweroffs the system
+    <gg0> how to switch to sysvinit by default? next sysvinit upload?
+    <youpi> physical shutdown means implementing APM or ACPI
+    <gg0> have to teach jenkins it can shut it down :/
+    <youpi> I'm extremely far from having the will for this
+    <youpi> switching to sysvinit by default is a matter of saying that we want
+      to do it
+    <youpi> I already asked for this on the list without answer IIRC 
+    <gg0> i can't find anything
+    <youpi> anyway, just propose on the list
+    <gg0> d-i grub-installer/bootdev string /dev/hd0 - here it is
+    <gg0> next run should not need any interaction, though it needs 20 mins to
+      understand it has to destroy it and run won't be successful :/
+    <gg0> due to missing acpi/apm
+    <gg0> first graphical automated install http://postimg.org/image/vgagj06q7/
+    <gg0> it seems 720x400
+    <gg0> though jenkins passes video=vesa:ywrap,mtrr vga=788
+    <gg0> by reconnecting it switched to 800x600
+      http://postimg.org/image/h32qjykrx/
+    <gg0> but seems stuck now and i can't even switch from graphical to
+      consoles
+    <gg0> unusually stuck at scanning cdrom
+    <gg0> i'll check text install to see if it gets stuck there too
+    <gg0> text install switches from 720x400 to 640x400
+    <gg0> i confirm it gets stuck on scanning cdrom, i guess because of this
+      one https://bugs.debian.org/728153 which already broke load-install-cd i
+      already had to workaround
+    <pere> gg0: are you in contact with h01ger to update jenkins.debian.net
+      with your cool installation code?
+    <gg0> pere: still trying to have something working
+    <gg0> plus with new weekly cd, apt-cdrom bug makes install getting stuck at
+      first Scanning cdrom:
+    <gg0> 03:44 < gg0> i confirm it gets stuck on scanning cdrom, i guess
+      because of this one https://bugs.debian.org/728153 which already broke
+      load-install-cd i already had to workaround
+    <youpi> do we really need the CD-1 image in weekly builds?
+    <gg0> just netinst?
+    <youpi> yes
+    <gg0> well, i don't know debian installer well. what's the difference
+      between CD and NETINST besides that CD has more packages user doesn't
+      need to download?
+    <gg0> has CD anything not in NETINST which is worth to continously test?
+      (talking about jenkins)
+    <youpi> that's only it, yes
+    <gg0> btw new ACPI on hurd consists of serial console to file + looping
+      grep "In tight loop: hit ctl-alt-del to reboot" && kill qemu
+    <gg0> anything better?
+    <gg0> filed http://bugs.debian.org/740673
+    <gg0> without a patch just to express my great laziness :p
+    <youpi> well, I'm afraid nobody in the debian-boot team will attempt
+      anything at this
+    <youpi> is it reproducible on linux?
+    <gg0> nope
+    <gg0> my guess is that's due to udev, need a deeper check btw
+    <gg0> i mean non-udev cases like hurd maybe are not handled well
+    <youpi> maybe try on kfreebsd then?
+    <gg0> just guessing
+    * gg0 trying on kfreebsd
+
+
+## IRC, OFTC, #debian-hurd, 2014-03-04
+
+    <gg0> hurd install started getting stuck running os-prober, final grub
+      install phase
+    <gg0> youpi: yes i confirm it affects kfreebsd too
+    <youpi> then please say so in the bug
+    <youpi> otherwise most probably but me in the debian-boot team will care
+    <youpi> +nobody
+    <gg0> that might get more attention from d-boot team?
+    <gg0> ok
+    <youpi> also Cc debian-bsd@
+    <youpi> they will care
+    <youpi> and tell about the hint as being the non-udev case
+    <youpi> too much information or ideas is never a bad thing :)
+    <gg0> done
+    <gg0> (now i know notfound does remove found versions instead of adding
+      notfound versions)
+    <gg0> crazy things. to unblock os-prober i had to settrans -fg
+      /target/media/./cdrom0
+    <gg0> it was mounting /dev/hd0s1 ...
+    <gg0> i suspect apt-cdrom is to blame again
+    <gg0> ok now jenkins just managed to start the installed system
+    <gg0> and it's configured to make vncdo testing it
+    <gg0> i'd need a graphical-working cd with old-apt to continue
+    <gg0> let's try to install old apt on weekly-0
+    <gg0> "cdrom drive contains a cd which cannot be used for installation"
+    <gg0> i think a sort of non-authenticated anymore
+    <gg0> ehm.. http://paste.debian.net/plain/85224/
+    <pere> gg0: nice. :)
+    <gg0> with apt 0.9.15.1 which should be good
+    <gg0> pere: it did mount /dev/hd0s1 under /media/cdrom0
+    <gg0> 0.9.15.5, correctly i think, asks to insert it cdrom. but finally
+      both mount /dev/hd0s1 instead of /dev/hd2
+    <gg0> -it
+    <gg0> cause they both can't detect where cdrom is i guess
+
+
+## IRC, freenode, #hurd, 2014-03-04
+
+    <gg0> we could talk about apt-cdrom https://bugs.debian.org/740673
+    <gg0> how should system recognize cdrom device?
+    <gg0> there's no /dev/cdrom link to actual cdrom device
+    <gg0>  /dev/cd[01] are scsi devices if i'm not wrong
+
+
+## IRC, OFTC, #debian-hurd, 2014-03-05
+
+    <gg0> installer gets stuck running os-prober, seems because
+      /target/proc/mounts gets unreadable, sometimes Resource lost sometimes it
+      gets stuck reading it
+
+[[hurd/translator/mtab/discussion#chroot]].
+
+    <gg0> youpi: could you publish script to rebuild CDs you scheduled? with
+      last official CD (20140212) mtab on /target dies and that seems getting
+      os-prober stuck. last (and only) weekly has recent apt-cdrom so it gets
+      stuck wrongly asking to change cdrom
+    <youpi> see the readme file
+    <youpi> err, you say it's the 0212 build which fails?
+    <youpi> I had tested that before uploading
+    <youpi> so the issue comes form the installed packages, not from the CD
+      udebs
+    <youpi> did you test with no network mirror?
+    <gg0> no i didn't. should it find all packages it needs from cd?
+    <youpi> sure, that's what netinst and dvd-1 are, as opposed to netboot
+    <gg0> lxde desktop probably not
+    <youpi> indeed
+    <youpi> though with the dvd in principle it should
+    <youpi> (if all deps were avaijlable at image build time)
+    <youpi> gg0: btw if you haven't noticed, there's a daily too
+    <gg0> youpi: till apt-cdrom is not fixed, they all will be broken, stuck at
+      "Scanning cdrom"
+    <youpi> gg0: did you try to bisect which git change produces the apt-cdrom
+      bug?
+    <gg0> youpi: all in bug in question
+    <gg0> youpi: https://bugs.debian.org/740673
+    <youpi> is there the precise git commit id in the bug log?
+    <gg0>
+      http://anonscm.debian.org/gitweb/?p=apt/apt.git;a=commitdiff;h=62dcbf84c4aee8cb01e40c594d4c7f3a23b64836
+    <youpi> well, don't tell that to just me, but the bug report...
+    <gg0> bug report says "See <bug>" where bug is
+      https://bugs.debian.org/728153
+    <youpi> gg0: bug report doesn't say it was *tested* that it is that changes
+      which broke things
+    <gg0> i don't think we could get it reverted just because it breaks hurd
+      (+kfreebsd to check) debian installer
+    <youpi> of course, but that's at least where developers can have a look at
+    <gg0> well ok i could have been more clear
+    <youpi> it's *WAY* better than having no idea where to have a look at
+    <youpi> gg0: btw, that's why the README file advises not to use a network
+      mirror, to avoid such kind of issues
+    <youpi> you can't expect sid not to be not-broken :)
+    <gg0> one gets Resource lost even when install is just started, no packages
+      from any mirror
+    <gg0> https://bugs.debian.org/740673#19
+
+    * gg0 installing without mirrors, without desktop, without lxde
+    <gg0> same problem
+    <gg0> so problem has nothing to do with installing from mirrors
+    <youpi> what's odd is that I don't get this issue at all with the 20140212
+      upload at least
+    <youpi> kvm -cdrom debian-7.0-hurd-i386-NETINST-1.iso -drive
+      file=blip,cache=unsafe -m 1G
+    <youpi> no more, no less
+    <gg0> it must depend on preseed and/or kernel append options
+    <youpi> possibly
+    <gg0> oh wait here qemu multiboot
+    <youpi> that shouldn't have any impact
+    <gg0> 5€ on qemu multiboot as the culprit
+    <gg0> you should also see it sometimes double-mounts /dev/hd0s1 under
+      /target and /target/./media/cdrom(!)
+    <gg0> but that's due to new apt it in-targets (= installs under /target)
+
+    <gg0> any luck reproducing mtab issue?
+    <youpi> still not
+
+[[hurd/translator/mtab/discussion#chroot]].
+
+
+## IRC, OFTC, #debian-hurd, 2014-03-06
+
+    <youpi>  http://paste.debian.net/85535/
+    <youpi> no issue
+    <youpi> (no network mirror)
+    <gg0> full install till grub-installer?
+    <youpi> yes
+    <youpi> and reboot
+    <gg0> -append 'auto=true mirror/suite=sid console=com0 priority=critical
+      locale=en_US keymap=us
+      url=http://10.0.2.1//d-i-preseed-cfgs/debian_sid_daily_hurd_lxde_preseed.cfg
+      video=vesa:ywrap,mtrr vga=788 -- quiet'
+    <gg0> i should provide preseed too
+    <youpi> well, of course
+    <youpi> always provide as much information as possible
+    <youpi> so there's also your preseed file
+    <gg0> not much different from
+      http://jenkins.debian.net/d-i-preseed-cfgs/debian_sid_daily_lxde_preseed.cfg
+    <gg0> but you need to force a couple of things + ugly workaround for broken
+      apt-cdrom ident
+    <youpi> well, I didn't even know that jenkins had that pressed file
+    <youpi> well, here apt-cdrom is not needed
+    <youpi> +hacks
+    <youpi> since that's the old image we're checking
+    <gg0> well ok, given you take everything from cd only, yes
+    <gg0> here no mirror, no desktop, no lxde
+      http://paste.debian.net/plain/85538/
+    <gg0> i'm trying this one too
+    <gg0> main difference seems to be i usually use CD-1, not NETINST
+    <gg0> had to add -net nic,vlan=0 -net
+      user,vlan=0,host=10.0.2.1,dhcpstart=10.0.2.2,dns=10.0.2.254
+    <gg0> here target mtab is already crashed
+    <gg0> because some package already tried to read /target/proc/mounts
+    <gg0> youpi: reproduced there?
+    <gg0> .o(well, maybe he's been sleeping for ~50 mins)
+    <youpi> nope, I'm working on upgrading servers
+    <youpi> I'm sorry, but your testcase is not really easy to reproduce :)
+    <gg0> do you have apache on your host? just put preseed in the root, vm
+      will take it
+    <gg0> full command line is what you pasted + -net nic,vlan=0 -net
+      user,vlan=0,host=10.0.2.1,dhcpstart=10.0.2.2,dns=10.0.2.254
+    <gg0> what else? when it starts debstrapping, open a console and check
+      procfs and mtab processes
+    <gg0> err, what you paster + -append i pasted + -net nic,vlan=0 -net
+      user,vlan=0,host=10.0.2.1,dhcpstart=10.0.2.2,dns=10.0.2.254
+    <gg0> *pasted
+    <gg0> which is http://paste.debian.net/plain/85554/
+    <gg0> surely keyboard layout doesn't help, here at least
+    * gg0 tries to reproduce without preseed
+    <gg0> i can't reproduce it
+    <gg0> it doesn't crash
+    * gg0 enabling all options but preseed
+    <gg0> need to wait 31% of Installing base system to have the second procfs
+    <gg0> ok got Resource lost even without preseed
+    <gg0> youpi: you can reproduce it by adding -append console=com0 to what
+      you pasted. that breaks grub-installer, it gets stuck at 66%, while runs
+      os-prober
+    <youpi> ah
+    <gg0> how can that affect /target/proc/mounts?
+    <youpi> no idea
+    <gg0> couldn't daily be here? http://d-i.debian.org/daily-images/
+    <youpi> if I knew how to push files there, sure
+    <gg0> asking on #debian-boot would be a starting point i guess
+    <youpi> probably
+    <gg0> me asking on behalf of youpi would not a good one i think, given
+      whatever will the answer i can't do anything
+    <gg0> +be
+    <youpi> you can still trasmit me
+    <youpi> never understimate the little time you can save other people by
+      doing some bits of work
+    <gg0> well, i would not even have to repaste lines here given you joined
+      there too
+    <gg0> never understimate what "help with laziness" means :)
+    <youpi> not necessarily repasting, but at least highlighting me
+    <youpi> so I know where to read in the #d-b logs
+    <gg0> there are no isos there, i'm missing something
+    <youpi> there are no daily isos
+    <youpi> only weekly isos
+    <gg0> so seems i have to reask initial question with this url
+      http://cdimage.debian.org/cdimage/weekly-builds/
+    <gg0> oh wait they are from testing, that's why no hurd ones
+    <gg0> i guess they could be here though
+      http://cdimage.debian.org/cdimage/daily-builds/sid_d-i/current/
+    * gg0 asking on #debian-cd
+    * gg0 would ignore non-DD gg0 asking whatever
+    <youpi> people don't really ask themselves who is a DD and who is not
+    <youpi> as long as you provide information in your question, it'll get
+      answered
+    <gg0> teythoon: interested in reproducing mtab-dying-under-chroot?
+    <gg0> oh just realized it's not only under a chroot, chroot is on another
+      disk. might that make the difference?
+    <gg0> i didn't try to reproduce it by creating a chroot on a different
+      disk, which is what installer does
+    * gg0 wonders if it would have been better filing a bug against
+        cdimage.debian.org
+    <gg0> if no one fixes console=com0 thing, i have to think about a new acpi
+    <gg0> ok managed to workaround apt bug in installer, i can graphically
+      install last weekly
+    <gg0> no console=com0 means no vm shutdown though
+    <pere> gg0: wow.  impressed!
+    <gg0> patching CI to make CI workaround bugs CI spots is not so good
+    <gg0> any idea about another shutdown trick without console=com0 till
+      teythoon or youpi fix it?
+    <pere> nope
+    <gg0> current one: vm writes serial console to file and host loops grepping
+      "In tight loop: hit ctl-alt-del to reboot"
+    <gg0> -watchdog might be an alternative
+    <gg0> if there are watchdog agents that can run on hurd
+    <gg0> "watchdog" for instance doesn't build on hurd
+    <pere> it need kernel support
+    * gg0 testing -add-fd
+
+
+## IRC, freenode, #hurd, 2014-03-07
+
+    <gg0> teythoon: just mounted an additional fs, it's mounted but not present
+      in proc/mounts
+    <braunr> gg0: how did you mount it ?
+    <gg0> i was under /root, sid-chroot is the mountpoint. i did mount /dev/hd3
+      sid-chroot (relative path)
+    <braunr> does fsysopts confirm a new translator is running on sid-chroot ?
+    <gg0> i shut down vm, working on another one by mounting the same disk
+      which hosts a debchroot
+    <gg0> i'm trying to reproduce the mtab-dying-on-chroot issue i get with
+      debian installer
+    <gg0> at the end, os-prober gets stuck by reading /target/proc/mounts
+      (target is the installed system)
+    <gg0> to be precise it gets stuck at second access. at first it gives
+      Resource lost
+    <gg0> didn't manage to reproduce so far
+    <gg0> environment is pretty the same: booting with qemu multiboot
+      http://darnassus.sceen.net/~hurd-web/hurd/running/qemu/#multiboot
+    <gg0> so root on initrd + chroot on real disk 
+    <gg0> what's weird is that issue vanishes by removing console=com0 from
+      -append options
+
+
+### IRC, freenode, #hurd, 2014-03-08
+
+    <gg0> os-prober doesn't get stuck anymore and grub can install
+    <gg0> my guess is that without console=com0 /target/proc/mounts is just
+      accessed once
+
+
+## IRC, OFTC, #debian-hurd, 2014-03-08
+
+    <gg0> youpi: from #debian-cd http://paste.debian.net/plainh/559f669b
+    <gg0> any quick way to recreate initrd?
+    <teythoon> gg0: i'm working on that
+    <gg0> teythoon: that what?
+    <teythoon> gg0: there is genext2fs, i have some patches that allows one to
+      create nodes with passive translator records
+    <gg0> recreating initrd?
+    <teythoon> yes
+    <teythoon> in the meantime, you can mount the existing initrd and modify it
+    <gg0> well i'm following this one to rebuild whole cd then take an updated
+      initrd to test with your repo
+    <gg0> http://people.debian.org/~sthibault/hurd-i386/installer/README-d-i
+    <gg0> probably too much work to get that
+    <gg0> copying current /hurd to new initrd would be enough?
+    <youpi> just copy the precise translator you need
+    <youpi> also, no need to rebuild the whole cd just to replace the initrd
+    <youpi> simply copy the content of an existing is
+    <youpi> iso
+    <youpi> replace the initrd.gz there
+    <youpi> and then use grub-mkrescue to rebuild the ios
+    <youpi> development would be horrible if you had to rebuild everything from
+      zero everytime
+    <youpi> first thing to do when developping is first take the time to find
+      ways to work efficiently
+    <youpi> unfortunately I had to apply some patches
+    <youpi> first in d-i because isc-dhcp doens't work -> use the debian-ports
+      version
+    <youpi> then in d-i to automatically enable the debian-ports mirror
+    <youpi> and last in the debian-cd to include debian-ports-archive-keyring
+
+    <gg0> anything missing here?
+      http://people.debian.org/~sthibault/hurd-i386/installer/README-d-i
+    <gg0> mini.iso doesn't like any mirror
+    <gg0> "mirror does not support the specified release"
+    <gg0> something wrong/missing in my rebuilt
+    <gg0> youpi: anything wrong in http://paste.debian.net/plain/86258 ?
+    <gg0> i have/had problems with name resolution
+    <youpi> gg0: the patch makes sense for -bsd too, Cc them too
+    <gg0> i was wondering how many hunks in your patches are upstreamable
+    <youpi> normally it's zero
+    <gg0>
+      http://people.debian.org/~sthibault/hurd-i386/installer/patch-debootstrap
+    <gg0> why "release" instead on "main" by default? sid is never released
+    <youpi> only because my mirror directory is hacked one
+    <youpi> that merges debian.org, debian-ports.org, and my repo
+    <youpi> and I don't rebuild Release files, just Packages files
+    <gg0> i keep getting gpgv: BAD signature from "Debian Archive Automatic
+      Signing Key (7.0/Wheezy) <ftpmaster@debian.org>
+    <gg0> just before creating debootstrap chroot
+    <gg0> i applied hunk #2 only, installed modified debootstrap and put debs
+      under localdebs/
+    <gg0> trying a different mirror
+    <youpi> I don't know what issue you are encountering
+    <youpi> but again, it's way simpler and faster to just patch existing
+      images, rather than rebuilding them from zero
+    <gg0> ok just read i'd need a local mirror to build isos
+    <gg0> better using netinst and proxy cache
+
+
+## IRC, freenode, #hurd, 2014-03-09
+
+    <gg0> teythoon: shouldn't there be a patch which shows pid instead of task?
+    <gg0> 20:43 < teythoon> task /hurd/procfs(19) <EF><BF><BD>O<EF><BF><BD>
+      deallocating an invalid port 1049744, most probably a bug.
+    <teythoon> there is
+    <teythoon> i placed the functionality in proc first, but the wiki suggested
+      to put it in the exec server instead
+    <teythoon> i did that, it has the advantage, that the argv vector is easily
+      accessible
+    <teythoon> so i can also include the program name
+    <teythoon> but there are two programs, that are not started using the exec
+      server
+    <teythoon> the root filesystem and the exec server itself
+    <teythoon> so for these two processes, the approach does not work
+    <gg0> i see. so here we got two which could come from
+      ext2fs.static(initrd), exec(initrd) and ext2fs(chroot)
+      http://postimg.org/image/e3qyafd0b/ right?
+    <gg0> i also noticed that once mtab dies, by killing its procfs parent,
+      they both restart, but /target/proc is not in /proc/mounts anymore
+    <youpi> teythoon: for those we could use the first word of the module
+      command line
+    <gg0> restart doesn't means that by accessing /target/proc/mounts again it
+      works btw, it'll give Resource lost again
+    <teythoon> youpi: indeed
+    <teythoon> gg0: no, the ext2fs for /target will be started by the exec
+      server
+    <gg0> ok two invalid ports one from ext2fs.static and one exec then
+    <teythoon> gg0: what makes you attribute one to the exec server ?
+    <teythoon> i'm pretty sure that there is a bug in libfshelp, it's easily
+      triggered by killing an translator like procfs
+    <teythoon> i must have introduced it with the translator list work i've
+      done for the mtab translator
+    <gg0> teythoon: a totally wrong task-is-a-process reasoning probably
+    <gg0> just mounted another procfs which seems to work
+    <gg0> http://postimg.org/image/q6w9xzo2j/
+      http://postimg.org/image/cr998jfkr/
+    <teythoon> gg0: the mtab translators in your screenshots are oldish, what's
+      the point exactly ?
+    <teythoon> gg0: also, all tasks are processes. task is a mach concept,
+      whereas process is a posix concept implemented by hurds proc server. it
+      creates a process object for every mach task.
+    <gg0> my guess was that given we got two messages with different taskid:
+    <gg0> 16:01 < gg0> ok two invalid ports one from ext2fs.static and one exec
+      then
+    <gg0> screenshot is this one http://postimg.org/image/e3qyafd0b/
+    <gg0> btw what do you mean by oldish. except first one 01:18 < gg0>
+      http://postimg.org/image/oca8ormaj/ the only with current debian
+      packages, remaining are done with your latest packages
+    <gg0> in all cases i boot using qemu multiboot
+    <gg0> root@hurd01:~# cat /proc/version 
+    <gg0> Linux version 2.6.1 (GNU 0.5 GNU-Mach 1.4-486-dbg/Hurd-0.5
+      i686-AT386)
+    <gg0> it wouldn't be bad customizing version somehow, last commit id for
+      instance
+    <gg0> or build date
+    <gg0> user01@jessie01 ~$ cat /proc/version 
+    <gg0> Linux version 3.11-2-686-pae (debian-kernel@lists.debian.org) (gcc
+      version 4.8.2 (Debian 4.8.2-7) ) #1 SMP Debian 3.11.10-1 (2013-12-04)
+    <gg0> user01@jessie01 ~$ uname -v
+    <gg0> #1 SMP Debian 3.11.10-1 (2013-12-04)
+
+
+## IRC, OFTC, #debian-hurd, 2014-03-10
+
+    <gg0> tschwinge: i just meant Debian Jenkins provides (hopefully for hurd
+      too) continuos testing of debian installer, it doesn't produce .debs

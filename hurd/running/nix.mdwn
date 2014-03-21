@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2012, 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2012, 2013, 2014 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -8,7 +9,12 @@ Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
 is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
-[[!meta title="Nix-based GNU/Hurd System"]]
+[[!meta title="Nix-based GNU/Hurd System, Guix"]]
+
+[[!toc]]
+
+
+# Nix
 
 <http://www.nixos.org/>
 
@@ -25,7 +31,7 @@ Nix, and because of that, it uses per-package installation directories under
 `/nix/store`.
 
 
-# IRC, freenode, #hurd, 2013-02-04
+## IRC, freenode, #hurd, 2013-02-04
 
     <braunr> is it possible to use nix ?
     <braunr> or nixos
@@ -39,3 +45,468 @@ Nix, and because of that, it uses per-package installation directories under
     <civodul> (my favorite)
     <civodul> i've been willing to unbreak it, but now i rather invest time in
       Guix
+
+
+# <a href="guix">Guix</a>
+
+## <http://www.gnu.org/software/guix/>
+
+## IRC, freenode, #hurd, 2014-02-13
+
+    <phant0mas> is debian hurd the only way to use hurd?
+    <braunr> maybe
+    <braunr> there is arch hurd but i haven't heard from them in some time
+    <braunr> building from source is difficult
+    <phant0mas> what is the problem with building from source?
+    <braunr> no automated build system, except for debian
+    <braunr> each project has its own build system
+    <braunr> but there is no tool to take care of the global procedure
+      (i.e. build in the correct order, with the correct options, paths and
+      patches, etc...)
+    <youpi> well, there is, it's called Debian :)
+    <braunr> 00:17 < braunr> no automated build system, except for debian
+    <phant0mas> how far away is it  from building a gnu system with let's say
+      guix as a package manager?
+    <phant0mas> and hurd as the kernel?
+    <braunr> i don't know
+    <youpi> phant0mas: there are already proofs of concepts
+    <phant0mas> youpi: any more info about the proofs of concepts?
+    <youpi> phant0mas: ask civodul
+    <youpi> apparently he's not here atm, though
+    <phant0mas> I will ask him at guix channel
+
+
+## IRC, freenode, #hurd, 2014-02-14
+
+    <phant0mas> can I ask a question about configuring gnu mach from source?
+    <taylanub> phant0mas: IRC etiquette: don't ask to ask, just ask, it saves
+      time.  People often leave IRC open for long durations but don't always
+      check it, if you just leave your question in the channel someone might
+      come back and see it at any time (even hours later).
+    <phant0mas> when I try to configure gnumach with 
+    <phant0mas> CPP='gcc -m32 -E -x c -undef -ansi' CC='gcc -m32' LD='ld
+      -melf_i386' ./configure --prefix= --host=i686-unknown-linux-gnu
+    <phant0mas> on a 64 bit system
+    <phant0mas> I get the error 
+    <phant0mas> checking for i686-unknown-linux-gnu-gcc... gcc -m32
+    <phant0mas> checking whether the C compiler works... no
+    <phant0mas> configure: error: in `/home/manolis/Downloads/gnumach-1.4':
+    <phant0mas> configure: error: C compiler cannot create executables
+    <phant0mas> but if I remove the -m32 from CC='gcc -m32' the error
+      disappears
+    <phant0mas> what is the problem?
+    <braunr> what do you think there is a problem ?
+    <braunr> i don't think -m32 should be part of CPP/CC, but rather CPPFLAGS
+    <braunr> also, i don't think you need it since the target is well defined
+    <phant0mas> I am following exaclty the instruction from here
+      http://www.gnu.org/software/hurd/microkernel/mach/gnumach/building.html
+    <braunr> hm that's weird
+    <braunr> phant0mas: what does gcc -v says and what's your host system ?
+    <phant0mas> Using built-in specs.
+    <phant0mas> COLLECT_GCC=gcc
+    <phant0mas>
+      COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-unknown-linux-gnu/4.8.2/lto-wrapper
+    <phant0mas> Target: x86_64-unknown-linux-gnu
+    <phant0mas> Configured with: /build/gcc/src/gcc-4.8-20131219/configure
+      --prefix=/usr --libdir=/usr/lib --libexecdir=/usr/lib
+      --mandir=/usr/share/man --infodir=/usr/share/info
+      --with-bugurl=https://bugs.archlinux.org/
+      --enable-languages=c,c++,ada,fortran,go,lto,objc,obj-c++ --enable-shared
+      --enable-threads=posix --with-system-zlib --enable-__cxa_atexit
+      --disable-libunwind-exceptions --enable-clocale=gnu
+      --disable-libstdcxx-pch --disable-libssp --enable-gnu-unique-
+    <phant0mas> object --enable-linker-build-id --enable-cloog-backend=isl
+      --disable-cloog-version-check --enable-lto --enable-plugin
+      --enable-install-libiberty --with-linker-hash-style=gnu
+      --disable-multilib --disable-werror --enable-checking=release
+    <phant0mas> Thread model: posix
+    <phant0mas> gcc version 4.8.2 20131219 (prerelease) (GCC) 
+    <braunr> check config.log for the actual error message then
+    <phant0mas> http://pastebin.com/raw.php?i=eQ75qafX 
+    <phant0mas> if you want to have a look as well
+    <braunr> install gcc-multilib maybe
+    <braunr> or lib32gcc1
+    <sjbalaji> Installing gcc-multilib solves it.
+    <phant0mas> braunr: it works like a charm now
+    <braunr> phant0mas: good
+
+
+## IRC, freenode, #hurd, 2014-02-18
+
+    <phant0mas> why mig has no make target, and the executable gets generated
+      from the ./configure?
+    <phant0mas> I mean shouldn't make be the one building mig?
+
+
+## IRC, freenode, #hurd, 2014-02-19
+
+    <phant0mas> mig binary shouldn't be built by make? why is it built at the
+      end of the configure command?
+    <braunr> no idea
+    <phant0mas> http://pastebin.com/raw.php?i=2HVni53Y
+    <braunr> "creating mig" you mean ?
+    <phant0mas> loot at the end of the config output
+    <phant0mas> config.status: creating mig <--
+    <phant0mas> the binary
+    <phant0mas> and then when you call make
+    <phant0mas> it says no target
+    <braunr> weird
+    <phant0mas> normally binaries are built from make
+    <braunr> what system are you building on ?
+    <phant0mas> on Arch Linux x86_64 with gcc version 4.8.2
+    <phant0mas> I am using the flag i686-pc-gnu to crossbuild it for 32 bit
+    <phant0mas> I am using the tar file from here
+      http://ftp.gnu.org.ua/gnu/mig/
+    <phant0mas> version 1.4
+    <braunr> tar file ?
+    <braunr> ok, i guess it's fine
+    <phant0mas> so source from the tar file builds mig through configure?
+    <braunr> again, i don't know
+    <braunr> i never build mig myself
+    <braunr> but it does look weird
+    <braunr> look at the debian package maybe
+    <braunr> who knows, maybe you'll find a patch with some explanation
+    <phant0mas> okay then,going over that way right away
+    <phant0mas> thnx braunr
+    <teythoon> phant0mas: mig is a shell script wrapper
+    <phant0mas> so it's not a binary....
+    <teythoon> no
+
+
+## IRC, freenode, #hurd, 2014-02-21
+
+    <phant0mas> do I need some minimal set of drivers to build gnumach?
+    <phant0mas> because I get this error
+      ../linux/src/drivers/scsi/BusLogic.c:53:24: fatal error: FlashPoint.c: No
+      such file or directory
+    <phant0mas> when running make
+    <teythoon> i thought we fixed that
+    <teythoon> are your sources up to date ?
+    <phant0mas> I am using the tar ball
+    <phant0mas> cause I am trying to package it for guix
+    <teythoon> what tarball ?
+    <braunr> 1.4
+    <phant0mas> yes
+    <braunr> phant0mas: just don't build scsi drivers
+    <phant0mas> 1.4
+    <phant0mas> worked
+    <teythoon> why do we keep the driver if it doesn't even build ?
+    <gg0> on debian it builds with --disable-net-group --disable-pcmcia-group
+      --disable-wireless-group
+
+
+## IRC, freenode, #hurd, 2014-02-23
+
+    <phant0mas> why when I configure gnumach like this CPP='gcc -m32 -E -x c
+      -undef -ansi' CC='gcc -m32' LD='ld -melf_i386' ./configure --prefix=
+      --host=i686-unknown-linux-gnu it builds just fine but when I try to
+      configure it with ./configure --prefix= --host=i686-unknown-linux-gnu
+      CFLAGS='-m32' CPPFLAGS='-m32 -E -x c -undef -ansi' LDFLAGS='-melf_i386'  
+    <phant0mas> I am building it on a 64 bit machine
+    <phant0mas> when setting env vars before configuring everythings works like
+      a charm
+    <phant0mas> but if I pass them as flags to the configure ,it won't
+
+
+## IRC, freenode, #hurd, 2014-02-25
+
+    <phant0mas> what version of mae do I need in order to compile glibc for
+      hurd?
+    <phant0mas> make*
+    <azeem> phant0mas: did you have issues with a particular version?
+    <azeem> I believe GNU make is required, though
+    <phant0mas> I am using gnu make 4.0 and I get the error 
+    <phant0mas> These critical programs are missing or too old: make
+    <phant0mas> checking version of gmake... 4.0, bad
+    <azeem> phant0mas: that sounds bogus
+    <azeem> can you pastebin the relevant part of the config.log or so?
+    <phant0mas> of course one sec
+    <phant0mas> http://pastebin.com/raw.php?i=4CHZJi4W
+    <phant0mas> azeem_: any news about the problem I have with glibc?
+    <azeem_> phant0mas: sorry - got distracted - I suggest you post this to
+      bug-hurd or so
+    <azeem_> though it could well be Hurd-independent, then checking glibc
+      master and possibly filing a report there might be better
+    <azeem_> phant0mas: or in case you speak autoconf, check the conf check for
+      the make version
+
+
+## IRC, freenode, #hurd, 2014-02-26
+
+    <tschwinge> ph4nt0mas: Which glibc sources, and how are you
+      configuring/building?
+    <phant0mas> tschwinge: I am trying to crossbuild it from a linux 64 bit
+      machine with gnu make 4.0 and gcc 4.8.2 
+    <phant0mas> ../configure --prefix=/home/manolis/gnu/glibc/
+      --target=i686-pc-gnu
+    <phant0mas> wrong config
+    <phant0mas> ../configure --prefix=/home/manolis/gnu/glibc/
+      --with-headers=/home/manolis/gnu/include/ --host=i686-pc-gnu
+    <phant0mas> I am using the last one
+    <phant0mas> it says gnu make is too old
+    <phant0mas> this time I tried with glibc from the hurd git repo
+    <phant0mas> baseline branch
+    <phant0mas> should I build an older toolchain just for it?
+    <tschwinge> phant0mas: If you'd like to experiment with this, then please
+      use the tschwinge/Roger_Whittaker branch.  However, that one might still
+      be missing the glibc upstream change to allow GNU Make 4.0 and greater,
+      commit 28d708c44bc47b56f6551ff285f78edcf61c208a, so cherry-pick that one
+      (assuming there are no additional patches needed for GNU Make 4.0).
+    <phant0mas> okay going to  do that right away
+    <phant0mas> thnx :-)
+    <tschwinge> phant0mas: You have seen
+      http://www.gnu.org/software/hurd/toolchain/cross-gnu.html -- but beware
+      this may be out of date somewhat.
+    <phant0mas> tschwinge: I worked around that problem as you told me
+    <phant0mas> but it seems I forgot to build hurd 
+    <phant0mas> so I got the tarball
+    <phant0mas> but I am getting this error
+    <phant0mas> No rule to make target 'lowlevellock.h', needed by 'timefmt.o'.
+      Stop.
+    <phant0mas> after I manage to make all of this work I will write an up to
+      date guide on how to build the hurd  system
+    <phant0mas> for future reference
+
+
+## IRC, freenode, #hurd, 2014-02-27
+
+    <ph4n70m4s> when trying to build gnumach microkernelin a 32 bit enviroment
+      it builds just fine
+    <ph4n70m4s> but when i try to crossbuild it from a 64 bit machine, even
+      though i am using --target=i686-gnu --host=i686-gnu  to crossbuild it I
+      am just getting the error i386/i386/i386asm.symc:116:1: warning: asm
+      operand 0 probably doesn't match constraints [enabled by default]
+    <ph4n70m4s>  __asm ("\n\
+    <ph4n70m4s>  ^
+    <ph4n70m4s> i386/i386/i386asm.symc:116:1: error: impossible constraint in
+      'asm'
+    <ph4n70m4s> http://pastebin.com/raw.php?i=emag63N4 
+    <ph4n70m4s> the config.log
+    <ph4n70m4s> and the build output if anyone want to have a look
+    <ph4n70m4s> http://pastebin.com/raw.php?i=jAZPnybB
+    <ph4n70m4s> wants*
+    <ph4n70m4s> I am building through guix so you may see some strange paths 
+    <tschwinge> ph4n70m4s: Nice, Guix!  :-)
+    <tschwinge> ph4n70m4s: Does that help?  CC=gcc\ -m32
+    <tschwinge> Because:
+    <tschwinge> configure:3574: gcc -v >&5
+    <tschwinge> Using built-in specs.
+    <tschwinge> COLLECT_GCC=gcc
+    <tschwinge>
+      COLLECT_LTO_WRAPPER=/nix/store/7awbhk5hdkd4lqj4wsj6lm6h84630jhm-gcc-4.8.2/libexec/gcc/x86_64-unknown-linux-gnu/4.8.2/lto-wrapper
+    <tschwinge> Target: x86_64-unknown-linux-gnu
+    <teythoon> guix looks nice
+    <tschwinge> ph4n70m4s: Also you don't need --target with GNU Mach -- it
+      doesn'T target any architecture, that is, doesn'T create code or similar.
+    <tschwinge> Alternative to -m32, as you're specying --host=i686-gnu, you
+      could have (that is, you'd need) a i686-gnu-gcc (that internally defaults
+      to -m32 then).
+    <tschwinge> ph4n70m4s: Are you generally working on GNU Hurd support for
+      Guix, or just trying to build GNU Mach?
+    <ph4n70m4s> I am working on porting gnu guix to gnu hurd
+    <ph4n70m4s> so I need to port hurd to it
+    <ph4n70m4s> bootstrap it
+    <ph4n70m4s> and the make guix work on hurd
+    <ph4n70m4s> :-)
+    <teythoon> very cool :)
+    <tschwinge> \o/
+    <ph4n70m4s> then*
+    <ph4n70m4s> and If I manage to do all that we will be able to make a qemu
+      image 
+    <ph4n70m4s> with hurd -guix
+    <tschwinge> Yep, and then I'll be happy.  :-)
+    <ph4n70m4s> :-)
+    <tschwinge> For then we'll be easily able to change some detail in, say,
+      glibc, rebuild the whole system, and see whether it still works.
+    <ph4n70m4s> exaclty
+    <tschwinge> Of course, that doesn't strictly need Guix, but it's one way to
+      achieve this goal.
+    <tschwinge> For the initial cross compiler toolchain, I suggest you look at
+      my cross-gnu script (link provided yesterady) -- the gist of it should
+      all still be valid.
+    <ph4n70m4s> I do 
+    <tschwinge> For example, you don't actually need to build GNU Mach
+      initially, but just need to install the headers/defs files
+      (install-data).
+    <tschwinge> Perfect.
+    <ph4n70m4s> I have already done that, installing gnu mach headers was the
+      easy part
+    <ph4n70m4s> it's already on guix
+    <tschwinge> \o/
+    <tschwinge> Should really clone Git repository.  And subscribe to the
+      mailing list, and all that.
+    <ph4n70m4s> I have already done that
+    <ph4n70m4s> I am actually following hurd from last year
+    <tschwinge> Yeah, I was talking about me.  ;-)
+    <ph4n70m4s> aaaa
+    <ph4n70m4s> :P
+    <tschwinge> ph4n70m4s: Are you doing this as a Google Summer of Code
+      project?
+    <ph4n70m4s> I suggested the idea for the page
+    <ph4n70m4s> to ludovic
+    <ph4n70m4s> and he agreed
+    <tschwinge> :-)
+    <tschwinge> Good guy.
+    <tschwinge> Both of you.  ;-)
+    <ph4n70m4s> trying my best to help :-)
+    <ph4n70m4s> tschwinge: so to build glibc I only need mach and hurd headers 
+    <ph4n70m4s> right?
+    <braunr> yes
+
+
+## IRC, freenode, #hurd, 2014-02-28
+
+    <phant0mas> tschwinge: In your cross-gnu script while configuring hurd you
+      pass--disable-profile 
+    <phant0mas>  --without-parted . Why do we need to pass these flags to it?
+    <teythoon> well, --disable-profile turns off profiling afaiui
+    <teythoon> you should keep it
+    <teythoon> --without-parted is not needed if you have libparted
+    <phant0mas> ok
+
+
+## IRC, freenode, #hurd, 2014-03-01
+
+    <phant0mas> The hurd tarball has as a dependency autoconf
+    <phant0mas> normally it shouldn't, right?
+    <azeem> phant0mas: you mean there's no configure script?
+    <phant0mas> no no, for some reason the configure script states as
+      dependency autoconf which it shouldn't as it is a tarball
+    <azeem> phant0mas: how does it state that?
+    <phant0mas> you already have the configure script in it
+    <azeem> you get an error running it saying autoconf is required?
+    <phant0mas> yes
+    <azeem> hrm
+    <phant0mas> actually it gives an error for autoconf and git
+    <phant0mas> but if you have autoconf ,it forgets about git
+
+
+## IRC, freenode, #hurd, 2014-03-02
+
+    <phant0mas> youpi: civodul told me you are the one to ask about libpthread 
+    <phant0mas> how should I handle Hurd's libpthread in order to build it,with
+      the rest of the hurd system?
+    <phant0mas> anything I should be extra carefull?
+    <phant0mas> I am building it from the tarball
+    <youpi> phant0mas: nothing I can think of
+
+
+## IRC, freenode, #hurd, 2014-03-03
+
+    <phant0mas> youpi: what does libpthread do when we do "make
+      install-data-local-headers" ?
+    <phant0mas> Does it patch the mach headers in the prefix folder?
+    <phant0mas> tschwinge: why do we need this flag passed to configure at
+      libpthread "ac_cv_lib_ihash_hurd_ihash_create"?  
+    <youpi> phant0mas: I don't remember such detajils of the build system
+    <phant0mas> I am studying the cross-gnu script from tschwinge
+    <phant0mas> and if I try to call configure without that flag I am getting
+      the error  
+    <phant0mas> configure: error: need libihash
+    <tschwinge> Well, there's this comment: # `$TARGET-gcc' doesn't work yet
+      (to satisfy the Autoconf checks), but [...]
+    <tschwinge> At this point we're only intested in the header files, so that
+      was the "path of least resistance".
+    <phant0mas> so we are only interested in the headers of libpthread?
+    <phant0mas> do I need to pass as --prefix the folder which the include
+      folder with the mach headers are installed?
+    <tschwinge> I wonder whether it'd be better for you to directly include
+      libpthread in glibc, as Debian is doing -- probably yes.
+
+[[open_issues/packaging_libpthread]].
+
+    <phant0mas> maybe it would be much simpler that way
+    <phant0mas> let me check the debian package
+    <braunr> i'd consider it mandatory, since libpthread can't work correctly
+      now if it's not part of glibc
+    <tschwinge> Ack.
+
+
+## IRC, freenode, #hurd, 2014-03-05
+
+    <teythoon> braunr: did i understand it correctly that our libpthread needs
+      libihash ?
+    <teythoon> if so, won't that be a problem for phant0mas bootstrapping
+      efforts ?
+    <braunr> apparently, they're used only for thread-specific data
+    <braunr> which could now be implemented on top of TLS
+    <braunr> although i'm not sure
+    <braunr> but to answer, yes, it depends on libihash
+    <braunr> why would it be a problem ?
+    <teythoon> b/c it then forms a dependency loop
+    <braunr> which one ?
+    <teythoon> hurd->libc (which includes libpthread, thus)->hurd
+    <braunr> isn't that already the case ?
+    <teythoon> yes
+    <braunr> what's the problem then ?
+    <braunr> actually, it's not a dependency loop
+    <teythoon> y not ?
+    <braunr> hurd and libc depend on each other headers
+    <teythoon> ah, right
+    <braunr> actually, hurd-libs depend on libc headers
+    <braunr> hurd executables do depend on libc
+    <braunr> it's a bit tedious to bootstrap but not much more than the
+      three-step build required for linux already
+    <phant0mas> actually for that libihash if I pass the flag
+      "ac_cv_lib_ihash_hurd_ihash_create=yes" at configure it stops asking for
+      it
+
+    <phant0mas> when glibc's configure says "configure: running configure
+      fragment for add-on libpthread"
+    <phant0mas> does it mean it runs configure inside the folder of libpthread?
+    <youpi> I guess so
+    <phant0mas> yeh because I am getting the error configure: error: cannot
+      find sources (include/pthread/pthread.h) in .. or ..
+    <phant0mas> which I should not as I am passing
+    <phant0mas> the path to that folder
+    <phant0mas> it's an error from libpthread configure
+
+
+## IRC, freenode, #glibc, 2014-03-05
+
+    <phant0mas> when we pass to the configure script of glibc the flag
+      --enable-add-ons=something what it the process followed for that addon?
+      How does it build it?
+    <phant0mas> what is*
+
+
+## IRC, freenode, #hurd, 2014-03-05
+
+    <phant0mas> ../configure --without-cvs --build=i686-pc-gnu
+      --host=i686-pc-gnu --target=i686-pc-gnu --prefix="/home/manolis/gnu/"
+      --with-headers="/home/manolis/gnu/include/" --disable-profile
+      --disable-multi-arch --enable-add-ons=libpthread
+    <phant0mas> trying to configuring glibc with libpthreads as addon I get
+      this
+    <phant0mas> configure: running configure fragment for add-on libpthread
+    <phant0mas> configure: WARNING: you should use --build, --host, --target
+    <phant0mas> configure: WARNING: you should use --build, --host, --target
+    <phant0mas> configure: error: cannot find sources
+      (include/pthread/pthread.h) in .. or ..
+    <phant0mas> without libpthread it moves on
+    <phant0mas> in the include folder it should find al the headers it needs
+    <phant0mas> maybe it's a problem that I installed the headers from the
+      tarballs
+    <phant0mas> while glibc is from the git repo
+    <phant0mas> if I remove libpthread
+    <phant0mas> I get the error configure: error: Hurd headers not installed or
+      too old
+    <phant0mas> I really think I should reinstall the headers using the source
+      from the repo the headers 
+    <phant0mas> the headers from the tar ball are okay
+    <phant0mas> when I pass this flag to "--enable-add-ons=libpthread" to glibc
+      configure how can I pass flags for the libpthread configure that it's
+      called while configuring? 
+    <teythoon> phant0mas: you could look at what the debian package does
+    <phant0mas> ok
+    <braunr> phant0mas: check debian glibc for all the patches
+
+
+## IRC, freenode, #hurd, 2014-03-10
+
+    <ph4n70m4s> tschwinge: While crosscompiling glibc I get the error "Error:
+      incorrect register `%rax' used with `l' suffix"
+    <ph4n70m4s> http://pastebin.com/raw.php?i=ZJKHrm4s
+    <ph4n70m4s> Any idea why is this happening?
+    <braunr> ph4n70m4s: something is trying to compile as an x86-64 object,
+      while the hurd is i386 only

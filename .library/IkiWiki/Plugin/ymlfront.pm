@@ -20,7 +20,7 @@ our $VERSION = '1.20101116';
 
     IkiWiki
     IkiWiki::Plugin::field
-    YAML::Any
+    YAML::Syck
 
 =head1 AUTHOR
 
@@ -95,11 +95,12 @@ sub getsetup () {
 }
 
 sub checkconfig () {
-    eval q{use YAML::Any};
-    eval q{use YAML} if $@;
+    # If installed, YAML::XS apparently is used by default -- but doesn't seem
+    # to work here.
+    eval q{use YAML::Syck};
     if ($@)
     {
-	return error ("ymlfront: failed to use YAML::Any or YAML");
+	return error ("ymlfront: failed to use YAML::Syck");
     }
 
     $YAML::UseBlock = 1;

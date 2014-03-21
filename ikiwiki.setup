@@ -19,10 +19,10 @@ my $gitorigin_branch = '';
 
 if (defined $ENV{WEB_SERVER})
 {
-    $srcdir = $root.'/hurd-web';
+    $srcdir = $root.'/public_html.workspace';
     $destdir = $root.'/public_html';
-    $cgi_wrapper = $root.'/hurd-web.cgi';
-    $git_wrapper = $root.'/hurd-web.update';
+    $cgi_wrapper = $root.'/public_html.workspace.cgi';
+    $git_wrapper = $root.'/public_html.workspace.update';
     $gitorigin_branch = 'origin';
 }
 else
@@ -56,6 +56,12 @@ IkiWiki::Setup::Standard->import({
 	cgi_wrapper => $cgi_wrapper,
 	# mode for cgi_wrapper (can safely be made suid)
 	cgi_wrappermode => '06755',
+	# number of seconds to delay CGI requests when overloaded
+	#cgi_overload_delay => '',
+	# message to display when overloaded (may contain html)
+	#cgi_overload_message => '',
+	# enable optimization of only refreshing committed changes?
+	#only_committed_changes => 0,
 	# rcs backend to use
 	rcs => 'git',
 	# plugins to add to the default configuration
@@ -84,7 +90,7 @@ IkiWiki::Setup::Standard->import({
 	discussion => 1,
 	# name of Discussion pages
 	discussionpage => 'Discussion',
-	# generate HTML5? (experimental)
+	# generate HTML5?
 	html5 => 0,
 	# only send cookies over SSL connections?
 	sslcookie => 0,
@@ -102,14 +108,16 @@ IkiWiki::Setup::Standard->import({
 	numbacklinks => 10,
 	# attempt to hardlink source files? (optimisation for large files)
 	hardlink => 1,
-	# force ikiwiki to use a particular umask
-	#umask => 022,
+	# force ikiwiki to use a particular umask (keywords public, group or private, or a number)
+	#umask => 'public',
 	# group for wrappers to run in
 	#wrappergroup => 'ikiwiki',
 	# extra library and plugin directory
 	libdir => $srcdir.'/.library',
 	# environment variables
 	ENV => {},
+	# time zone name
+	#timezone => 'Europe/Berlin',
 	# regexp of normally excluded files to include
 	#include => '^\\.htaccess$',
 	# regexp of files that should be skipped
@@ -118,6 +126,12 @@ IkiWiki::Setup::Standard->import({
 	wiki_file_chars => '-[:alnum:]+/.:_',
 	# allow symlinks in the path leading to the srcdir (potentially insecure)
 	#allow_symlinks_before_srcdir => 0,
+	# cookie control
+	#cookiejar => {
+	#  file => ''
+	#},
+	# set custom user agent string for outbound HTTP requests e.g. when fetching aggregated RSS feeds
+	#useragent => 'Wget/1.13.4 (linux-gnu)',
 
 	######################################################################
 	# core plugins
@@ -207,7 +221,8 @@ IkiWiki::Setup::Standard->import({
 
 	######################################################################
 	# format plugins
-	#   (creole, highlight, hnb, html, mdwn, otl, rawhtml, textile, txt)
+	#   (creole, highlight, hnb, html, mdwn, otl, po, rawhtml, rst,
+	#    textile, txt)
 	######################################################################
 
 	# highlight plugin
@@ -221,17 +236,58 @@ IkiWiki::Setup::Standard->import({
 	# mdwn plugin
 	# enable multimarkdown features?
 	#multimarkdown => 0,
+	# disable use of markdown discount?
+	# Testing on Ubuntu raring with libtext-markdown-discount-perl 0.04-1,
+	# libmarkdown2 2.1.5a-1, using libtext-markdown-discount-perl instead
+	# of libtext-markdown-perl introduces quite some (visible) differences
+	# in how certains things are being rendered, and I'm not interested in
+	# auditing all our *.mdwn files, so keep using libtext-markdown-perl.
+	nodiscount => 1,
+
+	# po plugin
+	# master language (non-PO files)
+	#po_master_language => 'en|English',
+	# slave languages (translated via PO files) format: ll|Langname
+	#po_slave_languages => [qw{fr|Français es|Español de|Deutsch}],
+	# PageSpec controlling which pages are translatable
+	#po_translatable_pages => '* and !*/Discussion',
+	# internal linking behavior (default/current/negotiated)
+	#po_link_to => 'current',
 
 	######################################################################
-	# misc plugins
-	#   (filecheck)
+	# special-purpose plugins
+	#   (osm, underlay)
 	######################################################################
+
+	# osm plugin
+	# the default zoom when you click on the map link
+	#osm_default_zoom => 15,
+	# the icon shown on links and on the main map
+	#osm_default_icon => 'ikiwiki/images/osm.png',
+	# the alt tag of links, defaults to empty
+	#osm_alt => '',
+	# the output format for waypoints, can be KML, GeoJSON or CSV (one or many, comma-separated)
+	#osm_format => 'KML',
+	# the icon attached to a tag, displayed on the map for tagged pages
+	#osm_tag_default_icon => 'icon.png',
+	# Url for the OpenLayers.js file
+	#osm_openlayers_url => 'http://www.openlayers.org/api/OpenLayers.js',
+	# Layers to use in the map. Can be either the 'OSM' string or a type option for Google maps (GoogleNormal, GoogleSatellite, GoogleHybrid or GooglePhysical). It can also be an arbitrary URL in a syntax acceptable for OpenLayers.Layer.OSM.url parameter.
+	#osm_layers => {
+	#  OSM => 'GoogleSatellite'
+	#},
+	# Google maps API key, Google layer not used if missing, see https://code.google.com/apis/console/ to get an API key
+	#osm_google_apikey => '',
+
+	# underlay plugin
+	# extra underlay directories to add
+	#add_underlays => [qw{}],
 
 	######################################################################
 	# web plugins
 	#   (404, attachment, comments, editdiff, edittemplate, getsource,
 	#    google, goto, mirrorlist, remove, rename, repolist, search,
-	#    theme, websetup, wmd)
+	#    theme, userlist, websetup, wmd)
 	######################################################################
 
 	# attachment plugin
@@ -253,6 +309,8 @@ IkiWiki::Setup::Standard->import({
 	#comments_allowauthor => 0,
 	# commit comments to the VCS
 	#comments_commit => 1,
+	# Restrict formats for comments to (no restriction if empty)
+	#comments_allowformats => 'mdwn txt',
 
 	# getsource plugin
 	# Mime type for returned source.
@@ -261,6 +319,8 @@ IkiWiki::Setup::Standard->import({
 	# mirrorlist plugin
 	# list of mirrors
 	#mirrorlist => {},
+	# generate links that point to the mirrors' ikiwiki CGI
+	#mirrorlist_use_cgi => 1,
 
 	# repolist plugin
 	# URIs of repositories containing the wiki's source
@@ -272,6 +332,8 @@ IkiWiki::Setup::Standard->import({
 	# search plugin
 	# path to the omega cgi program
 	#omega_cgi => '/usr/lib/cgi-bin/omega/omega',
+	# use google site search rather than internal xapian index?
+	#google_search => 1,
 
 	# theme plugin
 	# name of theme to enable
@@ -288,10 +350,10 @@ IkiWiki::Setup::Standard->import({
 	######################################################################
 	# widget plugins
 	#   (calendar, color, conditional, cutpaste, date, format, fortune,
-	#    graphviz, haiku, img, linkmap, listdirectives, map, more,
-	#    orphans, pagecount, pagestats, poll, polygen, postsparkline,
-	#    progress, shortcut, sparkline, table, template, teximg, toc,
-	#    toggle, version)
+	#    graphviz, haiku, headinganchors, img, linkmap, listdirectives,
+	#    map, more, orphans, pagecount, pagestats, poll, polygen,
+	#    postsparkline, progress, shortcut, sparkline, table, template,
+	#    teximg, toc, toggle, version)
 	######################################################################
 
 	# calendar plugin
@@ -309,6 +371,7 @@ IkiWiki::Setup::Standard->import({
 	#teximg_dvipng => '',
 	# LaTeX prefix for teximg plugin
 	#teximg_prefix => '\\documentclass{article}
+	#\\usepackage[utf8]{inputenc}
 	#\\usepackage{amsmath}
 	#\\usepackage{amsfonts}
 	#\\usepackage{amssymb}
@@ -321,11 +384,11 @@ IkiWiki::Setup::Standard->import({
 	######################################################################
 	# other plugins
 	#   (aggregate, autoindex, brokenlinks, camelcase, ddate, embed,
-	#    favicon, field, flattr, getfield, goodstuff, htmlbalance,
-	#    localstyle, pagetemplate, pingee, pinger, prettydate,
-	#    recentchanges, recentchangesdiff, relativedate, rsync,
-	#    sidebar, smiley, sortnaturally, tag, testpagespec, underlay,
-	#    ymlfront)
+	#    favicon, field, filecheck, flattr, getfield, goodstuff,
+	#    htmlbalance, localstyle, notifyemail, pagetemplate, pingee,
+	#    pinger, prettydate, recentchanges, recentchangesdiff,
+	#    relativedate, rsync, sidebar, smiley, sortnaturally, tag,
+	#    testpagespec, trail, transient, ymlfront)
 	######################################################################
 
 	# aggregate plugin
@@ -333,6 +396,10 @@ IkiWiki::Setup::Standard->import({
 	#aggregateinternal => 1,
 	# allow aggregation to be triggered via the web?
 	#aggregate_webtrigger => 0,
+
+	# autoindex plugin
+	# commit autocreated index pages
+	#autoindex_commit => 1,
 
 	# camelcase plugin
 	# list of words to not turn into links
@@ -377,10 +444,8 @@ IkiWiki::Setup::Standard->import({
 	tagbase => 'tag',
 	# autocreate new tag pages?
 	#tag_autocreate => 1,
-
-	# underlay plugin
-	# extra underlay directories to add
-	#add_underlays => '',
+	# commit autocreated tag pages
+	#tag_autocreate_commit => 1,
 
 	# ymlfront plugin
 	# delimiters of YAML data
