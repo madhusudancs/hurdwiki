@@ -1,0 +1,75 @@
+[[!meta copyright="Copyright © 2014
+Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_gnumach]]
+
+# The Mach5 proposal
+
+The Mach IPC mechanism is known to have deficiencies.  Some of these
+could be addressed with a new message ABI.  A transition to 64-bit
+architectures requires a new ABI definition anyway, so while we are at
+it, we could straighten out some of these problems.
+
+This page is a place to keep track of such changes.
+
+## Protected payloads
+
+Protected payloads are a way of optimizing the receiver object lookup
+in servers.  A server may associate a payload with a receive right,
+and any incoming message is tagged with it.  The payload is an
+pointer-wide unsigned integer, so the address of the associated server
+side state can be used as payload.  This removes the need for a hash
+table lookup.
+
+### Required change to the message format
+
+Add a new field for the payload to the message header.
+
+### Implementation within the bounds of the Mach4 message format
+
+The payload can be provided in the same location as the local port
+using an union.  The kernel indicates this using a distinct message
+type.  MIG-generated code will detect this, and do the receiver lookup
+using a specialized translation function.
+
+An almost complete prototype is available.
+
+* <https://lists.debian.org/debian-hurd/2013/11/msg00092.html>
+* <http://darnassus.sceen.net/~teythoon/mach-protected-payloads/>
+
+## Type descriptor rework
+
+A Mach4 message body contains pairs of type descriptors and values.
+Each type descriptor describes the kind and amount of data that
+immediately follows in the message stream.  As the kernel has to
+rewrite rights and pointers to out-of-band memory, it has to parse the
+message.  As type information and values are interleaved, it has to
+iterate over the whole message.
+
+Furthermore, there are two kinds of type descriptors, mach_msg_type_t
+and mach_msg_type_long_t.  The reason for this is that the amount of
+data that can be described using mach_msg_type_t is just 131072 byte.
+This is because msgt_size is an 8-bit value describing the size of one
+element in bits, and msgt_number is an 12-bit value describing the
+number of items.
+
+### Required change to the message format
+
+Group the type descriptors together at the beginning of the message to
+provide an index into the data.  Provide the element size in multiple
+of the native word size avoiding the need for long type descriptors.
+
+### Implementation within the bounds of the Mach4 message format
+
+The Mach4 type descriptor contains one unused bit.  This bit can be
+used to indicate that this message uses a Mach5 style index.  MIG can
+be modified to handle both cases for a smooth transition to the new
+ABI.
