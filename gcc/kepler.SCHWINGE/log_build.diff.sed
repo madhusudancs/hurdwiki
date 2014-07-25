@@ -10,5 +10,5 @@ s%libgomp/config/posix/%libgomp/config/[SYSDEP]/%g
 s%-I../../../master/libitm/config/linux/x86 -I../../../master/libitm/config/linux %%
 #s%-march=i486 -mtune=i686 %%
 
-# Until coulomb.SCHWINGE using glibc 2.17.
+# Until laplace.SCHWINGE using glibc 2.17.
 s%-ldl -lrt%-lrt -ldl%
