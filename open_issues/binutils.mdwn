@@ -148,6 +148,50 @@ Last reviewed up to Git commit a01cbb490b34eda832c0215b8447e6aef68b0278
 
         [[!taglink open_issue_glibc]]?
 
+      * Watchpoints
+
+          * Unresolved issues w.r.t. watchpoint usage in context of multiple
+            threads, and `fork`/`vfork`.  The Linux port has a bunch of
+            special-case code.
+
+          * We don't have anything corresponding to Linux'
+            `linux_nat_set_forget_process`, `x86_forget_process`, or Linux'
+            whole `linux-fork.c` machinery.  Likewise for
+            `linux_nat_set_prepare_to_resume`, `x86_linux_prepare_to_resume`,
+            which the Linux port uses to actually set the debug registers.
+            Likewise for `linux_nat_set_new_thread`, `x86_linux_new_thread`,
+            and `linux_nat_set_new_fork`, `x86_linux_new_fork`.
+
+          * Look into `*_cleanup_dregs`, `*_post_startup_inferior`.  Commits
+            53a5351d907ef4eacd463a48a86d35b2b70b9f60,
+            52b9821179d84d61852ac2ae2bd16fbb56ffe277,
+            9742079a314711c13d269e9e583b7b82dc42f1a6,
+            e24d4c64ff2e89327ba84fdcc77cc557791eb3cd,
+            fa4ba8da6c28c972dd1b6b9971e29b51aabaafcc,
+            9b4f1ba7ede77d776fabb9642cbeef5091e38e1d,
+            4de4c07c6b48659ae212352236be9413c853a23c,
+            4056d25828218621e7276a3a0c0567cac892ae84,
+            10d6c8cd3f92fadf295eb3c91d550626f6080f79,
+            4105de343e714e0096723905ada442f1524776a6,
+            c5af0dad33ff96dbb404710539f01b011cff0453,
+            9bb9e8ade770027f5cced2856574e2d317b15254,
+            1ced966e3458bf3db742913f4d0a55549824e298,
+            4403d8e9b35649c5b24f65c0ec0decc3839e1164,
+            26cb8b7c1a23586ea311d7480f882e2883f6f1f5.
+
+          * [[!message-id "201112051601.59664.pedro@codesourcery.com"]].
+
+          * `I386_WATCHPOINTS_IN_TARGET_VECTOR`
+
+          * `prepare_to_resume`
+
+          * `new_fork`
+
+          * `forget_process`
+
+          * `dr_status_mirror` is not really used anywhere.  Get rid of it; or,
+            update it everytime the real value is read from the kernel?
+
   * `libdecnumber/`
 
     Should/can probably align to GNU/Linux.
@@ -196,8 +240,10 @@ Last reviewed up to Git commit a01cbb490b34eda832c0215b8447e6aef68b0278
 # Build
 
 Here's a log of a binutils-gdb build run; this is from Git commit
-a01cbb490b34eda832c0215b8447e6aef68b0278 (2014-09-11), run on kepler.SCHWINGE
-and laplace.SCHWINGE.
+a01cbb490b34eda832c0215b8447e6aef68b0278 (2014-09-11) plus [[!message-id
+"20140912182911.GF3202@type.youpi.perso.aquilenet.fr"]], run on kepler.SCHWINGE
+and laplace.SCHWINGE (with [[!message-id "87iokondoc.fsf@schwinge.name"]]
+applied).
 
     $ export LC_ALL=C
     $ ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ SHELL=/bin/dash CC=gcc-4.8 CXX=g++-4.8 --disable-werror 2>&1 | tee log_build
@@ -214,7 +260,7 @@ MIG-generated stub files; thus no `-Werror` until that is resolved
 ([[strict_aliasing]]).
 
 This takes up around 1.3 GiB, and runs for [[20 min|performance#measure]] on
-kepler.SCHWINGE and [[24 min|performance#measure]] on laplace.SCHWINGE.
+kepler.SCHWINGE and [[22 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
@@ -332,7 +378,7 @@ kepler.SCHWINGE and [[2 min|performance#measure]] on laplace.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This runs for [[29 min|performance#measure]] on kepler.SCHWINGE and [[67
+This runs for [[29 min|performance#measure]] on kepler.SCHWINGE and [[62
 min|performance#measure]] on laplace.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
@@ -341,7 +387,7 @@ processes that [have their stdout/stderr
 open](http://sourceware.org/ml/gdb-patches/2012-10/msg00489.html).  `kill`ing
 these (`SIGKILL` may be needed), makes the `tee` process terminate, too.  On
 GNU/Hurd, these generally are `gdb.base/sigaltstack`, `gdb.base/siginfo`,
-`gdb.base/watch-read`, `gdb.multi/watchpoint-multi`.
+`gdb.multi/watchpoint-multi`, `gdb.threads/watchthreads`.
 
 
 ## Analysis
@@ -590,9 +636,25 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
 
       * `gdb.base/watch-vfork.exp`
 
-      * `gdb.base/watchpoint-hw-hit-once.exp`
+            Running ../../../W._C._Handy/gdb/testsuite/gdb.base/watch-vfork.exp ...
+            PASS: gdb.base/watch-vfork.exp: Watchpoint on global variable (hw)
+            FAIL: gdb.base/watch-vfork.exp: Watchpoint triggers after vfork (hw)
+            PASS: gdb.base/watch-vfork.exp: Watchpoint on global variable (sw)
+            FAIL: gdb.base/watch-vfork.exp: Watchpoint triggers after vfork (sw) (timeout)
+            Running ../../../W._C._Handy/gdb/testsuite/gdb.base/watch_thread_num.exp ...
+            PASS: gdb.base/watch_thread_num.exp: successfully compiled posix threads test case
+            ERROR: Couldn't load [...]/tschwinge/W._C._Handy.build/gdb/testsuite/gdb.base/watch_thread_num into [...]/tschwinge/W._C._Handy.build/gdb/testsuite/../../gdb/gdb (timeout).
+            ERROR: Delete all breakpoints in delete_breakpoints (timeout)
 
-      * `gdb.base/watchpoint-hw.exp`
+              PID  UID  PPID  PGrp  Sess TH  Vmem   RSS %CPU     User   System Args
+            10067 1000     1 10067 10062  2  146M  696K  0.0  0:00.02  0:08.40 /media/erich/home/thomas/tmp/binutils-gdb/tschwinge/W._C._Handy.build/gdb/testsuite/gdb.base/watch-vfork
+            10107 1000 22500 10107 10107  2  150M   13M 97.3  0:00.04  3:10.07 /media/erich/home/thomas/tmp/binutils-gdb/tschwinge/W._C._Handy.build/gdb/testsuite/../../gdb/gdb -nw -nx -data-directory /media/erich/home/thomas/tmp/binutils-gdb/tschwin
+
+        Open new screen window.  Prompt is being displayed, but any input not
+        shown/reacted on.  Once the watch-vfork process is killed, the input
+        shows up.
+
+        Once the busy-looping GDB process is killed, testing proceeds.
 
       * `gdb.python/py-inferior.exp` (mostly disabled)
 
@@ -655,13 +717,13 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
 
       * `gdb.threads/thread-find.exp`
 
-      * `gdb.threads/watchpoint-fork.exp`
-
   * Linux syscall usage, `<asm/unistd.h>`
 
       * `UNSUPPORTED: gdb.threads/ia64-sigill.exp: Couldn't compile ../../../master/gdb/testsuite/gdb.threads/ia64-sigill.c: unrecognized error`
 
       * `UNSUPPORTED: gdb.threads/siginfo-threads.exp: Couldn't compile ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/siginfo-threads.c: unrecognized error`
+
+        Also uses `tgkill`.
 
       * `gdb.threads/sigstep-threads.c`
 
@@ -923,6 +985,14 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
 
     TODO.
 
+  * `gdb.base/watchpoint-hw-hit-once.exp`
+
+        PASS: gdb.base/watchpoint-hw-hit-once.exp: rwatch watchee
+        PASS: gdb.base/watchpoint-hw-hit-once.exp: continue
+        FAIL: gdb.base/watchpoint-hw-hit-once.exp: continue to break-at-exit
+
+    The watchpoint does trigger again, wrongly.
+
   * `gdb.arch/i386-prologue.exp`
 
     There are several FAILs, where there are unexpected frames showing up in
@@ -1014,16 +1084,3 @@ TODO.
       set a breakpoint and ... when I ran "info files" the process segfaulted.
     <teythoon> which process segfaults, pfinet or gdb?
     <rekado> gdb segfaults.
-
-
-## GDB Watchpoints
-
-[[!tag open_issue_gdb]]
-
-
-### IRC, freenode, #hurd, 2013-09-16
-
-    <gnu_srs> tschwinge: Is gdb watch known to fail on hurd? It hangs for me
-      when logged in via ssh.
-    <tschwinge> gnu_srs: Don't know about GDB's watch command.  Are you sure it
-      is hanging?
