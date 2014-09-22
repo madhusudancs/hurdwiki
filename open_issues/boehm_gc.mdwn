@@ -33,9 +33,9 @@ git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..upstr
 
 -->
 
-Last reviewed up to the 5f492b98dd131bdd6c67eb56c31024420c1e7dab (2012-06-08)
-sources, and for `libatomic_ops` to the
-6a0afde033f105c6320f1409162e3765a1395bfd (2012-05-15) sources.
+Last reviewed up to Git commit 5f492b98dd131bdd6c67eb56c31024420c1e7dab
+(2012-06-08), and for `libatomic_ops` to Git commit
+6a0afde033f105c6320f1409162e3765a1395bfd (2012-05-15).
 
   * `configure.ac`
 
@@ -283,10 +283,10 @@ sources, and for `libatomic_ops` to the
 
 # Build
 
-Here's a log of a binutils build run; this is from the
-5f492b98dd131bdd6c67eb56c31024420c1e7dab (2012-06-08) sources, and for
-`libatomic_ops` for the 6a0afde033f105c6320f1409162e3765a1395bfd (2012-05-15)
-sources, run on kepler.SCHWINGE and coulomb.SCHWINGE.
+Here's a log of a boehm-gc build run; this is from Git commit
+5f492b98dd131bdd6c67eb56c31024420c1e7dab (2012-06-08), and for `libatomic_ops`
+Git commit 6a0afde033f105c6320f1409162e3765a1395bfd (2012-05-15), run on
+kepler.SCHWINGE and laplace.SCHWINGE.
 
     $ export LC_ALL=C
     $ (cd ../master/ && ln -sfn ../libatomic_ops/master libatomic_ops)
@@ -299,20 +299,18 @@ sources, run on kepler.SCHWINGE and coulomb.SCHWINGE.
 Different hosts may default to different shells and compiler versions; thus
 harmonized.  Using bash instead of dash as otherwise libtool explodes.
 
-This takes up around X MiB, and needs roughly X min on kepler.SCHWINGE and
-X min on coulomb.SCHWINGE.
+This takes up around TODO GiB, and runs for [[TODO min|performance#measure]] on
+kepler.SCHWINGE and [[TODO min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
-    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-check) 2>&1 | tee log_install && test -f .go-check && { make -k check 2>&1 | tee log_check; (cd libatomic_ops/ && make -k check) 2>&1 | tee log_check_; }
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && { make -k check 2>&1 | tee log_test; (cd libatomic_ops/ && make -k check) 2>&1 | tee log_test_; }
 
 -->
 
 ## Analysis
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/boehm-gc/ && cat master.build/log_build* | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/boehm-gc/linux/log_build
-    $ ssh coulomb.SCHWINGE 'cd tmp/boehm-gc/ && cat master.build/log_build* | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/boehm-gc/hurd/log_build
-    $ diff -wu <(sed -f toolchain/logs/boehm-gc/linux/log_build.sed < toolchain/logs/boehm-gc/linux/log_build) <(sed -f toolchain/logs/boehm-gc/hurd/log_build.sed < toolchain/logs/boehm-gc/hurd/log_build) > toolchain/logs/boehm-gc/log_build.diff
+    $ toolchain/logs/process boehm-gc build
 
   * only GNU/Linux: `configure: WARNING: "Explicit GC_INIT() calls may be
     required."`
@@ -326,32 +324,29 @@ X min on coulomb.SCHWINGE.
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around X MiB, and needs roughly X min on kepler.SCHWINGE and X
-min on coulomb.SCHWINGE.
+This takes up around TODO MiB, and runs for [[TODO min|performance#measure]] on
+kepler.SCHWINGE and [[TODO min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/boehm-gc/ && cat master.build/log_install | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/boehm-gc/linux/log_install
-    $ ssh coulomb.SCHWINGE 'cd tmp/boehm-gc/ && cat master.build/log_install | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/boehm-gc/hurd/log_install
-    $ diff -wu toolchain/logs/boehm-gc/linux/log_install toolchain/logs/boehm-gc/hurd/log_install > toolchain/logs/boehm-gc/log_install.diff
+    $ toolchain/logs/process boehm-gc install
 
 
 # Testsuite
 
-    $ make -k check
+    $ make -k check 2>&1 | tee log_test
     [...]
-    $ (cd libatomic_ops/ && make -k check)
+    $ (cd libatomic_ops/ && make -k check) 2>&1 | tee log_test_
     [...]
 
-This needs roughly X min on kepler.SCHWINGE and X min on coulomb.SCHWINGE.
+This runs for [[TODO min|performance#measure]] on kepler.SCHWINGE and [[TODO
+min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
 
-    $ ssh kepler.SCHWINGE 'cd tmp/source/boehm-gc/ && cat master.build/log_check* | sed -e "s%\(/media/data\)\?${PWD}%[...]%g"' > toolchain/logs/boehm-gc/linux/log_check
-    $ ssh coulomb.SCHWINGE 'cd tmp/boehm-gc/ && cat master.build/log_check* | sed -e "s%\(/media/erich\)\?${PWD}%[...]%g"' > toolchain/logs/boehm-gc/hurd/log_check
-    $ diff -wu <(sed -f toolchain/logs/boehm-gc/linux/log_check.sed < toolchain/logs/boehm-gc/linux/log_check) <(sed -f toolchain/logs/boehm-gc/hurd/log_check.sed < toolchain/logs/boehm-gc/hurd/log_check) > toolchain/logs/boehm-gc/log_check.diff
+    $ toolchain/logs/process boehm-gc test
 
 There are different configurations possible, but in general, the testsuite
 restults of GNU/Linux and GNU/Hurd look very similar.
