@@ -27,15 +27,15 @@ committed upstream should very like also be made there.
 <!--
 
 git checkout reviewed
-git log --reverse --pretty=fuller --stat=$COLUMNS,$COLUMNS -w -p -C --cc ..upstream/master
+git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefix=./ --word-diff --color --find-renames --ignore-space-change ..upstream/master | awk '/^(\x1b\[[0-9]+m)?diff/ { c = " " $0; } /^(\x1b\[[0-9]+m)?@@/ { print c; } { print; }' | less
 -i
-/^commit |^---$|hurd|linux|glibc
+/hurd|linux|glibc
 
 -->
 
-Last reviewed up to Git commit 5f492b98dd131bdd6c67eb56c31024420c1e7dab
-(2012-06-08), and for `libatomic_ops` to Git commit
-6a0afde033f105c6320f1409162e3765a1395bfd (2012-05-15).
+Last reviewed up to Git commit ad2be4bcad9c1de18feef7f8d7ebb98d680f064f
+(2014-09-20), and for `libatomic_ops` to Git commit
+ba6c3170412ef7f751ff63e2b656296265dcff93 (2014-06-13).
 
   * `configure.ac`
 
@@ -280,12 +280,111 @@ Last reviewed up to Git commit 5f492b98dd131bdd6c67eb56c31024420c1e7dab
   * Check `include/private/thread_local_alloc.h` re
     `USE_COMPILER_TLS`/`USE_PTHREAD_SPECIFIC`.
 
+  * TODO:
+
+      * `diff --git ./include/private/gcconfig.h ./include/private/gcconfig.h`
+
+            {+#if defined(LINUX) || defined(FREEBSD) || defined(SOLARIS) || defined(IRIX5) \+}
+            {+    || ((defined(USE_MMAP) || defined(USE_MUNMAP)) && !defined(USE_WINALLOC))+}
+            {+# define MMAP_SUPPORTED+}
+            {+#endif+}
+
+      * `diff --git ./include/private/gcconfig.h ./include/private/gcconfig.h`
+
+            #if !defined(CAN_HANDLE_FORK) && !defined(NO_HANDLE_FORK) \
+                && [-((defined(GC_PTHREADS)-]{+!defined(HAVE_NO_FORK) \+}
+                && [-!defined(HURD)-]{+((defined(GC_PTHREADS)+} && !defined(NACL) \
+                     &&[-!defined(PLATFORM_ANDROID) &&-] !defined(GC_WIN32_PTHREADS)[-\-] && !defined(USE_WINALLOC)) \
+                    || (defined(DARWIN) && defined(MPROTECT_VDB)) || defined(HANDLE_FORK))
+              /* Attempts (where supported and requested) to make GC_malloc work in */
+              /* a child process fork'ed from a multi-threaded parent.              */
+            # define CAN_HANDLE_FORK
+            #endif
+            
+            {+#if defined(CAN_HANDLE_FORK) && !defined(CAN_CALL_ATFORK) \+}
+            {+    && !defined(HURD) && !defined(PLATFORM_ANDROID)+}
+            {+  /* Have working pthread_atfork().     */+}
+            {+# define CAN_CALL_ATFORK+}
+            {+#endif+}
+
+      * `diff --git ./include/private/gcconfig.h ./include/private/gcconfig.h`
+
+            {+#if (defined(FREEBSD) || (defined(DARWIN) && !defined(_POSIX_C_SOURCE)) \+}
+            {+        || (defined(SOLARIS) && (!defined(_XOPEN_SOURCE) \+}
+            {+                                 || defined(__EXTENSIONS__))) \+}
+            {+        || defined(LINUX)) && !defined(HAVE_DLADDR)+}
+            {+# define HAVE_DLADDR+}
+            {+#endif+}
+
+      * `diff --git ./os_dep.c ./os_dep.c`
+
+            @@ -3038,9 +3005,11 @@ GC_API GC_push_other_roots_proc GC_CALL GC_get_push_other_roots(void)
+                                    /* Also old MSWIN32 ACCESS_VIOLATION filter */
+            # if !defined(MSWIN32) && !defined(MSWINCE)
+                STATIC SIG_HNDLR_PTR GC_old_bus_handler = 0;
+            {+#   if defined(FREEBSD) || defined(HURD) || defined(HPUX)+}
+                  STATIC GC_bool GC_old_bus_handler_used_si = FALSE;
+            {+#   endif+}
+                STATIC GC_bool GC_old_segv_handler_used_si = FALSE;
+
+      * `diff --git ./os_dep.c ./os_dep.c`
+
+            @@ -3192,20 +3169,22 @@ GC_API GC_push_other_roots_proc GC_CALL GC_get_push_other_roots(void)
+            #           else
+                            GC_bool used_si;
+            
+            {+#             if defined(FREEBSD) || defined(HURD) || defined(HPUX)+}
+                            if (sig == [-SIGSEGV) {-]
+            [-                   old_handler = GC_old_segv_handler;-]
+            [-                   used_si = GC_old_segv_handler_used_si;-]
+            [-                } else-]{+SIGBUS)+} {
+                               old_handler = GC_old_bus_handler;
+                               used_si = GC_old_bus_handler_used_si;
+                            {+} else+}
+            {+#             endif+}
+            {+                /* else */ {+}
+            {+                   old_handler = GC_old_segv_handler;+}
+            {+                   used_si = GC_old_segv_handler_used_si;+}
+                            }
+            #           endif
+
+      * `diff --git ./os_dep.c ./os_dep.c`
+
+            #   if defined(HPUX) || defined(LINUX) || defined(HURD) \
+                   || (defined(FREEBSD) && defined(SUNOS5SIGS))
+                  sigaction(SIGBUS, &act, &oldact);
+                  if [-(oldact.sa_flags-]{+((oldact.sa_flags+} & SA_SIGINFO) {+!= 0)+} {
+                    GC_old_bus_handler = oldact.sa_sigaction;
+            {+#       if !defined(LINUX)+}
+                      GC_old_bus_handler_used_si = TRUE;
+            {+#       endif+}
+                  } else {
+                    GC_old_bus_handler = (SIG_HNDLR_PTR)oldact.sa_handler;
+            {+#       if !defined(LINUX)+}
+                      GC_old_bus_handler_used_si = FALSE;
+            {+#       endif+}
+                  }
+                  if (GC_old_bus_handler == (SIG_HNDLR_PTR)SIG_IGN) {
+                    [-if (GC_print_stats)-]
+            [-          GC_err_printf("Previously-]{+WARN("Previously+} ignored bus [-error!?\n");-]{+error!?\n", 0);+}
+            {+#       if !defined(LINUX)+}
+                      GC_old_bus_handler = (SIG_HNDLR_PTR)SIG_DFL;
+            {+#       else+}
+            {+          /* GC_old_bus_handler is not used by GC_write_fault_handler.  */+}
+            {+#       endif+}
+                  } {+else+} if (GC_old_bus_handler != (SIG_HNDLR_PTR)SIG_DFL) {
+                      [-if (GC_print_stats == VERBOSE)-]
+            [-          GC_log_printf("Replaced-]{+GC_VERBOSE_LOG_PRINTF("Replaced+} other SIGBUS handler\n");
+                  }
+            #   endif /* HPUX || LINUX || HURD || (FREEBSD && SUNOS5SIGS) */
+
 
 # Build
 
 Here's a log of a boehm-gc build run; this is from Git commit
-5f492b98dd131bdd6c67eb56c31024420c1e7dab (2012-06-08), and for `libatomic_ops`
-Git commit 6a0afde033f105c6320f1409162e3765a1395bfd (2012-05-15), run on
+ad2be4bcad9c1de18feef7f8d7ebb98d680f064f (2014-09-20) plus [[!message-id
+"87ioke3iun.fsf@kepler.schwinge.homeip.net"]], and for `libatomic_ops` to Git
+commit ba6c3170412ef7f751ff63e2b656296265dcff93 (2014-06-13), run on
 kepler.SCHWINGE and laplace.SCHWINGE.
 
     $ export LC_ALL=C
@@ -307,6 +406,7 @@ kepler.SCHWINGE and [[TODO min|performance#measure]] on laplace.SCHWINGE.
     $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && { make -k check 2>&1 | tee log_test; (cd libatomic_ops/ && make -k check) 2>&1 | tee log_test_; }
 
 -->
+
 
 ## Analysis
 
@@ -368,6 +468,8 @@ restults of GNU/Linux and GNU/Hurd look very similar.
         Git branches (2010-12-15: last change 2009-09).
 
       * <http://www.hpl.hp.com/personal/Hans_Boehm/gc/#users>
+
+      * [[!wikipedia Boehm_garbage_collector]]
 
 
 ## IRC, OFTC, #debian-hurd, 2012-02-05
