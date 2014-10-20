@@ -34,48 +34,30 @@ Collection about stuff that is relevant for *virtualization* and *networking*.
 
 [[community/meetings/GHM2013]].
 
+OpenVPN can use pfinet's tun as it is, and be configured completely as joe user,
+as shown below. Note that the tun0 node name has to begin with "tun", so pfinet
+knows it's a tun.
 
-## IRC, freenode, #hurd, 2013-08-23
+    $ mkdir -p $HOME/servers/socket
+    $ touch $HOME/servers/tun0
+    $ settrans -ca $HOME/servers/socket/2 /hurd/pfinet $HOME/servers/tun0 -a 10.0.0.1 -p 10.0.0.2
+    $ cat vpn.conf
+    client
+    dev tun
+    dev-node /home/samy/servers/tun0
+    ...
+    $ openvpn --config vpn.conf --verb 5
+    ...
 
-    <youpi> good news
-    <youpi> with a couple small patches, openvpn does work as joe user
-
-
-## IRC, freenode, #hurd, 2013-08-30
-
-    <youpi> it's really cool that openvpn ended up working completely the day
-      before :)
-
-
-## IRC, freenode, #hurd, 2013-09-03
-
-    <_d3f> Hey guys, how did you get openvpn working on the Hurd? just curious
-      as I saw it in the GHM video
-    <_d3f> no one here who has a clue how to get *vpn working on the Hurd?
-    <braunr> _d3f: youpi did it
-    <braunr> i don't know the details
-    <_d3f> okay, I will question him when I see him around, thx. Do you know if
-      it was a lot of work to get the tun device working? Because I would like
-      to use tinc on the Hurd.
-    <braunr> _d3f: a bit but not that much either
-    <_d3f> braunr: well, okay. Do you know if the source of his 'port' is
-      online, I haven't found it :/
-    <braunr> it should be soon
+    $ remap /servers/socket/2 $HOME/servers/socket/2
+    $ wget www.gnu.org
 
 
-## IRC, freenode, #hurd, 2013-09-04
+Ideally openvpn would be made to setup pfinet itself, but at least for now it
+can be configured by hand like that.
 
-    <_d3f> youpi: you are the guy who has brought openvpn to the hurd, right? I
-      would like to know how you got the tun/tap thing working as I would like
-      to use tinc on it. :)
-    <youpi> _d3f: essentially no modification of openvpn iirc
-    <youpi> just tell it to open the tun node created by pfinet
-    <youpi> and read/write it
-    <youpi> i.e. the existing generic code in place in openvpn
-    <_d3f> I will have a look at it, somekind tinc builds with the linux
-      specific device.c but I wasn't able to exchange keys. I will have a look
-      at the device handling again and try to get the pfinet tun node used.
-
+It would probably be possible to make pfinet able to produce a tap too, would
+need some code.
 
 ## IRC, freenode, #hurd, 2013-09-07
 
@@ -98,3 +80,5 @@ Collection about stuff that is relevant for *virtualization* and *networking*.
     <d3f> yeah I know, I talked to him as I am tring to get tinc working on the
       Hurd (tinc builds by now). I will give him a shot about creating the
       "tun" device
+
+tun has indeed nothing to do with devnode and netdde, it's pfinet which creates it, as documented above.
