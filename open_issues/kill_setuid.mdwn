@@ -1,0 +1,50 @@
+[[!meta copyright="Copyright © 2015 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_xorg]]
+
+http://bugs.debian.org/413326
+
+The X server does not terminate when the user X session is finished. This is due
+to xinit not being able to kill the setuid Xorg.
+
+On the sending side, glibc does:
+
+        err = HURD_MSGPORT_RPC (__proc_getmsgport (proc, pid, &msgport),
+                                  (taskerr = __proc_pid2task (proc, pid,
+                                                              &refport)) ?
+                                  __proc_getsidport (proc, &refport) : 0, 1,
+                                  kill_port (msgport, refport));
+        }
+
+I.e. asks proc for the task port, and if that fails, asks proc for the
+session port, then it sends the signal.
+
+It happens that since the target got setuid'ed, the proc server had set it
+owned by root, and hence (rightfully) refuses to return the task port through
+pid2task.  As a result only proc_getsidport() works, but that will be accepted
+by the receiving side only for some signals.
+
+POSIX says
+
+«
+  For a process to have permission to send a signal to a process designated
+  by pid, unless the sending process has appropriate privileges, the real or
+  effective user ID of the sending process shall match the real or saved
+  set-user-ID of the receiving process.
+»
+
+And indeed Xorg keeps the original user uid as real uid, so that xinit can kill
+it when the session is finished.
+
+We probably need to implement another reference port that the killer can send to
+the killee. It may be useful for some other operations that users can do on the
+setuid processes they have started.
