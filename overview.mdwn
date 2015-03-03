@@ -1,0 +1,56 @@
+[[!meta copyright="Copyright © 2015 Free Software Foundation,
+Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+This provides an quick overview of how the GNU/Hurd system starts, and thus how
+it is structured.
+
+# Grub
+
+The GNU/Hurd system uses multiboot, and thus usually booted from grub, which
+loads into memory the GNU Mach kernel, the ext2fs server (see later), and the
+exec server (see later). It then gives hand to GNU Mach, passing the latter as
+payloads.
+
+# GNU Mach
+
+GNU Mach initializes a basic console, and tasks, memory management and
+interprocess communication.  It also initializes drivers for disk. It then
+creates two tasks for the ext2fs and exec servers.
+
+# ext2fs
+
+ext2fs is given as a parameter the name of the device of the root filesystem. It
+opens it through the GNU Mach disk driver, and mounts the filesystem found on
+it. When it is ready, it can start booting the system by starting the "startup",
+"proc", and "auth" servers. It does so by using the "exec" server already loaded
+by GNU Mach: "exec" handles loading the binaries of the three new servers, just
+like it will handle loading binaries in the GNU/Hurd system in general. ext2fs
+then gives hand to "startup".
+
+# proc
+
+Proc knows about processes: what pid they have, passing signals, managing tty
+sessions, etc.
+
+# auth
+
+Auth knows about identities: uid, gid, etc.
+
+# startup
+
+"startup" is the real system starting point: it basically runs /sbin/init, at
+which point we end up with the standard Unix boot up.
+
+# netdde / pfinet
+
+At some point of the boot process, networking will have to be configured. This
+is done by starting "pfinet", the TCP/IP stack, from /servers/socket/2, which
+itself starts the network device driver server, "netdde", from /dev/netdde.
