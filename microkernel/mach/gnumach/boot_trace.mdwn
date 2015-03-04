@@ -11,190 +11,187 @@ License|/fdl]]."]]"""]]
 
 `if NCPUS > 1` stuff is not being considered so far.
 
+grub starts the execution at boot\_entry
 
-> i386/i386at/boothdr.S: \_start
+> i386/i386at/boothdr.S: boot\_entry: sets up C environment, i.e. sets up a basic stack and clears BSS, fixes ifunc.
 
-> i386/i386at/boothdr.S: boot\_entry
+> i386/i386at/model\_dep.c: c\_boot\_entry: gets multiboot parameters
 
->> i386/i386at/model\_dep.c: c\_boot\_entry
+>> i386/i386at/boothdr.S: discover\_x86\_cpu\_type: detect processor type
 
->>> i386/i386at/boothdr.S: discover\_x86\_cpu\_type
+>> i386/i386at/model\_dep.c: i386at\_init: initialize PC-specific stuff
 
->>> i386/i386at/model\_dep.c: i386at\_init
+>>> i386/i386/pic.c: picinit: initialize 8259 PIC
 
->>>> i386/i386/pic.c: picinit
+>>> i386/i386at/model\_dep.c: mem\_size\_init: compute memory size
 
->>>> i386/i386at/model\_dep.c: mem\_size\_init
+>>> i386/intel/pmap.c: pmap\_bootstrap: initialize x86 page table
 
->>>> i386/intel/pmap.c: pmap\_bootstrap
+>>> i386/i386/gdt.c: gdt\_init: initialize x86 segmentation
 
->>>> i386/i386/gdt.c: gdt\_init
+>>> i386/i386/idt.c: idt\_init: initialize x86 traps
 
->>>> i386/i386/idt.c: idt\_init
+>>> i386/i386at/int\_init.c: int\_init: initialize PC interrupts
 
->>>> i386/i386at/int\_init.c: int\_init
+>>> i386/i386/ldt.c: ldt\_init: initialize x86 segmentation
 
->>>> i386/i386/ldt.c: ldt\_init
+>>> i386/i386/ktss.c: ktss\_init: initialize x86 task switching
 
->>>> i386/i386/ktss.c: ktss\_init
+>> kern/startup.c: setup\_main: set up non-hardware specific stuff
 
->>> kern/startup.c: setup\_main
+>>> kern/debug.c: panic\_init: initialize panic data
 
->>>> kern/debug.c: panic\_init
+>>> kern/printf.c: printf\_init: initialize printf
 
->>>> kern/printf.c: printf\_init
+>>> kern/sched\_prim.c: sched\_init: initialize scheduler
 
->>>> kern/sched\_prim.c: sched\_init
+>>>> kern/processor.c: pset\_sys\_bootstrap: initialize processor sets
 
->>>>> kern/sched\_prim.c: wait\_queue\_init
+>>>> kern/ast.c: ast\_init: initialize Asychronous System Traps
 
->>>>> kern/processor.c: pset\_sys\_bootstrap
+>>> vm/vm\_init.c: vm\_mem\_bootstrap: initialize virtual memory
 
->>>>> kern/ast.c: ast\_init
+>>>> vm/vm\_resident.c: vm\_page\_bootstrap: turn physical pages into virtually allocatable pages
 
->>>> vm/vm\_init.c: vm\_mem\_bootstrap
+>>>>> vm/vm\_resident.c: pmap\_startup: initialize pages
 
->>>>> vm/vm\_resident.c: vm\_page\_bootstrap
+>>>> kern/slab.c: slab\_bootstrap: early-initialize SLAB
 
->>>>>> vm/vm\_resident.c: pmap\_startup
+>>>> vm/vm\_object.c: vm\_object\_bootstrap: initialize VM object management
 
->>>>> kern/zalloc.c: zone\_bootstrap
+>>>>> vm/vm\_external.c: vm\_external\_module\_initialize: initialize VM external object management
 
->>>>> vm/vm\_object.c: vm\_object\_bootstrap
+>>>> vm/vm\_map.c: vm\_map\_init: initialize VM maps
 
->>>>>> vm/vm\_external.c: vm\_external\_module\_initialize
+>>>> vm/vm\_kern.c: kmem\_init: initialize kernel's virtual memory
 
->>>>> vm/vm\_map.c: vm\_map\_init
+>>>> i386/intel/pmap.c: pmap\_init: initialize remainder of x86 page table
 
->>>>> vm/vm\_kern.c: kmem\_init
+>>>> kern/slab.c: slab\_init: initialize remainder of SLAB
 
->>>>> i386/intel/pmap.c: pmap\_init
+>>>> kern/kalloc.c: kalloc\_init: initialize kallocator
 
->>>>> kern/zalloc.c: zone\_init
+>>>> vm/vm\_fault.c: vm\_fault\_init: initialize VM fault management
 
->>>>> kern/kalloc.c: kalloc\_init
+>>>> vm/vm\_resident.c: vm\_page\_module\_init: initialize remainder of virtual memory
 
->>>>> vm/vm\_fault.c: vm\_fault\_init
+>>>> vm/memory\_object.c: memory\_manager\_default\_init: initialize remainder of VM object management
 
->>>>> vm/vm\_resident.c: vm\_page\_module\_init
+>>> ipc/ipc\_init.c: ipc\_bootstrap: initialize IPC
 
->>>>> vm/memory\_object.c: memory\_manager\_default\_init
+>>>> ipc/ipc\_table.c: ipc\_table\_init: initialize IPC tables
 
->>>> ipc/ipc\_init.c: ipc\_bootstrap
+>>>> ipc/ipc\_notify.c: ipc\_notify\_init: initialize IPC notification
 
->>>>> ipc/ipc\_table.c: ipc\_table\_init
+>>>> ipc/ipc\_hash.c: ipc\_hash\_init: initialize IPC reverse hash table
 
->>>>> ipc/ipc\_notify.c: ipc\_notify\_init
+>>>> ipc/ipc\_marequest.c: ipc\_marequest\_init: initialize msg-accepted request
 
->>>>> ipc/ipc\_hash.c: ipc\_hash\_init
+>>> vm/vm\_init.c: vm\_mem\_init: finish initializing VM
 
->>>>> ipc/ipc\_marequest.c: ipc\_marequest\_init
+>>>> vm/vm\_object.c: vm\_object\_init: finish initializing kernel object
 
->>>> vm/vm\_init.c: vm\_mem\_init
+>>>> vm/memory\_object\_proxy: memory\_object\_proxy\_init: initialize memory object proxy
 
->>>>> vm/vm\_object.c: vm\_object\_init
+>>> ipc/ipc\_init.c: ipc\_init: finish initializing IPC
 
->>>> ipc/ipc\_init.c: ipc\_init
+>>>> kern/ipc\_host.c: ipc\_host\_init: initialize host IPC
 
->>>>> kern/ipc\_host.c: ipc\_host\_init
+>>>>> kern/ipc\_host.c: ipc\_pset\_init: initialize processor sets ports
 
->>>>>> kern/ipc\_host.c: ipc\_pset\_init
+>>>>> kern/ipc\_host.c: ipc\_processor\_init: initialize processor ports
 
->>>>>> kern/ipc\_host.c: ipc\_pset\_enable
+>>> i386/intel/pmap.h: PMAP\_ACTIVATE\_KERNEL: activate kernel page table
 
->>>>>> kern/ipc\_host.c: ipc\_processor\_init
+>>> kern/timer.c: init\_timers: initialize timers
 
->>>> i386/intel/pmap.h: PMAP\_ACTIVATE\_KERNEL
+>>> kern/mach\_clock.c: init\_timeout: initialize timeout
 
->>>> kern/timer.c: init\_timers
+>>> kern/xpr.c: xprbootstrap: initialize xpr buffer
 
->>>> kern/mach\_clock.c: init\_timeout
+>>> kern/time\_stamp.c: timestamp\_init: initialize tick
 
->>>> kern/xpr.c: xprbootstrap
+>>> kern/mach\_clock.c: [[mapable\_time\_init|interface/device/time]]
 
->>>> kern/time\_stamp.c: timestamp\_init
+>>> i386/i386at/model\_dep.c: machine\_init: initialize x86 machine
 
->>>> kern/mach\_clock.c: [[mapable\_time\_init|interface/device/time]]
+>>>> device/cons.c: cninit: initialize console
 
->>>> i386/i386at/model\_dep.c: machine\_init
+>>>> i386/i386/fpu.c: init\_fpu: initialize 8087 FPU
 
->>>>> device/cons.c: cninit
+>>>> linux/dev/init/main.c: linux\_init: initialize linux drivers
 
->>>>> i386/i386/fpu.c: init\_fpu
+>>>>> linux/dev/arch/i386/kernel/irq.c: init\_IRQ: initialize IRQs
 
->>>>> linux/dev/init/main.c: linux\_init
+>>>>>> linux/dev/arch/i386/kernel/irq.c: reserve\_mach\_irqs: register IRQs to mach
 
->>>>>> linux/dev/arch/i386/kernel/irq.c: init\_IRQ
+>>>>> linux/dev/kernel/sched.c: linux\_sched\_init: initialize dumb scheduler
 
->>>>>>> linux/dev/arch/i386/kernel/irq.c: reserve\_mach\_irqs
+>>>>> linux/dev/init/main.c: calibrate\_delay: calibrate delay loop
 
->>>>>> linux/dev/kernel/sched.c: linux\_sched\_init
+>>>>> linux/dev/glue/kmem.c: linux\_kmem\_init: initialize memory management
 
->>>>>> linux/dev/init/main.c: calibrate\_delay
+>>>>> linux/src/drivers/pci/pci.c: pci\_init: initialize PCI bus
 
->>>>>> linux/dev/glue/kmem.c: linux\_kmem\_init
+>>>>>> linux/src/arch/i386/kernel/bios32.c: pcibios\_init: call PCI BIOS32 initialization
 
->>>>>> linux/src/drivers/pci/pci.c: pci\_init
+>>>>>> linux/src/drivers/pci/pci.c: scan\_bus: enumerate PCI devices
 
->>>>>>> linux/src/arch/i386/kernel/bios32.c: pcibios\_init
+>>>>>> linux/src/arch/i386/kernel/bios32.c: pcibios\_fixup: apply platform-specific fixes
 
->>>>>>> linux/src/drivers/pci/pci.c: scan\_bus
+>>>>> linux/dev/glue/net.c: linux\_net\_emulation\_init: initialize network glue
 
->>>>>>> linux/src/arch/i386/kernel/bios32.c: pcibios\_fixup
+>>>>> linux/dev/drivers/block/genhd.c: device\_setup: initialize block devices
 
->>>>>> linux/dev/glue/net.c: linux\_net\_emulation\_init
+>>>>>> linux/dev/glue/block.c: blk\_dev\_init: initialize linux block devices
 
->>>>>> linux/dev/drivers/block/genhd.c: device\_setup
+>>>>>>> linux/src/drivers/block/ide.c: ide\_init: initialize IDE driver
 
->>>>>>> linux/dev/glue/block.c: blk\_dev\_init
+>>>>>>> linux/dev/drivers/block/floppy.c: floppy\_init: initialize floppy driver
 
->>>>>>>> linux/src/drivers/block/ide.c: ide\_init
+>>>>>> linux/src/drivers/scsi/scsi.c: scsi\_dev\_init: initialize SCSI drivers
 
->>>>>>>> linux/dev/drivers/block/floppy.c: floppy\_init
+>>>>>> linux/dev/net/core/dev.c: net\_dev\_init: initialize network drivers
 
->>>>>>> linux/src/drivers/scsi/scsi.c: scsi\_dev\_init
+>>>>> linux/pcmcia-cs/glue/pcmcia.c: pcmcia\_init: initialize PCMCIA drivers
 
->>>>>>> linux/dev/net/core/dev.c: net\_dev\_init
+>>>> i386/i386at/autoconf.c: probeio: probe mach-managed devices (com, lpr)
 
->>>>>> linux/pcmcia-cs/glue/pcmcia.c: pcmcia\_init
+>>>> i386/i386at/model\_dep.c: inittodr: get RTC time
 
->>>>> i386/i386at/autoconf.c: probeio
+>>>> i386/intel/pmap.c: pmap\_unmap\_page\_zero: unmap address 0
 
->>>>> i386/i386at/model\_dep.c: inittodr
+>>>> kern/mach\_clock.c: mapable\_time\_init: initialize mappable time
 
->>>>> i386/intel/pmap.c: pmap\_unmap\_page\_zero
+>>> kern/task.c: task\_init: initialize gnuamch atsk
 
->>>> kern/task.c: task\_init
+>>>> kern/syscall\_emulation.c: eml\_init: initialize user space emulation code
 
->>>>> kern/syscall\_emulation.c: eml\_init
+>>> kern/thread.c: thread\_init: initialize thread management
 
->>>> kern/thread.c: thread\_init
+>>>> i386/i386/pcb.c: pcb\_module\_init: initialize PCB management
 
->>>>> i386/i386/pcb.c: pcb\_module\_init
+>>>>> i386/i386/fpu.c: fpu\_module\_init: initialize FPU management
 
->>>>>> i386/i386/fpu.c: fpu\_module\_init
+>>> kern/thread\_swap.c: swapper\_init: initialize thread swapper
 
->>>>>> i386/i386/iopb.c: iopb\_init
+>>> kern/sched\_prim.c: recompute\_priorities: initial priorities computation
 
->>>> kern/thread\_swap.c: swapper\_init
+>>> kern/mach\_factor.c: compute\_mach\_factor: initial mach factor computation
 
->>>> kern/sched\_prim.c: recompute\_priorities
+>>> kern/startup.c: thread\_start: create initial kernel thread
 
->>>> kern/mach\_factor.c: compute\_mach\_factor
+>>> kern/startup.c: cpu\_launch\_first\_thread: start first user thread
 
->>>> kern/startup.c: start\_kernel\_threads
+>>>> i386/intel/pmap.h: PMAP\_ACTIVATE\_KERNEL: activate kernel page table
 
-[...]
+>>>> i386/i386at/model\_dep.c: startrtclock: start clock
 
->>>> kern/startup.c: cpu\_launch\_first\_thread
+>>>>> i386/i386/pit.c: clkstart: start 8254 PIT
 
->>>>> i386/i386at/model\_dep.c: startrtclock
+>>>> i386/intel/pmap.h: PMAP\_ACTIVATE\_KERNEL: activate user page table
 
->>>>>> i386/i386/pit.c: clkstart
-
->>>>> i386/intel/pmap.h: PMAP\_ACTIVATE\_KERNEL
-
->>>>> i386/i386/pcb.c: load\_context
+>>>> i386/i386/pcb.c: load\_context: load first context
 
 [...]
 
@@ -224,7 +221,7 @@ License|/fdl]]."]]"""]]
 
 >> [...]
 
->> vm\_pageout
+>> vm\_pageout: run the paging out daemon
 
 >> Does not return.
 
