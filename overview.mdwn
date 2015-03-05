@@ -16,14 +16,15 @@ it is structured.
 
 The GNU/Hurd system uses multiboot, and thus usually booted from grub, which
 loads into memory the GNU Mach kernel, the ext2fs server (see later), and the
-exec server (see later). It then gives hand to GNU Mach, passing the latter as
-payloads.
+exec server (see later). It then gives hand to GNU Mach, passing ext2fs and exec
+as payloads.
 
 # GNU Mach
 
 GNU Mach initializes a basic console, and tasks, memory management and
-interprocess communication.  It also initializes drivers for disk. It then
-creates two tasks for the ext2fs and exec servers.
+interprocess communication (details can be read on
+[[microkernel/mach/gnumach/boot_trace]]).  It also initializes drivers for
+disk. It then creates two tasks for the ext2fs and exec servers.
 
 # ext2fs
 
@@ -32,8 +33,8 @@ opens it through the GNU Mach disk driver, and mounts the filesystem found on
 it. When it is ready, it can start booting the system by starting the "startup",
 "proc", and "auth" servers. It does so by using the "exec" server already loaded
 by GNU Mach: "exec" handles loading the binaries of the three new servers, just
-like it will handle loading binaries in the GNU/Hurd system in general. ext2fs
-then gives hand to "startup".
+like it will handle loading binaries in the GNU/Hurd system in general. We then
+have a posixish environment, ext2fs gives hand to "startup".
 
 # proc
 
@@ -46,7 +47,7 @@ Auth knows about identities: uid, gid, etc.
 
 # startup
 
-"startup" is the real system starting point: it basically runs /sbin/init, at
+"startup" is the unixish system starting point: it basically runs /sbin/init, at
 which point we end up with the standard Unix boot up.
 
 # netdde / pfinet
@@ -54,3 +55,13 @@ which point we end up with the standard Unix boot up.
 At some point of the boot process, networking will have to be configured. This
 is done by starting "pfinet", the TCP/IP stack, from /servers/socket/2, which
 itself starts the network device driver server, "netdde", from /dev/netdde.
+
+# everydaylife
+
+Normal processes use glibc to interact with the system. Depending on the kind of
+call, glibc will perform RPCs with the various servers mentioned above: opening
+files will trigger RPCs with ext2fs, calling getpid() and such will trigger RPCs
+with proc, calling getuid() and such will trigger RPCs with auth, opening a
+network socket will trigger RPCs with pfinet.
+
+One can read the [[details how reading a file happens|hurd/io_path]].
