@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012, 2013, 2014 Free
-Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012, 2013, 2014, 2015
+Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -259,12 +259,13 @@ dereferencing type-punned pointer will break strict-aliasing rules* in the
 MIG-generated stub files; thus no `-Werror` until that is resolved
 ([[strict_aliasing]]).
 
-This takes up around 1.3 GiB, and runs for [[22 min|performance#measure]] on
-kepler.SCHWINGE and [[21 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 1.3 GiB, and runs for [[25 min|performance#measure]] on
+kepler.SCHWINGE and [[15 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
     $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && make -k check 2>&1 | tee log_test
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && LD_PRELOAD=$HOME/fopen,unlink-NULL-wrapper.so make -k check 2>&1 | tee log_test
 
 -->
 
@@ -345,7 +346,7 @@ kepler.SCHWINGE and [[1 min|performance#measure]] on laplace.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This runs for [[26 min|performance#measure]] on kepler.SCHWINGE and [[63
+This runs for [[38 min|performance#measure]] on kepler.SCHWINGE and [[35
 min|performance#measure]] on laplace.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
@@ -355,6 +356,63 @@ open](http://sourceware.org/ml/gdb-patches/2012-10/msg00489.html).  `kill`ing
 these (`SIGKILL` may be needed), makes the `tee` process terminate, too.  On
 GNU/Hurd, these generally are `gdb.base/sigaltstack`, `gdb.base/siginfo`,
 `gdb.multi/watchpoint-multi`, `gdb.threads/watchthreads`.
+
+On laplace.SCHWINGE, running with
+`LD_PRELOAD=$HOME/fopen,unlink-NULL-wrapper.so` to get past [[!message-id
+"87a907b5f3.fsf@kepler.schwinge.homeip.net"]].
+
+    COLLECT_GCC=gcc-4.9 COLLECT_LTO_WRAPPER=/usr/lib/gcc/i586-linux-gnu/4.9/lto-wrapper COMPILER_PATH=gcctestdir/:/usr/lib/gcc/i586-linux-gnu/4.9/:/usr/lib/gcc/i586-linux-gnu/4.9/:/usr/lib/gcc/i586-linux-gnu/:/usr/lib/gcc/i586-linux-gnu/4.9/:/usr/lib/gcc/i586-linux-gnu/ LIBRARY_PATH=gcctestdir/:/usr/lib/gcc/i586-linux-gnu/4.9/:/usr/lib/gcc/i586-linux-gnu/4.9/../../../i386-linux-gnu/:/usr/lib/gcc/i586-linux-gnu/4.9/../../../../lib/:/lib/i386-linux-gnu/:/lib/../lib/:/usr/lib/i386-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/i586-linux-gnu/4.9/../../../:/lib/:/usr/lib/ COLLECT_GCC_OPTIONS='-Wextra -Wall -Wstrict-prototypes -Wmissing-prototypes -Wshadow -D _LARGEFILE_SOURCE -D _FILE_OFFSET_BITS=64 -fmerge-constants -g -O2 -fno-use-linker-plugin -o incremental_test -B gcctestdir/ -v -mtune=generic -march=i586' gdb -q --args /usr/lib/gcc/i586-linux-gnu/4.9/collect2 --sysroot=/ --build-id --eh-frame-hdr -m elf_i386 --hash-style=gnu -dynamic-linker /lib/ld-linux.so.2 -o incremental_test /usr/lib/gcc/i586-linux-gnu/4.9/../../../i386-linux-gnu/crt1.o /usr/lib/gcc/i586-linux-gnu/4.9/../../../i386-linux-gnu/crti.o /usr/lib/gcc/i586-linux-gnu/4.9/crtbegin.o -Lgcctestdir -L/usr/lib/gcc/i586-linux-gnu/4.9 -L/usr/lib/gcc/i586-linux-gnu/4.9/../../../i386-linux-gnu -L/usr/lib/gcc/i586-linux-gnu/4.9/../../../../lib -L/lib/i386-linux-gnu -L/lib/../lib -L/usr/lib/i386-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/i586-linux-gnu/4.9/../../.. --incremental-full incremental_test_1.o incremental_test_2.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib/gcc/i586-linux-gnu/4.9/crtend.o /usr/lib/gcc/i586-linux-gnu/4.9/../../../i386-linux-gnu/crtn.o -debug
+    break __fopen_internal
+    r
+    (possibly) c
+    Breakpoint 1, __fopen_internal (filename=filename@entry=0x0, mode=mode@entry=0x809b4a7 "r", is32=is32@entry=0) at iofopen.c:65
+    65      in iofopen.c
+    (gdb) bt
+    #0  __fopen_internal (filename=filename@entry=0x0, mode=mode@entry=0x809b4a7 "r", is32=is32@entry=0) at iofopen.c:65
+    #1  0xb7e38c1b in _IO_fopen64 (filename=0x0, mode=0x809b4a7 "r") at iofopen64.c:39
+    #2  0x0804c289 in ?? ()
+    #3  0x0804e670 in ?? ()
+    #4  0x0804aa8d in ?? ()
+    #5  0xb7deba73 in __libc_start_main (main=0x804a080, argc=38, argv=0xbfffe6a4, init=0x8098f90, fini=0x8099000, rtld_fini=0xb7fedc90 <_dl_fini>,
+        stack_end=0xbfffe69c) at libc-start.c:287
+    #6  0x0804b3a2 in ?? ()
+    (and another one after that)
+
+Goes away if `-debug` is removed.
+
+    commit 9a65bef918dd14d722ef2a1fec90f527158eabe0
+    Author: rguenth <rguenth@138bc75d-0d04-0410-961f-82ee72b054a4>
+    Date:   Tue Jun 11 08:21:22 2013 +0000
+    
+        2013-06-11  Richard Biener  <rguenther@suse.de>
+        
+            * collect2.c (main): Do not redirect ld stdout/stderr when
+            debugging.
+        
+        
+        git-svn-id: svn+ssh://gcc.gnu.org/svn/gcc/trunk@199936 138bc75d-0d04-0410-961f-82ee72b054a4
+    
+    diff --git gcc/collect2.c gcc/collect2.c
+    index 99dd41d..d3119b0 100644
+    --- gcc/collect2.c
+    +++ gcc/collect2.c
+    @@ -1189,8 +1189,11 @@ main (int argc, char **argv)
+     #ifdef COLLECT_EXPORT_LIST
+       export_file = make_temp_file (".x");
+     #endif
+    -  ldout = make_temp_file (".ld");
+    -  lderrout = make_temp_file (".le");
+    +  if (!debug)
+    +    {
+    +      ldout = make_temp_file (".ld");
+    +      lderrout = make_temp_file (".le");
+    +    }
+
+    id:"alpine.LNX.2.00.1306101358420.26078@zhemvz.fhfr.qr"
+
+Does this also cause:
+
+    [-FAIL:-]{+PASS:+} justsyms
 
 
 ## Analysis
@@ -583,6 +641,15 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
             Backtrace stopped: previous frame inner to this frame (corrupt stack?)
             (gdb) kill
             Kill the program being debugged? (y or n) y
+
+      * `gdb.base/fileio.exp`
+
+            FAIL: gdb.base/fileio.exp: Stat a NULL pathname returns ENOENT or EFAULT
+            FAIL: gdb.base/fileio.exp: Stat an empty pathname returns ENOENT
+            FAIL: gdb.base/fileio.exp: Stat a nonexistant file returns ENOENT (the program is no longer running)
+            FAIL: gdb.base/fileio.exp: [...] (the program is no longer running)
+
+        Is this actually a correct assumption?
 
       * `gdb.base/random-signal.exp`
 
@@ -1025,10 +1092,6 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
         #10 0x0809714b in main (argc=5, argv=0x1bff1f4) at ../../W._C._Handy/gdb/gdb.c:33
 
     TODO.
-
-  * GDB: *Memory at address 0 is possibly executable*, and similar others
-
-    [[!message-id "878ulqqlrr.fsf@schwinge.name"]].
 
 TODO.
 
