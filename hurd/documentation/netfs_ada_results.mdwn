@@ -1,0 +1,88 @@
+[[!meta copyright="Copyright © 2015 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled
+[[GNU Free Documentation License|/fdl]]."]]"""]]
+
+# Netfs Ada experimentations
+
+## Rev 05c2ac288ad2
+
+  * Nothing is implemented in the Netfs\_Implementation package
+  * node is the translator inode in directory .
+
+### ls -la .
+
+  * Leads to a call of Validate\_Stat : line 115 of Netfs\_Implementation package
+  * Returns an error :
+    * bash: cd: node: Not a directory
+
+### ls -la node
+
+  * Returns an error :
+    * ls: cannot access node: Not a directory
+  * Leads also to a call of Validate\_Stat : line 115 of Netfs\_Implementation package
+
+### cd node
+
+  * Returns an error :
+    * bash: cd: node: Not a directory
+  * Validate\_Stat get called three times
+
+## Rev 6052185bf877
+
+  * Only a very simple Validate\_State is implemented
+
+### ls -la .
+
+  * Leads to a call of Validate\_Stat : line 120 of Netfs\_Implementation package then a call to Check\_Open\_Permissions : line 13
+  * Returns this error :
+    * "ls: cannot access node: Not a directory"
+
+### ls -la node
+
+  * Returns an error :
+    * ls: cannot access node: Not a directory
+  * Leads to a call of Validate\_Stat : line 120 of Netfs\_Implementation package then a call to Check\_Open\_Permissions : line 13
+
+### cd node
+
+  * Returns an error :
+    * bash: cd: node: Not a directory
+  * Validate\_Stat then Check\_Open\_Permissions sequence is called three times
+
+## Rev dd3e6b7ea5c7
+
+  * Check\_Open\_Permissions implemented
+
+### ls -la .
+  * No more error : node is displayed as a directory
+  * Sequence call : validate\_state / check\_open\_permissions / validate\_state
+
+### ls -la node
+
+  * Returns an error :
+    * ls: reading directory node: Operation not supported
+  * Call sequence :
+    * validate\_state
+    * check\_open\_permissions
+    * validate\_state
+    * validate\_state
+    * check\_open\_permissions
+    * validate\_state
+    * get\_dirents line 90 of netfs\_implementation package
+
+### cd node
+
+  * Hangs
+  * Call sequence :
+    * Validate\_Stat
+    * Check\_Open\_Permissions
+    * Validate\_Stat
+    * Validate\_Stat
+    * Check\_Open\_Permissions
+    * netfs\_implementation.adb:57 Netfs\_Implementation.Attempt\_Lookup
