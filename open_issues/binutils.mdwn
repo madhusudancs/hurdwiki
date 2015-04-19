@@ -47,8 +47,8 @@ git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefi
 
 -->
 
-Last reviewed up to Git commit 05db5edd7923711a20c6225ea8e15f36e819d140
-(2014-09-16).
+Last reviewed up to Git commit d3e9b40afb8e7bd09522044951cdce4710676c3e
+(2015-04-19).
 
   * Globally
 
@@ -95,6 +95,16 @@ Last reviewed up to Git commit 05db5edd7923711a20c6225ea8e15f36e819d140
       * `configure.tgt`
 
   * `gas/`
+
+      * `config/tc-i386.c`
+
+            #ifdef TE_LINUX
+            /* Default to compress debug sections for Linux.  */
+            int flag_compress_debug = 1;
+            #endif
+
+        This has received quite some criticism, but it has not yet been
+        corrected.
 
       * `config/te-gnu.h`
 
@@ -192,6 +202,26 @@ Last reviewed up to Git commit 05db5edd7923711a20c6225ea8e15f36e819d140
           * `dr_status_mirror` is not really used anywhere.  Get rid of it; or,
             update it everytime the real value is read from the kernel?
 
+      * TODO
+
+              {+set_gdbarch_vsyscall_range (gdbarch, linux_vsyscall_range);+}
+            {+  set_gdbarch_infcall_mmap (gdbarch, linux_infcall_mmap);+}
+
+      * TODO
+
+             diff --git ./gdb/doc/gdb.texinfo ./gdb/doc/gdb.texinfo
+            @@ -17340,6 +17433,24 @@ Access to those variables will generate a compiler error which @value{GDBN}
+            will print to the console.
+            @end table
+            
+            {+@subsection Compiler search for the @code{compile} command+}
+            {+[...]+}
+            {+Specifically @code{PATH} is searched for binaries matching regular expression+}
+            {+@code{@var{arch}(-[^-]*)?-@var{os}-gcc} [...].  @var{os} is currently supported only for+}
+            {+pattern @code{linux(-gnu)?}.+}
+
+      * Check testsuite with check-read1 / READ1=t [./gdb/testsuite/README]
+
   * `libdecnumber/`
 
     Should/can probably align to GNU/Linux.
@@ -211,6 +241,27 @@ Last reviewed up to Git commit 05db5edd7923711a20c6225ea8e15f36e819d140
 
             Compare to `i[3-7]86-*-linux-*`, but don't need a.out (`i386linux`)
             and 64 bit support.
+
+      * Linuxism
+
+         diff --git ./ld/testsuite/ld-i386/i386.exp ./ld/testsuite/ld-i386/i386.exp
+        @@ -263,3 +263,93 @@ run_dump_test "pr12627"
+        {+# Must be Linux native with the C compiler+}
+        {+if { [isnative]+}
+        {+     && [istarget "i?86-*-linux*"]+}
+        +[...]
+
+        {+ PASS: ld-i386/pr17935-1+}
+        {+ PASS: ld-i386/pr17935-2+}
+        {+-PASS: Build plt-lib.so+}
+        {+-PASS: Build libplt-main1.a+}
+        {+-PASS: Build libplt-main2.a+}
+        {+-PASS: Build libplt-main3.a+}
+        {+-PASS: Build libplt-main4.a+}
+        {+-PASS: Build plt-main+}
+        {+-PASS: Build plt-main with PIE+}
+        {+-PASS: Run plt-main+}
+        {+-PASS: Run plt-main with PIE+}
 
   * `__ehdr_start symbol`, c84ed8d89d0b8bf5a2968d465f77ac24bcfc40c2 -- can this
     be helpful in the exec server, glibc, or elsewhere?  Used in GDB (BFD)
@@ -259,8 +310,8 @@ dereferencing type-punned pointer will break strict-aliasing rules* in the
 MIG-generated stub files; thus no `-Werror` until that is resolved
 ([[strict_aliasing]]).
 
-This takes up around 1.3 GiB, and runs for [[25 min|performance#measure]] on
-kepler.SCHWINGE and [[15 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 1.4 GiB, and runs for [[22 min|performance#measure]] on
+kepler.SCHWINGE and [[16 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
@@ -324,6 +375,16 @@ formats, and more emulation vectors.
     check takes a rather long time to determine the result,
     `int,int,long,long`.
 
+  * Something's wrong with Hurd's [[!tag open_issue_glibc]]`rename`?
+
+        -checking whether rename honors trailing slash on destination... yes
+        -checking whether rename honors trailing slash on source... yes
+        +checking whether rename honors trailing slash on destination... no
+        +checking whether rename honors trailing slash on source... no
+
+        -      -e 's|@''REPLACE_RENAME''@|0|g' \
+        +      -e 's|@''REPLACE_RENAME''@|1|g' \
+
 
 # Install
 
@@ -346,7 +407,7 @@ kepler.SCHWINGE and [[1 min|performance#measure]] on laplace.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This runs for [[38 min|performance#measure]] on kepler.SCHWINGE and [[35
+This runs for [[34 min|performance#measure]] on kepler.SCHWINGE and [[45
 min|performance#measure]] on laplace.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
@@ -355,7 +416,7 @@ processes that [have their stdout/stderr
 open](http://sourceware.org/ml/gdb-patches/2012-10/msg00489.html).  `kill`ing
 these (`SIGKILL` may be needed), makes the `tee` process terminate, too.  On
 GNU/Hurd, these generally are `gdb.base/sigaltstack`, `gdb.base/siginfo`,
-`gdb.multi/watchpoint-multi`, `gdb.threads/watchthreads`.
+several `gdb.base/sigstep` ones, and `gdb.threads/watchthreads`.
 
 On laplace.SCHWINGE, running with
 `LD_PRELOAD=$HOME/fopen,unlink-NULL-wrapper.so` to get past [[!message-id
