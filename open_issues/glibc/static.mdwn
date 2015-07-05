@@ -1,0 +1,34 @@
+[[!meta copyright="Copyright © 2015 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_glibc]]
+
+statically-linked executables don't work with i686 libc (which happens to be the default), from the 2015 glibc tarball:
+
+    ../configure --prefix=/ --enable-add-ons=libpthread --enable-pt_chown --disable-nscd CFLAGS=-O2
+    make lib
+    make -C ../mach objdir=$PWD subdir=mach ..=../
+    make -C ../hurd objdir=$PWD subdir=hurd ..=../
+    
+    # create a test.c
+    gcc test.c -o test.o -c
+    gcc test.o -o test -static -v
+
+the last command gives 
+
+    /usr/lib/gcc/i586-gnu/4.9/collect2 -plugin /usr/lib/gcc/i586-gnu/4.9/liblto_plugin.so -plugin-opt=/usr/lib/gcc/i586-gnu/4.9/lto-wrapper -plugin-opt=-fresolution=/tmp/ccBtYgpy.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_eh -plugin-opt=-pass-through=-lc --sysroot=/ --build-id -m elf_i386 --hash-style=gnu -static -o test /usr/lib/gcc/i586-gnu/4.9/../../../i386-gnu/crt0.o /usr/lib/gcc/i586-gnu/4.9/../../../i386-gnu/crti.o /usr/lib/gcc/i586-gnu/4.9/crtbeginT.o -L/usr/lib/gcc/i586-gnu/4.9 -L/usr/lib/gcc/i586-gnu/4.9/../../../i386-gnu -L/usr/lib/gcc/i586-gnu/4.9/../../.. -L/lib/i386-gnu -L/usr/lib/i386-gnu test.o --start-group -lgcc -lgcc_eh -lc --end-group /usr/lib/gcc/i586-gnu/4.9/crtend.o /usr/lib/gcc/i586-gnu/4.9/../../../i386-gnu/crtn.o
+    
+thus using the following to statically link against the just-build glibc:
+
+    BUILD=/path/to/glibc-2.19-hurd+libpthread-20150515/build /usr/lib/gcc/i586-gnu/4.9/collect2 -plugin /usr/lib/gcc/i586-gnu/4.9/liblto_plugin.so -plugin-opt=/usr/lib/gcc/i586-gnu/4.9/lto-wrapper -plugin-opt=-fresolution=/tmp/ccDjhjdt.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_eh -plugin-opt=-pass-through=-lc --sysroot=/ --build-id -m elf_i386 --hash-style=gnu -static -o test $BUILD/csu/crt0.o $BUILD/csu/crti.o /usr/lib/gcc/i586-gnu/4.9/crtbeginT.o -L/usr/lib/gcc/i586-gnu/4.9 -L/usr/lib/gcc/i586-gnu/4.9/../../../i386-gnu -L/usr/lib/gcc/i586-gnu/4.9/../../.. -L/lib/i386-gnu -L/usr/lib/i386-gnu test.o --start-group -lgcc -lgcc_eh $BUILD/libc.a $BUILD/hurd/libhurduser.a $BUILD/mach/libmachuser.a --end-group /usr/lib/gcc/i586-gnu/4.9/crtend.o $BUILD/csu/crtn.o 
+
+And then ./test gets killed early during libc initialization.
+
+Passing --host=i586-gnu --build=i586-gnu fixes the kill, so the issue is most probably in some i686-specific file.
