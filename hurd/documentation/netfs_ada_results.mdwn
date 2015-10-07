@@ -183,3 +183,95 @@ is included in the section entitled
 ### ls node/path\ 2
   * OK
     * needed to fix a missing update in the child node (because update was done only on get_dirents call)
+
+### cat node/path\ 2/leaf\ 1
+  * NOK
+    * Call sequence
+      * Validate\_Stat
+      * Check\_Open\_Permissions
+      * Attempt\_Lookup
+      * Validate\_Stat
+      * Attempt\_Lookup
+      * Validate\_Stat
+      * Check\_Open\_Permissions
+      * Validate_Stat
+      * netfs\_implementation.adb:113 Netfs\_Implementation.Attempt\_Read
+    * need for attemp\_read implementation
+
+## Rev 3126bd9ce609
+
+  * Read is implemented
+  * next step : write
+
+### echo "elle souffle" > node/path\ 2/leaf\ 1
+  * NOK
+    * command result - bash: node/path 2/leaf 1: Permission denied
+    * Call sequence
+      * Validate\_Stat
+      * Check\_Open\_Permissions
+      * Attempt_Lookup path 2                                                                                                                                                                                                                     * Validate\_Stat
+      * Attempt\_Lookup leaf 1                                                                                                                                                                                                                    * Validate\_Stat
+      * Validate_Stat
+      * Check\_Open\_Permissions - Check failed WRITE 1073741837
+
+## Rev 242f59899045
+
+  * nore are xcreated with 0755 permission
+
+### echo "elle souffle" > node/path\ 2/leaf\ 1
+  * NOK
+    * command result - bash: node/path 2/leaf 1: Operation not supported
+    * Call sequence
+      * Validate\_Stat
+      * Check\_Open\_Permissions
+      * Attempt_Lookup path 2                                                                                                                                                                                                                     * Validate\_Stat
+      * Attempt\_Lookup leaf 1                                                                                                                                                                                                                    * Validate\_Stat
+      * Validate_Stat
+      * Check\_Open\_Permissions
+      * netfs\_implementation.adb:366 Netfs\_Implementation.Attempt\_Set\_Size : not yet implemented
+
+## Rev dceb291aaf1c
+
+  * Set_Size minimal implementation
+
+### echo "elle souffle" > node/path\ 2/leaf\ 1
+  * NOK
+    * command result - bash: node/path 2/leaf 1: Operation not supported
+    * Call sequence
+      * Validate\_Stat
+      * Check\_Open\_Permissions
+      * Attempt_Lookup path 2                                                                                                                                                                                                                     * Validate\_Stat
+      * Attempt\_Lookup leaf 1                                                                                                                                                                                                                    * Validate\_Stat
+      * Validate_Stat
+      * Check\_Open\_Permissions
+      * Attempt\_Set\_Size
+      * netfs_implementation.adb:481 Netfs\_Implementation.Attemp\_Write
+
+## Rev 93311515a6c2
+
+  * Attempt_Write is implemented
+
+### echo "elle souffle" > node/path\ 2/leaf\ 1
+  * OK
+
+## Rev 8395215263d3
+
+  * Test of mkdir
+
+### mkdir node/toto
+
+  * NOK
+    * command result - mkdir: cannot create directory ‘node/toto’: Operation not supported
+  * Call sequence
+    * Validate\_Stat
+    * Check\_Open\_Permissions
+    * netfs_implementation.adb:421 Netfs_Implementation.Attempt_Mkdir
+
+## Rev 3425f5c837fb
+
+  * mkdir implementation
+
+### mkdir node/toto
+
+  * OK
+  * need to create leaf now : write to an inexistent file

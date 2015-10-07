@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2013, 2014 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2013, 2014, 2015 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -13,21 +14,41 @@ License|/fdl]]."]]"""]]
 
 # Packages
 
-  * apache2-mpm-prefork (used to be apache2-mpm-worker but changed because of some threading issues with CGI)
+  * apache2
 
-  * ikiwiki libcgi-session-perl libtext-csv-perl libcgi-formbuilder-perl
-    libauthen-passphrase-perl libnet-openid-consumer-perl
-    libterm-readline-gnu-perl libgravatar-url-perl
-    librpc-xml-perl libtext-wikiformat-perl libhighlight-perl perlmagick
-    graphviz texinfo
+    Installation done by Richard.
+
+  * ikiwiki
+
+    Modified package, `ikiwiki_3.20140227_all.deb`, which contains some patch
+    (not yet in a suitable form for upstream) to get rendering of our news
+    pages correct (correct?).  Thus, set the package to `hold` with `dpkg
+    --set-selections`.  To avoid [garbled non-ascii characters in body in web
+    interface](https://ikiwiki.info/bugs/garbled_non-ascii_characters_in_body_in_web_interface/),
+    manually `patch /usr/share/perl5/IkiWiki/CGI.pm` with upstream commits
+    feb21ebfacb341fc34244e1c9b8557fd81d1dfc1, and
+    f35c6a97d1837a37879996211bd6f3c8eb356df9 ([[!debbug 776181]]).
+
+      * libcgi-session-perl libtext-csv-perl libcgi-formbuilder-perl
+        libauthen-passphrase-perl libnet-openid-consumer-perl
+        libterm-readline-gnu-perl libgravatar-url-perl librpc-xml-perl
+        libtext-wikiformat-perl libhighlight-perl perlmagick graphviz texinfo
 
       * libemail-send-perl (for my *sendmail vs. ikiwiki* patch)
+
+        2015-10-05:
+
+            E: Package 'libemail-send-perl' has no installation candidate
+
+          * <http://snapshot.debian.org/package/libreturn-value-perl/1.666004-1/#libreturn-value-perl_1.666004-1>
+          * <http://snapshot.debian.org/package/libemail-send-perl/2.199-1/#libemail-send-perl_2.199-1>
 
       * libsearch-xapian-perl xapian-omega (for ikiwiki's search plugin)
 
       * libyaml-perl libyaml-syck-perl (for ikiwiki's YAML field plugins)
 
-      * libtext-markdown-perl (used instead of libtext-markdown-discount-perl)
+      * libtext-markdown-perl (used instead of libtext-markdown-discount-perl,
+        but the latter still needs to be installed)
 
     Make sure that liblwpx-paranoidagent-perl is not installed; OpenID logins
     with fail otherwise: *no_identity_server: Could not determine ID provider
@@ -35,9 +56,11 @@ License|/fdl]]."]]"""]]
     actually occur.  Nothing in the apache logs.  Not fixed by the update to
     ikiwiki 3.20140227.
 
-  * gitweb highlight
+  * gitweb
 
-        sudo ln -s ~hurd-web/hurd-web.git /var/lib/git/
+    So one can view diffs of the wiki pages, etc.
+
+        $ sudo ln -s ~hurd-web/hurd-web.git /var/lib/git/
 
   * git-daemon-sysvinit
 
@@ -47,7 +70,29 @@ License|/fdl]]."]]"""]]
 
 # `~hurd-web/`
 
+<http://darnassus.sceen.net/~hurd-web/>, and Git access: push to/pull from
+`darnassus:~hurd-web/hurd-web.git`.
+
+
+## Setup
+
     $ mkdir hurd-web.git && GIT_DIR=hurd-web.git git init
+    [...]
+
+Configure the [`post-update` hook](http://ikiwiki.info/post-commit/):
+
+    $ ln -is ../../public_html.workspace.update hurd-web.git/hooks/post-update
+
+For a full rebuild:
+
+    $ ./public_html.workspace.generate\ wrappers --rebuild
+
+May want to clean up `~hurd-web/public_html.workspace/.ikiwiki/` before that.
+/!\ But preserve the `userdb` file.
+
+As a user with appropriate permissions, then install the CGI file:
+
+    $ sudo mv ~hurd-web/public_html.workspace.cgi /usr/lib/cgi-bin/hurd-web
 
 
 # `~tschwinge/`
@@ -102,65 +147,10 @@ The goal is that robots rather index the official pages,
     <tschwinge> braunr: http://www.gnu.org/software/hurd/public_hurd_boxen.html
     <tschwinge> snubber
     <tschwinge> That was the web server.
-    <braunr> isn't it gnu.org ?
     <tschwinge> And flubber had the repository for developers to push to.
-    <tschwinge> No, gnu.org is updated manually (by me).
-    <braunr> ah
-    <tschwinge> It'S a snapshot of the wiki so to say.
-    <braunr> ok so, is this wiki really meant to be modifiable from a browser ?
-    <tschwinge>
-      http://www.gnu.org/software/hurd/contributing/web_pages.html#index5h2
-    <tschwinge> Yes.
-    <braunr> i see
-    <tschwinge> I should still be able to access the data from Barry's zenhost
-      (including all the VMs it hosted), so I should be able to replicate that
-      quite easily.
-    <braunr> do you think it could be hosted on darnassus, or would you like a
-      separate vm ?
     <tschwinge> The repository for people to push to and pull from (used to be
       on flubber) would be on darnassus now.
-    <tschwinge> About the web server, hmm.
-    <tschwinge> It's basically a security concern.
-    <tschwinge> And it might get hammered by bots from time to time.
-    <braunr> it won't need much resources i suppose
-    <tschwinge> No.  The web server (snubber) was running with 242 MiB of RAM,
-      and had uptimes of several weeks typically.
-    <braunr> tschwinge: otherwise, could it use the web server running on the
-      host ?
-    <tschwinge> The host being darnassus?
-    <braunr> no
-    <braunr> shattrath, the linux system
-    <tschwinge> Ah.
-    <tschwinge> Sure.
-    <tschwinge> There is no requirement this to be a Hurd system -- was just
-      nice to show to people.
-    <braunr> i think it is too
-    <braunr> what's the problem with darnassus ?
-    <braunr> yçou mentioned security
-    <tschwinge> The web server being a public-facing component which might be
-      broken into.
-    <braunr> how ?
-    <braunr> it's so much easier to just ask for an account .. :)
-    <tschwinge> Web server bugs, CGI script bugs, etc.
-    <tschwinge> Sure.
-    <tschwinge> I just wanted to make you aware of it.  :-)
-    <braunr> oh don't worry
-    <braunr> ok so darnassus it is
-    <pinotree> was it running apache? maybe, if other (lighter?) web servers
-      are tested to work on hurd, they could be used
-    <tschwinge> pinotree: Yes, and yes.
-    <braunr> doesn't ikiwiki need php ?
-    <tschwinge> Only requirement (I think) is abaility to run CGI scripts.
-    <tschwinge> braunr: No.  It's written in perl.
-    <braunr> ok
-    <braunr> i still think i'll use apache
-    <braunr> it's really not that heavy
-    <braunr> lighter servers matter when the number of concurrent clients get
-      very high
-    <tschwinge> Then I'll figure out how exactly the setup was between flubber
-      and snubber.
-    <braunr> ok
-    <braunr> it's good to finally get that going :)
+
     <tschwinge> braunr: Of course ;-) -- I had some parts of the process
       documented:
       http://www.gnu.org/software/hurd/public_hurd_boxen/installation/snubber.html
@@ -169,19 +159,7 @@ The goal is that robots rather index the official pages,
     <tschwinge> Still trying to figure out what I had done there...  ;-)
     <tschwinge> OK, I again understand the setup.  Last been touched in the
       2008/2009 timeframe.  ;-)
-    <braunr> :)
-    <tschwinge> braunr: Please use the following ikiwiki packages: dpkg -i
-      ~tschwinge/tmp/ikiwiki_3.20110608_all.deb
-    <braunr> what makes this package special ?
-    <tschwinge> Some patch that I added to get rendering of our news pages
-      correct.
-    <braunr> ok
-    <tschwinge> I have not updated it ever since (and the patch was not yet in
-      a suitable form for upstream).
-    <tschwinge> Nothing major.
-    <braunr> tschwinge: why is the ikiwiki package status hi ?
-    <tschwinge> braunr: I set it to hold.
-    <braunr> ah ok
+
     <braunr> so you finished your pat i suppose
     <braunr> i'll install apache
     <braunr> part*
@@ -226,24 +204,3 @@ The goal is that robots rather index the official pages,
       will render the pages accordingly.
     <tschwinge> OK.
     <braunr> and just named hurd-web
-
-
-## IRC, freenode, #hurd, 2013-02-10
-
-    <tschwinge> http://darnassus.sceen.net/~hurd-web/
-    <tschwinge> Have at it!
-    <tschwinge> braunr: ^
-    <braunr> :)
-    <braunr> great
-    <tschwinge> And push to/pull from darnassus:~hurd-web/hurd-web.git for Git
-      access.
-    <tschwinge> Will update the web pages tomorrow, and all that.
-    <tschwinge> braunr: And also install gitweb on darnassus, so one can view
-      diffs of the wiki pages, etc.  OK?
-    <braunr> tschwinge: there are still links towards bddebian
-    <braunr> history for example
-    <braunr> just fyi, we can look at this tomorrow
-    <tschwinge> braunr: Yes, that'S what I need gitweb for.
-    <tschwinge> braunr: gitweb installed, hurd-web URLs fixed
-      (s%bddebian%darnassus), also some more ikiwiki-related Perl pacakges
-      installed (openID login, for example).
