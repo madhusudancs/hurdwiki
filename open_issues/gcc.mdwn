@@ -643,7 +643,7 @@ Last reviewed up to the [[Git mirror's 3a930d3fc68785662f5f3f4af02474cb21a62056
 Here's a log of a GCC build run; this is from our [[Git repository's
 2a3496bebfe9d89f11d0b7a591afac55e11d5263 (2013-06-06;
 3a930d3fc68785662f5f3f4af02474cb21a62056 (2013-06-06))
-sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
+sources|source_repositories/gcc]], run on kepler.SCHWINGE and laplace.SCHWINGE.
 
     $ export LC_ALL=C
     $ (cd ../master/ && contrib/gcc_update --touch)
@@ -655,11 +655,11 @@ sources|source_repositories/gcc]], run on kepler.SCHWINGE and coulomb.SCHWINGE.
 Different hosts may default to different shells and compiler versions; thus
 harmonized.
 
-We're stuck with GCC 4.6 until there are Debian *gnat-4.7*/*gnat-4.8* packages
-avaible.
+We're stuck with GCC 4.6 until there are Debian
+*gnat-4.7*/*gnat-4.8*/*gnat-4.9* packages avaible.  (Which there now are.)
 
-This takes up around 3.5 GiB, and needs roughly 3.5 h on kepler.SCHWINGE and
-15.25 h on coulomb.SCHWINGE.
+This takes up around 3.5 GiB, and runs for [[3 h 22 min|performance#measure]]
+on kepler.SCHWINGE and [[3 h 44 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
@@ -778,8 +778,9 @@ This takes up around 3.5 GiB, and needs roughly 3.5 h on kepler.SCHWINGE and
         +: make ; exec make "AR_FLAGS=rc" [...] "RANLIB=ranlib" "DESTDIR=" "JAR=jar" DO=all multi-do
 
     Probably because kepler.SCHWINGE has an OpenJDK `/usr/bin/jar`, and
-    coulomb.SCHWINGE a GCJ one.
-
+    laplace.SCHWINGE a GCJ one.
+    2013-12-01: Yes: uninstalled OpenJDK on kepler.SCHWINGE, and it changed to
+    `JAR=jar`.
     There are other instances of this in the following.
 
   * `value-unwind.h`
@@ -805,23 +806,14 @@ This takes up around 3.5 GiB, and needs roughly 3.5 h on kepler.SCHWINGE and
   * `libatomic` on GNU/Linux compiles several more files than on GNU/Hurd.  Is
     that correct?  Probably futex support.
 
-  * 2e2db3f92b534460c68c2f9ae64455884424beb6..3336556d2cb32f46322922a83015f760cfb79d8f
-
-    Both GNU/Linux and GNU/Hurd:
-
-        -checking assembler for rep and lock prefix... yes
-        +checking assembler for rep and lock prefix... no
-
-    TODO.
-
 
 # Install
 
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 1.1 GiB, and needs roughly 5 min on kepler.SCHWINGE and 37
-min on coulomb.SCHWINGE.
+This takes up around 1.1 GiB, and runs for [[3 min|performance#measure]] on
+kepler.SCHWINGE and [[12 min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
@@ -843,54 +835,11 @@ min on coulomb.SCHWINGE.
 
 <http://gcc.gnu.org/install/test.html>
 
-kepler.SCHWINGE:
-
     $ make -k check 2>&1 | tee log_test
     [...]
 
-coulomb.SCHWINGE:
-
-    $ awk '/^maybe-check-target/ { next; }; /^maybe-check-[^:]*:./ { print; };' < Makefile
-    maybe-check-fixincludes: check-fixincludes
-    maybe-check-gcc: check-gcc
-    maybe-check-intl: check-intl
-    maybe-check-libbacktrace: check-libbacktrace
-    maybe-check-libcpp: check-libcpp
-    maybe-check-libdecnumber: check-libdecnumber
-    maybe-check-libiberty: check-libiberty
-    maybe-check-zlib: check-zlib
-    maybe-check-gnattools: check-gnattools
-    maybe-check-lto-plugin: check-lto-plugin
-    $ grep ^CHECK_TARGETS < gcc/Makefile
-    CHECK_TARGETS =  check-ada check-c check-c++ check-fortran check-java check-lto check-objc
-
-    $ export LC_ALL=C
-
-    [reboot]
-    $ make -k check-fixincludes 2>&1 | tee log_test_1_check-fixincludes
-    [...]
-    $ make -k -C gcc check-ada 2>&1 | tee log_test_2_gcc_check-ada
-    [...]
-    [reboot]
-    $ make -k -C gcc check-c 2>&1 | tee log_test_2_gcc_check-c
-    [...]
-    [reboot]
-    $ make -k -C gcc check-c++ 2>&1 | tee log_test_2_gcc_check-c++
-    [...]
-    [reboot]
-    $ make -k -C gcc check-fortran check-java check-lto check-objc 2>&1 | tee log_test_2_gcc_check-fortran,check-java,check-lto,check-objc
-    [...]
-    [reboot]
-    $ make -k check-intl check-libbacktrace check-libcpp check-libdecnumber check-libiberty check-zlib check-gnattools check-lto-plugin 2>&1 | tee log_test_3
-    [...]
-    $ make -k check-target 2>&1 | tee log_test_4_check-target
-    [...]
-
-This needs roughly 7.5 h on kepler.SCHWINGE and 3.75 h (`check-fixincludes`,
-`gcc/check-ada`) + 14 h (`gcc/check-c`) + 4.5 h (`gcc/check-c++`) + 7.25 h
-(`gcc/check-fortran`, `gcc/check-java`, `gcc/check-lto`, `gcc/check-objc`) +
-10.25 h (`check-intl`, [...], `check-lto-plugin`, `check-target`) = 39.75 h on
-coulomb.SCHWINGE.
+This runs for [[7 h 35 min|performance#measure]] on kepler.SCHWINGE and [[15 h
+46 min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
@@ -914,22 +863,6 @@ coulomb.SCHWINGE.
 
         Also multiversioning, `g++.dg/ext/mv*`, for example (several of which
         started FAILing (ICE) on kepler.SCHWINGE).
-
-      * SSE2 (`sse2_runtime`)
-
-        `g++.dg/other/i386-1.C`, `g++.dg/other/pr40446.C`,
-        `g++.dg/other/pr49133.C`, `gcc.dg/compat/union-m128-1_main.c`,
-        `gcc.dg/compat/vector-1a_main.c`, `gcc.dg/compat/vector-2a_main.c`,
-        `gcc.dg/pr36584.c`, `gcc.dg/pr37544.c`, `gcc.dg/torture/pr16104-1.c`,
-        `gcc.dg/torture/pr35771-1.c`, `gcc.dg/torture/pr50444.c`,
-        `gcc.dg/torture/stackalign/alloca-2.c`,
-        `gcc.dg/torture/stackalign/alloca-3.c`,
-        `gcc.dg/torture/stackalign/push-1.c`,
-        `gcc.dg/torture/stackalign/vararg-3.c`, `gcc.target/i386/pr39315-2.c`,
-        `gcc.target/i386/pr39315-4.c`, `gcc.target/i386/pr44948-2a.c`,
-        `gcc.target/i386/pr46880.c`, `gcc.target/i386/pr52736.c`,
-        `gcc.target/i386/pr54703.c`, `gcc.target/i386/sse2-extract-1.c`,
-        several from `gfortran.fortran-torture`
 
       * [[`asan.exp`|_san]]
 
@@ -978,24 +911,6 @@ coulomb.SCHWINGE.
 
     TODO.
 
-        FAIL: g++.dg/tls/thread_local3.C -std=gnu++11 execution test
-        FAIL: g++.dg/tls/thread_local3g.C -std=gnu++11 execution test
-        FAIL: g++.dg/tls/thread_local4.C -std=gnu++11 execution test
-        FAIL: g++.dg/tls/thread_local4g.C -std=gnu++11 execution test
-        FAIL: g++.dg/tls/thread_local5.C -std=gnu++11 execution test
-        FAIL: g++.dg/tls/thread_local5g.C -std=gnu++11 execution test
-
-    They used to PASS, but FAIL as of
-    769bf18a20ee2540ca7601cdafabd62b18b9751b..be3860ba8df48cca3253da4f02fd2d42d856ce80.
-    TODO.
-
-        -PASS: g++.dg/vect/pr36648.cc -std=c++98 execution test
-        -PASS: g++.dg/vect/pr36648.cc -std=c++11 execution test
-
-    On kepler.SCHWINGE, executables are generated (and run), on
-    coulomb.SCHWINGE only assembler code is generated.  TODO.  Likewise for
-    execution tests from `gcc.dg/vect` and `gfortran.dg/vect`.
-
   * `gcc`, `g++`
 
         FAIL: gcc.dg/cleanup-10.c execution test
@@ -1028,7 +943,7 @@ coulomb.SCHWINGE.
     As of dcdba5abca23716daa6aeb5c92f367e0978e4539 (2013-05-27;
     0479dc77cf50ee78769b55563051cf72d39b3d60 (2013-05-27)), plus
     `id:"87txlnlg0z.fsf@kepler.schwinge.homeip.net"`, about a dozen of them
-    (but different ones per each run) FAIL on coulomb.SCHWINGE:
+    (but different ones per each run) FAIL on laplace.SCHWINGE:
 
         spawn [open ...]
         
