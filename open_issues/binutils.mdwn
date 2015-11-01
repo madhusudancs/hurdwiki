@@ -305,13 +305,11 @@ Different hosts may default to different shells and compiler versions; thus
 harmonized.  Debian GCC (which is used in the testsuite) likes to pass
 `-plugin [...]` and `--sysroot=/` to `ld`,
 so we need to configure with support for plugins and
-sysroots.  In the GDB build, there are several occurences of *error:
-dereferencing type-punned pointer will break strict-aliasing rules* in the
-MIG-generated stub files; thus no `-Werror` until that is resolved
-([[strict_aliasing]]).
+sysroots.  In the GDB build, there are compiler diagnostics reported in the
+MIG-generated stub files; thus no `-Werror` until that is resolved.
 
-This takes up around 1.4 GiB, and runs for [[22 min|performance#measure]] on
-kepler.SCHWINGE and [[16 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 1.4 GiB, and runs for [[23 min|performance#measure]] on
+kepler.SCHWINGE and [[19 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
@@ -352,14 +350,19 @@ formats, and more emulation vectors.
 
     `-Wmissing-prototypes`
 
-        notify_S.c:305:24: warning: no previous prototype for 'notify_server' []
-        notify_S.c:341:28: warning: no previous prototype for 'notify_server_routine' []
-        process_reply_S.c:343:24: warning: no previous prototype for 'process_reply_server' []
-        process_reply_S.c:379:28: warning: no previous prototype for 'process_reply_server_routine' []
-        msg_reply_S.c:165:24: warning: no previous prototype for 'msg_reply_server' []
-        msg_reply_S.c:201:28: warning: no previous prototype for 'msg_reply_server_routine' []
-        exc_request_S.c:157:24: warning: no previous prototype for 'exc_server' []
-        exc_request_S.c:193:28: warning: no previous prototype for 'exc_server_routine' []
+    On 2015-10-30 noticed that the following are gone:
+
+        notify_S.c:341:28: warning: no previous prototype for 'notify_server_routine' [-Wmissing-prototypes]
+        process_reply_S.c:379:28: warning: no previous prototype for 'process_reply_server_routine' [-Wmissing-prototypes]
+        msg_reply_S.c:201:28: warning: no previous prototype for 'msg_reply_server_routine' [-Wmissing-prototypes]
+        exc_request_S.c:193:28: warning: no previous prototype for 'exc_server_routine' [-Wmissing-prototypes]
+
+    ... however these still remain:
+
+        notify_S.c:305:24: warning: no previous prototype for 'notify_server' [-Wmissing-prototypes]
+        process_reply_S.c:343:24: warning: no previous prototype for 'process_reply_server' [-Wmissing-prototypes]
+        msg_reply_S.c:165:24: warning: no previous prototype for 'msg_reply_server' [-Wmissing-prototypes]
+        exc_request_S.c:157:24: warning: no previous prototype for 'exc_server' [-Wmissing-prototypes]
 
   * `O_NOFOLLOW`
 
@@ -407,7 +410,7 @@ kepler.SCHWINGE and [[1 min|performance#measure]] on laplace.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This runs for [[34 min|performance#measure]] on kepler.SCHWINGE and [[45
+This runs for [[40 min|performance#measure]] on kepler.SCHWINGE and [[56
 min|performance#measure]] on laplace.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
