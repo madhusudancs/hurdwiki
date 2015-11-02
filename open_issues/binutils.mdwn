@@ -47,8 +47,8 @@ git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefi
 
 -->
 
-Last reviewed up to Git commit 110f91128cf3e047eb1e04d346c27d71cc33fb9c
-(2015-04-19).
+Last reviewed up to Git commit ef8b8d4ad51c2b90e022c5442f60b39f05e38ef6
+(2015-06-19).
 
   * Globally
 
@@ -220,6 +220,20 @@ Last reviewed up to Git commit 110f91128cf3e047eb1e04d346c27d71cc33fb9c
             {+@code{@var{arch}(-[^-]*)?-@var{os}-gcc} [...].  @var{os} is currently supported only for+}
             {+pattern @code{linux(-gnu)?}.+}
 
+      * GDB got support for Linux namespaces: *able to access executable and
+        shared library files without a "set sysroot" command when attaching to
+        processes running in different mount namespaces from the debugger.
+        This makes it possible to attach to processes in containers as simply
+        as "gdb -p PID" or "gdbserver --attach PID"*.  Similar support might be
+        useful for [[hurd/subhurd]]s?
+
+      * gdbarch `infcall_munmap`
+
+            default_infcall_munmap (CORE_ADDR addr, CORE_ADDR size)
+            {
+              /* Memory reserved by inferior mmap is kept leaked.  */
+            }
+
       * Check testsuite with check-read1 / READ1=t [./gdb/testsuite/README]
 
   * `libdecnumber/`
@@ -262,6 +276,15 @@ Last reviewed up to Git commit 110f91128cf3e047eb1e04d346c27d71cc33fb9c
         {+-PASS: Build plt-main with PIE+}
         {+-PASS: Run plt-main+}
         {+-PASS: Run plt-main with PIE+}
+
+        diff --git ./ld/testsuite/ld-i386/i386.exp ./ld/testsuite/ld-i386/i386.exp
+        {+if { !([istarget "i?86-*-linux*"]+}
+        {+       || [istarget "x86_64-*-linux*"]) } {+}
+        {+    return+}
+        {+}+}
+        
+        {+# Linux only tests+}
+        {+run_dump_test "pltgot-1"+}
 
   * `__ehdr_start symbol`, c84ed8d89d0b8bf5a2968d465f77ac24bcfc40c2 -- can this
     be helpful in the exec server, glibc, or elsewhere?  Used in GDB (BFD)
@@ -308,8 +331,8 @@ so we need to configure with support for plugins and
 sysroots.  In the GDB build, there are compiler diagnostics reported in the
 MIG-generated stub files; thus no `-Werror` until that is resolved.
 
-This takes up around 1.4 GiB, and runs for [[23 min|performance#measure]] on
-kepler.SCHWINGE and [[19 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 1.4 GiB, and runs for [[21 min|performance#measure]] on
+kepler.SCHWINGE and [[20 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
@@ -394,7 +417,7 @@ formats, and more emulation vectors.
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 200 MiB, and runs for [[1 min|performance#measure]] on
+This takes up around 210 MiB, and runs for [[1 min|performance#measure]] on
 kepler.SCHWINGE and [[1 min|performance#measure]] on laplace.SCHWINGE.
 
 
@@ -410,7 +433,7 @@ kepler.SCHWINGE and [[1 min|performance#measure]] on laplace.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This runs for [[40 min|performance#measure]] on kepler.SCHWINGE and [[56
+This runs for [[31 min|performance#measure]] on kepler.SCHWINGE and [[56
 min|performance#measure]] on laplace.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
