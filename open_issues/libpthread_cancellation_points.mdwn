@@ -1,4 +1,4 @@
-[[!meta copyright="Copyright © 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2013, 2015 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -137,3 +137,79 @@ the mig msg call either.
 ### IRC, freenode, #hurd, 2013-04-16
 
     <braunr> youpi: yes, we said some time ago that it was lacking
+
+
+# `userspace-rcu`
+
+With `2.13-39+hurd.3.rbraun.1` (that is, `2.13-39+hurd.3` plus
+`hurd-i386/0001-Mask-options-implemented-by-the-userspace-side-of-ma.patch.`)
+installed.
+
+During `make check` of the `userspace-rcu` package.
+
+    [...]
+    ./test_urcu_gc 4 4 10 -d 0 -b 4096
+    [hangs]
+
+    (gdb) thread apply all bt
+    
+    Thread 5 (Thread 14933.5):
+    #0  0x0106785c in mach_msg_trap () at /home/rbraun/devel/debian/packages/eglibc/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    #1  0x01068074 in __mach_msg (msg=0x27fff2c, option=3, send_size=24, rcv_size=32, rcv_name=120, timeout=0, notify=0) at msg.c:115
+    #2  0x011ed35c in __thread_suspend (target_thread=115) at /home/rbraun/devel/debian/packages/eglibc/eglibc-2.13/build-tree/hurd-i386-libc/mach/RPC_thread_suspend.c:84
+    #3  0x01045016 in __pthread_thread_halt (thread=0x80744a8) at ../libpthread/sysdeps/mach/pt-thread-halt.c:43
+    #4  0x01041365 in __pthread_exit (status=0x2) at ./pthread/pt-exit.c:118
+    #5  0x01040e78 in entry_point (start_routine=0x80494b0 <thr_writer>, arg=0x3) at ./pthread/pt-create.c:50
+    #6  0x00000000 in ?? ()
+    
+    Thread 4 (Thread 14933.4):
+    #0  0x0106785c in mach_msg_trap () at /home/rbraun/devel/debian/packages/eglibc/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    #1  0x01068074 in __mach_msg (msg=0x25fff2c, option=3, send_size=24, rcv_size=32, rcv_name=119, timeout=0, notify=0) at msg.c:115
+    #2  0x011ed35c in __thread_suspend (target_thread=113) at /home/rbraun/devel/debian/packages/eglibc/eglibc-2.13/build-tree/hurd-i386-libc/mach/RPC_thread_suspend.c:84
+    #3  0x01045016 in __pthread_thread_halt (thread=0x8073aa8) at ../libpthread/sysdeps/mach/pt-thread-halt.c:43
+    #4  0x01041365 in __pthread_exit (status=0x2) at ./pthread/pt-exit.c:118
+    #5  0x01040e78 in entry_point (start_routine=0x80494b0 <thr_writer>, arg=0x2) at ./pthread/pt-create.c:50
+    #6  0x00000000 in ?? ()
+    
+    Thread 3 (Thread 14933.3):
+    #0  0x0106785c in mach_msg_trap () at /home/rbraun/devel/debian/packages/eglibc/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    #1  0x01068074 in __mach_msg (msg=0x23ffe34, option=1282, send_size=0, rcv_size=40, rcv_name=122, timeout=10, notify=0) at msg.c:115
+    #2  0x0106ece3 in _hurd_select (nfds=0, pollfds=0x0, readfds=0x0, writefds=0x0, exceptfds=0x0, timeout=0x23ffefc, sigmask=0x0) at hurdselect.c:382
+    #3  0x0115875b in __poll (fds=fds@entry=0x0, nfds=nfds@entry=0, timeout=timeout@entry=10) at ../sysdeps/mach/hurd/poll.c:48
+    #4  0x0804a1bc in urcu_adaptative_busy_wait (wait=0x23fff48) at ../urcu-wait.h:164
+    #5  synchronize_rcu_mb () at ../urcu.c:329
+    #6  0x0804946c in rcu_gc_clear_queue (wtidx=wtidx@entry=1) at test_urcu_gc.c:241
+    #7  0x080495e6 in rcu_gc_reclaim (old=<optimized out>, wtidx=1) at test_urcu_gc.c:264
+    #8  thr_writer (data=0x1) at test_urcu_gc.c:295
+    #9  0x01040e70 in entry_point (start_routine=0x80494b0 <thr_writer>, arg=0x1) at ./pthread/pt-create.c:50
+    #10 0x00000000 in ?? ()
+    
+    Thread 2 (Thread 14933.2):
+    #0  0x0106785c in mach_msg_trap () at /home/rbraun/devel/debian/packages/eglibc/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    #1  0x01068074 in __mach_msg (msg=0x17fdf30, option=3, send_size=32, rcv_size=4096, rcv_name=95, timeout=0, notify=0) at msg.c:115
+    #2  0x01068799 in __mach_msg_server_timeout (demux=0x1079150 <msgport_server>, max_size=4096, rcv_name=95, option=0, timeout=0) at msgserver.c:151
+    #3  0x0106886b in __mach_msg_server (demux=0x1079150 <msgport_server>, max_size=4096, rcv_name=95) at msgserver.c:196
+    #4  0x0107911f in _hurd_msgport_receive () at msgportdemux.c:68
+    #5  0x01040e70 in entry_point (start_routine=0x10790b0 <_hurd_msgport_receive>, arg=0x0) at ./pthread/pt-create.c:50
+    #6  0x00000000 in ?? ()
+    
+    Thread 1 (Thread 14933.1):
+    #0  0x0106785c in mach_msg_trap () at /home/rbraun/devel/debian/packages/eglibc/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    #1  0x01068074 in __mach_msg (msg=0x15ff93c, option=2, send_size=0, rcv_size=24, rcv_name=94, timeout=0, notify=0) at msg.c:115
+    #2  0x010451a2 in __pthread_block (thread=0x805e600) at ../libpthread/sysdeps/mach/pt-block.c:35
+    #3  0x010443a8 in __pthread_cond_timedwait_internal (cond=0x80730dc, mutex=0x80730bc, abstime=0x0) at ./pthread/../sysdeps/generic/pt-cond-timedwait.c:130
+    #4  0x01043fcc in __pthread_cond_wait (cond=0x80730dc, mutex=0x80730bc) at ./pthread/../sysdeps/generic/pt-cond-wait.c:36
+    #5  0x010414ef in pthread_join (thread=8, status=status@entry=0x15ffa6c) at ./pthread/pt-join.c:46
+    #6  0x08048f9b in main (argc=8, argv=0x15ffb08) at test_urcu_gc.c:466
+    (gdb) thread 3
+    [Switching to thread 3 (Thread 14933.3)]
+    #0  0x0106785c in mach_msg_trap () at /home/rbraun/devel/debian/packages/eglibc/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    2       /home/rbraun/devel/debian/packages/eglibc/eglibc-2.13/build-tree/hurd-i386-libc/mach/mach_msg_trap.S: Datei oder Verzeichnis nicht gefunden.
+    (gdb) call pthread_self()
+    $1 = 8
+
+That is, Thread 1 is waiting for Thread 3 (8) to join, which is stuck in
+`poll`.
+
+Is this really the [[libpthread_cancellation_points]] issue -- there doesn't
+seem to be any thread cancellation involved?
