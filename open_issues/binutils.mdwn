@@ -47,8 +47,8 @@ git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefi
 
 -->
 
-Last reviewed up to Git commit ef8b8d4ad51c2b90e022c5442f60b39f05e38ef6
-(2015-06-19).
+Last reviewed up to Git commit e49433d22dae92a56ae15a8b5742cbf1f31d5fd1
+(2015-08-19).
 
   * Globally
 
@@ -100,7 +100,8 @@ Last reviewed up to Git commit ef8b8d4ad51c2b90e022c5442f60b39f05e38ef6
 
             #ifdef TE_LINUX
             /* Default to compress debug sections for Linux.  */
-            int flag_compress_debug = 1;
+            enum compressed_debug_section_type flag_compress_debug
+              = COMPRESS_DEBUG_GABI_ZLIB;
             #endif
 
         This has received quite some criticism, but it has not yet been
@@ -234,6 +235,24 @@ Last reviewed up to Git commit ef8b8d4ad51c2b90e022c5442f60b39f05e38ef6
               /* Memory reserved by inferior mmap is kept leaked.  */
             }
 
+      * Support for Intel Processor Trace (--with-intel-pt; libipt)?
+
+      * `supports_get_siginfo_type`
+
+        Has previously been hard-coded in individual tests, now in
+        gdb/testsuite/lib/gdb.exp:
+
+            # Return 1 if GDB can get a type for siginfo from the target, otherwise
+            # return 0.
+            
+            proc supports_get_siginfo_type {} {
+                if { [istarget "*-*-linux*"] } {
+                  return 1
+                } else {
+                  return 0
+                }
+            }
+
       * Check testsuite with check-read1 / READ1=t [./gdb/testsuite/README]
 
   * `libdecnumber/`
@@ -285,6 +304,7 @@ Last reviewed up to Git commit ef8b8d4ad51c2b90e022c5442f60b39f05e38ef6
         
         {+# Linux only tests+}
         {+run_dump_test "pltgot-1"+}
+        {+run_dump_test "pltgot-2"+}
 
   * `__ehdr_start symbol`, c84ed8d89d0b8bf5a2968d465f77ac24bcfc40c2 -- can this
     be helpful in the exec server, glibc, or elsewhere?  Used in GDB (BFD)
@@ -331,8 +351,8 @@ so we need to configure with support for plugins and
 sysroots.  In the GDB build, there are compiler diagnostics reported in the
 MIG-generated stub files; thus no `-Werror` until that is resolved.
 
-This takes up around 1.4 GiB, and runs for [[21 min|performance#measure]] on
-kepler.SCHWINGE and [[20 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 1.4 GiB, and runs for [[22 min|performance#measure]] on
+kepler.SCHWINGE and [[23 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
@@ -418,7 +438,7 @@ formats, and more emulation vectors.
     [...]
 
 This takes up around 210 MiB, and runs for [[1 min|performance#measure]] on
-kepler.SCHWINGE and [[1 min|performance#measure]] on laplace.SCHWINGE.
+kepler.SCHWINGE and [[2 min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
@@ -433,7 +453,7 @@ kepler.SCHWINGE and [[1 min|performance#measure]] on laplace.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This runs for [[31 min|performance#measure]] on kepler.SCHWINGE and [[56
+This runs for [[46 min|performance#measure]] on kepler.SCHWINGE and [[67
 min|performance#measure]] on laplace.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
@@ -441,8 +461,8 @@ the `tee` process does not terminate if there are still stray leftover
 processes that [have their stdout/stderr
 open](http://sourceware.org/ml/gdb-patches/2012-10/msg00489.html).  `kill`ing
 these (`SIGKILL` may be needed), makes the `tee` process terminate, too.  On
-GNU/Hurd, these generally are `gdb.base/sigaltstack`, `gdb.base/siginfo`, and
-`gdb.threads/watchthreads`.
+GNU/Hurd: `gdb.linespec/explicit`, previously generally `gdb.base/sigaltstack`,
+`gdb.base/siginfo`, and `gdb.threads/watchthreads`.
 
 On laplace.SCHWINGE, running with
 `LD_PRELOAD=$HOME/fopen,unlink-NULL-wrapper.so` to get past [[!message-id
