@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2013, 2014 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2013, 2014, 2015 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -9,6 +10,10 @@ is included in the section entitled [[GNU Free Documentation
 License|/fdl]]."]]"""]]
 
 [[!tag open_issue_hurd]]
+
+/!\ [[I|tschwinge]] think this has been resolved?
+
+[[!toc levels=3]]
 
 
 # IRC, freenode, #hurd, 2013-12-05
@@ -191,3 +196,339 @@ License|/fdl]]."]]"""]]
       http://gnashdev.org:8010/builders/z-sid-hurd-i386/builds/30/steps/system_upgrade/logs/stdio
     <gg0> especially during setup-translators -k
     <braunr> yes
+
+
+## [[tschwinge]]'s notes, 2014-02-24
+
+    $ i=0; while ! grep Inter < l; do rm -vrf ./* && echo $((++i)) && dash -x ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ SHELL=/bin/dash CC=gcc-4.8 CXX=g++-4.8 --disable-werror > l 2>&1; done
+
+Does happen, but log not useful.
+
+    $ i=0; while ! grep Inter < l; do rm -vrf ./* && echo $((++i)) && dash -x ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ CC=gcc-4.8 CXX=g++-4.8 --disable-werror > l 2>&1; done
+
+Running fine 2066 times, then I terminated.
+
+    $ i=0; while ! grep Inter < l; do rm -vrf ./* && echo $((++i)) && dash -x ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ SHELL=/bin/dash\ -x CC=gcc-4.8 CXX=g++-4.8 --disable-werror > l 2>&1; done
+    [...]
+    9
+    ./config.status: 299: ./config.status: cannot create /dev/null: Interrupted system call
+
+    + ln -s conf29005.file conf29005.dir
+    + test ! -f conf29005.exe
+    + rm -f conf29005 conf29005.exe conf29005.dir/conf29005.file conf29005.file
+    ./config.status: 299: ./config.status: cannot create /dev/null: Interrupted system call
+    + rmdir conf29005.dir
+    + mkdir -p .
+
+    $ cat -n < config.status | sed -n '294,+10 p'
+       294    fi
+       295  else
+       296    as_ln_s='cp -p'
+       297  fi
+       298  rm -f conf$$ conf$$.exe conf$$.dir/conf$$.file conf$$.file
+       299  rmdir conf$$.dir 2>/dev/null
+       300  
+       301  
+       302  # as_fn_mkdir_p
+       303  # -------------
+       304  # Create "$as_dir" as a directory, including parents if necessary.
+
+But conf29005.dir now still exists, empty.
+
+    $ rmdir conf29005.dir 2> /dev/null
+    $ echo $?
+
+What this configure invocation is doing differently from the previous one is
+that it re-execs the configure script (due to, and with SHELL=[...]).
+
+/bin/sh currently is a symlink to bash.
+
+    $ i=0; while ! grep Inter < l; do rm -vrf ./* && echo $((++i)) && bash -x ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ SHELL=/bin/bash\ -x CC=gcc-4.8 CXX=g++-4.8 --disable-werror > l 2>&1; done
+
+Running fine 60 times, then I terminated.
+
+    $ sudo ln -sf dash /bin/sh
+
+    $ i=0; while ! grep Inter < l; do rm -vrf ./* && echo $((++i)) && dash -x ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ CC=gcc-4.8 CXX=g++-4.8 --disable-werror > l 2>&1; done
+
+Running fine 50 times, then I terminated.
+
+    + CONFIG_SHELL=/bin/bash as_have_required=yes
+    [...]
+    + exec /bin/bash ../W._C._Handy/configure --prefix=/home/thomas/tmp/binutils-gdb/tschwinge/W._C._Handy.build.install --enable-gold --with-sysroot=/ CC=gcc-4.8 CXX=g++-4.8 --disable-werror
+
+    $ i=0; while ! grep Inter < l; do rm -vrf ./* && echo $((++i)) && bash -x ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ SHELL=/bin/bash\ -x CC=gcc-4.8 CXX=g++-4.8 --disable-werror > l 2>&1; done
+
+Running fine 85 times, then I terminated.
+
+No exec.
+
+    $ i=0; while ! grep Inter < l; do rm -vrf ./* && echo $((++i)) && bash -x ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ SHELL=/bin/sh\ -x CC=gcc-4.8 CXX=g++-4.8 --disable-werror > l 2>&1; done
+    [...]
+    18
+    ./config.status: 299: ./config.status: cannot create /dev/null: Interrupted system call
+
+No exec.  -> Assuming exec of /bin/*sh is not relevant.
+
+Back to normal:
+
+    $ sudo ln -sf bash /bin/sh
+
+Maybe it's a dash issue (or, an issue triggered by dash)?
+
+/usr/share/doc/dash/changelog.Debian.gz
+
+    dash (0.5.7-4) unstable; urgency=low
+    
+      * Thx Michael Gilbert for NMU.
+        * 0006-JOBS-address-format-security-build-error.diff: new: address
+          format-security build error (patch from Simon Ruderich).
+      * debian/rules: make DEB_BUILD_OPTIONS=diet build working again.
+      * debian/diff/0007-EVAL-Report-I-O-error-on-stdout.diff: new: eval: report
+        I/O error on stdout (closes: #690473).
+    
+     -- Gerrit Pape <pape@smarden.org>  Wed, 08 Jan 2014 11:54:11 +0000
+    
+    dash (0.5.7-3+nmu1) unstable; urgency=medium
+    
+      * Non-maintainer upload.
+      * Enable build-hardening flags (closes: #662721).
+    
+     -- Michael Gilbert <mgilbert@debian.org>  Wed, 25 Dec 2013 13:46:03 -0500
+    
+    dash (0.5.7-3) unstable; urgency=low
+      [...]
+     -- Gerrit Pape <pape@smarden.org>  Thu, 01 Mar 2012 00:09:45 +0000
+
+From its name alone, »0007-EVAL-Report-I-O-error-on-stdout.diff: new: eval:
+report I/O error on stdout (closes: #690473)« sounds suspicious.
+
+    diff --git a/src/eval.c b/src/eval.c
+    index 7252463..863aa77 100644
+    --- a/src/eval.c
+    +++ b/src/eval.c
+    @@ -899,6 +899,8 @@ evalbltin(const struct builtincmd *cmd, int argc, char **argv, int flags)
+           else
+                   status = (*cmd->builtin)(argc, argv);
+           flushall();
+    +      if (outerr(out1))
+    +              warnx("%s: I/O error", commandname);
+           status |= outerr(out1);
+           exitstatus = status;
+     cmddone:
+
+    ./output.h:extern struct output *out1;
+    ./output.h:#define outerr(f)    (f)->flags
+
+That doesn't really look too suspicious, but let's try without this patch:
+
+    $ apt-get source dash
+    $ cd dash-0.5.7/
+    $ mv debian/diff/0007-Report-I-O-error-on-stdout.diff{,_}
+    $ dpkg-buildpackage -uc -b
+    $ sudo dpkg -i ../dash_0.5.7-4_hurd-i386.deb
+
+    $ i=0; while ! grep Inter < l; do rm -vrf ./* && echo $((++i)) && bash -x ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ SHELL=/bin/dash\ -x CC=gcc-4.8 CXX=g++-4.8 --disable-werror > l 2>&1; done
+    [...]
+    2
+    ./config.status: 299: ./config.status: cannot create /dev/null: Interrupted system call
+
+So that dash change is not relevant.
+
+    $ i=0; while ! grep Inter < l; do rm -vrf ./* && echo $((++i)) && dash -x ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ SHELL=/bin/dash\ -x CC=gcc-4.8 CXX=g++-4.8 --disable-werror > l 2>&1; done
+    [...]
+    185
+    ./config.status: 299: ./config.status: cannot create /dev/null: Interrupted system call
+
+Wow, so it can take a little while...
+
+Before noticing this problem, I had been running dash 0.5.7-3+nmu1; re-get that
+from <http://snapshot.debian.org/binary/dash/>.
+
+    $ i=0; while ! grep Inter < l; do rm -vrf ./* && echo $((++i)) && dash -x ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ SHELL=/bin/dash\ -x CC=gcc-4.8 CXX=g++-4.8 --disable-werror > l 2>&1; done
+    [...]
+    178
+    ./config.status: 299: ./config.status: cannot create /dev/null: Interrupted system call
+
+    $ i=0; while ! grep Inter < l; do rm -vrf ./* && echo $((++i)) && bash -x ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ SHELL=/bin/dash\ -x CC=gcc-4.8 CXX=g++-4.8 --disable-werror > l 2>&1; done
+    [...]
+    27
+    ./config.status: 299: ./config.status: cannot create /dev/null: Interrupted system call
+
+    [...]
+    5
+    ./config.status: 299: ./config.status: cannot create /dev/null: Interrupted system call
+
+    [...]
+    3
+    ./config.status: 299: ./config.status: cannot create /dev/null: Interrupted system call
+
+    [...]
+    16
+    ./config.status: 299: ./config.status: cannot create /dev/null: Interrupted system call
+
+    [...]
+    70
+    ./config.status: 299: ./config.status: cannot create /dev/null: Interrupted system call
+
+    [...]
+    2
+    ./config.status: 299: ./config.status: cannot create /dev/null: Interrupted system call
+
+    [...]
+    3
+    ./config.status: 299: ./config.status: cannot create /dev/null: Interrupted system call
+
+It appears that generally the issue appearch faster when running »bash
+configure SHELL=/bin/dash« as opposed to »dash configure SHELL=/bin/dash«.
+
+To re-confirm that dash needs to be involved:
+
+    $ i=0; while ! grep Inter < l; do rm -vrf ./* && echo $((++i)) && bash -x ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ SHELL=/bin/bash\ -x CC=gcc-4.8 CXX=g++-4.8 --disable-werror > l 2>&1; done
+
+The next morning:
+
+    bash: l: Computer bought the farm
+    rm: cannot remove `./*': Computer bought the farm
+    bash: l: Computer bought the farm
+    rm: cannot remove `./*': Computer bought the farm
+    [...]
+    $ fsysopts .
+    fsysopts: .: Computer bought the farm
+    $ cd
+    $ fsysopts .
+    /hurd/ext2fs --readonly --no-atime --no-inherit-dir-group /dev/hd2s2
+
+Console: [[ext2fs_libports_reference_counting_assertion.mdwn]].  Reboot.
+
+Again:
+
+    $ i=0; while ! grep Inter < l; do rm -vrf ./* && echo $((++i)) && bash -x ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ SHELL=/bin/bash\ -x CC=gcc-4.8 CXX=g++-4.8 --disable-werror > l 2>&1; done
+
+Running fine 18054 times, then I terminated.
+
+Then, [[message-id "87wqghouoc.fsf@schwinge.name" desc="coulomb died"]]...
+
+
+## [[tschwinge]]'s notes, 2014-04-09
+
+Now running in a QEMU/KVM virtual machine.  The issue is much harder to
+reproduce.
+
+Reinstalling Debian's hurd package, it is observed fairly regularely, always
+when setting up the translators, but in different positions:
+
+    $ sudo apt-get --reinstall install hurd
+    Reading package lists... Done
+    Building dependency tree       
+    Reading state information... Done
+    0 upgraded, 0 newly installed, 1 reinstalled, 0 to remove and 1 not upgraded.
+    Need to get 0 B/1377 kB of archives.
+    After this operation, 0 B of additional disk space will be used.
+    (Reading database ... 70001 files and directories currently installed.)
+    Preparing to unpack .../hurd_1%3a0.5.git20140326-1_hurd-i386.deb ...
+    Unpacking hurd (1:0.5.git20140326-1) over (1:0.5.git20140326-1) ...
+    Setting up hurd (1:0.5.git20140326-1) ...
+    Setting up translators: /hurd/exec /hurd/proxy-defpager /hurd/pflocal (+link) /hurd/pfinet (+link) (+link) /hurd/procfs -c /hurd/password crash-kill crash-suspend crash-dump-core crash.
+    Creating device nodes: fd fdX std vcs hdX hdXsY hdXs1Y sdX sdXsY/sbin/MAKEDEV: 75: /sbin/MAKEDEV: cannot create /dev/null: Interrupted system call
+     sdXs1Y cdX netdde ethX loopX ttyX ptyp ptyq lprX comX random urandom kbd mouse shm.
+    [...]
+    $ sudo apt-get --reinstall install hurd
+    Reading package lists... Done
+    Building dependency tree       
+    Reading state information... Done
+    0 upgraded, 0 newly installed, 1 reinstalled, 0 to remove and 1 not upgraded.
+    Need to get 0 B/1377 kB of archives.
+    After this operation, 0 B of additional disk space will be used.
+    (Reading database ... 70001 files and directories currently installed.)
+    Preparing to unpack .../hurd_1%3a0.5.git20140326-1_hurd-i386.deb ...
+    Unpacking hurd (1:0.5.git20140326-1) over (1:0.5.git20140326-1) ...
+    Setting up hurd (1:0.5.git20140326-1) ...
+    Setting up translators: /hurd/exec /hurd/proxy-defpager /hurd/pflocal (+link) /hurd/pfinet (+link) (+link) /hurd/procfs -c /hurd/password crash-kill crash-suspend crash-dump-core crash.
+    Creating device nodes: fd fdX std vcs hdX hdXsY hdXs1Y sdX sdXsY sdXs1Y cdX netdde ethX loopX ttyX ptyp/sbin/MAKEDEV: 75: /sbin/MAKEDEV: cannot create /dev/null: Interrupted system call
+     ptyq lprX comX random urandom kbd mouse shm.
+    [...]
+    $ sudo apt-get --reinstall install hurd
+    Reading package lists... Done
+    Building dependency tree       
+    Reading state information... Done
+    0 upgraded, 0 newly installed, 1 reinstalled, 0 to remove and 1 not upgraded.
+    Need to get 0 B/1377 kB of archives.
+    After this operation, 0 B of additional disk space will be used.
+    (Reading database ... 70001 files and directories currently installed.)
+    Preparing to unpack .../hurd_1%3a0.5.git20140326-1_hurd-i386.deb ...
+    Unpacking hurd (1:0.5.git20140326-1) over (1:0.5.git20140326-1) ...
+    Setting up hurd (1:0.5.git20140326-1) ...
+    Setting up translators: /hurd/exec /hurd/proxy-defpager /hurd/pflocal (+link) /hurd/pfinet (+link) (+link) /hurd/procfs -c /hurd/password crash-kill crash-suspend crash-dump-core crash.
+    Creating device nodes: fd fdX std vcs hdX hdXsY/sbin/MAKEDEV: 75: /sbin/MAKEDEV: cannot create /dev/null: Interrupted system call
+     hdXs1Y/sbin/MAKEDEV: 75: /sbin/MAKEDEV: cannot create /dev/null: Interrupted system call
+     sdX sdXsY sdXs1Y cdX netdde ethX loopX ttyX ptyp ptyq lprX comX random urandom kbd mouse shm.
+
+It can also reproduced when manually running `setup-translators` -- but not as
+easily:
+
+    $ i=0 && rm -f l && while ! grep Inter < l; do echo $((++i)) && sudo /usr/lib/hurd/setup-translators -K > l 2>&1; done
+    [...]
+    112
+    Creating device nodes: fd fdX std vcs hdX hdXsY hdXs1Y/sbin/MAKEDEV: 75: /sbin/MAKEDEV: cannot create /dev/null: Interrupted system call
+
+That's with:
+
+    $ readlink /bin/sh
+    dash
+
+Switch to bash:
+
+    $ sudo dpkg-reconfigure dash
+    [No.]
+    $ readlink /bin/sh
+    bash
+
+    $ i=0 && rm -f l && while ! grep Inter < l; do echo $((++i)) && sudo /usr/lib/hurd/setup-translators -K > l 2>&1; done
+    [...]
+
+Still not happened after 16800 iterations, half a day later.
+
+So it really is related to dash, in some way.  Not necessarily a bug in dash,
+but something that dash is doing differently (and triggers a bug somewhere
+else).
+
+The next question is what was changed in (presumably) early 2013-12 that
+this behavior is now exhibited.
+
+
+### `ps -AF hurd-long`
+
+By the way, after having run `setup-translators` for half a day, we got:
+
+    $ ps -AF hurd-long
+      PID  UID  PPID  PGrp  Sess TH  Vmem   RSS %CPU     User   System Args
+        1    0     1     1     1  3  146M  908K  0.0  0:00.22  0:00.23 init [2]
+        2    -     1     1     1  1  146M  216K  0.0  0:00.01  0:00.01 /hurd/init root=device:hd0s1
+        3    -     1     1     1  8 1.64G 48.3M  0.6  0:00.00  6:42.01 root=device:hd0s1
+        4    -     2     1     1 14  135M 1.12M 12.3 15:43.29    73min /hurd/proc
+        5    -     2     1     1 11  432M 31.9M 27.5 31:22.42     2hrs ext2fs --readonly --multiboot-command-line=root=device:hd0s1 --host-priv-port=1 --device-master-port=2 --exec-server-task=3 -T typed device:hd0s1
+        6    -     5     1     1  4  136M 1000K  5.8  5:04.45 36:49.29 /hurd/exec
+        7    -     2     1     1  4  136M  648K  1.8  0:46.65  7:22.07 /hurd/auth
+        8    0     5     1     1  5  136M  772K  0.0  0:00.04  0:00.36 /hurd/term /dev/console device console
+       10    0     5     1     1 17  139M  1.2M  0.3  1:13.67  6:00.96 /hurd/pflocal
+       12    0     1    12    12  6  140M 12.9M  0.0  0:00.00  0:00.09 /hurd/mach-defpager
+       21    0     5     1     1  3  136M 1.01M  0.0  0:00.61  0:01.39 /hurd/procfs -c
+       39    0     5     1     1  2  135M  604K  0.0  0:00.00  0:00.03 /hurd/proxy-defpager
+       94    0     1    15    15  6  139M 1.22M  0.4  0:03.25  0:11.16 /hurd/tmpfs --nosuid --noexec --size=10% --mode=755 tmpfs
+      115    0     1    15    15  3  139M  948K  0.0  0:00.00  0:00.00 /hurd/tmpfs --noexec --nosuid --size=5242880 --mode=1777 tmpfs
+      202    0     1    15    15  3  139M  944K  0.0  0:00.27  0:00.81 /hurd/tmpfs --nosuid --noexec --size=314560k --mode=1777 tmpfs
+      226    0     5     1     1  2  135M  780K  0.0  0:00.00  0:00.00 /hurd/storeio hd1
+      234    0     5     1     1  2  135M  768K  0.0  0:00.01  0:00.02 /hurd/storeio hd0s1
+      235    0     5     1     1  2  136M  832K  0.0  0:00.00  0:00.01 /hurd/storeio hd2
+      237    -    21     1     1  2  134M  788K  0.0  0:00.00  0:00.01 /hurd/mtab /
+      480    0     1    15    15  9  401M 2.86M  0.0  0:27.17  1:41.08 /hurd/ext2fs /dev/hd2
+    [...]
+     1005 1000  1000  1005  1005  2  147M 2.15M  0.0  0:00.00  0:00.02 /bin/bash
+     1016    0     5     1     1  5  414M  407M  1.3  3:43.68 12:20.81 /hurd/term /dev/ptyp2 pty-master /dev/ttyp2
+     1019 1000  1000  1019  1019  2  147M 2.49M  0.3  0:04.30  0:19.64 /bin/bash
+     1165    0     5     1     1  2  134M  928K  0.0  0:02.42  0:16.48 /hurd/magic --directory fd
+     1183    0     5     1     1  2  134M  872K  0.0  0:02.03  0:06.30 /hurd/magic tty
+     1188    -     5     1     1  4  136M    1M  2.6  2:33.19 16:58.50 /hurd/null
+     1208    0     5     1     1  4  136M 3.07M  0.0  0:00.67  0:03.07 /hurd/term /dev/ptyp3 pty-master /dev/ttyp3
+    [...]

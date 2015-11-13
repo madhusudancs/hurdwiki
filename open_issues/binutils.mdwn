@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012, 2013, 2014 Free
-Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012, 2013, 2014, 2015
+Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -41,14 +41,14 @@ GDB needs an processor architecture as well as operating system port.
 <!--
 
 git checkout reviewed
-git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefix=./ --find-renames --ignore-space-change ..upstream/master | awk '/^diff/ { c = " " $0; } /^@@/ { print c; } { print; }' | less
+git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefix=./ --word-diff --color --find-renames --ignore-space-change ..upstream/master | awk '/^(\x1b\[[0-9]+m)?diff/ { c = " " $0; } /^(\x1b\[[0-9]+m)?@@/ { print c; } { print; }' | less
 -i
 /^---.*/([^.]*|.*\.texi.*|[^/]*gnu[^/]*)$|hurd|linux|nacl|nptl|glibc|gs:
 
 -->
 
-Last reviewed up to Git commit c2853f3d99797a321c37948297441ca6021f719a
-(2014-02-14).
+Last reviewed up to Git commit e49433d22dae92a56ae15a8b5742cbf1f31d5fd1
+(2015-08-19).
 
   * Globally
 
@@ -96,6 +96,17 @@ Last reviewed up to Git commit c2853f3d99797a321c37948297441ca6021f719a
 
   * `gas/`
 
+      * `config/tc-i386.c`
+
+            #ifdef TE_LINUX
+            /* Default to compress debug sections for Linux.  */
+            enum compressed_debug_section_type flag_compress_debug
+              = COMPRESS_DEBUG_GABI_ZLIB;
+            #endif
+
+        This has received quite some criticism, but it has not yet been
+        corrected.
+
       * `config/te-gnu.h`
 
         C.f. `te-linux.h`; search tree for `TE_LINUX` vs. `TE_GNU` usage.
@@ -119,6 +130,131 @@ Last reviewed up to Git commit c2853f3d99797a321c37948297441ca6021f719a
       * In `gdb/gnu-nat.c:gnu_wait`, we don't implement
         `gdb/target/wait.h:TARGET_WNOHANG`.  What is this needed for?
 
+      * *complete errno.h*
+
+            diff --git toolchain/logs/binutils-gdb/kepler.SCHWINGE/log_build_ toolchain/logs/binutils-gdb/laplace.SCHWINGE/log_build_
+            [...]
+            -checking for complete errno.h... yes
+            +checking for complete errno.h... no
+            +checking for EMULTIHOP value... yes
+            +checking for ENOLINK value... yes
+            +checking for EOVERFLOW value... yes
+            [...]
+            +rm -f errno.h-t errno.h && \
+            +{ echo '/* DO NOT EDIT! GENERATED AUTOMATICALLY! */' && \
+            +  sed -e 's|@''GUARD_PREFIX''@|GL|g' \
+            +      -e 's|@''INCLUDE_NEXT''@|include_next|g' \
+            +      -e 's|@''PRAGMA_SYSTEM_HEADER''@|#pragma GCC system_header|g' \
+            +      -e 's|@''PRAGMA_COLUMNS''@||g' \
+            +      -e 's|@''NEXT_ERRNO_H''@|<errno.h>|g' \
+            +      -e 's|@''EMULTIHOP_HIDDEN''@|0|g' \
+            +      -e 's|@''EMULTIHOP_VALUE''@||g' \
+            +      -e 's|@''ENOLINK_HIDDEN''@|0|g' \
+            +      -e 's|@''ENOLINK_VALUE''@||g' \
+            +      -e 's|@''EOVERFLOW_HIDDEN''@|0|g' \
+            +      -e 's|@''EOVERFLOW_VALUE''@||g' \
+            +      < ../../../../W._C._Handy/gdb/gnulib/import/errno.in.h; \
+            +} > errno.h-t && \
+            +mv errno.h-t errno.h
+
+        [[!taglink open_issue_glibc]]?
+
+      * Watchpoints
+
+          * Unresolved issues w.r.t. watchpoint usage in context of multiple
+            threads, and `fork`/`vfork`.  The Linux port has a bunch of
+            special-case code.
+
+          * We don't have anything corresponding to Linux'
+            `linux_nat_set_forget_process`, `x86_forget_process`, or Linux'
+            whole `linux-fork.c` machinery.  Likewise for
+            `linux_nat_set_prepare_to_resume`, `x86_linux_prepare_to_resume`,
+            which the Linux port uses to actually set the debug registers.
+            Likewise for `linux_nat_set_new_thread`, `x86_linux_new_thread`,
+            and `linux_nat_set_new_fork`, `x86_linux_new_fork`.
+
+          * Look into `*_cleanup_dregs`, `*_post_startup_inferior`.  Commits
+            53a5351d907ef4eacd463a48a86d35b2b70b9f60,
+            52b9821179d84d61852ac2ae2bd16fbb56ffe277,
+            9742079a314711c13d269e9e583b7b82dc42f1a6,
+            e24d4c64ff2e89327ba84fdcc77cc557791eb3cd,
+            fa4ba8da6c28c972dd1b6b9971e29b51aabaafcc,
+            9b4f1ba7ede77d776fabb9642cbeef5091e38e1d,
+            4de4c07c6b48659ae212352236be9413c853a23c,
+            4056d25828218621e7276a3a0c0567cac892ae84,
+            10d6c8cd3f92fadf295eb3c91d550626f6080f79,
+            4105de343e714e0096723905ada442f1524776a6,
+            c5af0dad33ff96dbb404710539f01b011cff0453,
+            9bb9e8ade770027f5cced2856574e2d317b15254,
+            1ced966e3458bf3db742913f4d0a55549824e298,
+            4403d8e9b35649c5b24f65c0ec0decc3839e1164,
+            26cb8b7c1a23586ea311d7480f882e2883f6f1f5.
+
+          * [[!message-id "201112051601.59664.pedro@codesourcery.com"]].
+
+          * `I386_WATCHPOINTS_IN_TARGET_VECTOR`
+
+          * `prepare_to_resume`
+
+          * `new_fork`
+
+          * `forget_process`
+
+          * `dr_status_mirror` is not really used anywhere.  Get rid of it; or,
+            update it everytime the real value is read from the kernel?
+
+      * TODO
+
+              {+set_gdbarch_vsyscall_range (gdbarch, linux_vsyscall_range);+}
+            {+  set_gdbarch_infcall_mmap (gdbarch, linux_infcall_mmap);+}
+
+      * TODO
+
+             diff --git ./gdb/doc/gdb.texinfo ./gdb/doc/gdb.texinfo
+            @@ -17340,6 +17433,24 @@ Access to those variables will generate a compiler error which @value{GDBN}
+            will print to the console.
+            @end table
+            
+            {+@subsection Compiler search for the @code{compile} command+}
+            {+[...]+}
+            {+Specifically @code{PATH} is searched for binaries matching regular expression+}
+            {+@code{@var{arch}(-[^-]*)?-@var{os}-gcc} [...].  @var{os} is currently supported only for+}
+            {+pattern @code{linux(-gnu)?}.+}
+
+      * GDB got support for Linux namespaces: *able to access executable and
+        shared library files without a "set sysroot" command when attaching to
+        processes running in different mount namespaces from the debugger.
+        This makes it possible to attach to processes in containers as simply
+        as "gdb -p PID" or "gdbserver --attach PID"*.  Similar support might be
+        useful for [[hurd/subhurd]]s?
+
+      * gdbarch `infcall_munmap`
+
+            default_infcall_munmap (CORE_ADDR addr, CORE_ADDR size)
+            {
+              /* Memory reserved by inferior mmap is kept leaked.  */
+            }
+
+      * Support for Intel Processor Trace (--with-intel-pt; libipt)?
+
+      * `supports_get_siginfo_type`
+
+        Has previously been hard-coded in individual tests, now in
+        gdb/testsuite/lib/gdb.exp:
+
+            # Return 1 if GDB can get a type for siginfo from the target, otherwise
+            # return 0.
+            
+            proc supports_get_siginfo_type {} {
+                if { [istarget "*-*-linux*"] } {
+                  return 1
+                } else {
+                  return 0
+                }
+            }
+
+      * Check testsuite with check-read1 / READ1=t [./gdb/testsuite/README]
+
   * `libdecnumber/`
 
     Should/can probably align to GNU/Linux.
@@ -138,6 +274,37 @@ Last reviewed up to Git commit c2853f3d99797a321c37948297441ca6021f719a
 
             Compare to `i[3-7]86-*-linux-*`, but don't need a.out (`i386linux`)
             and 64 bit support.
+
+      * Linuxism
+
+         diff --git ./ld/testsuite/ld-i386/i386.exp ./ld/testsuite/ld-i386/i386.exp
+        @@ -263,3 +263,93 @@ run_dump_test "pr12627"
+        {+# Must be Linux native with the C compiler+}
+        {+if { [isnative]+}
+        {+     && [istarget "i?86-*-linux*"]+}
+        +[...]
+
+        {+ PASS: ld-i386/pr17935-1+}
+        {+ PASS: ld-i386/pr17935-2+}
+        {+-PASS: Build plt-lib.so+}
+        {+-PASS: Build libplt-main1.a+}
+        {+-PASS: Build libplt-main2.a+}
+        {+-PASS: Build libplt-main3.a+}
+        {+-PASS: Build libplt-main4.a+}
+        {+-PASS: Build plt-main+}
+        {+-PASS: Build plt-main with PIE+}
+        {+-PASS: Run plt-main+}
+        {+-PASS: Run plt-main with PIE+}
+
+        diff --git ./ld/testsuite/ld-i386/i386.exp ./ld/testsuite/ld-i386/i386.exp
+        {+if { !([istarget "i?86-*-linux*"]+}
+        {+       || [istarget "x86_64-*-linux*"]) } {+}
+        {+    return+}
+        {+}+}
+        
+        {+# Linux only tests+}
+        {+run_dump_test "pltgot-1"+}
+        {+run_dump_test "pltgot-2"+}
 
   * `__ehdr_start symbol`, c84ed8d89d0b8bf5a2968d465f77ac24bcfc40c2 -- can this
     be helpful in the exec server, glibc, or elsewhere?  Used in GDB (BFD)
@@ -167,34 +334,29 @@ Last reviewed up to Git commit c2853f3d99797a321c37948297441ca6021f719a
 # Build
 
 Here's a log of a binutils-gdb build run; this is from Git commit
-c2853f3d99797a321c37948297441ca6021f719a (2014-02-14) plus
-[[!message-id "87vbxxhww4.fsf@kepler.schwinge.homeip.net"]],
-[[!message-id "8738kyi30l.fsf@kepler.schwinge.homeip.net"]],
-[[!message-id "8761ofv62k.fsf@kepler.schwinge.homeip.net"]],
-[[!message-id "1391759958-972-2-git-send-email-yao@codesourcery.com"]],
-[[!message-id "1391759958-972-3-git-send-email-yao@codesourcery.com"]], run on
-kepler.SCHWINGE and coulomb.SCHWINGE.
+e49433d22dae92a56ae15a8b5742cbf1f31d5fd1 (2015-08-19), run on kepler.SCHWINGE
+and laplace.SCHWINGE.
 
     $ export LC_ALL=C
-    $ ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --with-sysroot=/ SHELL=/bin/dash CC=gcc-4.8 CXX=g++-4.8 --disable-werror 2>&1 | tee log_build
+    $ ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --enable-plugins --with-sysroot=/ SHELL=/bin/dash CC=gcc-4.9 CXX=g++-4.9 --disable-werror 2>&1 | tee log_build
     [...]
     $ make 2>&1 | tee log_build_
     [...]
 
 Different hosts may default to different shells and compiler versions; thus
-harmonized.  Debian GCC (which is used in binutils' testsuite) likes to pass
-`--sysroot=/` to `ld`, so we need to configure binutils with support for
-sysroots.  In the GDB build, there are several occurences of *error:
-dereferencing type-punned pointer will break strict-aliasing rules* in the
-MIG-generated stub files; thus no `-Werror` until that is resolved
-([[strict_aliasing]]).
+harmonized.  Debian GCC (which is used in the testsuite) likes to pass
+`-plugin [...]` and `--sysroot=/` to `ld`,
+so we need to configure with support for plugins and
+sysroots.  In the GDB build, there are compiler diagnostics reported in the
+MIG-generated stub files; thus no `-Werror` until that is resolved.
 
-This takes up around 1.3 GiB, and needs roughly 17 min on kepler.SCHWINGE and
-79 min on coulomb.SCHWINGE.
+This takes up around 1.4 GiB, and runs for [[22 min|performance#measure]] on
+kepler.SCHWINGE and [[23 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
     $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && make -k check 2>&1 | tee log_test
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && LD_PRELOAD=$HOME/fopen,unlink-NULL-wrapper.so make -k check 2>&1 | tee log_test
 
 -->
 
@@ -216,46 +378,33 @@ formats, and more emulation vectors.
 
   * `gdb/gnu-nat.c`
 
-        gnu-nat.c: In function 'proc_set_exception_port':
-        gnu-nat.c:409:3: warning: format '%d' expects argument of type 'int', but argument 8 has type 'mach_port_t' [-Wformat]
-        gnu-nat.c: In function 'proc_steal_exc_port':
-        gnu-nat.c:449:7: warning: format '%d' expects argument of type 'int', but argument 8 has type 'mach_port_t' [-Wformat]
-        gnu-nat.c:470:7: warning: format '%d' expects argument of type 'int', but argument 8 has type 'mach_port_t' [-Wformat]
-        gnu-nat.c: In function 'make_proc':
-        gnu-nat.c:583:7: warning: format '%d' expects argument of type 'int', but argument 2 has type 'mach_port_t' [-Wformat]
-        gnu-nat.c:586:7: warning: format '%d' expects argument of type 'int', but argument 8 has type 'mach_port_t' [-Wformat]
-        gnu-nat.c: In function 'inf_set_pid':
-        gnu-nat.c:761:3: warning: format '%d' expects argument of type 'int', but argument 7 has type 'task_t' [-Wformat]
-        gnu-nat.c: In function 'inf_validate_procs':
-        gnu-nat.c:1085:6: warning: format '%d' expects argument of type 'int', but argument 8 has type 'thread_t' [-Wformat]
-        gnu-nat.c: In function 'inf_signal':
-        gnu-nat.c:1349:4: warning: format '%d' expects argument of type 'int', but argument 7 has type 'thread_t' [-Wformat]
-        gnu-nat.c:1349:4: warning: format '%d' expects argument of type 'int', but argument 8 has type 'thread_t' [-Wformat]
-        gnu-nat.c: In function 'S_exception_raise_request':
-        gnu-nat.c:1668:3: warning: format '%d' expects argument of type 'int', but argument 7 has type 'thread_t' [-Wformat]
-        gnu-nat.c:1668:3: warning: format '%d' expects argument of type 'int', but argument 8 has type 'task_t' [-Wformat]
-        gnu-nat.c:1705:8: warning: format '%d' expects argument of type 'int', but argument 7 has type 'mach_port_t' [-Wformat]
-        gnu-nat.c:1711:8: warning: format '%d' expects argument of type 'int', but argument 7 has type 'mach_port_t' [-Wformat]
-        gnu-nat.c: In function 'do_mach_notify_dead_name':
-        gnu-nat.c:1762:3: warning: format '%d' expects argument of type 'int', but argument 7 has type 'mach_port_t' [-Wformat]
-        gnu-nat.c: In function 'gnu_write_inferior':
-        gnu-nat.c:2383:8: warning: format '%x' expects argument of type 'unsigned int', but argument 2 has type 'vm_address_t' [-Wformat]
-        gnu-nat.c:2393:8: warning: format '%x' expects argument of type 'unsigned int', but argument 2 has type 'vm_address_t' [-Wformat]
-        gnu-nat.c: In function 'steal_exc_port':
-        gnu-nat.c:2864:5: warning: format '%d' expects argument of type 'int', but argument 2 has type 'mach_port_t' [-Wformat]
+        In file included from ../../W._C._Handy/gdb/defs.h:454:0,
+                         from ../../W._C._Handy/gdb/gnu-nat.c:23:
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'proc_trace':
+        ./nm.h:35:60: warning: right-hand operand of comma expression has no effect [-Wunused-value]
+            ((((struct i386_thread_state *) (state))->efl &= ~0x100), 1)
+                                                                    ^
+        ../../W._C._Handy/gdb/gnu-nat.c:526:5: note: in expansion of macro 'THREAD_STATE_CLEAR_TRACED'
+             THREAD_STATE_CLEAR_TRACED (state);
+             ^
 
   * fe19822761b4635f392875a186e48af446b40f41..7a63e9515491f21eaf07301df87d389def20e317:
 
     `-Wmissing-prototypes`
 
-        notify_S.c:305:24: warning: no previous prototype for 'notify_server' []
-        notify_S.c:341:28: warning: no previous prototype for 'notify_server_routine' []
-        process_reply_S.c:343:24: warning: no previous prototype for 'process_reply_server' []
-        process_reply_S.c:379:28: warning: no previous prototype for 'process_reply_server_routine' []
-        msg_reply_S.c:165:24: warning: no previous prototype for 'msg_reply_server' []
-        msg_reply_S.c:201:28: warning: no previous prototype for 'msg_reply_server_routine' []
-        exc_request_S.c:157:24: warning: no previous prototype for 'exc_server' []
-        exc_request_S.c:193:28: warning: no previous prototype for 'exc_server_routine' []
+    On 2015-10-30 noticed that the following are gone:
+
+        notify_S.c:341:28: warning: no previous prototype for 'notify_server_routine' [-Wmissing-prototypes]
+        process_reply_S.c:379:28: warning: no previous prototype for 'process_reply_server_routine' [-Wmissing-prototypes]
+        msg_reply_S.c:201:28: warning: no previous prototype for 'msg_reply_server_routine' [-Wmissing-prototypes]
+        exc_request_S.c:193:28: warning: no previous prototype for 'exc_server_routine' [-Wmissing-prototypes]
+
+    ... however these still remain:
+
+        notify_S.c:305:24: warning: no previous prototype for 'notify_server' [-Wmissing-prototypes]
+        process_reply_S.c:343:24: warning: no previous prototype for 'process_reply_server' [-Wmissing-prototypes]
+        msg_reply_S.c:165:24: warning: no previous prototype for 'msg_reply_server' [-Wmissing-prototypes]
+        exc_request_S.c:157:24: warning: no previous prototype for 'exc_server' [-Wmissing-prototypes]
 
   * `O_NOFOLLOW`
 
@@ -267,14 +416,28 @@ formats, and more emulation vectors.
 
     [[!taglink open_issue_glibc]]?
 
+  * On GNU Hurd, the `checking types of arguments for ptrace...` configure
+    check takes a rather long time to determine the result,
+    `int,int,long,long`.
+
+  * Something's wrong with Hurd's [[!tag open_issue_glibc]]`rename`?
+
+        -checking whether rename honors trailing slash on destination... yes
+        -checking whether rename honors trailing slash on source... yes
+        +checking whether rename honors trailing slash on destination... no
+        +checking whether rename honors trailing slash on source... no
+
+        -      -e 's|@''REPLACE_RENAME''@|0|g' \
+        +      -e 's|@''REPLACE_RENAME''@|1|g' \
+
 
 # Install
 
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 200 MiB, and needs roughly 2 min on kepler.SCHWINGE and 6
-min on coulomb.SCHWINGE.
+This takes up around 210 MiB, and runs for [[1 min|performance#measure]] on
+kepler.SCHWINGE and [[2 min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
@@ -289,15 +452,73 @@ min on coulomb.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This needs roughly 20 min on kepler.SCHWINGE and 140 min on coulomb.SCHWINGE.
+This runs for [[46 min|performance#measure]] on kepler.SCHWINGE and [[67
+min|performance#measure]] on laplace.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
 the `tee` process does not terminate if there are still stray leftover
 processes that [have their stdout/stderr
 open](http://sourceware.org/ml/gdb-patches/2012-10/msg00489.html).  `kill`ing
 these (`SIGKILL` may be needed), makes the `tee` process terminate, too.  On
-GNU/Hurd, these generally are `gdb.multi/watchpoint-multi`, and an unknown
-(`?`) GDB one ("57 PIDs before" `expect [...] gdb.cp`).
+GNU/Hurd: `gdb.linespec/explicit`, previously generally `gdb.base/sigaltstack`,
+`gdb.base/siginfo`, and `gdb.threads/watchthreads`.
+
+On laplace.SCHWINGE, running with
+`LD_PRELOAD=$HOME/fopen,unlink-NULL-wrapper.so` to get past [[!message-id
+"87a907b5f3.fsf@kepler.schwinge.homeip.net"]].
+
+    COLLECT_GCC=gcc-4.9 COLLECT_LTO_WRAPPER=/usr/lib/gcc/i586-linux-gnu/4.9/lto-wrapper COMPILER_PATH=gcctestdir/:/usr/lib/gcc/i586-linux-gnu/4.9/:/usr/lib/gcc/i586-linux-gnu/4.9/:/usr/lib/gcc/i586-linux-gnu/:/usr/lib/gcc/i586-linux-gnu/4.9/:/usr/lib/gcc/i586-linux-gnu/ LIBRARY_PATH=gcctestdir/:/usr/lib/gcc/i586-linux-gnu/4.9/:/usr/lib/gcc/i586-linux-gnu/4.9/../../../i386-linux-gnu/:/usr/lib/gcc/i586-linux-gnu/4.9/../../../../lib/:/lib/i386-linux-gnu/:/lib/../lib/:/usr/lib/i386-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/i586-linux-gnu/4.9/../../../:/lib/:/usr/lib/ COLLECT_GCC_OPTIONS='-Wextra -Wall -Wstrict-prototypes -Wmissing-prototypes -Wshadow -D _LARGEFILE_SOURCE -D _FILE_OFFSET_BITS=64 -fmerge-constants -g -O2 -fno-use-linker-plugin -o incremental_test -B gcctestdir/ -v -mtune=generic -march=i586' gdb -q --args /usr/lib/gcc/i586-linux-gnu/4.9/collect2 --sysroot=/ --build-id --eh-frame-hdr -m elf_i386 --hash-style=gnu -dynamic-linker /lib/ld-linux.so.2 -o incremental_test /usr/lib/gcc/i586-linux-gnu/4.9/../../../i386-linux-gnu/crt1.o /usr/lib/gcc/i586-linux-gnu/4.9/../../../i386-linux-gnu/crti.o /usr/lib/gcc/i586-linux-gnu/4.9/crtbegin.o -Lgcctestdir -L/usr/lib/gcc/i586-linux-gnu/4.9 -L/usr/lib/gcc/i586-linux-gnu/4.9/../../../i386-linux-gnu -L/usr/lib/gcc/i586-linux-gnu/4.9/../../../../lib -L/lib/i386-linux-gnu -L/lib/../lib -L/usr/lib/i386-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/i586-linux-gnu/4.9/../../.. --incremental-full incremental_test_1.o incremental_test_2.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib/gcc/i586-linux-gnu/4.9/crtend.o /usr/lib/gcc/i586-linux-gnu/4.9/../../../i386-linux-gnu/crtn.o -debug
+    break __fopen_internal
+    r
+    (possibly) c
+    Breakpoint 1, __fopen_internal (filename=filename@entry=0x0, mode=mode@entry=0x809b4a7 "r", is32=is32@entry=0) at iofopen.c:65
+    65      in iofopen.c
+    (gdb) bt
+    #0  __fopen_internal (filename=filename@entry=0x0, mode=mode@entry=0x809b4a7 "r", is32=is32@entry=0) at iofopen.c:65
+    #1  0xb7e38c1b in _IO_fopen64 (filename=0x0, mode=0x809b4a7 "r") at iofopen64.c:39
+    #2  0x0804c289 in ?? ()
+    #3  0x0804e670 in ?? ()
+    #4  0x0804aa8d in ?? ()
+    #5  0xb7deba73 in __libc_start_main (main=0x804a080, argc=38, argv=0xbfffe6a4, init=0x8098f90, fini=0x8099000, rtld_fini=0xb7fedc90 <_dl_fini>,
+        stack_end=0xbfffe69c) at libc-start.c:287
+    #6  0x0804b3a2 in ?? ()
+    (and another one after that)
+
+Goes away if `-debug` is removed.
+
+    commit 9a65bef918dd14d722ef2a1fec90f527158eabe0
+    Author: rguenth <rguenth@138bc75d-0d04-0410-961f-82ee72b054a4>
+    Date:   Tue Jun 11 08:21:22 2013 +0000
+    
+        2013-06-11  Richard Biener  <rguenther@suse.de>
+        
+            * collect2.c (main): Do not redirect ld stdout/stderr when
+            debugging.
+        
+        
+        git-svn-id: svn+ssh://gcc.gnu.org/svn/gcc/trunk@199936 138bc75d-0d04-0410-961f-82ee72b054a4
+    
+    diff --git gcc/collect2.c gcc/collect2.c
+    index 99dd41d..d3119b0 100644
+    --- gcc/collect2.c
+    +++ gcc/collect2.c
+    @@ -1189,8 +1189,11 @@ main (int argc, char **argv)
+     #ifdef COLLECT_EXPORT_LIST
+       export_file = make_temp_file (".x");
+     #endif
+    -  ldout = make_temp_file (".ld");
+    -  lderrout = make_temp_file (".le");
+    +  if (!debug)
+    +    {
+    +      ldout = make_temp_file (".ld");
+    +      lderrout = make_temp_file (".le");
+    +    }
+
+    id:"alpine.LNX.2.00.1306101358420.26078@zhemvz.fhfr.qr"
+
+Does this also cause:
+
+    [-FAIL:-]{+PASS:+} justsyms
 
 
 ## Analysis
@@ -367,6 +588,8 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
     Is only run for GNU/Linux; needs [[prelink]].
 
   * Disabled
+
+      * `gdb.base/attach-wait-input.exp`
 
       * `gdb.base/interrupt.exp`
 
@@ -525,6 +748,24 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
             (gdb) kill
             Kill the program being debugged? (y or n) y
 
+      * `gdb.base/fileio.exp`
+
+            FAIL: gdb.base/fileio.exp: Stat a NULL pathname returns ENOENT or EFAULT
+            FAIL: gdb.base/fileio.exp: Stat an empty pathname returns ENOENT
+            FAIL: gdb.base/fileio.exp: Stat a nonexistant file returns ENOENT (the program is no longer running)
+            FAIL: gdb.base/fileio.exp: [...] (the program is no longer running)
+
+        Is this actually a correct assumption?
+
+      * `gdb.base/random-signal.exp`
+
+        Several things (suddenly?) seem to go wrong here.  It seems we do hit
+        (something similar to?) the issue described in the log of commit
+        427cd150eed8c0dd4f0d0a1105448b4ebe36da6d, which adds this test.  The
+        `alarm` call in `random-signal.c` doesn't seem to trigger, so
+        `random-signal` keeps running (comsuming *system* CPU time) until
+        manually terminated.
+
       * `gdb.base/readline.exp`
 
         [[term_blocking]] issue.
@@ -532,6 +773,28 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
       * `gdb.base/sigall.exp`
 
         From `send signal TSTP` on, all FAIL running into timeouts.
+
+      * `gdb.base/watch-vfork.exp`
+
+            Running ../../../W._C._Handy/gdb/testsuite/gdb.base/watch-vfork.exp ...
+            PASS: gdb.base/watch-vfork.exp: Watchpoint on global variable (hw)
+            FAIL: gdb.base/watch-vfork.exp: Watchpoint triggers after vfork (hw)
+            PASS: gdb.base/watch-vfork.exp: Watchpoint on global variable (sw)
+            FAIL: gdb.base/watch-vfork.exp: Watchpoint triggers after vfork (sw) (timeout)
+            Running ../../../W._C._Handy/gdb/testsuite/gdb.base/watch_thread_num.exp ...
+            PASS: gdb.base/watch_thread_num.exp: successfully compiled posix threads test case
+            ERROR: Couldn't load [...]/tschwinge/W._C._Handy.build/gdb/testsuite/gdb.base/watch_thread_num into [...]/tschwinge/W._C._Handy.build/gdb/testsuite/../../gdb/gdb (timeout).
+            ERROR: Delete all breakpoints in delete_breakpoints (timeout)
+
+              PID  UID  PPID  PGrp  Sess TH  Vmem   RSS %CPU     User   System Args
+            10067 1000     1 10067 10062  2  146M  696K  0.0  0:00.02  0:08.40 /media/erich/home/thomas/tmp/binutils-gdb/tschwinge/W._C._Handy.build/gdb/testsuite/gdb.base/watch-vfork
+            10107 1000 22500 10107 10107  2  150M   13M 97.3  0:00.04  3:10.07 /media/erich/home/thomas/tmp/binutils-gdb/tschwinge/W._C._Handy.build/gdb/testsuite/../../gdb/gdb -nw -nx -data-directory /media/erich/home/thomas/tmp/binutils-gdb/tschwin
+
+        Open new screen window.  Prompt is being displayed, but any input not
+        shown/reacted on.  Once the watch-vfork process is killed, the input
+        shows up.
+
+        Once the busy-looping GDB process is killed, testing proceeds.
 
       * `gdb.python/py-inferior.exp` (mostly disabled)
 
@@ -577,6 +840,8 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
         At this point, the system hangs; no new processes can be spawned, so
         perhaps an issue with the exec server.
 
+      * `gdb.threads/hand-call-in-threads.exp`
+
       * `gdb.threads/manythreads.exp`
 
         [[!taglink open_issue_libpthread]].  Perhaps fails due to pthread
@@ -586,11 +851,19 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
             manythreads: ../libpthread/sysdeps/mach/pt-thread-halt.c:51: __pthread_thread_halt: Unexpected error: (ipc/rcv) invalid name.
             Killed
 
+      * `gdb.threads/signal-delivered-right-thread.exp`
+
+      * `gdb.threads/step-over-trips-on-watchpoint.exp`
+
+      * `gdb.threads/thread-find.exp`
+
   * Linux syscall usage, `<asm/unistd.h>`
 
       * `UNSUPPORTED: gdb.threads/ia64-sigill.exp: Couldn't compile ../../../master/gdb/testsuite/gdb.threads/ia64-sigill.c: unrecognized error`
 
       * `UNSUPPORTED: gdb.threads/siginfo-threads.exp: Couldn't compile ../../../Ferry_Tagscherer/gdb/testsuite/gdb.threads/siginfo-threads.c: unrecognized error`
+
+        Also uses `tgkill`.
 
       * `gdb.threads/sigstep-threads.c`
 
@@ -697,7 +970,7 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
         #4  0x0804859c in gen_signal () at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/call-signals.c:35
         #5  0x08048610 in main () at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/call-signals.c:81
 
-    coulomb.SCHWINGE:
+    laplace.SCHWINGE:
 
         Breakpoint 2, handle_signal (sig=6) at ../../../Ferry_Tagscherer/gdb/testsuite/gdb.base/call-signals.c:28
         28      }
@@ -714,7 +987,7 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
         no signal
         [Inferior 1 (process 10401) exited normally]
 
-    coulomb.SCHWINGE:
+    laplace.SCHWINGE:
 
         (gdb) c
         Continuing.
@@ -852,17 +1125,25 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
 
     TODO.
 
+  * `gdb.base/watchpoint-hw-hit-once.exp`
+
+        PASS: gdb.base/watchpoint-hw-hit-once.exp: rwatch watchee
+        PASS: gdb.base/watchpoint-hw-hit-once.exp: continue
+        FAIL: gdb.base/watchpoint-hw-hit-once.exp: continue to break-at-exit
+
+    The watchpoint does trigger again, wrongly.
+
   * `gdb.arch/i386-prologue.exp`
 
     There are several FAILs, where there are unexpected frames showing up in
     backtraces, for example.  Earlier on, these just FAILed on
-    coulomb.SCHWINGE; since
+    laplace.SCHWINGE; since
     9939e1314f970c6ba568956148a518ac710a280a..c2853f3d99797a321c37948297441ca6021f719a
     on kepler.SCHWINGE, too.  TODO.
 
   * [[libgc|boehm_gc]] `GC_find_limit_with_bound` SIGSEGVs
 
-    On coulomb.SCHWINGE, in
+    On laplace.SCHWINGE, in
     9939e1314f970c6ba568956148a518ac710a280a..c2853f3d99797a321c37948297441ca6021f719a
     several PASSes regressed to FAILs:
 
@@ -939,16 +1220,3 @@ TODO.
       set a breakpoint and ... when I ran "info files" the process segfaulted.
     <teythoon> which process segfaults, pfinet or gdb?
     <rekado> gdb segfaults.
-
-
-## GDB Watchpoints
-
-[[!tag open_issue_gdb]]
-
-
-### IRC, freenode, #hurd, 2013-09-16
-
-    <gnu_srs> tschwinge: Is gdb watch known to fail on hurd? It hangs for me
-      when logged in via ssh.
-    <tschwinge> gnu_srs: Don't know about GDB's watch command.  Are you sure it
-      is hanging?
