@@ -774,7 +774,9 @@ Last reviewed up to the [[Git mirror's c16b7ed55398d2ea55d9ab35519f20cc053b9d0a
 Here's a log of a GCC build run; this is from our [[Git repository's
 91049a6f433bd5b425144d2c71245df9ec99aa8f (2015-01-20;
 c16b7ed55398d2ea55d9ab35519f20cc053b9d0a (2015-01-19))
-sources|source_repositories/gcc]], run on kepler.SCHWINGE and laplace.SCHWINGE.
+sources|source_repositories/gcc]], with
+b68b3d9d07b2e31cc592ef231a6b963192ae81b6 cherry-picked on laplace.SCHWINGE, run
+on kepler.SCHWINGE and laplace.SCHWINGE.
 
     $ export LC_ALL=C
     $ (cd ../master/ && contrib/gcc_update --touch)
@@ -787,7 +789,7 @@ Different hosts may default to different shells and compiler versions; thus
 harmonized.
 
 This takes up around 4.9 GiB, and runs for [[6 h 09 min|performance#measure]]
-on kepler.SCHWINGE and [[5 h 37 min|performance#measure]] on laplace.SCHWINGE.
+on kepler.SCHWINGE and [[4 h 28 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
@@ -943,7 +945,7 @@ on kepler.SCHWINGE and [[5 h 37 min|performance#measure]] on laplace.SCHWINGE.
     [...]
 
 This takes up around 1.4 GiB, and runs for [[4 min|performance#measure]] on
-kepler.SCHWINGE and [[6 min|performance#measure]] on laplace.SCHWINGE.
+kepler.SCHWINGE and [[5 min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
@@ -968,8 +970,8 @@ kepler.SCHWINGE and [[6 min|performance#measure]] on laplace.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This runs for [[11 h 55 min|performance#measure]] on kepler.SCHWINGE and [[15 h
-05 min|performance#measure]] on laplace.SCHWINGE.
+This runs for [[11 h 55 min|performance#measure]] on kepler.SCHWINGE and [[11 h
+33 min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
@@ -1086,6 +1088,38 @@ This runs for [[11 h 55 min|performance#measure]] on kepler.SCHWINGE and [[15 h
     All have basically the same backtrace.  TODO.
 
   * `[ARCH]/libjava`
+
+    A few of the `Thread_Sleep_2 output` tests FAIL:
+
+        FAIL: Thread_Sleep_2 [...] output - source compiled test
+
+    That is because of:
+
+        spawn [open ...]
+        failed, iteration 1, time 9950000ns
+        failed, iteration 3, time 9950000ns
+        failed, iteration 5, time 9950000ns
+        failed, iteration 7, time 9950000ns
+        failed, iteration 9, time 9950000ns
+        failed, iteration 11, time 9950000ns
+        [...]
+
+    Source code is probably libjava.lang/Thread_Sleep_2.java:
+
+              for (int i = 0; i < 100; i++)
+                { 
+                  long start = System.nanoTime();
+                  Thread.sleep(10);
+                  long end = System.nanoTime();
+                  if ((end - start) < 10000000)
+                    { 
+                      System.out.print ("failed, iteration ");
+                      System.out.print (i);
+                      System.out.print (", time ");
+                      System.out.print (end - start);
+                      System.out.println ("ns");
+
+    TODO.
 
         spawn [open ...]
         1
@@ -2051,6 +2085,303 @@ This runs for [[11 h 55 min|performance#measure]] on kepler.SCHWINGE and [[15 h
     another terminal, they do get killed.  In this case, then there's strange
     things going on if the (pseudo) terminals are re-used later on: hangs,
     dropped characters.  (This sounds familiar from GDB testsuite runs.)
+
+    2016-02-17
+
+        $ apt-cache policy dejagnu expect tcl-expect libtcl8.6 libc0.3 hurd gnumach-image-1-486
+        dejagnu:
+          Installiert:           1.5.3-2
+          Installationskandidat: 1.5.3-2
+          Versionstabelle:
+         *** 1.5.3-2 0
+                500 http://ftp.de.debian.org/debian/ unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        expect:
+          Installiert:           5.45-7
+          Installationskandidat: 5.45-7
+          Versionstabelle:
+         *** 5.45-7 0
+                500 http://ftp.de.debian.org/debian/ unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        tcl-expect:
+          Installiert:           5.45-7
+          Installationskandidat: 5.45-7
+          Versionstabelle:
+         *** 5.45-7 0
+                500 http://ftp.de.debian.org/debian/ unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        libtcl8.6:
+          Installiert:           8.6.4+dfsg-2
+          Installationskandidat: 8.6.4+dfsg-3
+          Versionstabelle:
+             8.6.4+dfsg-3 0
+                500 http://ftp.de.debian.org/debian/ unstable/main hurd-i386 Packages
+         *** 8.6.4+dfsg-2 0
+                100 /var/lib/dpkg/status
+        libc0.3:
+          Installiert:           2.19-22
+          Installationskandidat: 2.21-8
+          Versionstabelle:
+             2.21-8 0
+                500 http://ftp.de.debian.org/debian/ unstable/main hurd-i386 Packages
+         *** 2.19-22 0
+                100 /var/lib/dpkg/status
+             2.19-16~3 0
+                500 http://ftp.debian-ports.org/debian/ unreleased/main hurd-i386 Packages
+        hurd:
+          Installiert:           1:0.6.git20150704-2
+          Installationskandidat: 1:0.7.git20160214-2
+          Versionstabelle:
+             1:0.7.git20160214-2 0
+                500 http://ftp.de.debian.org/debian/ unstable/main hurd-i386 Packages
+         *** 1:0.6.git20150704-2 0
+                100 /var/lib/dpkg/status
+        gnumach-image-1-486:
+          Installiert:           2:1.5+git20150922-1
+          Installationskandidat: 2:1.6+git20160114-1
+          Versionstabelle:
+             2:1.6+git20160114-1 0
+                500 http://ftp.de.debian.org/debian/ unstable/main hurd-i386 Packages
+         *** 2:1.5+git20150922-1 0
+                100 /var/lib/dpkg/status
+        $ ./stack_check1.exe 
+        Segmentation fault
+
+    2016-02-18
+
+        $ apt-cache policy dejagnu expect tcl-expect libtcl8.6 libc0.3 hurd gnumach-image-1-486
+        dejagnu:
+          Installiert:           1.5.3-2
+          Installationskandidat: 1.5.3-2
+          Versionstabelle:
+         *** 1.5.3-2 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        expect:
+          Installiert:           5.45-7
+          Installationskandidat: 5.45-7
+          Versionstabelle:
+         *** 5.45-7 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        tcl-expect:
+          Installiert:           5.45-7
+          Installationskandidat: 5.45-7
+          Versionstabelle:
+         *** 5.45-7 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        libtcl8.6:
+          Installiert:           8.6.4+dfsg-3
+          Installationskandidat: 8.6.4+dfsg-3
+          Versionstabelle:
+         *** 8.6.4+dfsg-3 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        libc0.3:
+          Installiert:           2.21-9
+          Installationskandidat: 2.21-9
+          Versionstabelle:
+         *** 2.21-9 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+             2.19-16~3 500
+                500 http://ftp.debian-ports.org/debian unreleased/main hurd-i386 Packages
+        hurd:
+          Installiert:           1:0.6.git20150704-2
+          Installationskandidat: 1:0.7.git20160214-2
+          Versionstabelle:
+             1:0.7.git20160214-2 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+         *** 1:0.6.git20150704-2 100
+                100 /var/lib/dpkg/status
+        gnumach-image-1-486:
+          Installiert:           2:1.5+git20150922-1
+          Installationskandidat: 2:1.6+git20160114-1
+          Versionstabelle:
+             2:1.6+git20160114-1 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+         *** 2:1.5+git20150922-1 100
+                100 /var/lib/dpkg/status
+        $ ./stack_check1.exe 
+        Segmentation fault
+
+    Upgrade GNU Mach
+
+        $ apt-cache policy dejagnu expect tcl-expect libtcl8.6 libc0.3 hurd gnumach-image-1-486
+        dejagnu:
+          Installed: 1.5.3-2
+          Candidate: 1.5.3-2
+          Version table:
+         *** 1.5.3-2 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        expect:
+          Installed: 5.45-7
+          Candidate: 5.45-7
+          Version table:
+         *** 5.45-7 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        tcl-expect:
+          Installed: 5.45-7
+          Candidate: 5.45-7
+          Version table:
+         *** 5.45-7 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        libtcl8.6:
+          Installed: 8.6.4+dfsg-3
+          Candidate: 8.6.4+dfsg-3
+          Version table:
+         *** 8.6.4+dfsg-3 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        libc0.3:
+          Installed: 2.21-9
+          Candidate: 2.21-9
+          Version table:
+         *** 2.21-9 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+             2.19-16~3 500
+                500 http://ftp.debian-ports.org/debian unreleased/main hurd-i386 Packages
+        hurd:
+          Installed: 1:0.6.git20150704-2
+          Candidate: 1:0.7.git20160214-2
+          Version table:
+             1:0.7.git20160214-2 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+         *** 1:0.6.git20150704-2 100
+                100 /var/lib/dpkg/status
+        gnumach-image-1-486:
+          Installed: 2:1.6+git20160114-1
+          Candidate: 2:1.6+git20160114-1
+          Version table:
+         *** 2:1.6+git20160114-1 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        $ ./stack_check1.exe 
+        Segmentation fault
+
+    Upgrade Hurd.
+
+        $ apt-cache policy dejagnu expect tcl-expect libtcl8.6 libc0.3 hurd gnumach-image-1-486
+        dejagnu:
+          Installiert:           1.5.3-2
+          Installationskandidat: 1.5.3-2
+          Versionstabelle:
+         *** 1.5.3-2 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        expect:
+          Installiert:           5.45-7
+          Installationskandidat: 5.45-7
+          Versionstabelle:
+         *** 5.45-7 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        tcl-expect:
+          Installiert:           5.45-7
+          Installationskandidat: 5.45-7
+          Versionstabelle:
+         *** 5.45-7 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        libtcl8.6:
+          Installiert:           8.6.4+dfsg-3
+          Installationskandidat: 8.6.4+dfsg-3
+          Versionstabelle:
+         *** 8.6.4+dfsg-3 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        libc0.3:
+          Installiert:           2.21-9
+          Installationskandidat: 2.21-9
+          Versionstabelle:
+         *** 2.21-9 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+             2.19-16~3 500
+                500 http://ftp.debian-ports.org/debian unreleased/main hurd-i386 Packages
+        hurd:
+          Installiert:           1:0.7.git20160214-2
+          Installationskandidat: 1:0.7.git20160214-2
+          Versionstabelle:
+         *** 1:0.7.git20160214-2 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        gnumach-image-1-486:
+          Installiert:           2:1.6+git20160114-1
+          Installationskandidat: 2:1.6+git20160114-1
+          Versionstabelle:
+         *** 2:1.6+git20160114-1 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        $ ./stack_check1.exe
+        [hangs]
+
+    System shutdown/reboot hangs when trying to terminate all running
+    processes; luckily, I still had a shell open, and after `kill -KILL`ing the
+    `stack_check1.exe` process, the shutdown/reboot proceeds.
+
+    Restore previous 1:0.6.git20150704-2 packages.
+
+        $ apt-cache policy dejagnu expect tcl-expect libtcl8.6 libc0.3 hurd gnumach-image-1-486
+        dejagnu:
+          Installed: 1.5.3-2
+          Candidate: 1.5.3-2
+          Version table:
+         *** 1.5.3-2 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        expect:
+          Installed: 5.45-7
+          Candidate: 5.45-7
+          Version table:
+         *** 5.45-7 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        tcl-expect:
+          Installed: 5.45-7
+          Candidate: 5.45-7
+          Version table:
+         *** 5.45-7 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        libtcl8.6:
+          Installed: 8.6.4+dfsg-3
+          Candidate: 8.6.4+dfsg-3
+          Version table:
+         *** 8.6.4+dfsg-3 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        libc0.3:
+          Installed: 2.21-9
+          Candidate: 2.21-9
+          Version table:
+         *** 2.21-9 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+             2.19-16~3 500
+                500 http://ftp.debian-ports.org/debian unreleased/main hurd-i386 Packages
+        hurd:
+          Installed: 1:0.6.git20150704-2
+          Candidate: 1:0.7.git20160214-2
+          Version table:
+             1:0.7.git20160214-2 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+         *** 1:0.6.git20150704-2 100
+                100 /var/lib/dpkg/status
+        gnumach-image-1-486:
+          Installed: 2:1.6+git20160114-1
+          Candidate: 2:1.6+git20160114-1
+          Version table:
+         *** 2:1.6+git20160114-1 500
+                500 http://ftp.de.debian.org/debian unstable/main hurd-i386 Packages
+                100 /var/lib/dpkg/status
+        $ ./stack_check1.exe 
+        Segmentation fault
 
 
 ## Enhancements
