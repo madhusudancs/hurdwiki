@@ -30,12 +30,12 @@ example.  Especially all the compiler magic is all the same.
 git checkout reviewed
 git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefix=./ --word-diff --color --find-renames --ignore-space-change ..upstream/trunk | awk '/^(\x1b\[[0-9]+m)?diff/ { c = " " $0; } /^(\x1b\[[0-9]+m)?@@/ { print c; } { print; }' | less
 -i
-/^---.*/([^.]*|.*\.texi.*|[^/]*gnu[^/]*|libgo/go/(net/sock_bsd\.go|syscall/exec_bsd\.go|syscall/libcall_posix\.go))$|hurd|linux|nacl|nptl|glibc($|[^x]|x[^x]|x$)|gs:|dg-runtest
+/^---.*/([^.]*|.*\.texi.*|[^/]*gnu[^/]*|libgo/go/(net/sock_bsd\.go|syscall/exec_bsd\.go|syscall/libcall_posix\.go))$|hurd|linux|nacl|nptl|glibc($|[^x]|x[^x]|x$)|gs:|seg_gs|seg_tls
 
 -->
 
 Last reviewed up to the Git mirror's commit
-c16b7ed55398d2ea55d9ab35519f20cc053b9d0a (2015-01-19).
+bd5bb665eb00598666a8162c2440410a51eb9e7e (2016-02-20).
 
 <http://gcc.gnu.org/install/configure.html> has documentation for the
 `configure` switches.
@@ -286,6 +286,20 @@ c16b7ed55398d2ea55d9ab35519f20cc053b9d0a (2015-01-19).
         [[!GCC_PR 57851 desc="[patch] unwinding via signal trampoline for
         kfreebsd*-gnu"]].
 
+          * `unwind-dw2-fde-dip.c`
+
+                #if !defined(inhibit_libc) && defined(HAVE_LD_EH_FRAME_HDR) \
+                    && defined(TARGET_DL_ITERATE_PHDR) \
+                    {+&& defined(__linux__)+}
+                {+# define USE_PT_GNU_EH_FRAME+}
+                {+#endif+}
+                
+                {+#if !defined(inhibit_libc) && defined(HAVE_LD_EH_FRAME_HDR) \+}
+                {+    && defined(TARGET_DL_ITERATE_PHDR) \+}
+                    && (defined(__DragonFly__) || defined(__FreeBSD__))
+                # define ElfW __ElfN
+                # define USE_PT_GNU_EH_FRAME
+
       * `libitm`
 
         TODO:
@@ -293,6 +307,167 @@ c16b7ed55398d2ea55d9ab35519f20cc053b9d0a (2015-01-19).
           * `libitm/config/linux`
 
       * `liboffloadmic`
+
+      * `libgomp`
+
+          * `testsuite/libgomp.c/affinity-1.c`
+
+      * Check if linker supports -pie option with copy reloc
+
+            diff --git ./gcc/configure.ac ./gcc/configure.ac
+            {+AC_MSG_CHECKING(linker PIE support with copy reloc)+}
+            {+gcc_cv_ld_pie_copyreloc=no+}
+            {+if test $gcc_cv_ld_pie = yes ; then+}
+            {+  if test $in_tree_ld = yes ; then+}
+            {+    if test "$gcc_cv_gld_major_version" -eq 2 -a "$gcc_cv_gld_minor_version" -ge 25 -o "$gcc_cv_gld_major_version" -gt 2; then+}
+            {+      gcc_cv_ld_pie_copyreloc=yes+}
+            {+    fi+}
+            {+  elif test x$gcc_cv_as != x -a x$gcc_cv_ld != x ; then+}
+            {+    # Check if linker supports -pie option with copy reloc+}
+            {+    case "$target" in+}
+            {+    i?86-*-linux* | x86_64-*-linux*)+}
+            {+[...]+}
+            
+            diff --git ./gcc/testsuite/gcc.target/i386/pie-copyrelocs-1.c ./gcc/testsuite/gcc.target/i386/pie-copyrelocs-1.c
+            diff --git ./gcc/testsuite/gcc.target/i386/pie-copyrelocs-2.c ./gcc/testsuite/gcc.target/i386/pie-copyrelocs-2.c
+            diff --git ./gcc/testsuite/gcc.target/i386/pie-copyrelocs-3.c ./gcc/testsuite/gcc.target/i386/pie-copyrelocs-3.c
+            diff --git ./gcc/testsuite/gcc.target/i386/pie-copyrelocs-4.c ./gcc/testsuite/gcc.target/i386/pie-copyrelocs-4.c
+            @@ -0,0 +1,14 @@
+            {+/* [...] */+}
+            {+/* { dg-do compile { target *-*-linux* } } */+}
+            {+/* { dg-require-effective-target pie_copyreloc } */+}
+            {+/* { dg-options "-O2 -fpie" } */+}
+
+            -checking linker PIE support with copy reloc... yes
+            +checking linker PIE support with copy reloc... no
+
+      * Testsuite
+
+            diff --git ./gcc/testsuite/gcc.target/i386/pr65248-1.c ./gcc/testsuite/gcc.target/i386/pr65248-1.c
+            diff --git ./gcc/testsuite/gcc.target/i386/pr65248-2.c ./gcc/testsuite/gcc.target/i386/pr65248-2.c
+            diff --git ./gcc/testsuite/gcc.target/i386/pr65248-3.c ./gcc/testsuite/gcc.target/i386/pr65248-3.c
+            diff --git ./gcc/testsuite/gcc.target/i386/pr65248-4.c ./gcc/testsuite/gcc.target/i386/pr65248-4.c
+            diff --git ./gcc/testsuite/gcc.target/i386/pr67215-1.c ./gcc/testsuite/gcc.target/i386/pr67215-1.c
+            diff --git ./gcc/testsuite/gcc.target/i386/pr67215-2.c ./gcc/testsuite/gcc.target/i386/pr67215-2.c
+            diff --git ./gcc/testsuite/gcc.target/i386/pr67215-3.c ./gcc/testsuite/gcc.target/i386/pr67215-3.c
+            @@ -0,0 +1,17 @@
+            {+/* { dg-do compile { target *-*-linux* } } */+}
+            {+/* { dg-options "-O2 -fpic" } */+}
+
+            diff --git ./gcc/testsuite/gcc.target/i386/pr32219-9.c ./gcc/testsuite/gcc.target/i386/pr32219-9.c
+            @@ -0,0 +1,16 @@
+            {+/* { dg-do compile { target *-*-linux* } } */+}
+            {+/* { dg-options "-O2 -fpie" } */+}
+
+            diff --git ./gcc/testsuite/gcc.target/i386/pr63495.c ./gcc/testsuite/gcc.target/i386/pr63495.c
+            @@ -0,0 +1,6 @@
+            {+/* PR c/63495 */+}
+            {+/* { dg-do compile { target { i?86-*-linux* x86_64-*-linux* } } } */+}
+
+            +++ ./gcc/testsuite/gcc.target/i386/pr66232-1.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr66232-2.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr66232-3.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr66232-4.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr66232-6.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr66232-7.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr66232-8.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr66232-9.c
+            @@ -0,0 +1,13 @@
+            {+/* { dg-do compile { target *-*-linux* } } */+}
+
+            gcc/testsuite/c-c++-common/pr37743.c
+            gcc/testsuite/gcc.dg/iec-559-macros-9.c
+            gcc/testsuite/gcc.dg/pg-override.c
+            gcc/testsuite/gcc.dg/pg.c
+            gcc/testsuite/gcc.target/i386/fentry-override.c
+            gcc/testsuite/gcc.target/i386/fentry.c
+            gcc/testsuite/gcc.target/i386/struct-size.c
+            Linux?
+
+            libstdc++-v3/testsuite/21_strings/c_strings/char/69626.cc
+            libstdc++-v3/testsuite/30_threads/shared_lock/cons/1.cc
+            libstdc++-v3/testsuite/30_threads/shared_lock/cons/2.cc
+            libstdc++-v3/testsuite/30_threads/shared_lock/cons/3.cc
+            libstdc++-v3/testsuite/30_threads/shared_lock/cons/4.cc
+            libstdc++-v3/testsuite/30_threads/shared_lock/cons/5.cc
+            libstdc++-v3/testsuite/30_threads/shared_lock/cons/6.cc
+            libstdc++-v3/testsuite/30_threads/shared_lock/locking/1.cc
+            libstdc++-v3/testsuite/30_threads/shared_lock/locking/2.cc
+            libstdc++-v3/testsuite/30_threads/shared_lock/locking/3.cc
+            libstdc++-v3/testsuite/30_threads/shared_lock/locking/4.cc
+            libstdc++-v3/testsuite/30_threads/shared_lock/modifiers/1.cc
+            libstdc++-v3/testsuite/30_threads/shared_lock/modifiers/2.cc
+            libstdc++-v3/testsuite/30_threads/shared_timed_mutex/cons/1.cc
+            libstdc++-v3/testsuite/30_threads/shared_timed_mutex/try_lock/1.cc
+            libstdc++-v3/testsuite/30_threads/shared_timed_mutex/try_lock/2.cc
+            libstdc++-v3/testsuite/30_threads/shared_timed_mutex/try_lock/3.cc
+            libstdc++-v3/testsuite/30_threads/shared_mutex/cons/1.cc
+            libstdc++-v3/testsuite/30_threads/shared_mutex/try_lock/1.cc
+            libstdc++-v3/testsuite/30_threads/shared_mutex/try_lock/2.cc
+            Linux?
+
+            diff --git ./gcc/testsuite/gcc.dg/tm/memopt-15.c ./gcc/testsuite/gcc.dg/tm/memopt-15.c
+            @@ -1,4 +1,4 @@
+            /* { dg-do compile { target { {+i?86-*-linux*+} x86_64-*-linux* } } } */
+            /* { dg-options "-fgnu-tm -O" } */
+
+            diff --git ./gcc/testsuite/gcc.target/i386/pr61296-1.c ./gcc/testsuite/gcc.target/i386/pr61296-1.c
+            diff --git ./gcc/testsuite/gcc.target/i386/pr61296-2.c ./gcc/testsuite/gcc.target/i386/pr61296-2.c
+            diff --git ./gcc/testsuite/gcc.target/i386/pr61296-3.c ./gcc/testsuite/gcc.target/i386/pr61296-3.c
+            diff --git ./gcc/testsuite/gcc.target/i386/pr61296-4.c ./gcc/testsuite/gcc.target/i386/pr61296-4.c
+            diff --git ./gcc/testsuite/gcc.target/i386/pr61296-5.c ./gcc/testsuite/gcc.target/i386/pr61296-5.c
+            diff --git ./gcc/testsuite/gcc.target/i386/pr61296-6.c ./gcc/testsuite/gcc.target/i386/pr61296-6.c
+            diff --git ./gcc/testsuite/gcc.target/i386/pr61296-7.c ./gcc/testsuite/gcc.target/i386/pr61296-7.c
+            @@ -0,0 +1,27 @@
+            {+/* PR target/61296 */+}
+            {+/* { dg-do compile { target { *-*-linux* } } } */+}
+
+            gcc/testsuite/gcc.target/i386/mcount_pic.c
+            gcc/testsuite/gcc.target/i386/nop-mcount.c
+            gcc/testsuite/gcc.target/i386/record-mcount.c
+            Linux?
+
+            --- /dev/null
+            +++ ./gcc/testsuite/gcc.dg/fdata-sections-2.c
+             diff --git ./gcc/testsuite/gcc.dg/fdata-sections-2.c ./gcc/testsuite/gcc.dg/fdata-sections-2.c
+            @@ -0,0 +1,18 @@
+            {+/* { dg-do compile { target *-*-linux* } } */+}
+
+            --- /dev/null
+            +++ ./gcc/testsuite/gcc.target/i386/noplt-1.c
+            +++ ./gcc/testsuite/gcc.target/i386/noplt-2.c
+            +++ ./gcc/testsuite/gcc.target/i386/noplt-3.c
+            +++ ./gcc/testsuite/gcc.target/i386/noplt-4.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr66275.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr68018.c
+            {+/* { dg-do compile { target { *-*-linux* && { ! ia32 } } } } */+}
+
+            --- /dev/null
+            +++ ./gcc/testsuite/gcc.target/i386/pr68937-1.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr68937-2.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr68937-3.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr68937-4.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr68937-5.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr68937-6.c
+            {+/* { dg-do compile { target { *-*-linux* && ia32 } } } */+}
+            {+/* { dg-options "-O2 -fpic -fno-plt -mregparm=3" } */+}
+
+            --- /dev/null
+            +++ ./gcc/testsuite/gcc.target/i386/pr66232-10.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr66232-11.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr66232-12.c
+            +++ ./gcc/testsuite/gcc.target/i386/pr66232-13.c
+            {+/* { dg-do compile { target { *-*-linux* && { ! ia32 } } } } */+}
+            {+/* { dg-require-effective-target maybe_x32 } */+}
+            {+/* { dg-options "-O2 -mx32 -fpic -fno-plt -maddress-mode=long" } */+}
+
+            diff --git ./gcc/testsuite/gcc.target/i386/iamcu/abi-iamcu.exp ./gcc/testsuite/gcc.target/i386/iamcu/abi-iamcu.exp
+            @@ -0,0 +1,42 @@
+            {+[...]+}
+            {+if { (![istarget x86_64-*-linux*] && ![istarget i?86-*-linux*])+}
+            {+     || ![is-effective-target ia32] } then {+}
+            {+  return+}
+            {+}+}
 
   * `hurd/usr`
 
@@ -390,6 +565,61 @@ c16b7ed55398d2ea55d9ab35519f20cc053b9d0a (2015-01-19).
       * Might `-fsplit-stack` be useful for us with respect to our
         [[multithreaded|multithreading]] libraries?
 
+      * -fsplit-stack issue in context of [[gccgo]]
+
+            mmap errno 1073741846
+            fatal error: mmap
+
+            Temporary breakpoint 3 at 0x80490fd
+            Starting program: /media/erich/home/thomas/tmp/gcc/t/hurd/go.build/gcc/testsuite/go/array-2.x
+            [New Thread 732.20]
+            
+            Breakpoint 2, backtrace_alloc (state=<optimized out>, state@entry=0x21ffa08, size=size@entry=40, error_callback=<optimized out>, error_callback@entry=0x12c4970 <error_callback>, data=<optimized out>, data@entry=0x0)
+                at ../../../go/libbacktrace/mmap.c:140
+            140           page = mmap (NULL, asksize, PROT_READ | PROT_WRITE,
+            (gdb) info threads
+              Id   Target Id         Frame
+              5    Thread 732.20     0x01dedafc in mach_msg_trap () at /usr/src/eglibc-2.17/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+            * 4    Thread 732.19     backtrace_alloc (state=<optimized out>, state@entry=0x21ffa08, size=size@entry=40, error_callback=<optimized out>, error_callback@entry=0x12c4970 <error_callback>, data=<optimized out>, data@entry=0x0)
+                at ../../../go/libbacktrace/mmap.c:140
+            (gdb) set *(int *)0x21ff930 = 123
+            (gdb) call __vm_allocate(1,0x21ff930,4096,1)
+            $20 = 0
+            (gdb) print/x *(int *)0x21ff930
+            $21 = 0x0
+            (gdb) call __vm_allocate(1,0x21ff930,4096,1)
+            $22 = 0
+            (gdb) print/x *(int *)0x21ff930
+            $23 = 0x7d000
+            (gdb) call __vm_allocate(1,0x21ff930,4096,1)
+            $24 = 0
+            (gdb) print/x *(int *)0x21ff930
+            $25 = 0x7e000
+
+            $ cat < v.c
+            #include <mach.h>
+            #include <stdio.h>
+            
+            int main(void)
+            {
+              int err;
+              vm_address_t addr = 0;
+            
+              int i;
+              for (i = 0; i < 3; ++i)
+                {
+                  err = vm_allocate(mach_task_self(), &addr, 4096, 1);
+                  printf("%u %p\n", err, (void *) addr);
+                }
+            
+              return 0;
+            }
+            $ gcc -Wall v.c -fsplit-stack 
+            $ ./a.out 
+            0 (nil)
+            0 0x102c000
+            0 0x102e000
+
   * `gcc/ada` (not all reviewed)
 
       * [[Ada (GNAT)|gnat]] support is work in progress.
@@ -399,6 +629,7 @@ c16b7ed55398d2ea55d9ab35519f20cc053b9d0a (2015-01-19).
       * The [[Google Go's libgo|gccgo]] (introduced in
         e440a3286bc89368b8d3a8fd6accd47191790bf2 (2010-12-03)) needs
         OS configuration / support.
+        See [[gccgo]].
 
   * `--enable-frame-pointer`
 
@@ -620,6 +851,25 @@ c16b7ed55398d2ea55d9ab35519f20cc053b9d0a (2015-01-19).
     "20110609002620.GA16719@const.famille.thibault.fr"]].  commit
     026e608ecebcb2a6193971006a85276307d79b00.
 
+  * Does this make sense for us?
+
+        diff --git ./libstdc++-v3/include/std/thread ./libstdc++-v3/include/std/thread
+        @@ -269,7 +279,18 @@ _GLIBCXX_END_NAMESPACE_VERSION
+            /// get_id
+            inline thread::id
+            get_id() noexcept
+            {
+        {+#ifdef __GLIBC__+}
+        {+      // For the GNU C library pthread_self() is usable without linking to+}
+        {+      // libpthread.so but returns 0, so we cannot use it in single-threaded+}
+        {+      // programs, because this_thread::get_id() != thread::id{} must be true.+}
+        {+      // We know that pthread_t is an integral type in the GNU C library.+}
+        {+      if (!__gthread_active_p())+}
+        {+      return thread::id(1);+}
+        {+#endif+}
+              return thread::id(__gthread_self());
+            }
+
   * [[`libsanitizer`|_san]] (not reviewed)
 
     A lot of Linux-specific things.
@@ -635,8 +885,6 @@ c16b7ed55398d2ea55d9ab35519f20cc053b9d0a (2015-01-19).
         == 0)` -- not a problem for us, but...
 
       * `libvtv/vtv_rts.cc`: `/proc/self/exe` usage, `PATH_MAX`.
-
-  * ./libgomp/testsuite/libgomp.c/affinity-1.c Linux usage
 
   * `libcilkrts`
 
@@ -765,13 +1013,55 @@ c16b7ed55398d2ea55d9ab35519f20cc053b9d0a (2015-01-19).
   * Debian GCC 48594516135e34a726cafe3863a4dc661bbd61a4 `boehm-gc: use
     anonymous mmap instead of brk also on hurd-*.`.  [[!debbug 753791]].
 
+  * [low] `libmpx`
+
+    Only enabled for GNU/Linux, but actually seems to be portable.
+
+        gcc/config/i386/linux-common.h:MPX_SPEC
+
+  * `PIE_SPEC`
+
+        diff --git ./gcc/config/gnu-user.h ./gcc/config/gnu-user.h
+        @@ -42,8 +42,11 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+        
+        #if defined HAVE_LD_PIE
+        #define GNU_USER_TARGET_STARTFILE_SPEC \
+          "%{!shared: [-%{pg|p|profile:gcrt1.o%s;pie:Scrt1.o%s;:crt1.o%s}}-]{+%{pg|p|profile:gcrt1.o%s;: \+}
+        {+    %{" PIE_SPEC ":Scrt1.o%s} %{" NO_PIE_SPEC ":crt1.o%s}}}+} \
+           crti.o%s [-%{static:crtbeginT.o%s;shared|pie:crtbeginS.o%s;:crtbegin.o%s}-]{+%{static:crtbeginT.o%s;: %{shared:crtbeginS.o%s} \+}
+        {+            %{" PIE_SPEC ":crtbeginS.o%s} \+}
+        {+            %{" NO_PIE_SPEC ":crtbegin.o%s}}+} \
+
+  * `%gs:`
+
+        diff --git ./gcc/config/i386/i386.c ./gcc/config/i386/i386.c
+        @@ -22879,10 +22887,50 @@ ix86_split_long_move (rtx operands[])
+                  if (GET_MODE (base) != Pmode)
+                    base = gen_rtx_REG (Pmode, REGNO (base));
+        
+                  {+addr = XEXP (part[1][0], 0);+}
+        {+        if (TARGET_TLS_DIRECT_SEG_REFS)+}
+        {+          {+}
+        {+            struct ix86_address parts;+}
+        {+            int ok = ix86_decompose_address (addr, &parts);+}
+        {+            gcc_assert (ok);+}
+        {+            if (parts.seg == DEFAULT_TLS_SEG_REG)+}
+        {+              {+}
+        {+                /* It is not valid to use %gs: or %fs: in+}
+        {+                   lea though, so we need to remove it from the+}
+        {+                   address used for lea and add it to each individual+}
+        {+                   memory loads instead.  */+}
+        [...]
+
+  * x86 Named Address Spaces, `i386: Add address spaces for fs/gs segments and
+    tls`, commit 716c563bcef8bb91dee230dbc75abff70ed2f6ae.
+
 
 # Build
 
 Here's a log of a GCC build run; this is from Git commit
-c16b7ed55398d2ea55d9ab35519f20cc053b9d0a (2015-01-19), with
-b68b3d9d07b2e31cc592ef231a6b963192ae81b6 cherry-picked on laplace.SCHWINGE, run
-on kepler.SCHWINGE and laplace.SCHWINGE.
+bd5bb665eb00598666a8162c2440410a51eb9e7e (2016-02-20), run on kepler.SCHWINGE
+and laplace.SCHWINGE.
 
     $ export LC_ALL=C
     $ (cd ../master/ && contrib/gcc_update --touch)
@@ -787,8 +1077,8 @@ harmonized.
 `/include` for GNU Hurd.  Explicit `--enable-multiarch` because *auto check [is
 disabled if] configured with --native-system-header-dir*.
 
-This takes up around 4.3 GiB, and runs for [[4 h 37 min|performance#measure]]
-on kepler.SCHWINGE and [[3 h 42 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 4.8 GiB, and runs for [[5 h 0 min|performance#measure]]
+on kepler.SCHWINGE and [[5 h 18 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
@@ -937,14 +1227,24 @@ on kepler.SCHWINGE and [[3 h 42 min|performance#measure]] on laplace.SCHWINGE.
   * `libatomic` on GNU/Linux compiles several more files than on GNU/Hurd.  Is
     that correct?  Probably futex support.
 
+  * `linker -z bndplt option`
+
+        -checking linker -z bndplt option... yes
+        +checking linker -z bndplt option... no
+
+  * `utimensat`
+
+        -checking for utimensat... yes
+        +checking for utimensat... no
+
 
 # Install
 
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 1.4 GiB, and runs for [[2 min|performance#measure]] on
-kepler.SCHWINGE and [[5 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 1.4 GiB, and runs for [[1 min|performance#measure]] on
+kepler.SCHWINGE and [[6 min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
@@ -969,8 +1269,8 @@ kepler.SCHWINGE and [[5 min|performance#measure]] on laplace.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This runs for [[7 h 3 min|performance#measure]] on kepler.SCHWINGE and [[10 h
-19 min|performance#measure]] on laplace.SCHWINGE.
+This runs for [[7 h 55 min|performance#measure]] on kepler.SCHWINGE and [[14 h
+02 min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
@@ -1057,17 +1357,23 @@ This runs for [[7 h 3 min|performance#measure]] on kepler.SCHWINGE and [[10 h
         FAIL: g++.dg/ext/cleanup-9.C -std=gnu++98 execution test
         FAIL: g++.dg/ext/cleanup-9.C -std=gnu++11 execution test
 
+        gcc/testsuite/g++.dg/ext/cleanup-10.C:  s.sa_flags = SA_RESETHAND | SA_ONSTACK;
+        gcc/testsuite/g++.dg/ext/cleanup-11.C:  s.sa_flags = SA_RESETHAND | SA_ONSTACK | SA_SIGINFO;
+        gcc/testsuite/gcc.dg/cleanup-10.c:  s.sa_flags = SA_RESETHAND | SA_ONSTACK;
+        gcc/testsuite/gcc.dg/cleanup-11.c:  s.sa_flags = SA_RESETHAND | SA_ONSTACK | SA_SIGINFO;
+
     TODO.
 
-        spawn [open ...]
-        gdb: took too long to attach
-        testcase [...]/gcc/testsuite/gcc.dg/guality/guality.exp completed in 16 seconds
+  * `gfortran`
 
-        spawn [open ...]
-        gdb: took too long to attach
-        testcase [...]/gcc/testsuite/g++.dg/guality/guality.exp completed in 20 seconds
+        +FAIL: gfortran.dg/read_dir.f90   -O0  execution test
+        +FAIL: gfortran.dg/read_dir.f90   -O1  execution test
+        +FAIL: gfortran.dg/read_dir.f90   -O2  execution test
+        +FAIL: gfortran.dg/read_dir.f90   -O3 -fomit-frame-pointer -funroll-loops -fpeel-loops -ftracer -finline-functions  execution test
+        +FAIL: gfortran.dg/read_dir.f90   -O3 -g  execution test
+        +FAIL: gfortran.dg/read_dir.f90   -Os  execution test
 
-    TODO.  The gfortran ones worked fine.
+    TODO.
 
   * `[ARCH]/libgomp`
 
@@ -1154,6 +1460,63 @@ This runs for [[7 h 3 min|performance#measure]] on kepler.SCHWINGE and [[10 h
     (`std::__basic_file<char>::__basic_file(__pthread_mutex*)`), but
     `_ZNSt12__basic_fileIcEC2EP15pthread_mutex_t`
     (`std::__basic_file<char>::__basic_file(pthread_mutex_t*)`) is expected.
+
+        ./libstdc++-v3/config/abi/pre/gnu.ver:    # std::__basic_file
+        ./libstdc++-v3/config/abi/pre/gnu.ver:    _ZNSt12__basic_fileIcEC*;
+        
+        ./libstdc++-v3/config/io/basic_file_stdio.cc:
+        
+        ./libstdc++-v3/config/io/basic_file_stdio.h:
+              __basic_file(__c_lock* __lock = 0) throw ();
+        
+        ./libstdc++-v3/config/io/c_io_stdio.h:
+          typedef __gthread_mutex_t __c_lock;
+        
+        ./libgcc/gthr-posix.h:
+        typedef pthread_mutex_t __gthread_mutex_t;
+        
+        glibc commit 1bcfb5a5eb1c25b64a329c1edf6bcfb440cdbc93 then commit d804f5df602e6a348edcf7d2a2fe73b185bfbd34
+        
+        coulomb:tmp/glibc/tschwinge/Roger_Whittaker.build $ cat < c++-types-check.out
+        --- sysdeps/mach/hurd/i386/c++-types.data       2013-06-06 13:43:19.000000000 +0200
+        +++ -   2013-06-06 13:56:58.263987000 +0200
+        @@ -8 +8 @@
+        -dev_t:y
+        +dev_t:j
+        @@ -14 +14 @@
+        -fsid_t:8__fsid_t
+        +fsid_t:y
+        @@ -31,11 +31,11 @@
+        -pthread_attr_t:14pthread_attr_t
+        -pthread_barrier_t:17pthread_barrier_t
+        -pthread_barrierattr_t:21pthread_barrierattr_t
+        -pthread_cond_t:14pthread_cond_t
+        -pthread_condattr_t:18pthread_condattr_t
+        -pthread_key_t:j
+        -pthread_mutex_t:15pthread_mutex_t
+        -pthread_mutexattr_t:19pthread_mutexattr_t
+        -pthread_once_t:i
+        -pthread_rwlock_t:16pthread_rwlock_t
+        -pthread_rwlockattr_t:20pthread_rwlockattr_t
+        +pthread_attr_t:14__pthread_attr
+        +pthread_barrier_t:17__pthread_barrier
+        +pthread_barrierattr_t:21__pthread_barrierattr
+        +pthread_cond_t:14__pthread_cond
+        +pthread_condattr_t:18__pthread_condattr
+        +pthread_key_t:i
+        +pthread_mutex_t:15__pthread_mutex
+        +pthread_mutexattr_t:19__pthread_mutexattr
+        +pthread_once_t:14__pthread_once
+        +pthread_rwlock_t:16__pthread_rwlock
+        +pthread_rwlockattr_t:20__pthread_rwlockattr
+        @@ -43 +43 @@
+        -pthread_t:m
+        +pthread_t:i
+        @@ -48 +48 @@
+        -sigset_t:10__sigset_t
+        +sigset_t:m
+
+    [[!wikipedia "Name mangling"]].
 
         FAIL: 22_locale/time_get/get_date/wchar_t/4.cc execution test
         FAIL: 27_io/basic_filebuf/close/char/4879.cc execution test

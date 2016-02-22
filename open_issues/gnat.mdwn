@@ -90,6 +90,17 @@ svn://svn.debian.org/gcccvs/branches/sid@5638
       Debian already. Hopefully this is the last patch needed for the port of
       GNAT to Hurd.
 
+### 2015-11-27
+
+Is this related to:
+
+`gcc/ada/tracebak.c`:
+
+    #if (defined (__x86_64__) || defined (__linux__)) && !defined (__USING_SJLJ_EXCEPTIONS__)
+    #define USE_GCC_UNWINDER
+    #else
+    #define USE_GENERIC_UNWINDER
+
 
 ## Svante's patch
 
@@ -154,8 +165,167 @@ f6568ea476aa52a6e23c6db43b3e240cde55783a (2013-04-26).
     gcc/ada/s-taprop-linux.adb:            Stack.ss_sp    := Self_ID.Common.Task_Alternate_Stack;
     gcc/ada/s-taprop-posix.adb:            Stack.ss_sp    := Self_ID.Common.Task_Alternate_Stack;
 
+    gcc/ada/init.c:  act.sa_flags |= SA_ONSTACK;
+    gcc/ada/init.c:      act.sa_flags |= SA_ONSTACK;
+    gcc/ada/init.c:  act.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    gcc/ada/init.c:  act.sa_flags |= SA_ONSTACK;
+    gcc/ada/s-intman-posix.adb:                  act.sa_flags := act.sa_flags + SA_ONSTACK;
+    gcc/ada/s-linux-alpha.ads:   SA_ONSTACK  : constant := 16#01#;
+    gcc/ada/s-linux-hppa.ads:   SA_ONSTACK : constant := 16#01#;
+    gcc/ada/s-linux-mipsel.ads:   SA_ONSTACK  : constant := 16#08000000#;
+    gcc/ada/s-linux-sparc.ads:   SA_ONSTACK  : constant := 16#001#;
+    gcc/ada/s-linux.ads:   SA_ONSTACK  : constant := 16#08000000#;
+    gcc/ada/s-osinte-aix.ads:   SA_ONSTACK : constant := 16#0001#;
+    gcc/ada/s-osinte-android.ads:   SA_ONSTACK : constant := System.Linux.SA_ONSTACK;
+    gcc/ada/s-osinte-darwin.ads:   SA_ONSTACK : constant := 16#0001#;
+    gcc/ada/s-osinte-freebsd.ads:   SA_ONSTACK : constant := 16#0001#;
+    gcc/ada/s-osinte-hpux-dce.ads:   SA_ONSTACK  : constant  := 16#01#;
+    gcc/ada/s-osinte-hpux.ads:   SA_ONSTACK : constant := 16#01#;
+    gcc/ada/s-osinte-kfreebsd-gnu.ads:   SA_ONSTACK : constant := 16#0001#;
+    gcc/ada/s-osinte-linux.ads:   SA_ONSTACK : constant := System.Linux.SA_ONSTACK;
+    gcc/ada/s-osinte-lynxos.ads:   SA_ONSTACK : constant := 16#00#;
+    gcc/ada/s-osinte-lynxos.ads:   --  SA_ONSTACK is not defined on LynxOS, but it is referred to in the POSIX
+    gcc/ada/s-osinte-rtems.ads:   SA_ONSTACK : constant := 16#00#;
+    gcc/ada/s-osinte-rtems.ads:   --  SA_ONSTACK is not defined on RTEMS, but it is referred to in the POSIX
+    gcc/ada/s-osinte-solaris-posix.ads:   SA_ONSTACK : constant := 16#0001#;
+    gcc/ada/s-osinte-vxworks.ads:   SA_ONSTACK : constant := 16#0004#;
 
 ## TODO
+
+    diff --git ./gcc/ada/init.c ./gcc/ada/init.c
+    @@ -2002,6 +2021,15 @@ __gnat_install_handler (void)
+      trap_0_entry->inst_fourth = 0xa1480000;
+    #endif
+    
+    {+#if (defined (i386) || defined (__i386__)) && !defined (VTHREADS)+}
+    {+  /*  By experiment, found that sysModel () returns the following string+}
+    {+      prefix for vxsim when running on Linux and Windows.  */+}
+    {+  model = sysModel ();+}
+    {+  if ((strncmp (model, "Linux", 5) == 0)+}
+    {+      || (strncmp (model, "Windows", 7) == 0))+}
+    {+    is_vxsim = 1;+}
+    {+#endif+}
+    
+      __gnat_handler_installed = 1;
+    }
+    
+    diff --git ./gcc/ada/sigtramp.h ./gcc/ada/sigtramp.h
+    @@ -62,8 +62,14 @@ typedef struct ucontext
+         system headers so call it something unique.  */
+      typedef void __sigtramphandler_t (int signo, void *siginfo, void *sigcontext);
+    
+    {+#if CPU == SIMNT || CPU == SIMPENTIUM || CPU == SIMLINUX+}
+    {+  /* Vxsim requires a specially compiled handler.  */+}
+    {+  void __gnat_sigtramp_vxsim  (int signo, void *siginfo, void *sigcontext,+}
+    {+                       __sigtramphandler_t * handler);+}
+    {+#else+}
+      void __gnat_sigtramp  (int signo, void *siginfo, void *sigcontext,
+                             __sigtramphandler_t * handler);
+    {+#endif+}
+    
+    diff --git ./gcc/ada/gcc-interface/Makefile.in ./gcc/ada/gcc-interface/Makefile.in
+    @@ -923,13 +928,49 @@ ifeq ($(strip $(filter-out %86 wrs vxworks vxworks7,$(target_cpu) $(target_vendo
+    {+  VXSIM_CPU =+}
+    
+    {+  ifeq ($(strip $(filter-out vxworks rtp rtp-smp,$(target_os) $(THREAD_KIND))),)+}
+    {+      VXSIM_CPU = SIMPENTIUM+}
+    {+  else+}
+    {+    ifeq ($(strip $(filter-out kernel kernel-smp rtp rtp-smp,$(THREAD_KIND))),)+}
+    {+      ifeq ($(strip $(filter-out linux%,$(host_os))),)+}
+    {+        # Linux+}
+    {+        VXSIM_CPU = SIMLINUX+}
+    {+      else+}
+    {+        # Windows+}
+    {+        VXSIM_CPU = SIMNT+}
+    {+      endif+}
+    {+    endif+}
+    
+    diff --git ./gcc/ada/gcc-interface/Makefile.in ./gcc/ada/gcc-interface/Makefile.in
+    @@ -2413,6 +2468,14 @@ ifeq ($(filter a-except%,$(LIBGNAT_TARGET_PAIRS)),)
+    {+# Configuration of host tools+}
+    
+    {+# Under linux, host tools need to be linked with -ldl+}
+    
+    {+ifeq ($(strip $(filter-out linux%,$(host_os))),)+}
+    {+   TOOLS1_LIBS=-ldl+}
+    {+endif+}
+    
+    diff --git ./gcc/ada/s-osinte-linux.ads ./gcc/ada/s-osinte-linux.ads
+    @@ -224,6 +224,10 @@ package System.OS_Interface is
+       {+function clock_gettime+}
+    {+     (clock_id : clockid_t; tp : access timespec) return int;+}
+    {+   pragma Import (C, clock_gettime, "clock_gettime");+}
+    
+    diff --git ./gcc/ada/s-taprop-linux.adb ./gcc/ada/s-taprop-linux.adb
+    @@ -39,7 +39,6 @@ pragma Polling (Off);
+    with Interfaces.C;
+    [-with Interfaces.C.Extensions;-]
+    @@ -64,7 +63,6 @@ package body System.Task_Primitives.Operations is
+       use Interfaces.C;
+    [-   use Interfaces.C.Extensions;-]
+    @@ -629,30 +627,14 @@ package body System.Task_Primitives.Operations is
+       function Monotonic_Clock return Duration is
+          [-use Interfaces;-]
+    
+    [-      procedure timeval_to_duration-]
+    [-        (T    : not null access timeval;-]
+    [-         sec  : not null access C.Extensions.long_long;-]
+    [-         usec : not null access C.long);-]
+    [-      pragma Import (C, timeval_to_duration, "__gnat_timeval_to_duration");-]
+    
+    [-      Micro  : constant := 10**6;-]
+    [-      sec    : aliased C.Extensions.long_long;-]
+    [-      usec   : aliased C.long;-]
+    [-      TV-]{+TS+}     : aliased [-timeval;-]{+timespec;+}
+          Result : int;
+    
+    [-      function gettimeofday-]
+    [-        (Tv : access timeval;-]
+    [-         Tz : System.Address := System.Null_Address) return int;-]
+    [-      pragma Import (C, gettimeofday, "gettimeofday");-]
+    
+       begin
+          Result := [-gettimeofday (TV'Access, System.Null_Address);-]{+clock_gettime+}
+    {+        (clock_id => OSC.CLOCK_RT_Ada, tp => TS'Unchecked_Access);+}
+          pragma Assert (Result = 0);
+    [-timeval_to_duration (TV'Access, sec'Access, usec'Access);-]
+          return [-Duration (sec) + Duration (usec) / Micro;-]{+To_Duration (TS);+}
+       end Monotonic_Clock;
+
+
+    diff --git ./gcc/ada/adaint.c ./gcc/ada/adaint.c
+    @@ -3220,6 +3220,107 @@ __gnat_kill (int pid, int sig, int close ATTRIBUTE_UNUSED)
+    #endif
+    }
+    
+    {+void __gnat_killprocesstree (int pid, int sig_num)+}
+    {+{+}
+    {+[...]+}
+    {+#elif defined (__linux__)+}
+    {+  DIR *dir;+}
+    {+  struct dirent *d;+}
+    
+    {+  /*  read all processes' pid and ppid */+}
+    
+    {+  dir = opendir ("/proc");+}
+    {+[...]+}
+    {+  /* kill process */+}
+    
+    {+  __gnat_kill (pid, sig_num, 1);+}
+    {+#else+}
+    {+  __gnat_kill (pid, sig_num, 1);+}
+    {+#endif+}
+    {+[...]+}
+    {+}+}
+
+    diff --git ./gcc/ada/s-os_lib.ads ./gcc/ada/s-os_lib.ads
+    @@ -740,6 +744,19 @@ package System.OS_Lib is
+    {+   procedure Kill_Process_Tree (Pid : Process_Id; Hard_Kill : Boolean := True);+}
+    {+   --  Kill the process designated by Pid and all it's children processes.+}
+    {+   --  [...]
+    {+   --  Note that this routine is not atomic and is supported only on Linux+}
+    {+   --  and Windows. On other OS it will only kill the process identified by+}
+    {+   --  Pid.+}
 
 GCC includes (TODO: some version of) the Ada Conformity Assessment Test Suite
 (ACATS), <http://ada-auth.org/acats.html>.  Additional tests to be found at

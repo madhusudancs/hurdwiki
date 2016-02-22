@@ -1,4 +1,5 @@
-[[!meta copyright="Copyright © 2011, 2013 Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2011, 2013, 2016 Free Software Foundation,
+Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -92,13 +93,14 @@ Also, in `libgo/runtime/proc.c`:`runtime_newm`, `pthread_attr_setstacksize` is
 used, which we also can't support yet, for the same reason.
 
 
-========================
+## 2013-07-15, Fotis
 
 **gccgo manages to get compiled and pass a fair amount of its tests, however its library is failing all but one of its tests.**
 
 Following are the results of the passing suite between the libgo tests run on linux (x86) and the Hurd:
 
-# the Hurd:
+
+### the Hurd:
 
     Test Run By root on Fri Jul 12 17:56:44 UTC 2013
     Native configuration is i686-unknown-gnu0.3
@@ -116,7 +118,8 @@ Following are the results of the passing suite between the libgo tests run on li
     # of unexpected failures	130
     /root/gcc_new/gccbuild/./gcc/gccgo version 4.9.0 20130606 (experimental) (GCC)
 
-# Linux results:
+
+### Linux results:
 
     Test Run By fotis on Τρι 02 Ιούλ 2013 09:20:20 μμ EEST
     Native configuration is i686-pc-linux-gnu
@@ -132,6 +135,104 @@ Following are the results of the passing suite between the libgo tests run on li
 
     # of expected passes		131
     /home/fotis/Software/gcc_build/./gcc/gccgo version 4.9.0 20130702 (experimental) (GCC)
+
+
+## SIGCHLD busy-loops
+
+[[I|tschwinge]] have no recollection anymore what this is about...
+
+    (gdb) thread apply all bt
+    
+    Thread 3 (Thread 19802.3):
+    #0  0x01daab5c in swtch_pri () at /usr/src/eglibc-2.17/build-tree/hurd-i386-libc/mach/swtch_pri.S:2
+    #1  0x01dac544 in __spin_lock_solid (lock=0x1fb700c) at spin-solid.c:26
+    #2  0x01dc1e07 in __spin_lock (__lock=<optimized out>) at ../mach/lock-intern.h:54
+    #3  _hurd_sigstate_lock (ss=ss@entry=0x2b008) at hurdsig.c:172
+    #4  0x01deaefb in __sigprocmask (how=how@entry=2, set=set@entry=0x209ffc9c, oset=oset@entry=0x0) at ../sysdeps/mach/hurd/sigprocmask.c:43
+    #5  0x01deeaff in abort () at abort.c:67
+    #6  0x01dec7c3 in __sigreturn (scp=0x209ffd00) at ../sysdeps/mach/hurd/i386/sigreturn.c:74
+    #7  0x01dc6ac6 in trampoline () from /lib/i386-gnu/libc.so.0.3
+    #8  0x209ffd00 in ?? ()
+    Backtrace stopped: previous frame inner to this frame (corrupt stack?)
+    
+    Thread 2 (Thread 19802.2):
+    #0  0x01daaafc in mach_msg_trap () at /usr/src/eglibc-2.17/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2
+    #1  0x01dab3be in __mach_msg (msg=msg@entry=0x23fdef0, option=option@entry=3, send_size=32, rcv_size=rcv_size@entry=4096, rcv_name=rcv_name@entry=100, timeout=timeout@entry=0, notify=notify@entry=0) at msg.c:110
+    #2  0x01dabaeb in __mach_msg_server_timeout (demux=demux@entry=0x1dbc9f0 <msgport_server>, max_size=max_size@entry=4096, rcv_name=rcv_name@entry=100, option=option@entry=0, timeout=timeout@entry=0) at msgserver.c:150
+    #3  0x01dabbbb in __mach_msg_server (demux=demux@entry=0x1dbc9f0 <msgport_server>, max_size=4096, rcv_name=100) at msgserver.c:195
+    #4  0x01dbcaed in _hurd_msgport_receive () at msgportdemux.c:67
+    #5  0x01f54ab4 in entry_point (start_routine=0x1dbca80 <_hurd_msgport_receive>, arg=0x0) at ./pthread/pt-create.c:57
+    #6  0x00000000 in ?? ()
+    
+    Thread 1 (Thread 19802.1):
+    #0  0x01daab5c in swtch_pri () at /usr/src/eglibc-2.17/build-tree/hurd-i386-libc/mach/swtch_pri.S:2
+    #1  0x01dac544 in __spin_lock_solid (lock=0x1fb700c) at spin-solid.c:26
+    #2  0x01dc1e07 in __spin_lock (__lock=<optimized out>) at ../mach/lock-intern.h:54
+    #3  _hurd_sigstate_lock (ss=ss@entry=0x1fb7808) at hurdsig.c:172
+    #4  0x01deaefb in __sigprocmask (how=1, set=0x0, oset=0x2004dc78) at ../sysdeps/mach/hurd/sigprocmask.c:43
+    #5  0x01dfe027 in getcontext () at ../sysdeps/mach/hurd/i386/getcontext.S:66
+    #6  0x012d4208 in runtime_mcall (pfn=0x12d4eb0 <schedule>) at ../../../go/libgo/runtime/proc.c:420
+    #7  0x012d48aa in runtime_gosched () at ../../../go/libgo/runtime/proc.c:1371
+    #8  0x012d4acf in syscall.Exitsyscall () at ../../../go/libgo/runtime/proc.c:1494
+    #9  0x012d1cc1 in runtime_MHeap_Scavenger (dummy=0x0) at ../../../go/libgo/runtime/mheap.c:453
+    #10 0x012d4946 in kickoff () at ../../../go/libgo/runtime/proc.c:370
+    #11 0x01dfe0ed in makecontext () at ../sysdeps/mach/hurd/i386/makecontext.S:95
+    #12 0x00000000 in ?? ()
+    
+    (Perhaps in the mean time had received a SIGALARM or whatever DejaGnu sends
+    after timeout, if at all?)
+    
+    
+    -# of expected passes           1714
+    -# of unexpected failures       575
+    +# of expected passes           5067
+    +# of unexpected failures       12
+     # of expected failures         1
+    -# of untested testcases                13
+    +# of untested testcases                7
+
+
+## TODO
+
+    +go_net_cgo_file = go/net/cgo_linux.go
+    +go_net_sock_file = go/net/sock_gnu.go
+      copied from libgo/go/net/sock_bsd.go
+    +go_net_sockopt_file = go/net/sockopt_bsd.go
+    +go_net_sockoptip_file = go/net/sockoptip_bsd.go go/net/sockoptip_posix.go
+    
+    +go_os_sys_file = go/os/sys_uname.go
+    
+    +go_os_stat_file = go/os/stat_atim.go
+    
+    +archive_tar_atim_file = go/archive/tar/stat_atim.go
+    
+    +syscall_exec_file = go/syscall/exec_unix.go
+    +syscall_exec_os_file = go/syscall/exec_gnu.go
+      copied from libgo/go/syscall/exec_bsd.go
+    
+    +syscall_libcall_file = go/syscall/libcall_gnu.go
+      copied from libgo/go/syscall/libcall_posix.go
+    
+    updated
+    
+    ? go_net_poll_file
+    ? go_net_fd_os_file
+    
+     libgo/runtime/proc.c            |   10 +-
+     libgo/runtime/thread.c          |    7 +
+      (some?) code moved elsewhere (runtime_m()->gsignal = runtime_malg(...))
+    
+    New libgo/go/reflect/makefunc_386.S and libgo/go/reflect/makefunc_amd64.S
+    contain Linux thingy.  Review x86 one anyway.  Also:
+    libgo/go/reflect/makefuncgo_386.go.
+    
+    --- ./libgo/go/syscall/libcall_posix.go
+    +++ ./libgo/go/syscall/libcall_posix.go
+    -const nfdbits = int(unsafe.Sizeof(fds_bits_type) * 8)
+    +const nfdbits = int(unsafe.Sizeof(fds_bits_type(0)) * 8)
+
+Have then not anymore reviewed *Go* changes in GCC -- have to restart this from
+scratch.
 
 
 ---
