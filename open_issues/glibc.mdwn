@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012, 2013, 2014 Free
-Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012, 2013, 2014, 2015
+Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -38,8 +38,8 @@ git log --reverse --topo-order --pretty=fuller --stat=$COLUMNS,$COLUMNS -b -p -C
 
 -->
 
-Last reviewed up to the [[Git mirror's 64a17f1adde4715bb6607f64decd73b2df9e6852
-(2013-12-19) sources|source_repositories/glibc]].
+Last reviewed up to the [[Git mirror's 9a869d822025be8e43b78234997b10bf0cf9d859
+(2014-02-07) sources|source_repositories/glibc]].
 
   * <a id=t_hurdsig-fixes>`t/hurdsig-fixes`</a>
 
@@ -1889,6 +1889,10 @@ Last reviewed up to the [[Git mirror's 64a17f1adde4715bb6607f64decd73b2df9e6852
         `timer_create`, `timer_delete`, [[`clock_gettime`|clock_gettime]], and
         so on.
 
+      * `fd_to_filename`
+
+        See [[translate_FD_or_port_to_file_name]].
+
     For specific packages:
 
       * <a id=octave>[[octave]]</a>
@@ -2814,9 +2818,26 @@ Last reviewed up to the [[Git mirror's 64a17f1adde4715bb6607f64decd73b2df9e6852
       * [high] 43d5c02c72bdaf59a8e0d4b06f2ae87e42269cbd `Fix build on hurd` --
         is that from a topic branch that can then be annihilated?  Verify
         emails.  Verify no further changes in topic branch.
-      * 69a17d9d245dc3551792e95e1823cc2d877592f3 `Patch [1/4] async-signal safe
-        TLS.` -- do we also need an implementation of this?  (Not yet called
-        from anywhere?)
+      * 69a17d9d245dc3551792e95e1823cc2d877592f3 `Patch [1/4]
+        async-signal safe TLS.` -- do we also need an implementation of this?
+        (Not yet called from anywhere?)  Now used in
+        7f507ee17aee720fa423fa38502bc3caa0dd03d7 `Async-signal safe TLS`.
+        7f507ee17aee720fa423fa38502bc3caa0dd03d7 has been reverted in
+        73d61e4f6c65da714c0f8a3a233725322553ceba.
+        1f33d36a8a9e78c81bed59b47f260723f56bb7e6,
+        063b2acbce83549df82ab30f5af573f1b9c4bd19,
+        b627fdd58554bc36bd344dc40a8787c4b7a9cc46,
+        e81c64bba13d2d8b2a4e53254a82cc80f27c8497 have been reverted in
+        dd654bf9ba1848bf9ed250f8ebaa5097c383dcf8.
+        35e8f7ab94c910659de9d507aa0f3e1f8973d914 has been reverted in
+        8b6785f0836011cace9a77f3c24e51a7379238a0.
+        69a17d9d245dc3551792e95e1823cc2d877592f3 has been reverted in
+        bf06bcee84d4c19a99925c0f58026a8cbd87a688.
+        a494421f5268df333c589d71104a39bb6a9cff19 has been reverted in
+        f482dbbec775bf72eb6510b6091fca141893c466.
+      * [low] In various commits, `menual/*.texi` files have been annotated
+        regarding MTASC-safety properties.  The focus has not necessarily been
+        on Hurd, though.
       * *baseline*
 
 
@@ -2830,15 +2851,12 @@ Last reviewed up to the [[Git mirror's 64a17f1adde4715bb6607f64decd73b2df9e6852
 # Build
 
 Here's a log of a glibc build run; this is from our [[Git repository's
-f57644d0bdfc1ebe2201a677a33af27e09a5bab6 (2013-12-20;
-64a17f1adde4715bb6607f64decd73b2df9e6852 (2013-12-19))
+f68531785b6d85fb0b405747688f93471b6a964f (2015-01-23;
+9a869d822025be8e43b78234997b10bf0cf9d859 (2014-02-07))
 plus 6a97b62a5b4f18aea849d6f4d8de58d1469d2521 reverted,
-`id:"87zjnvn688.fsf@kepler.schwinge.homeip.net"`,
-`id:"87ioujn0eq.fsf@kepler.schwinge.homeip.net"`,
-1226676cd6f6f4451e6e6b75b8fbd9a35c949e8e reverted,
-56798c444bc584c118b69a3506c4050b34edc35f reverted,
-`id:"878uvfmwvs.fsf@kepler.schwinge.homeip.net"`
-sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
+`id:"87a9fvguwq.fsf@schwinge.name"`,
+`_SERVERS_STARTUP` hard-coded to `/servers/startup` in `sysdeps/mach/hurd/reboot.c`
+sources|source_repositories/glibc]], run on laplace.SCHWINGE.
 
     $ export LC_ALL=C
     $ ../Roger_Whittaker/configure --prefix=/usr --disable-profile --disable-multi-arch --build=i486-gnu --host=i486-gnu CC=gcc-4.7 CXX=g++-4.7 2>&1 | tee log_build
@@ -2846,8 +2864,8 @@ sources|source_repositories/glibc]], run on coulomb.SCHWINGE.
     $ make install_root=/INVALID 2>&1 | tee log_build_
     [...]
 
-This takes up around 600 MiB, and needs roughly X min on kepler.SCHWINGE and
-105 min on coulomb.SCHWINGE.
+This takes up around 600 MiB, and runs for [[TODO min|performance#measure]] on
+kepler.SCHWINGE and [[19 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
@@ -2858,7 +2876,7 @@ This takes up around 600 MiB, and needs roughly X min on kepler.SCHWINGE and
 
 ## Analysis
 
-    $ toolchain/logs/process glibc build fetch coulomb.SCHWINGE
+    $ toolchain/logs/process glibc build fetch laplace.SCHWINGE
 
 TODO.
 
@@ -2924,13 +2942,13 @@ TODO.
     $ make install_root="$PWD".install install 2>&1 | tee log_install
     [...]
 
-This takes up around 100 MiB, and needs roughly X min on kepler.SCHWINGE and 16
-min on coulomb.SCHWINGE.
+This takes up around 100 MiB, and runs for [[TODO min|performance#measure]] on
+kepler.SCHWINGE and [[3 min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
 
-    $ toolchain/logs/process glibc install fetch coulomb.SCHWINGE
+    $ toolchain/logs/process glibc install fetch laplace.SCHWINGE
 
 TODO.
 
@@ -2940,9 +2958,10 @@ TODO.
     $ make -k install_root=/INVALID check fast-check=yes 2>&1 | tee log_test
     [...]
 
-This needs roughly X min on kepler.SCHWINGE and 130 min on coulomb.SCHWINGE.
+This runs for [[TODO min|performance#measure]] on kepler.SCHWINGE and [[10
+min|performance#measure]] on laplace.SCHWINGE.
 
-Specifying `fast-check=yes` disables the `conformtest` which takes 1.75 h (out
+Specifying `fast-check=yes` disables the `conformtest` which ran for 1.75 h (out
 of 2.75 h total) on coulomb.SCHWINGE, doesn't pass anyway, and clearly isn't
 our most critical issue to solve.
 `elf/tst-xmmymm.out` is another candidate to disable: needs 90 min to run.
@@ -2950,7 +2969,7 @@ our most critical issue to solve.
 
 ## Analysis
 
-    $ toolchain/logs/process glibc test fetch coulomb.SCHWINGE
+    $ toolchain/logs/process glibc test fetch laplace.SCHWINGE
 
 Failures, mostly in order of appearance:
 
@@ -3104,6 +3123,23 @@ Failures, mostly in order of appearance:
     `_CS_GNU_LIBPTHREAD_VERSION` is provided by libpthread when compiled as
     add-on.
 
+  * `posix/tst-sysconf.out`
+
+    Fails with:
+
+        sysconf(_SC_BARRIERS) must be 200809L
+        sysconf(_SC_READER_WRITER_LOCKS) must be 200809L
+        sysconf(_SC_SEMAPHORES) must be 200809L
+        sysconf(_SC_SPIN_LOCKS) must be 200809L
+        sysconf(_SC_THREAD_ATTR_STACKADDR) must be 200809L
+        sysconf(_SC_THREAD_ATTR_STACKSIZE) must be 200809L
+        sysconf(_SC_THREADS) must be 200809L
+        sysconf(_SC_TIMEOUTS) must be 200809L
+
+    That, I presume, is in response to our `sysdeps/mach/hurd/bits/posix_opt.h`
+    file, which uses *200112L* values.
+    `nptl/sysdeps/unix/sysv/linux/bits/posix_opt.h` uses *200809L* values.
+
   * `posix/tst-vfork3-mem`
 
         + 0x0804cee0 Alloc 10 duplicate: 0x1095389 $BUILDDIR/libc.so.0.3:[0x1095389]
@@ -3201,7 +3237,7 @@ Failures, mostly in order of appearance:
 
   * `rt/tst-aio2`, `rt/tst-aio3`, `rt/tst-aio9`, `rt/tst-aio10`,
     `rt/tst-mqueue3`, `rt/tst-mqueue5.o`, `rt/tst-mqueue6`, `rt/tst-mqueue8`,
-    `rt/tst-timer3`, `rt/tst-timer4.o`, `rt/tst-timer5.o`,
+    `rt/tst-timer3`, `rt/tst-timer4.o`, `rt/tst-timer5.o`, `rt/tst-cpuclock2`,
     `rt/tst-cputimer1.o`, `rt/tst-cputimer2.o`, `rt/tst-cputimer3.o`,
     `elf/tst-thrlock`
 
@@ -3311,10 +3347,6 @@ Failures, mostly in order of appearance:
     See [[t/tls|t/tls]].
 
   * `elf/tst-tls9-static.out`
-
-    SIGSEGV.
-
-  * `elf/tst-dlmopen1.out`
 
     SIGSEGV.
 
