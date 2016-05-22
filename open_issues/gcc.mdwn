@@ -35,7 +35,8 @@ git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefi
 -->
 
 Last reviewed up to the Git mirror's commit
-bd5bb665eb00598666a8162c2440410a51eb9e7e (2016-02-20).
+a050099a416f013bda35832b878d9a57b0cbb231 (gcc-6-branch branch point;
+2016-04-15).
 
 <http://gcc.gnu.org/install/configure.html> has documentation for the
 `configure` switches.
@@ -1010,9 +1011,6 @@ bd5bb665eb00598666a8162c2440410a51eb9e7e (2016-02-20).
 
     [[!debbug 734973]].  gcc-4.9/debian/patches/libcilkrts-targets.diff
 
-  * Debian GCC 48594516135e34a726cafe3863a4dc661bbd61a4 `boehm-gc: use
-    anonymous mmap instead of brk also on hurd-*.`.  [[!debbug 753791]].
-
   * [low] `libmpx`
 
     Only enabled for GNU/Linux, but actually seems to be portable.
@@ -1055,12 +1053,16 @@ bd5bb665eb00598666a8162c2440410a51eb9e7e (2016-02-20).
 
   * x86 Named Address Spaces, `i386: Add address spaces for fs/gs segments and
     tls`, commit 716c563bcef8bb91dee230dbc75abff70ed2f6ae.
+    `__seg_tls` has again be reverted in
+    ee1bfdb0d611ed2e1057071f39589e6ebcd87983 `Remove __seg_tls before first
+    release`.
 
 
 # Build
 
 Here's a log of a GCC build run; this is from Git commit
-bd5bb665eb00598666a8162c2440410a51eb9e7e (2016-02-20), run on kepler.SCHWINGE
+a050099a416f013bda35832b878d9a57b0cbb231 (gcc-6-branch branch point;
+2016-04-15), run on kepler.SCHWINGE
 and laplace.SCHWINGE.
 
     $ export LC_ALL=C
@@ -1081,8 +1083,8 @@ until these is auto-detected/fixed/ported for GNU Hurd.
 `/include` for GNU Hurd.  Explicit `--enable-multiarch` because *auto check [is
 disabled if] configured with --native-system-header-dir*.
 
-This takes up around 4.8 GiB, and runs for [[5 h 50 min|performance#measure]]
-on kepler.SCHWINGE and [[5 h 09 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 4.8 GiB, and runs for [[4 h 18 min|performance#measure]]
+on kepler.SCHWINGE and [[7 h 6 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
@@ -1247,8 +1249,8 @@ on kepler.SCHWINGE and [[5 h 09 min|performance#measure]] on laplace.SCHWINGE.
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 1.4 GiB, and runs for [[1 min|performance#measure]] on
-kepler.SCHWINGE and [[5 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 1.4 GiB, and runs for [[2 min|performance#measure]] on
+kepler.SCHWINGE and [[6 min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
@@ -1273,8 +1275,8 @@ kepler.SCHWINGE and [[5 min|performance#measure]] on laplace.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This runs for [[8 h 30 min|performance#measure]] on kepler.SCHWINGE and [[14 h
-28 min|performance#measure]] on laplace.SCHWINGE.
+This runs for [[6 h 30 min|performance#measure]] on kepler.SCHWINGE and [[14 h
+39 min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
@@ -1300,12 +1302,6 @@ This runs for [[8 h 30 min|performance#measure]] on kepler.SCHWINGE and [[14 h
         started FAILing (ICE) on kepler.SCHWINGE).
 
       * [[`asan.exp`|_san]]
-
-      * missing profiling C library (`-lc_p`)
-
-        `g++.old-deja/g++.law/profile1.C`, `gcc.dg/20021014-1.c`,
-        `gcc.dg/nest.c`, `gcc.dg/nested-func-4.c`, `gcc.dg/pr32450.c`,
-        `gcc.dg/pr43643.c`
 
       * other C libraries
 
@@ -1397,6 +1393,38 @@ This runs for [[8 h 30 min|performance#measure]] on kepler.SCHWINGE and [[14 h
     All have basically the same backtrace.  TODO.
 
   * `[ARCH]/libjava`
+
+    A few of the `Thread_Sleep_2 output` tests FAIL (intermittently):
+
+        FAIL: Thread_Sleep_2 [...] output - source compiled test
+
+    That is because of:
+
+        spawn [open ...]
+        failed, iteration 1, time 9950000ns
+        failed, iteration 3, time 9950000ns
+        failed, iteration 5, time 9950000ns
+        failed, iteration 7, time 9950000ns
+        failed, iteration 9, time 9950000ns
+        failed, iteration 11, time 9950000ns
+        [...]
+
+    Source code is probably libjava.lang/Thread_Sleep_2.java:
+
+              for (int i = 0; i < 100; i++)
+                { 
+                  long start = System.nanoTime();
+                  Thread.sleep(10);
+                  long end = System.nanoTime();
+                  if ((end - start) < 10000000)
+                    { 
+                      System.out.print ("failed, iteration ");
+                      System.out.print (i);
+                      System.out.print (", time ");
+                      System.out.print (end - start);
+                      System.out.println ("ns");
+
+    TODO.
 
         spawn [open ...]
         1
@@ -1587,19 +1615,6 @@ This runs for [[8 h 30 min|performance#measure]] on kepler.SCHWINGE and [[14 h
 
   * What is `gcc/testsuite/gcc.test-framework/test-framework.exp` and should we
     define `CHECK_TEST_FRAMEWORK` to run these tests?
-
-  * `gcc.c-torture/compile/pr44686.c`, `gcc.dg/20050309-1.c`,
-    `gcc.dg/20050330-2.c`, `gcc.dg/20051201-1.c`, `gcc.dg/aru-2.c`,
-    `gcc.dg/pr44674.c`, `gcc.dg/pr46255.c`, `gcc.dg/pr47793.c`,
-    `gcc.dg/pr58432.c`, `gcc.dg/profile-*.c`, `gcc.dg/gomp/pr27573.c`,
-    `gcc.dg/tree-prof/*.c`, `gcc.misc-tests/bprob-*.c`, `g++.dg/bprob/*.C`,
-    `g++.dg/debug/pr46338.C`, `g++.dg/other/pr55650.C`,
-    `g++.dg/other/profile1.C`, `g++.dg/torture/pr39732.C`,
-    `g++.dg/torture/pr40642.C`, `g++.dg/torture/pr53321.C`,
-    `g++.dg/tree-prof/*.C`, `g++.old-deja/g++.law/profile1.C`,
-    `gfortran.dg/gomp/pr27573.f90`
-
-    Profiling tests no longer being run.  The very most of them used to PASS.
 
   * Timeout problems
 
@@ -2719,6 +2734,21 @@ This runs for [[8 h 30 min|performance#measure]] on kepler.SCHWINGE and [[14 h
                 100 /var/lib/dpkg/status
         $ ./stack_check1.exe 
         Segmentation fault
+
+    2016-02-23
+
+    <http://snapshot.debian.org/binary/hurd/>:
+
+        B 1:0.7.git20160214-2
+        B 1:0.7.git20160214-1
+        B 1:0.7.git20160114-1
+        B 1:0.7-1
+        (B) 1:0.6.git20151012-1
+        (B) 1:0.6.git20150922-1
+        (B) 1:0.6.git20150704-3
+        G 1:0.6.git20150704-2
+
+    [[!message-id "8737sjzp89.fsf@kepler.schwinge.homeip.net"]].
 
 
 ## Enhancements
