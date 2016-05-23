@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012, 2013, 2014, 2015
-Free Software Foundation, Inc."]]
+[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2012, 2013, 2014, 2015,
+2016 Free Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -334,7 +334,15 @@ Last reviewed up to Git commit e49433d22dae92a56ae15a8b5742cbf1f31d5fd1
 # Build
 
 Here's a log of a binutils-gdb build run; this is from Git commit
-e49433d22dae92a56ae15a8b5742cbf1f31d5fd1 (2015-08-19), run on kepler.SCHWINGE
+e49433d22dae92a56ae15a8b5742cbf1f31d5fd1 (2015-08-19), plus commits
+c74be520ba8ed2d013d43916b923b837294343cc,
+b31bcacc489d6ede2e9bdfa9905de0ebfd919454,
+75a06c790f96f07e859be95d3c3c084a718afeef,
+04ebc307f9601168c165fb63aa39a676e45454b7,
+4b627c18440f51077f8fd4c18adaa3919c3a373e,
+02a866936de7e63ad4962ccba56c8cd05c231275,
+493d4b48decc2b3c5fe9d2df68bcee67fdd8b7cb (to avoid `unsupported reloc 43` for
+recent `crt*.o` files), run on kepler.SCHWINGE
 and laplace.SCHWINGE.
 
     $ export LC_ALL=C
@@ -350,8 +358,8 @@ so we need to configure with support for plugins and
 sysroots.  In the GDB build, there are compiler diagnostics reported in the
 MIG-generated stub files; thus no `-Werror` until that is resolved.
 
-This takes up around 1.4 GiB, and runs for [[22 min|performance#measure]] on
-kepler.SCHWINGE and [[23 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 1.4 GiB, and runs for [[17 min|performance#measure]] on
+kepler.SCHWINGE and [[19 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
@@ -430,14 +438,41 @@ formats, and more emulation vectors.
         -      -e 's|@''REPLACE_RENAME''@|0|g' \
         +      -e 's|@''REPLACE_RENAME''@|1|g' \
 
+  * Some MIG change causes generated code, `gdb/msg_U.c` to change as follows:
+
+                const mach_msg_type_t portType = {
+        -               /* msgt_name = */               -1,
+        +               /* msgt_name = */               MACH_MSG_TYPE_POLYMORPHIC,
+
+    ... which looks like an improvement indeed.  But given
+    `mach/message.h`:`#define MACH_MSG_TYPE_POLYMORPHIC ((mach_msg_type_name_t)
+    -1)`, this causes:
+
+        msg_U.c: In function 'msg_set_init_port':
+        msg_U.c:777:22: warning: large integer implicitly truncated to unsigned type [-Woverflow]
+           /* msgt_name = */  MACH_MSG_TYPE_POLYMORPHIC,
+                              ^
+        msg_U.c: In function 'msg_set_init_ports':
+        msg_U.c:1043:22: warning: large integer implicitly truncated to unsigned type [-Woverflow]
+           /* msgtl_name = */ MACH_MSG_TYPE_POLYMORPHIC,
+                              ^
+        msg_U.c: In function 'msg_set_dtable':
+        msg_U.c:1837:22: warning: large integer implicitly truncated to unsigned type [-Woverflow]
+           /* msgtl_name = */ MACH_MSG_TYPE_POLYMORPHIC,
+                              ^
+        msg_U.c: In function 'msg_set_fd':
+        msg_U.c:2108:22: warning: large integer implicitly truncated to unsigned type [-Woverflow]
+           /* msgt_name = */  MACH_MSG_TYPE_POLYMORPHIC,
+                              ^
+
 
 # Install
 
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 210 MiB, and runs for [[1 min|performance#measure]] on
-kepler.SCHWINGE and [[2 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 210 MiB, and runs for [[0 min|performance#measure]] on
+kepler.SCHWINGE and [[1 min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
@@ -452,16 +487,14 @@ kepler.SCHWINGE and [[2 min|performance#measure]] on laplace.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This runs for [[46 min|performance#measure]] on kepler.SCHWINGE and [[67
+This runs for [[24 min|performance#measure]] on kepler.SCHWINGE and [[64
 min|performance#measure]] on laplace.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
 the `tee` process does not terminate if there are still stray leftover
 processes that [have their stdout/stderr
 open](http://sourceware.org/ml/gdb-patches/2012-10/msg00489.html).  `kill`ing
-these (`SIGKILL` may be needed), makes the `tee` process terminate, too.  On
-GNU/Hurd: `gdb.linespec/explicit`, previously generally `gdb.base/sigaltstack`,
-`gdb.base/siginfo`, and `gdb.threads/watchthreads`.
+these (`SIGKILL` may be needed), makes the `tee` process terminate, too.
 
 On laplace.SCHWINGE, running with
 `LD_PRELOAD=$HOME/fopen,unlink-NULL-wrapper.so` to get past [[!message-id
