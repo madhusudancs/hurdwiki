@@ -47,8 +47,8 @@ git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefi
 
 -->
 
-Last reviewed up to Git commit e49433d22dae92a56ae15a8b5742cbf1f31d5fd1
-(2015-08-19).
+Last reviewed up to Git commit 96f9814df23564e16909bb5ba00de4a202c63417
+(2015-11-05).
 
   * Globally
 
@@ -95,17 +95,6 @@ Last reviewed up to Git commit e49433d22dae92a56ae15a8b5742cbf1f31d5fd1
       * `configure.tgt`
 
   * `gas/`
-
-      * `config/tc-i386.c`
-
-            #ifdef TE_LINUX
-            /* Default to compress debug sections for Linux.  */
-            enum compressed_debug_section_type flag_compress_debug
-              = COMPRESS_DEBUG_GABI_ZLIB;
-            #endif
-
-        This has received quite some criticism, but it has not yet been
-        corrected.
 
       * `config/te-gnu.h`
 
@@ -330,19 +319,16 @@ Last reviewed up to Git commit e49433d22dae92a56ae15a8b5742cbf1f31d5fd1
   * [low] b27caf75c311991772b316fe7c0eecfd5788eeaf, ld, `Add HOSTING_SLIBS and
     use it for -pie`.  For us, too?
 
+  * [high] `gdb/remote.c`: `PATH_MAX` usage.  Probably,
+    `gdb/gdbserver/remote-utils.c` is the producer, whose `PATH_MAX` might
+    differ from the consumer's.
+
 
 # Build
 
 Here's a log of a binutils-gdb build run; this is from Git commit
-e49433d22dae92a56ae15a8b5742cbf1f31d5fd1 (2015-08-19), plus commits
-c74be520ba8ed2d013d43916b923b837294343cc,
-b31bcacc489d6ede2e9bdfa9905de0ebfd919454,
-75a06c790f96f07e859be95d3c3c084a718afeef,
-04ebc307f9601168c165fb63aa39a676e45454b7,
-4b627c18440f51077f8fd4c18adaa3919c3a373e,
-02a866936de7e63ad4962ccba56c8cd05c231275,
-493d4b48decc2b3c5fe9d2df68bcee67fdd8b7cb (to avoid `unsupported reloc 43` for
-recent `crt*.o` files), run on kepler.SCHWINGE
+96f9814df23564e16909bb5ba00de4a202c63417 (2015-11-05), plus `PATH_MAX`
+hard-coded in `gdb/remote.c`, run on kepler.SCHWINGE
 and laplace.SCHWINGE.
 
     $ export LC_ALL=C
@@ -358,8 +344,8 @@ so we need to configure with support for plugins and
 sysroots.  In the GDB build, there are compiler diagnostics reported in the
 MIG-generated stub files; thus no `-Werror` until that is resolved.
 
-This takes up around 1.4 GiB, and runs for [[17 min|performance#measure]] on
-kepler.SCHWINGE and [[19 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 1.5 GiB, and runs for [[17 min|performance#measure]] on
+kepler.SCHWINGE and [[26 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
@@ -465,14 +451,21 @@ formats, and more emulation vectors.
            /* msgt_name = */  MACH_MSG_TYPE_POLYMORPHIC,
                               ^
 
+  * In
+    e49433d22dae92a56ae15a8b5742cbf1f31d5fd1..96f9814df23564e16909bb5ba00de4a202c63417:
+
+        +[...]/tschwinge/W._C._Handy/gas/configure: 12508: test: xunset: unexpected operator
+
+        +[...]/tschwinge/W._C._Handy/ld/configure: 17136: test: xunset: unexpected operator
+
 
 # Install
 
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 210 MiB, and runs for [[0 min|performance#measure]] on
-kepler.SCHWINGE and [[1 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 220 MiB, and runs for [[1 min|performance#measure]] on
+kepler.SCHWINGE and [[2 min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
@@ -487,7 +480,7 @@ kepler.SCHWINGE and [[1 min|performance#measure]] on laplace.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This runs for [[24 min|performance#measure]] on kepler.SCHWINGE and [[64
+This runs for [[25 min|performance#measure]] on kepler.SCHWINGE and [[79
 min|performance#measure]] on laplace.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
