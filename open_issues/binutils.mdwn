@@ -47,8 +47,8 @@ git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefi
 
 -->
 
-Last reviewed up to Git commit 96f9814df23564e16909bb5ba00de4a202c63417
-(2015-11-05).
+Last reviewed up to Git commit 9ef9e6a6a0dd8f948708cb67c9afcfd0be40cb0a
+(2016-02-10).
 
   * Globally
 
@@ -323,12 +323,25 @@ Last reviewed up to Git commit 96f9814df23564e16909bb5ba00de4a202c63417
     `gdb/gdbserver/remote-utils.c` is the producer, whose `PATH_MAX` might
     differ from the consumer's.
 
+  * [high] In
+    96f9814df23564e16909bb5ba00de4a202c63417..9ef9e6a6a0dd8f948708cb67c9afcfd0be40cb0a:
+
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'set_sig_thread_cmd':
+        ../../W._C._Handy/gdb/gnu-nat.c:2973:7: warning: implicit declaration of function 'thread_id_to_pid' [-Wimplicit-function-declaration]
+               ptid_t ptid = thread_id_to_pid (atoi (args));
+               ^
+        ../../W._C._Handy/gdb/gnu-nat.c:2973:7: error: invalid initializer
+
+    Commit 5d5658a1d3c3eb2a09c03f2f0662a1c01963c869 renamed `thread_id_to_pid`
+    to `global_thread_id_to_ptid`.
+
 
 # Build
 
 Here's a log of a binutils-gdb build run; this is from Git commit
-96f9814df23564e16909bb5ba00de4a202c63417 (2015-11-05), plus `PATH_MAX`
-hard-coded in `gdb/remote.c`, run on kepler.SCHWINGE
+9ef9e6a6a0dd8f948708cb67c9afcfd0be40cb0a (2016-02-10), plus `PATH_MAX`
+hard-coded in `gdb/remote.c`, and `global_thread_id_to_ptid` used instead of
+`thread_id_to_pid` in `gdb/gnu-nat.c`, run on kepler.SCHWINGE
 and laplace.SCHWINGE.
 
     $ export LC_ALL=C
@@ -345,7 +358,7 @@ sysroots.  In the GDB build, there are compiler diagnostics reported in the
 MIG-generated stub files; thus no `-Werror` until that is resolved.
 
 This takes up around 1.5 GiB, and runs for [[17 min|performance#measure]] on
-kepler.SCHWINGE and [[26 min|performance#measure]] on laplace.SCHWINGE.
+kepler.SCHWINGE and [[19 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
@@ -451,21 +464,14 @@ formats, and more emulation vectors.
            /* msgt_name = */  MACH_MSG_TYPE_POLYMORPHIC,
                               ^
 
-  * In
-    e49433d22dae92a56ae15a8b5742cbf1f31d5fd1..96f9814df23564e16909bb5ba00de4a202c63417:
-
-        +[...]/tschwinge/W._C._Handy/gas/configure: 12508: test: xunset: unexpected operator
-
-        +[...]/tschwinge/W._C._Handy/ld/configure: 17136: test: xunset: unexpected operator
-
 
 # Install
 
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 220 MiB, and runs for [[1 min|performance#measure]] on
-kepler.SCHWINGE and [[2 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 220 MiB, and runs for [[0 min|performance#measure]] on
+kepler.SCHWINGE and [[1 min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
@@ -480,7 +486,7 @@ kepler.SCHWINGE and [[2 min|performance#measure]] on laplace.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This runs for [[25 min|performance#measure]] on kepler.SCHWINGE and [[79
+This runs for [[26 min|performance#measure]] on kepler.SCHWINGE and [[89
 min|performance#measure]] on laplace.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
@@ -1224,6 +1230,73 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
         #10 0x0809714b in main (argc=5, argv=0x1bff1f4) at ../../W._C._Handy/gdb/gdb.c:33
 
     TODO.
+
+  * In
+    96f9814df23564e16909bb5ba00de4a202c63417..9ef9e6a6a0dd8f948708cb67c9afcfd0be40cb0a:
+
+        Running [...]/gdb/testsuite/gdb.arch/i386-size-overlap.exp ...
+        [-PASS:-]{+FAIL:+} gdb.arch/i386-size-overlap.exp: run past main
+        PASS: gdb.arch/i386-size-overlap.exp: backtrace shows the outer function
+
+    ..., and:
+
+        Running [...]/gdb/testsuite/gdb.arch/i386-unwind.exp ...
+        [-PASS-]{+FAIL:+} gdb.arch/i386-unwind.exp: run past gdb1435
+        PASS: gdb.arch/i386-unwind.exp: backtrace past gdb1435
+
+        PASS: gdb.cp/cpexprs.exp: list tclass<int>::do_something
+        PASS: gdb.cp/cpexprs.exp: list tclass<long>::do_something
+        PASS: gdb.cp/cpexprs.exp: list tclass<short>::do_something
+        PASS: gdb.cp/cpexprs.exp: list test_function
+        [-PASS:-]{+FAIL: gdb.cp/cpexprs.exp: continue+}
+        {+FAIL:+} gdb.cp/cpexprs.exp: continue to {+test_function for+} base1::a_function
+        [-PASS:-]{+FAIL: gdb.cp/cpexprs.exp: continue+}
+        {+FAIL:+} gdb.cp/cpexprs.exp: continue to {+test_function for+} base1::base1(int)
+        [-PASS:-]{+FAIL: gdb.cp/cpexprs.exp: continue+}
+        [...]
+
+    From a quick look, the problem appears to be that we print `Thread 4 hit
+    Breakpoint 2, test_function [...]`, but the test harness doesn't expect to
+    see the `Thread 4 hit` prefix.
+
+    That might also explain the several other `continue` regressions, where
+    only the `continue` itself "FAILs", but otherwise the test case still
+    works, so the breakpoint has actually been hit as expected.
+
+    System vs new GDB:
+
+        @@ -1,31 +1,27 @@
+        $ [-gdb-]{+gdb/gdb+} -q bfd/doc/chew
+        Reading symbols from bfd/doc/chew...done.
+        (gdb) show version
+        GNU gdb [-(Debian 7.10-1+b1) 7.10-]{+(GDB) 7.10.50.20160210-git+}
+        [...]
+        (gdb) break main
+        Breakpoint 1 at 0x8048730: file ../../../W._C._Handy/bfd/doc/chew.c, line 1494.
+        (gdb) r
+        Starting program: /media/erich/home/thomas/tmp/binutils-gdb/tschwinge/W._C._Handy.build/bfd/doc/chew 
+        [New Thread [-6718.3]-]{+6737.5]+}
+        
+        {+Thread 4 hit+} Breakpoint 1, main (ac=1, av=0x102cda4) at ../../../W._C._Handy/bfd/doc/chew.c:1494
+        1494    {
+        (gdb) info threads
+          Id   Target Id         Frame 
+        [-  3    Thread 6718.3     0x0105d4fc in mach_msg_trap () at /build/glibc-2.22/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2-]
+        [-* 2    Thread 6718.2     main (ac=1, av=0x102cda4) at ../../../W._C._Handy/bfd/doc/chew.c:1494-]
+          1    bogus thread id 1 Can't fetch registers from thread bogus thread id 1: No such thread
+        (gdb) r
+        The program being debugged has been started already.
+        Start it from the beginning? (y or n) y
+        Starting program: /media/erich/home/thomas/tmp/binutils-gdb/tschwinge/W._C._Handy.build/bfd/doc/chew 
+        [New Thread [-6719.8]-]{+6738.10]+}
+        
+        {+Thread 4 hit+} Breakpoint 1, main (ac=1, av=0x102cda4) at ../../../W._C._Handy/bfd/doc/chew.c:1494
+        1494    {
+        (gdb) info threads 
+          Id   Target Id         Frame 
+          [-5    Thread 6719.8     0x0105d4fc in mach_msg_trap () at /build/glibc-2.22/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2-]
+        [-* 4    Thread 6719.7     main (ac=1, av=0x102cda4) at ../../../W._C._Handy/bfd/doc/chew.c:1494-]
+        [-  3-]{+1+}    bogus thread id 6 Can't fetch registers from thread bogus thread id 6: No such thread
 
 TODO.
 
