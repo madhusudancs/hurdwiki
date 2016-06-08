@@ -1,0 +1,137 @@
+[[!meta copyright="Copyright © 2014, 2016 Free Software Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_gnumach]]
+
+# The Mach5 proposal
+
+The Mach IPC mechanism is known to have deficiencies.  Some of these
+could be addressed with a new message ABI.  A transition to 64-bit
+architectures requires a new ABI definition anyway, so while we are at
+it, we could straighten out some of these problems.
+
+This page is a place to keep track of such changes.
+
+## Protected payloads
+
+Protected payloads are a way of optimizing the receiver object lookup
+in servers.  A server may associate a payload with a receive right,
+and any incoming message is tagged with it.  The payload is an
+pointer-wide unsigned integer, so the address of the associated server
+side state can be used as payload.  This removes the need for a hash
+table lookup.
+
+### Required change to the message format
+
+Add a new field for the payload to the message header.
+
+### Implementation within the bounds of the Mach4 message format
+
+The payload can be provided in the same location as the local port
+using an union.  The kernel indicates this using a distinct message
+type.  MIG-generated code will detect this, and do the receiver lookup
+using a specialized translation function.
+
+### Status
+
+This change has been implemented in GNU Mach and MIG 1.5.
+
+## Type descriptor rework
+
+A Mach4 message body contains pairs of type descriptors and values.
+Each type descriptor describes the kind and amount of data that
+immediately follows in the message stream.  As the kernel has to
+rewrite rights and pointers to out-of-band memory, it has to parse the
+message.  As type information and values are interleaved, it has to
+iterate over the whole message.
+
+Furthermore, there are two kinds of type descriptors, mach_msg_type_t
+and mach_msg_type_long_t.  The reason for this is that the amount of
+data that can be described using mach_msg_type_t is just 131072 byte.
+This is because msgt_size is an 8-bit value describing the size of one
+element in bits, and msgt_number is an 12-bit value describing the
+number of items.
+
+### Required change to the message format
+
+Group the type descriptors together at the beginning of the message to
+provide an index into the data.  Provide the element size in multiple
+of the native word size avoiding the need for long type descriptors.
+
+### Implementation within the bounds of the Mach4 message format
+
+The Mach4 type descriptor contains one unused bit.  This bit can be
+used to indicate that this message uses a Mach5 style index.  MIG can
+be modified to handle both cases for a smooth transition to the new
+ABI.
+
+### Status
+
+Not started.
+
+## Flexible syscall interface
+
+Currently, the GNU Mach kernel uses trap gates to enter the kernel (on
+i386).  We always suspected this mechanism to be slow, but afaik noone
+quantified that.
+
+Tl;dr: sysenter is twice as fast as a trap gate (on my system).
+
+I have a prototype that allows one to enter the kernel using sysenter.
+Here are the numbers:
+
+    start sysenter: mach_print using [trap gate] [sysenter].
+    Running 268435456(1U<<28) times mach_print("")...
+      using trap gate:  45s960000us 171.214342ns    5840632.202 (1/s)
+       using sysenter:  20s600000us 76.740980ns     13030847.379 (1/s)
+    Running 268435456(1U<<28) times mach_msg (NULL, ...)...
+     using glibc stub:  46s050000us 171.549618ns    5829217.286 (1/s)
+      using trap gate:  44s820000us 166.967511ns    5989189.112 (1/s)
+       using sysenter:  20s050000us 74.692070ns     13388302.045 (1/s)
+    exiting.
+
+So using sysenter is roughly 95ns faster.  To put this into
+perspective, sending a simple (ie. no ports/external data in body)
+message takes ~950ns on my system.  That suggests that merely using
+sysenter improves our IPC performance by ~10%.
+
+### Implementation
+
+One trouble with sysenter/sysexit (or the amd equivalent) isn't
+available on all processors.  Linux solves this using the VDSO
+mechanism.
+
+I'd like to implement something similar:
+
+1. There is a platform dependent way to map a special page.
+2. That page contains a function that executes a syscall.
+
+This way we do not hardcode the system call method into the ABI.  The
+kernel selects one appropriate for the processor, and we are free to
+change this interface anytime we want.
+
+### Required ABI changes
+
+None.  We merely provide another way to call the kernel on existing
+platforms.
+
+On i386, the 'platform dependent way' to get the syscall wrapper is to
+use the current syscall mechanism to map a special device (the
+"syscall" device, or "/dev/syscall" on the Hurd) similar to how the
+mapped time interface works.
+
+### Status
+
+A prototype exists.
+
+### Discussions
+
+* <https://lists.gnu.org/archive/html/bug-hurd/2015-05/msg00000.html>
+
