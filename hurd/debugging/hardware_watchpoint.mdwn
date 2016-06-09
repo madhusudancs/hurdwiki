@@ -1,0 +1,96 @@
+[[!meta copyright="Copyright © 2016 Free Software
+Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+Hardware watchpoints work in gdb, provided that you give an absolute address and a size which is 1, 2, 4, or 8:
+
+    (gdb) watch *(unsigned *) 0x1234
+    Hardware watchpoint 2: * (unsigned*) 0x1234
+
+One can also trigger this from an application, by using the following function:
+
+    #include <mach/machine/thread_status.h>
+    #include <mach/mach_interface.h>
+    #include <mach/mach_traps.h>
+    #include <sys/types.h>
+    #include <stdint.h>
+    #include <stdio.h>
+    #include <signal.h>
+    #include <assert.h>
+    
+    void set_hardware_watchpoint(mach_port_t thread, int num, int type, void *addr, size_t len)
+    {
+      struct i386_debug_state regs;
+    
+      int persistence = 3;
+      len = len - 1;
+      if (len == 7)
+        len = 2;
+    
+      mach_msg_type_number_t count = i386_DEBUG_STATE_COUNT;
+      int ret = thread_get_state(thread, i386_DEBUG_STATE, (unsigned*) &regs, &count);
+      assert(ret == 0); 
+    
+      regs.dr[num] = (uintptr_t) addr;
+      regs.dr[7] &=  ~(0xfUL << (4*num+16)) & ~(0x3UL << (2*num));
+      if (addr)
+        regs.dr[7] |= (((len << 2) | type) << (4*num+16)) | (persistence << (2*num));
+    
+      ret = thread_set_state(thread, i386_DEBUG_STATE, (unsigned*) &regs, count);
+      assert(ret == 0); 
+      ret = thread_get_state(thread, i386_DEBUG_STATE, (unsigned*) &regs, &count);
+      assert(ret == 0); 
+    }
+
+    ....
+        set_hardware_watchpoint(mach_thread_self(), 0, 1, &x, sizeof(x));
+    ....
+        set_hardware_watchpoint(mach_thread_self(), 0, 0, 0, 0);
+
+Up to 4 watchpoints can be set, `num` determines which one should be set.
+
+`type` can be 0 (`I386_DB_TYPE_X`), 1 (`I386_DB_TYPE_W`), or 3 (`I386_DB_TYPE_RW`)
+
+Note that only the specified thread will have the breakpoint.
+
+Note that only recent versions of gnumach allows to set hardware watchpoints for
+the current thread.
+
+These watchpoints will trigger a SIGTRAP signal.  If one only wants to see the
+events, one can use this gnumach patch:
+
+    diff --git a/i386/i386/trap.c b/i386/i386/trap.c
+    index 6470504..e3b5864 100644
+    --- a/i386/i386/trap.c
+    +++ b/i386/i386/trap.c
+    @@ -395,6 +395,23 @@ printf("user trap %d error %d sub %08x\n", type, code, subcode);
+     			return 0;
+     		}
+     #endif /* MACH_KDB */
+    +
+    +		printf("user debug trap %p\n", regs->eip);
+    +		vm_offset_t addr;
+    +		if (get_dr6() & 0x1)
+    +			addr = get_dr0();
+    +		if (get_dr6() & 0x2)
+    +			addr = get_dr1();
+    +		if (get_dr6() & 0x4)
+    +			addr = get_dr2();
+    +		if (get_dr6() & 0x8)
+    +			addr = get_dr3();
+    +		unsigned long data;
+    +		db_read_bytes(addr, 4, &data, current_task());
+    +		printf("hit %lx at %p\n", data, addr);
+    +		set_dr6(0);
+    +		return 0;
+    +
+     		/* Make the content of the debug status register (DR6)
+     		   available to user space.  */
+     		if (thread->pcb)

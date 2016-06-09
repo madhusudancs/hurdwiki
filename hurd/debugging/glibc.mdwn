@@ -64,6 +64,35 @@ or of just one subdir with for instance:
 
 ---
 
+In some cases, printing to stdout/stderr is problematic. One can use a kernel
+with kdb enabled, and `mach_print` to get messages on the console:
+
+    #include <mach/mach_traps.h>
+    ...
+        mach_print("foo\n");
+
+If your `mach_traps.h` does not have the declaration, use:
+
+    extern void mach_print(const char *s);
+
+This call does not support any formatting. You can use this kind of helper to
+format a message before passing to gnumach:
+
+    #include <mach/mach_traps.h>
+    #include <stdio.h>
+    
+    static void myprintf(const char *fmt, ...)
+    {
+      va_list ap;
+      char buf[1024];
+      va_start(ap, fmt);
+      vsnprintf(buf, sizeof(buf), fmt, ap);
+      mach_print(buf);
+      va_end(ap);
+    }
+
+---
+
 If you've been doing simple changes to glibc functions that end up in
 `libc.so`, you may test them like this (like for a `strerror_l` implementation
 in this case):
