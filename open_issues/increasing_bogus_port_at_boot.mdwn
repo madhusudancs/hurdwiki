@@ -1,0 +1,31 @@
+[[!meta copyright="Copyright © 2016 Free Software
+Foundation, Inc."]]
+
+[[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
+id="license" text="Permission is granted to copy, distribute and/or modify this
+document under the terms of the GNU Free Documentation License, Version 1.2 or
+any later version published by the Free Software Foundation; with no Invariant
+Sections, no Front-Cover Texts, and no Back-Cover Texts.  A copy of the license
+is included in the section entitled [[GNU Free Documentation
+License|/fdl]]."]]"""]]
+
+[[!tag open_issue_porting]]
+
+When the ntpdate package is installed, one gets at boot something like:
+
+    Debian GNU/Hurd stretch/sid debian console
+    task ext2fs increasing a bogus port 947 by 1, most probably a bug.
+    task ext2fs increasing a bogus port 947 by 1, most probably a bug.
+    task ext2fs deallocating a bogus port 947, most probably a bug.
+    task ext2fs deallocating a bogus port 947, most probably a bug.
+    login:
+
+This is coming from the execution of the shell script
+/etc/network/if-up.d/ntpdate, whose stdout/stderr is on the Mach console, but
+part of which gets executed after getty starts on it. It happens that getty uses
+revoke() to revoke access to it from other programs, and thus the ntpdate shell
+scripts gets its stdout/stderr in a bogus state, which libc doesn't really cope
+with correctly.
+
+Commenting `c:23:respawn:/sbin/getty 38400 console` from `/etc/inittab` works
+around the issue (but removes the getty from the Mach console)
