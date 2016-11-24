@@ -47,8 +47,8 @@ git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefi
 
 -->
 
-Last reviewed up to Git commit 9ef9e6a6a0dd8f948708cb67c9afcfd0be40cb0a
-(2016-02-10).
+Last reviewed up to Git commit a932d108b10518994c873b38a363af9f21bc2e87
+(2016-05-10).
 
   * Globally
 
@@ -336,17 +336,339 @@ Last reviewed up to Git commit 9ef9e6a6a0dd8f948708cb67c9afcfd0be40cb0a
     `Per-inferior/Inferior-qualified thread IDs` renamed `thread_id_to_pid` to
     `global_thread_id_to_ptid`.
 
+  * 9ef9e6a6a0dd8f948708cb67c9afcfd0be40cb0a..a932d108b10518994c873b38a363af9f21bc2e87
+
+        diff --git ./ld/testsuite/lib/ld-lib.exp ./ld/testsuite/lib/ld-lib.exp
+        @@ -1796,6 +1797,13 @@ proc check_lto_available { } {
+                {+# This test will hide LTO bugs in ld.  Since GCC 4.9 adds+}
+        {+      # -ffat-lto-objects, we always run LTO tests on Linux with+}
+        {+      # GCC 4.9 or newer.+}
+        {+      if { [istarget "*-*-linux*"] && [at_least_gcc_version 4 9] } {+}
+        {+          set lto_available_saved 1+}
+        {+          return 1+}
+        {+      }+}
+        
+        diff --git ./ld/testsuite/lib/ld-lib.exp ./ld/testsuite/lib/ld-lib.exp
+        @@ -1830,6 +1840,13 @@ proc check_lto_fat_available { } {
+                {+# This test will hide LTO bugs in ld.  Since GCC 4.9 adds+}
+        {+      # -ffat-lto-objects, we always run LTO tests on Linux with+}
+        {+      # GCC 4.9 or newer.+}
+        {+      if { [istarget "*-*-linux*"] && [at_least_gcc_version 4 9] } {+}
+        {+          set lto_fat_available_saved 1+}
+        {+          return 1+}
+        {+      }+}
+        
+         diff --git ./ld/testsuite/lib/ld-lib.exp ./ld/testsuite/lib/ld-lib.exp
+        @@ -1864,6 +1883,13 @@ proc check_lto_shared_available { } {
+                {+# This test will hide LTO bugs in ld.  Since GCC 4.9 adds+}
+        {+      # -ffat-lto-objects, we always run LTO tests on Linux with+}
+        {+      # GCC 4.9 or newer.+}
+        {+      if { [istarget "*-*-linux*"] && [at_least_gcc_version 4 9] } {+}
+        {+          set lto_shared_available_saved 1+}
+        {+          return 1+}
+        {+      }+}
+
+
+  * `--enable-build-with-cxx` is now the default for GDB.  But, the x86
+    GNU/Hurd GDB port is not yet ready:
+
+        ../../W._C._Handy/gdb/i386gnu-nat.c: In function 'void fetch_fpregs(regcache*, proc*)':
+        ../../W._C._Handy/gdb/i386gnu-nat.c:64:37: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+              (thread_state_t) &state, &count);
+                                             ^
+        ../../W._C._Handy/gdb/i386gnu-nat.c: In function 'void store_fpregs(const regcache*, proc*, int)':
+        ../../W._C._Handy/gdb/i386gnu-nat.c:154:37: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+              (thread_state_t) &state, &count);
+                                             ^
+        ../../W._C._Handy/gdb/i386gnu-nat.c:167:53: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+              (thread_state_t) &state, i386_FLOAT_STATE_COUNT);
+                                                             ^
+        ../../W._C._Handy/gdb/i386gnu-nat.c: In function 'void i386_gnu_dr_get(i386_debug_state*, proc*)':
+        ../../W._C._Handy/gdb/i386gnu-nat.c:285:35: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+              (thread_state_t) regs, &count);
+                                           ^
+        ../../W._C._Handy/gdb/i386gnu-nat.c: In function 'void i386_gnu_dr_set(const i386_debug_state*, proc*)':
+        ../../W._C._Handy/gdb/i386gnu-nat.c:299:51: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+              (thread_state_t) regs, i386_DEBUG_STATE_COUNT);
+                                                           ^
+        ../../W._C._Handy/gdb/i386gnu-nat.c: In function 'void i386_gnu_dr_set_control_one(proc*, void*)':
+        ../../W._C._Handy/gdb/i386gnu-nat.c:310:28: error: invalid conversion from 'void*' to 'long unsigned int*' [-fpermissive]
+           unsigned long *control = arg;
+                                    ^
+        ../../W._C._Handy/gdb/i386gnu-nat.c: In function 'void i386_gnu_dr_set_addr_one(proc*, void*)':
+        ../../W._C._Handy/gdb/i386gnu-nat.c:340:31: error: invalid conversion from 'void*' to 'reg_addr*' [-fpermissive]
+           struct reg_addr *reg_addr = arg;
+                                       ^
+        In file included from ../../W._C._Handy/gdb/gnu-nat.c:38:0:
+        /usr/include/hurd.h: In function 'int __hurd_fail(error_t)':
+        /usr/include/hurd.h:60:11: error: invalid conversion from 'int' to 'error_t {aka __error_t_codes}' [-fpermissive]
+               err = EIEIO;
+                   ^
+        /usr/include/hurd.h:64:11: error: invalid conversion from 'int' to 'error_t {aka __error_t_codes}' [-fpermissive]
+               err = ENOMEM;
+                   ^
+        /usr/include/hurd.h:68:11: error: invalid conversion from 'int' to 'error_t {aka __error_t_codes}' [-fpermissive]
+               err = EINVAL;
+                   ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'natural_t* proc_get_state(proc*, int)':
+        ../../W._C._Handy/gdb/gnu-nat.c:372:48: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+              (thread_state_t) &proc->state, &state_size);
+                                                        ^
+        In file included from /usr/include/mach/mach_types.h:46:0,
+                         from /usr/include/mach.h:28,
+                         from ./nm.h:23,
+                         from ../../W._C._Handy/gdb/defs.h:521,
+                         from ../../W._C._Handy/gdb/gnu-nat.c:23:
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'error_t proc_get_exception_port(proc*, mach_port_t*)':
+        ../../W._C._Handy/gdb/gnu-nat.c:394:12: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+             return task_get_exception_port (proc->port, port);
+                    ^
+        In file included from /usr/include/mach/mach_types.h:48:0,
+                         from /usr/include/mach.h:28,
+                         from ./nm.h:23,
+                         from ../../W._C._Handy/gdb/defs.h:521,
+                         from ../../W._C._Handy/gdb/gnu-nat.c:23:
+        ../../W._C._Handy/gdb/gnu-nat.c:396:12: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+             return thread_get_exception_port (proc->port, port);
+                    ^
+        In file included from /usr/include/mach/mach_types.h:46:0,
+                         from /usr/include/mach.h:28,
+                         from ./nm.h:23,
+                         from ../../W._C._Handy/gdb/defs.h:521,
+                         from ../../W._C._Handy/gdb/gnu-nat.c:23:
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'error_t proc_set_exception_port(proc*, mach_port_t)':
+        ../../W._C._Handy/gdb/gnu-nat.c:405:12: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+             return task_set_exception_port (proc->port, port);
+                    ^
+        In file included from /usr/include/mach/mach_types.h:48:0,
+                         from /usr/include/mach.h:28,
+                         from ./nm.h:23,
+                         from ../../W._C._Handy/gdb/defs.h:521,
+                         from ../../W._C._Handy/gdb/gnu-nat.c:23:
+        ../../W._C._Handy/gdb/gnu-nat.c:407:12: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+             return thread_set_exception_port (proc->port, port);
+                    ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'void proc_steal_exc_port(proc*, mach_port_t)':
+        ../../W._C._Handy/gdb/gnu-nat.c:441:21: error: invalid conversion from 'int' to 'error_t {aka __error_t_codes}' [-fpermissive]
+               error_t err = 0;
+                             ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'void proc_restore_exc_port(proc*)':
+        ../../W._C._Handy/gdb/gnu-nat.c:484:21: error: invalid conversion from 'int' to 'error_t {aka __error_t_codes}' [-fpermissive]
+               error_t err = 0;
+                             ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'proc* make_proc(inf*, mach_port_t, int)':
+        ../../W._C._Handy/gdb/gnu-nat.c:574:19: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+                 &prev_port);
+                           ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'void inf_startup(inf*, int)':
+        ../../W._C._Handy/gdb/gnu-nat.c:724:49: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+                MACH_PORT_RIGHT_RECEIVE, &inf->event_port);
+                                                         ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'void inf_set_pid(inf*, pid_t)':
+        ../../W._C._Handy/gdb/gnu-nat.c:748:64: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+               error_t err = proc_pid2task (proc_server, pid, &task_port);
+                                                                        ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'void inf_validate_procinfo(inf*)':
+        ../../W._C._Handy/gdb/gnu-nat.c:799:56: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+                 (procinfo_t *) &pi, &pi_len, &noise, &noise_len);
+                                                                ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'void inf_validate_task_sc(inf*)':
+        ../../W._C._Handy/gdb/gnu-nat.c:829:53: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+              (procinfo_t *) &pi, &pi_len, &noise, &noise_len);
+                                                             ^
+        In file included from /usr/include/hurd/userlink.h:27:0,
+                         from /usr/include/hurd/port.h:25,
+                         from /usr/include/hurd.h:41,
+                         from ../../W._C._Handy/gdb/gnu-nat.c:38:
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'void inf_set_traced(inf*, int)':
+        ../../W._C._Handy/gdb/gnu-nat.c:127:69: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+           HURD_MSGPORT_RPC (proc_getmsgport (proc_server, inf->pid, &msgport), \
+                                                                             ^  
+        ../../W._C._Handy/gdb/gnu-nat.c:138:8: note: in expansion of macro 'INF_MSGPORT_RPC'
+          __e = INF_MSGPORT_RPC (inf, rpc_expr); \
+                ^
+        ../../W._C._Handy/gdb/gnu-nat.c:879:2: note: in expansion of macro 'INF_RESUME_MSGPORT_RPC'
+          INF_RESUME_MSGPORT_RPC (inf, msg_set_init_int (msgport, refport,
+          ^
+        ../../W._C._Handy/gdb/gnu-nat.c:127:3: error: invalid conversion from 'int' to 'error_t {aka __error_t_codes}' [-fpermissive]
+           HURD_MSGPORT_RPC (proc_getmsgport (proc_server, inf->pid, &msgport), \
+           ^
+        ../../W._C._Handy/gdb/gnu-nat.c:138:8: note: in expansion of macro 'INF_MSGPORT_RPC'
+          __e = INF_MSGPORT_RPC (inf, rpc_expr); \
+                ^
+        ../../W._C._Handy/gdb/gnu-nat.c:879:2: note: in expansion of macro 'INF_RESUME_MSGPORT_RPC'
+          INF_RESUME_MSGPORT_RPC (inf, msg_set_init_int (msgport, refport,
+          ^
+        ../../W._C._Handy/gdb/gnu-nat.c:127:3: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+           HURD_MSGPORT_RPC (proc_getmsgport (proc_server, inf->pid, &msgport), \
+           ^
+        ../../W._C._Handy/gdb/gnu-nat.c:138:8: note: in expansion of macro 'INF_MSGPORT_RPC'
+          __e = INF_MSGPORT_RPC (inf, rpc_expr); \
+                ^
+        ../../W._C._Handy/gdb/gnu-nat.c:879:2: note: in expansion of macro 'INF_RESUME_MSGPORT_RPC'
+          INF_RESUME_MSGPORT_RPC (inf, msg_set_init_int (msgport, refport,
+          ^
+        ../../W._C._Handy/gdb/gnu-nat.c:141:11: error: invalid conversion from 'int' to 'error_t {aka __error_t_codes}' [-fpermissive]
+            : EIEIO)
+                   ^
+        ../../W._C._Handy/gdb/gnu-nat.c:879:2: note: in expansion of macro 'INF_RESUME_MSGPORT_RPC'
+          INF_RESUME_MSGPORT_RPC (inf, msg_set_init_int (msgport, refport,
+          ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'void inf_validate_procs(inf*)':
+        ../../W._C._Handy/gdb/gnu-nat.c:1010:69: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+               error_t err = task_threads (task->port, &threads, &num_threads); 
+                                                                             ^  
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'void inf_signal(inf*, gdb_signal)':
+        ../../W._C._Handy/gdb/gnu-nat.c:1327:17: error: invalid conversion from 'int' to 'error_t {aka __error_t_codes}' [-fpermissive]
+           error_t err = 0;
+                         ^
+        ../../W._C._Handy/gdb/gnu-nat.c:1359:43: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+                  e->exception, e->code, e->subcode);
+                                                   ^
+        In file included from /usr/include/hurd/userlink.h:27:0,
+                         from /usr/include/hurd/port.h:25,
+                         from /usr/include/hurd.h:41,
+                         from ../../W._C._Handy/gdb/gnu-nat.c:38:
+        ../../W._C._Handy/gdb/gnu-nat.c:127:69: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+           HURD_MSGPORT_RPC (proc_getmsgport (proc_server, inf->pid, &msgport), \
+                                                                             ^  
+        ../../W._C._Handy/gdb/gnu-nat.c:1372:2: note: in expansion of macro 'INF_MSGPORT_RPC'
+          INF_MSGPORT_RPC (inf,
+          ^
+        ../../W._C._Handy/gdb/gnu-nat.c:127:3: error: invalid conversion from 'int' to 'error_t {aka __error_t_codes}' [-fpermissive]
+           HURD_MSGPORT_RPC (proc_getmsgport (proc_server, inf->pid, &msgport), \
+           ^
+        ../../W._C._Handy/gdb/gnu-nat.c:1372:2: note: in expansion of macro 'INF_MSGPORT_RPC'
+          INF_MSGPORT_RPC (inf,
+          ^
+        ../../W._C._Handy/gdb/gnu-nat.c:127:3: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+           HURD_MSGPORT_RPC (proc_getmsgport (proc_server, inf->pid, &msgport), \
+           ^
+        ../../W._C._Handy/gdb/gnu-nat.c:1372:2: note: in expansion of macro 'INF_MSGPORT_RPC'
+          INF_MSGPORT_RPC (inf,
+          ^
+        ../../W._C._Handy/gdb/gnu-nat.c:127:69: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+           HURD_MSGPORT_RPC (proc_getmsgport (proc_server, inf->pid, &msgport), \
+                                                                             ^  
+        ../../W._C._Handy/gdb/gnu-nat.c:138:8: note: in expansion of macro 'INF_MSGPORT_RPC'
+          __e = INF_MSGPORT_RPC (inf, rpc_expr); \
+                ^
+        ../../W._C._Handy/gdb/gnu-nat.c:1395:2: note: in expansion of macro 'INF_RESUME_MSGPORT_RPC'
+          INF_RESUME_MSGPORT_RPC (inf,
+          ^
+        ../../W._C._Handy/gdb/gnu-nat.c:127:3: error: invalid conversion from 'int' to 'error_t {aka __error_t_codes}' [-fpermissive]
+           HURD_MSGPORT_RPC (proc_getmsgport (proc_server, inf->pid, &msgport), \
+           ^
+        ../../W._C._Handy/gdb/gnu-nat.c:138:8: note: in expansion of macro 'INF_MSGPORT_RPC'
+          __e = INF_MSGPORT_RPC (inf, rpc_expr); \
+                ^
+        ../../W._C._Handy/gdb/gnu-nat.c:1395:2: note: in expansion of macro 'INF_RESUME_MSGPORT_RPC'
+          INF_RESUME_MSGPORT_RPC (inf,
+          ^
+        ../../W._C._Handy/gdb/gnu-nat.c:127:3: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+           HURD_MSGPORT_RPC (proc_getmsgport (proc_server, inf->pid, &msgport), \
+           ^
+        ../../W._C._Handy/gdb/gnu-nat.c:138:8: note: in expansion of macro 'INF_MSGPORT_RPC'
+          __e = INF_MSGPORT_RPC (inf, rpc_expr); \
+                ^
+        ../../W._C._Handy/gdb/gnu-nat.c:1395:2: note: in expansion of macro 'INF_RESUME_MSGPORT_RPC'
+          INF_RESUME_MSGPORT_RPC (inf,
+          ^
+        ../../W._C._Handy/gdb/gnu-nat.c:1394:11: error: invalid conversion from 'int' to 'error_t {aka __error_t_codes}' [-fpermissive]
+               err =
+                   ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'void inf_continue(inf*)': 
+        ../../W._C._Handy/gdb/gnu-nat.c:1416:60: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+           error_t err = proc_pid2proc (proc_server, inf->pid, &proc);
+                                                                    ^
+        ../../W._C._Handy/gdb/gnu-nat.c:1422:33: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+               err = proc_mark_cont (proc);
+                                         ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'ptid_t gnu_wait(target_ops*, ptid_t, target_waitstatus*, int)':
+        ../../W._C._Handy/gdb/gnu-nat.c:1497:70: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+          proc_wait_request (proc_server, inf->event_port, inf->pid, WUNTRACED);
+                                                                              ^ 
+        ../../W._C._Handy/gdb/gnu-nat.c:1521:42: error: invalid conversion from 'mach_msg_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+             MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
+                                                  ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'error_t S_exception_raise_request(mach_port_t, mach_port_t, thread_t, task_t, int, int, int)':
+        ../../W._C._Handy/gdb/gnu-nat.c:1652:43: error: ambiguating new declaration of 'error_t S_exception_raise_request(mach_port_t, mach_port_t, thread_t, task_t, int, int, int)'
+               int exception, int code, int subcode)
+                                                   ^
+        In file included from ../../W._C._Handy/gdb/gnu-nat.c:66:0:
+        ./exc_request_S.h:19:15: note: old declaration 'kern_return_t S_exception_raise_request(mach_port_t, mach_port_t, mach_port_t, mach_port_t, integer_t, integer_t, integer_t)'
+         kern_return_t S_exception_raise_request
+                       ^
+        ../../W._C._Handy/gdb/gnu-nat.c:1668:9: error: invalid conversion from 'int' to 'error_t {aka __error_t_codes}' [-fpermissive]
+          return 0;
+                 ^
+        ../../W._C._Handy/gdb/gnu-nat.c:1730:10: error: invalid conversion from 'int' to 'error_t {aka __error_t_codes}' [-fpermissive]
+           return 0;
+                  ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'error_t do_mach_notify_dead_name(mach_port_t, mach_port_t)':
+        ../../W._C._Handy/gdb/gnu-nat.c:1747:68: error: ambiguating new declaration of 'error_t do_mach_notify_dead_name(mach_port_t, mach_port_t)'
+         do_mach_notify_dead_name (mach_port_t notify, mach_port_t dead_port)   
+                                                                            ^   
+        In file included from ../../W._C._Handy/gdb/gnu-nat.c:67:0:
+        ./notify_S.h:78:15: note: old declaration 'kern_return_t do_mach_notify_dead_name(mach_port_t, mach_port_t)'
+         kern_return_t do_mach_notify_dead_name
+                       ^
+        ../../W._C._Handy/gdb/gnu-nat.c:1784:10: error: invalid conversion from 'int' to 'error_t {aka __error_t_codes}' [-fpermissive]
+           return 0;
+                  ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'error_t S_proc_wait_reply(mach_port_t, error_t, int, int, rusage_t, pid_t)':
+        ../../W._C._Handy/gdb/gnu-nat.c:1859:10: error: invalid conversion from 'int' to 'error_t {aka __error_t_codes}' [-fpermissive]
+           return 0;
+                  ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'error_t S_msg_sig_post_untraced_reply(mach_port_t, error_t)':
+        ../../W._C._Handy/gdb/gnu-nat.c:1952:10: error: invalid conversion from 'int' to 'error_t {aka __error_t_codes}' [-fpermissive]
+           return 0;
+                  ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'mach_port_msgcount_t port_msgs_queued(mach_port_t)':
+        ../../W._C._Handy/gdb/gnu-nat.c:1964:67: error: invalid conversion from 'kern_return_t {aka int}' to 'error_t {aka __error_t_codes}' [-fpermissive]
+             mach_port_get_receive_status (mach_task_self (), port, &status);   
+                                                                           ^
+        ../../W._C._Handy/gdb/gnu-nat.c: In function 'void gnu_create_inferior(target_ops*, char*, char*, char**, int)':
+        ../../W._C._Handy/gdb/gnu-nat.c:2121:3: error: a function-definition is not allowed here before '{' token
+           {
+           ^
+        ../../W._C._Handy/gdb/gnu-nat.c:3471:1: error: expected '}' at end of input
+         }
+         ^
+        ../../W._C._Handy/gdb/gnu-nat.c: At global scope:
+        ../../W._C._Handy/gdb/gnu-nat.c:1227:1: warning: 'void inf_update_signal_thread(inf*)' defined but not used [-Wunused-function]
+         inf_update_signal_thread (struct inf *inf)
+         ^
+        ../../W._C._Handy/gdb/gnu-nat.c:1448:1: warning: 'ptid_t gnu_wait(target_ops*, ptid_t, target_waitstatus*, int)' defined but not used [-Wunused-function]
+         gnu_wait (struct target_ops *ops,
+         ^
+        ../../W._C._Handy/gdb/gnu-nat.c:1990:1: warning: 'void gnu_resume(target_ops*, ptid_t, int, gdb_signal)' defined but not used [-Wunused-function]
+         gnu_resume (struct target_ops *ops,
+         ^
+        ../../W._C._Handy/gdb/gnu-nat.c:2067:1: warning: 'void gnu_kill_inferior(target_ops*)' defined but not used [-Wunused-function]
+         gnu_kill_inferior (struct target_ops *ops)
+         ^
+        ../../W._C._Handy/gdb/gnu-nat.c:2082:1: warning: 'void gnu_mourn_inferior(target_ops*)' defined but not used [-Wunused-function]
+         gnu_mourn_inferior (struct target_ops *ops)
+         ^
+        ../../W._C._Handy/gdb/gnu-nat.c:2094:1: warning: 'int inf_pick_first_thread()' defined but not used [-Wunused-function]
+         inf_pick_first_thread (void)
+         ^
+        ../../W._C._Handy/gdb/gnu-nat.c:2113:1: warning: 'void gnu_create_inferior(target_ops*, char*, char*, char**, int)' defined but not used [-Wunused-function]
+         gnu_create_inferior (struct target_ops *ops,
+         ^
+
 
 # Build
 
 Here's a log of a binutils-gdb build run; this is from Git commit
-9ef9e6a6a0dd8f948708cb67c9afcfd0be40cb0a (2016-02-10), plus `PATH_MAX`
+a932d108b10518994c873b38a363af9f21bc2e87 (2016-05-10), plus `PATH_MAX`
 hard-coded in `gdb/remote.c`, and `global_thread_id_to_ptid` used instead of
 `thread_id_to_pid` in `gdb/gnu-nat.c`, run on kepler.SCHWINGE
 and laplace.SCHWINGE.
 
     $ export LC_ALL=C
-    $ ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --enable-plugins --with-sysroot=/ SHELL=/bin/dash CC=gcc-4.9 CXX=g++-4.9 --disable-werror 2>&1 | tee log_build
+    $ ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --enable-plugins --with-sysroot=/ SHELL=/bin/dash CC=gcc-4.9 CXX=g++-4.9 --disable-werror --disable-build-with-cxx 2>&1 | tee log_build
     [...]
     $ make 2>&1 | tee log_build_
     [...]
@@ -357,9 +679,12 @@ harmonized.  Debian GCC (which is used in the testsuite) likes to pass
 so we need to configure with support for plugins and
 sysroots.  In the GDB build, there are compiler diagnostics reported in the
 MIG-generated stub files; thus no `-Werror` until that is resolved.
+`--disable-build-with-cxx`, as the x86 GNU/Hurd GDB port is not ready.  See
+below.  This needs to be addressed soon, as GDB will soon *require a C++
+compiler*, [[!message-id "ab08f2c8-3b52-3a7a-2236-89833bd09129@redhat.com"]].
 
-This takes up around 1.5 GiB, and runs for [[17 min|performance#measure]] on
-kepler.SCHWINGE and [[19 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 1.5 GiB, and runs for [[18 min|performance#measure]] on
+kepler.SCHWINGE and [[15 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
@@ -487,7 +812,7 @@ kepler.SCHWINGE and [[1 min|performance#measure]] on laplace.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This runs for [[26 min|performance#measure]] on kepler.SCHWINGE and [[89
+This runs for [[24 min|performance#measure]] on kepler.SCHWINGE and [[54
 min|performance#measure]] on laplace.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
@@ -576,6 +901,8 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
     can be used.
 
     Same issue for `FAIL: Common symbol override ifunc *` ones?
+
+    Same issue for `FAIL: Run pr19579`?
 
   * <a name="64ksec">`FAIL: ld-elf/64ksec`</a>
 
@@ -1172,7 +1499,8 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
     backtraces, for example.  Earlier on, these just FAILed on
     laplace.SCHWINGE; since
     9939e1314f970c6ba568956148a518ac710a280a..c2853f3d99797a321c37948297441ca6021f719a
-    on kepler.SCHWINGE, too.  TODO.
+    on kepler.SCHWINGE, too.  Later, FAILs again disappeared on
+    kepler.SCHWINGE.
 
   * [[libgc|boehm_gc]] `GC_find_limit_with_bound` SIGSEGVs
 
