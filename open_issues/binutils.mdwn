@@ -332,8 +332,9 @@ Last reviewed up to Git commit 9ef9e6a6a0dd8f948708cb67c9afcfd0be40cb0a
                ^
         ../../W._C._Handy/gdb/gnu-nat.c:2973:7: error: invalid initializer
 
-    Commit 5d5658a1d3c3eb2a09c03f2f0662a1c01963c869 renamed `thread_id_to_pid`
-    to `global_thread_id_to_ptid`.
+    Commit 5d5658a1d3c3eb2a09c03f2f0662a1c01963c869
+    `Per-inferior/Inferior-qualified thread IDs` renamed `thread_id_to_pid` to
+    `global_thread_id_to_ptid`.
 
 
 # Build
@@ -1229,6 +1230,12 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
         #9  0x081db277 in gdb_main (args=0x1bff164) at ../../W._C._Handy/gdb/main.c:1062
         #10 0x0809714b in main (argc=5, argv=0x1bff1f4) at ../../W._C._Handy/gdb/gdb.c:33
 
+    2016-05-25, commit 9ef9e6a6a0dd8f948708cb67c9afcfd0be40cb0a (2016-02-10):
+    problem confirmed, when manually running GDB to debug another GDB instance.
+    Worked around by `#if 0`ing the bodies of
+    `gdb/guile/guile.c:_initialize_guile`, and
+    `gdb/guile/guile.c:gdbscm_finish_initialization`.
+
     TODO.
 
   * In
@@ -1297,6 +1304,154 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
           [-5    Thread 6719.8     0x0105d4fc in mach_msg_trap () at /build/glibc-2.22/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2-]
         [-* 4    Thread 6719.7     main (ac=1, av=0x102cda4) at ../../../W._C._Handy/bfd/doc/chew.c:1494-]
         [-  3-]{+1+}    bogus thread id 6 Can't fetch registers from thread bogus thread id 6: No such thread
+
+    Commit f303dbd60d9c7984832446eeb9d4e4d89703c615 `Fix PR threads/19422 -
+    show which thread caused stop` needs additional changes for Hurd.
+    Reverting that one, the `Thread 4 hit` prefix goes away, but `info threads`
+    still doesn't work.
+
+    Bisected the `info threads` problem to commit
+    7e0aa6aa9983c745aedc203db0cc360a0ad47cac `List inferiors/threads/pspaces in
+    ascending order`.  Does that one sort the `bogus thread id 6` first, and
+    GDB stops after running into any such bogus thread ID?
+
+    $ gdb/gdb -q --args gdb/gdb -q bfd/doc/chew --batch -ex 'break main' -ex r -ex 'info threads'
+
+    new_thread calls:
+
+        #0  new_thread (ptid=...) at ../../W._C._Handy/gdb/thread.c:234
+        #1  0x081dc973 in add_thread_silent (ptid=...) at ../../W._C._Handy/gdb/thread.c:304
+        #2  0x080bcc9b in fork_inferior (exec_file_arg=0x877b868 "/media/erich/home/thomas/tmp/binutils-gdb/tschwinge/W._C._Handy.build/bfd/doc/chew", allargs=0x8787d28 "", env=0x87312f0, traceme_fun=0x2804864, init_trace_fun=0x0, pre_trace_fun=0x0, shell_file_arg=0x0, exec_fun=0x0) at ../../W._C._Handy/gdb/fork-child.c:397
+        #3  0x080ba574 in gnu_create_inferior (ops=0x868c148, exec_file=0x877b868 "/media/erich/home/thomas/tmp/binutils-gdb/tschwinge/W._C._Handy.build/bfd/doc/chew", allargs=0x8787d28 "", env=0x87312f0, from_tty=0) at ../../W._C._Handy/gdb/gnu-nat.c:2136
+        #4  0x081c4687 in run_command_1 (args=<optimized out>, from_tty=0, tbreak_at_main=<optimized out>) at ../../W._C._Handy/gdb/infcmd.c:604
+        #5  0x082aa39d in execute_command (p=<optimized out>, from_tty=0) at ../../W._C._Handy/gdb/top.c:475
+        #6  0x081e18c8 in catch_command_errors (command=0x82aa160 <execute_command>, arg=0x102d079 "r", from_tty=0) at ../../W._C._Handy/gdb/main.c:368
+
+        #0  new_thread (ptid=...) at ../../W._C._Handy/gdb/thread.c:234
+        #1  0x081dc973 in add_thread_silent (ptid=...) at ../../W._C._Handy/gdb/thread.c:304
+        #2  0x080b8359 in inf_validate_procs (inf=0x87a31e0) at ../../W._C._Handy/gdb/gnu-nat.c:1104
+        #3  0x080b85f1 in inf_update_procs (inf=0x87a31e0) at ../../W._C._Handy/gdb/gnu-nat.c:1123
+        #4  0x080b871e in inf_suspend (inf=0x87a31e0) at ../../W._C._Handy/gdb/gnu-nat.c:1179
+        #5  0x080b97a7 in gnu_wait (ops=0x868c148, ptid=..., status=0x2804810, options=0) at ../../W._C._Handy/gdb/gnu-nat.c:1530
+        #6  0x08204a17 in delegate_wait (self=<optimized out>, arg1=..., arg2=0x2804810, arg3=0) at ../../W._C._Handy/gdb/target-delegates.c:116
+        #7  0x08213c18 in target_wait (ptid=..., status=0x2804810, options=0) at ../../W._C._Handy/gdb/target.c:2256
+        #8  0x080bce8d in startup_inferior (ntraps=1) at ../../W._C._Handy/gdb/fork-child.c:445
+        #9  0x080ba612 in gnu_create_inferior (ops=0x868c148, exec_file=0x877b868 "/media/erich/home/thomas/tmp/binutils-gdb/tschwinge/W._C._Handy.build/bfd/doc/chew", allargs=0x8787d28 "", env=0x87312f0, from_tty=0) at ../../W._C._Handy/gdb/gnu-nat.c:2158
+        #10 0x081c4687 in run_command_1 (args=<optimized out>, from_tty=0, tbreak_at_main=<optimized out>) at ../../W._C._Handy/gdb/infcmd.c:604
+        #11 0x082aa39d in execute_command (p=<optimized out>, from_tty=0) at ../../W._C._Handy/gdb/top.c:475
+        #12 0x081e18c8 in catch_command_errors (command=0x82aa160 <execute_command>, arg=0x102d079 "r", from_tty=0) at ../../W._C._Handy/gdb/main.c:368
+
+        #0  new_thread (ptid=...) at ../../W._C._Handy/gdb/thread.c:234
+        #1  0x081dc973 in add_thread_silent (ptid=...) at ../../W._C._Handy/gdb/thread.c:304
+        #2  0x081dca36 in add_thread_with_info (ptid=..., priv=0x0) at ../../W._C._Handy/gdb/thread.c:313
+        #3  0x081dcaa6 in add_thread (ptid=...) at ../../W._C._Handy/gdb/thread.c:327
+        #4  0x080b84b7 in inf_validate_procs (inf=0x87a31e0) at ../../W._C._Handy/gdb/gnu-nat.c:1106
+        #5  0x080b85f1 in inf_update_procs (inf=0x87a31e0) at ../../W._C._Handy/gdb/gnu-nat.c:1123
+        #6  0x080b871e in inf_suspend (inf=0x87a31e0) at ../../W._C._Handy/gdb/gnu-nat.c:1179
+        #7  0x080b97a7 in gnu_wait (ops=0x868c148, ptid=..., status=0x2804828, options=0) at ../../W._C._Handy/gdb/gnu-nat.c:1530
+        #8  0x08204a17 in delegate_wait (self=<optimized out>, arg1=..., arg2=0x2804828, arg3=0) at ../../W._C._Handy/gdb/target-delegates.c:116
+        #9  0x08213c18 in target_wait (ptid=..., status=0x2804828, options=0) at ../../W._C._Handy/gdb/target.c:2256
+        #10 0x081c80fe in do_target_wait (ptid=..., status=0x2804828, options=0) at ../../W._C._Handy/gdb/infrun.c:3642
+        #11 0x081d30f5 in fetch_inferior_event (client_data=0x0) at ../../W._C._Handy/gdb/infrun.c:3900
+        #12 0x081e8c54 in inferior_event_handler (event_type=INF_REG_EVENT, client_data=0x0) at ../../W._C._Handy/gdb/inf-loop.c:44
+        #13 0x081c782c in infrun_async_inferior_event_handler (data=0x0) at ../../W._C._Handy/gdb/infrun.c:9082
+        #14 0x081e72ec in check_async_event_handlers () at ../../W._C._Handy/gdb/event-loop.c:1038
+        #15 gdb_do_one_event () at ../../W._C._Handy/gdb/event-loop.c:302
+        #16 0x082aa126 in wait_sync_command_done () at ../../W._C._Handy/gdb/top.c:373
+        #17 0x082aa323 in maybe_wait_sync_command_done (was_sync=0) at ../../W._C._Handy/gdb/top.c:388
+        #18 execute_command (p=<optimized out>, from_tty=0) at ../../W._C._Handy/gdb/top.c:477
+        #19 0x081e18c8 in catch_command_errors (command=0x82aa160 <execute_command>, arg=0x102d079 "r", from_tty=0) at ../../W._C._Handy/gdb/main.c:368
+
+    ---
+    
+    Changes `renumber_threads|prune_threads`
+    
+    +/* Implement the "to_update_thread_list" target_ops method.  */
+    +
+    +static void
+    +fbsd_update_thread_list (struct target_ops *ops)
+    +{
+    +#ifdef PT_LWP_EVENTS
+    +  /* With support for thread events, threads are added/deleted from the
+    +     list as events are reported, so just try deleting exited threads.  */
+    +  delete_exited_threads ();
+    +#else
+    +  prune_threads ();
+    +
+    +  fbsd_add_threads (ptid_get_pid (inferior_ptid));
+    +#endif
+    +}
+    
+     static void
+     linux_nat_update_thread_list (struct target_ops *ops)
+     {
+    -  if (linux_supports_traceclone ())
+    -    {
+    -      /* With support for clone events, we add/delete threads from the
+    -        list as clone/exit events are processed, so just try deleting
+    -        exited threads still in the thread list.  */
+    -      delete_exited_threads ();
+    -    }
+    -  else
+    -    prune_threads ();
+    +  /* We add/delete threads from the list as clone/exit events are
+    +     processed, so just try deleting exited threads still in the
+    +     thread list.  */
+    +  delete_exited_threads ();
+     }
+    
+    commit 8a06aea71e0aa9099d0ca593dbb58f6e056af4ff
+    Author: Pedro Alves <palves@redhat.com>
+    Date:   Tue Apr 7 15:47:22 2015 +0100
+    
+        update thread list, delete exited threads
+        [...]
+    
+    ... looks very relevant
+    
+    commit 44ee4a526db6160b302417127e736b73fc00ee87
+    Author: Pedro Alves <palves@redhat.com>
+    Date:   Wed Oct 15 22:48:35 2014 +0100
+    
+        DEC threads: Simplify updating the thread list
+        [...]
+    
+    commit ab970af19746364a4f236bebc238ebb036adc898
+    Author: Pedro Alves <palves@redhat.com>
+    Date:   Wed Oct 15 22:44:00 2014 +0100
+    
+        remote: get rid of all the T packets when syncing the thread list
+        [...]
+    
+    commit e8032dde10b743253125d7defb5f5503b21c1d26
+    Author: Pedro Alves <palves@redhat.com>
+    Date:   Wed Oct 15 22:44:00 2014 +0100
+    
+        Push pruning old threads down to the target
+        [...]
+    
+    commit c82f56d9d760a9b4034eeaac44f2f0fa5779ff69
+    Author: Thomas Schwinge <thomas@codesourcery.com>
+    Date:   Wed Jan 8 21:42:07 2014 +0100
+    
+        Hurd: Adjust to startup-with-shell changes.
+        [...]
+    
+    
+        If this is not done, GDB will get confused in the following.  For example,
+        "info threads" will stop early with "bogus thread id 6 Can't fetch
+        registers from thread bogus thread id 6: No such thread".
+    
+        Calling delete_exited_threads instead of prune_threads does not work.
+    
+        It's not clear if this really should be called here, or if we fail to
+        properly track/report our own threads.  For example, we're not calling
+        delete_thread anywhere.
+    
+        Alternatively, should/could we provide a update_thread_list function, and
+        do the pruning there?
+    
+    TODO.
 
 TODO.
 
