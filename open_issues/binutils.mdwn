@@ -47,8 +47,8 @@ git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefi
 
 -->
 
-Last reviewed up to Git commit a932d108b10518994c873b38a363af9f21bc2e87
-(2016-05-10).
+Last reviewed up to Git commit f245535cf583ae4ca13b10d47b3c7d3334593ece
+(2016-09-05).
 
   * Globally
 
@@ -658,11 +658,74 @@ Last reviewed up to Git commit a932d108b10518994c873b38a363af9f21bc2e87
          gnu_create_inferior (struct target_ops *ops,
          ^
 
+    [[!message-id "87eg1z93za.fsf@euler.schwinge.homeip.net"]].
+
+  * a932d108b10518994c873b38a363af9f21bc2e87..f245535cf583ae4ca13b10d47b3c7d3334593ece
+
+    `gas/NEWS`: `Default to --enable-compressed-debug-sections=gas for
+    Linux/x86 targets.`
+
+    `gas/configure.tgt`:
+
+        +case ${cpu_type}-${fmt}-${os} in
+        +i386-elf-linux*)
+        +  # Default to compress DWARF debug sections for Linux/x86.
+        +  if test ${ac_default_compressed_debug_sections} = unset; then
+        +    ac_default_compressed_debug_sections=yes
+        +  fi
+        +  ;;
+        +esac
+
+
+    `ld/NEWS`: `Add a configure option --enable-relro to decide whether -z
+    relro should be enabled in ELF linker by default.  Default to yes for all
+    Linux targets except FRV, HPPA, IA64 and MIPS.`
+
+    `ld/configure.tgt`:
+
+        +case "${target}" in
+        +frv-*-* | hppa*-*-* | ia64-*-* | mips*-*-*)
+        +  # Don't enable -z relro by default since many relro tests fail on these
+        +  # targets:
+        +  # FAIL: strip -z relro (relro1)
+        +  # FAIL: strip -z relro -shared (relro1)
+        +  # FAIL: objcopy -z relro (relro1)
+        +  # FAIL: objcopy -z relro -shared (relro1)
+        +  # FAIL: objcopy -z relro (tdata1)
+        +  # FAIL: objcopy -shared -z relro (tdata1)
+        +  # FAIL: objcopy -z relro (tdata2)
+        +  # FAIL: objcopy -shared -z relro (tdata2)
+        +  # FAIL: objcopy -z relro (tdata3)
+        +  # FAIL: objcopy -shared -z relro (tdata3)
+        +  # FAIL: objcopy -shared -z relro (tbss1)
+        +  # FAIL: objcopy -shared -z relro (tbss2)
+        +  # FAIL: objcopy -shared -z relro (tbss3)
+        +  ;;
+        +*-*-linux*)
+        +  if test ${ac_default_ld_z_relro} = unset; then
+        +    ac_default_ld_z_relro=1
+        +  fi
+        +  ;;
+        +esac
+
+
+        --- /dev/null
+        +++ ./ld/testsuite/ld-i386/tls.exp
+        +# Only on Linux for now.
+        +if ![istarget "i?86-*-linux*"] {
+        +    return
+        +}
+
+        --- /dev/null
+        +++ ./ld/testsuite/ld-i386/tlsgd3.dd
+        +++ ./ld/testsuite/ld-i386/tlsld2.dd
+        +#target: i?86-*-linux*
+
 
 # Build
 
 Here's a log of a binutils-gdb build run; this is from Git commit
-a932d108b10518994c873b38a363af9f21bc2e87 (2016-05-10), plus `PATH_MAX`
+f245535cf583ae4ca13b10d47b3c7d3334593ece (2016-09-05), plus `PATH_MAX`
 hard-coded in `gdb/remote.c`, and `global_thread_id_to_ptid` used instead of
 `thread_id_to_pid` in `gdb/gnu-nat.c`, run on kepler.SCHWINGE
 and laplace.SCHWINGE.
@@ -683,8 +746,8 @@ MIG-generated stub files; thus no `-Werror` until that is resolved.
 below.  This needs to be addressed soon, as GDB will soon *require a C++
 compiler*, [[!message-id "ab08f2c8-3b52-3a7a-2236-89833bd09129@redhat.com"]].
 
-This takes up around 1.5 GiB, and runs for [[18 min|performance#measure]] on
-kepler.SCHWINGE and [[15 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 1.5 GiB, and runs for [[16 min|performance#measure]] on
+kepler.SCHWINGE and [[22 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
@@ -797,7 +860,7 @@ formats, and more emulation vectors.
     [...]
 
 This takes up around 220 MiB, and runs for [[0 min|performance#measure]] on
-kepler.SCHWINGE and [[1 min|performance#measure]] on laplace.SCHWINGE.
+kepler.SCHWINGE and [[2 min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
@@ -812,7 +875,7 @@ kepler.SCHWINGE and [[1 min|performance#measure]] on laplace.SCHWINGE.
     $ make -k check 2>&1 | tee log_test
     [...]
 
-This runs for [[24 min|performance#measure]] on kepler.SCHWINGE and [[54
+This runs for [[23 min|performance#measure]] on kepler.SCHWINGE and [[74
 min|performance#measure]] on laplace.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
@@ -1779,6 +1842,21 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
         Alternatively, should/could we provide a update_thread_list function, and
         do the pruning there?
     
+    TODO.
+
+  * a932d108b10518994c873b38a363af9f21bc2e87..f245535cf583ae4ca13b10d47b3c7d3334593ece
+
+         Running [...]/tschwinge/W._C._Handy/ld/testsuite/ld-i386/i386.exp ...
+        +FAIL: Run ifunc-1b
+        +Running [...]/tschwinge/W._C._Handy/ld/testsuite/ld-i386/no-plt.exp ...
+        +FAIL: No PLT (static 1d)
+        +FAIL: No PLT (static 1j)
+        +FAIL: Run pr20244-3b
+        +FAIL: Run pr20253-1b
+        +FAIL: Run pr20253-1g
+        +FAIL: Run pr20253-2b
+        +FAIL: Run pr20253-2d
+
     TODO.
 
 TODO.
