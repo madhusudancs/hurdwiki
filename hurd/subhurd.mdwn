@@ -1,5 +1,5 @@
-[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2013, 2014 Free Software
-Foundation, Inc."]]
+[[!meta copyright="Copyright © 2007, 2008, 2010, 2011, 2013, 2014, 2016 Free
+Software Foundation, Inc."]]
 
 [[!meta license="""[[!toggle id="license" text="GFDL 1.2+"]][[!toggleable
 id="license" text="Permission is granted to copy, distribute and/or modify this
@@ -19,7 +19,8 @@ attach to them with gdb from the parent
 when the instance of gdb stops the server but requires its use.  (Note: it is
 possible to use [[debugging/gdb/noninvasive_debugging]], but this is less
 flexible.)  Vice versa, it is also possible to use a subhurd to debug the
-*main* Hurd system, for example, the latter's root file system.
+*main* Hurd system, for example, the latter's root file system, but that
+requires a privileged subhurd.
 
 [[!toc levels=2]]
 
@@ -37,10 +38,12 @@ The system for the subhurd is a normal Hurd installation, which could just as
 well run standalone.  You can use any of the various possible installation
 methods, or reuse an existing installation if you already have several.  If
 using [[Debian_GNU/Hurd|running/debian]], the easiest is probably to use
-[[running/debian/crosshurd]], which you can run directly from your main Hurd to
-set up another Hurd on a different partition, without ever rebooting.  (You can
-run the `native-install` step from a chroot or already in a subhurd.)
+debootstrap as root:
 
+    mke2fs /dev/hd0s6
+    settrans -ca mnt /hurd/ext2fs /dev/hd0s6
+    debootstrap sid mnt/ http://httpredir.debian.org/debian
+    settrans -fga mnt
 
 ### IRC, freenode, #hurd, 2013-09-15
 
@@ -60,52 +63,39 @@ run the `native-install` step from a chroot or already in a subhurd.)
 
 ## Booting
 
-To boot the subhurd, you need a boot script.  For historical reasons, usually
-`/boot/servers.boot` is used. (Originally, this was also used to boot the main
-Hurd, using "serverboot".  Nowadays, this isn't used for the main boot anymore,
-as GRUB can directly load all the necessary modules.)
+If you are using a recent version of the Hurd (>= 0.9), then you can
+simply boot the subhurd as an unprivileged user by issuing
 
-However, the canonical `/boot/servers.boot` file is no longer distributed with
-[[Debian_GNU/Hurd|running/debian]].  Here is a slightly adopted version:
+       boot /dev/hd0s6
 
-       # Boot script file for booting GNU Hurd.  Each line specifies a file to be
-       # loaded by the boot loader (the first word), and actions to be done with it.
-
-       # First, the bootstrap filesystem.  It needs several ports as arguments,
-       # as well as the user flags from the boot loader.
-       /hurd/ext2fs.static --bootflags=${boot-args} --host-priv-port=${host-port} --device-master-port=${device-port} --exec-server-task=${exec-task} -Tdevice ${root-device} $(task-create) $(task-resume)
-
-       # Now the exec server; to load the dynamically-linked exec server program,
-       # we have the boot loader in fact load and run ld.so, which in turn
-       # loads and runs /hurd/exec.  This task is created, and its task port saved
-       # in ${exec-task} to be passed to the fs above, but it is left suspended;
-       # the fs will resume the exec task once it is ready.
-       /lib/ld.so.1 /hurd/exec $(exec-task=task-create)
-
-       ## default pager
-       #/dev/sd0b $(add-paging-file)
-
-/!\ It's very important not to introduce spurious line breaks, so be very
-careful when copying!  All the options following `ext2fs.static` have to be on
-a single line.
-
-Now actually booting the subhurd is a simple matter of issuing (as root):
-
-       boot servers.boot /dev/hd0s6
-
-(Replace `hd0s6` by the name of your partition for the subhurd.)
+(Replace `hd0s6` by the name of your partition or backing file for the subhurd.)
 
 /!\ The partition must be unmounted (or mounted read-only) before you boot from
 it!
 
-(In theory it shouldn't be neccessary to run the subhurd as user `root`, but in
-practice [that doesn't work at the
-moment](http://savannah.gnu.org/bugs/?17341).)
+## Networking
 
 You can provide the subhurd with a network card by passing a `-f` option to
 `boot`.  For instance, if you have a second network card `/dev/eth1` in your
 host hurd, pass `-f eth0=/dev/eth1` to make it appear as device eth0 in the
 subhurd.
+
+If you don't have a second network card, you can setup the eth-multiplexer
+to share one network card.  To do so, install the multiplexer
+
+    settrans -c /dev/eth0m /hurd/eth-multiplexer --interface=/dev/eth0
+
+Then configure your main Hurd system to use a virtual network
+interface (e.g. `/dev/eth0m/0`) instead.  On Debian/Hurd, this can be
+accomplished using
+
+    ifdown /dev/eth0
+    sed -i -e s#/dev/eth0#/dev/eth0m/0# /etc/network/interfaces
+    ifup /dev/eth0m/0
+
+You can now pass `-f eth0=/dev/eth0m/1` to `boot`.
+
+## Booting and shutting down
 
 Now the subhurd should boot just like a normal Hurd started directly from GRUB,
 finally presenting a login prompt.  The `boot` program serves as proxy for the
@@ -114,16 +104,16 @@ command.
 
 To exit the subhurd, issue `halt` or `reboot`.  This should exit it cleanly,
 but for some reason it doesn't always work; sometimes it will output various
-errors and then hang.  If that happens, you need to kill the subhurd processes
-manually from a different terminal.
-
+errors and then hang.  If that happens, you need to kill the `boot` process
+manually from a different terminal.  If the `boot` process dies, the
+proc server will kill all tasks belonging to the Subhurd.
 
 ## Using
 
 In the subhurd, you can do basically all the same things as in the main Hurd.
 
 You can even set up networking: Just invoke `settrans` on the
-`/servers/socket/2` as usual inside the subhurd, only using a different local
+`/servers/socket/2` as usual inside the subhurd, using `/dev/eth0`, only using a different local
 IP than in the main Hurd.  This way, the subhurd will be able to communicate to
 the outside world with its own IP -- allowing for example to do `apt-get`
 inside the subhurd, or to `ssh` directly into the subhurd.
@@ -132,7 +122,7 @@ If you want to access the subhurd processes from the outside, e.g. for
 [[debugging_purposes|debugging/subhurd]] (or to get rid of a subhurd that
 didn't exit cleanly...), you need to find out how main Hurd [[PID]]s correspond to
 subhurd processes: the subhurd processes appear in the main Hurd (e.g. if doing
-`ps -e`) as unknown processes, and vice versa, but the [[PID]]s are different!  To
+`ps -e`) as unknown processes, but the [[PID]]s are different!  To
 find out which process is which, you can simply compare the order -- while the
 numbers are different, the order should usually match.  Often it also helps to
 look at the number of threads (e.g. using `ps -l`), as many servers have very
@@ -509,6 +499,8 @@ Roland's tutorial about [[running_a_subhurd]].
 
 <a name="debugging_main_hurd_system"></a>
 ## Debugging the *Main* Hurd System
+
+Note: This only works with privileged subhurds.
 
 A subhurd can be used for debugging the *main* Hurd system.  This works as long
 as the subhurd doesn't use any services provided by the main Hurd.  For
