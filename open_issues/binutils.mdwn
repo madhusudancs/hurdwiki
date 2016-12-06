@@ -702,7 +702,7 @@ hard-coded in `gdb/remote.c`, and `global_thread_id_to_ptid` used instead of
 and laplace.SCHWINGE.
 
     $ export LC_ALL=C
-    $ ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --enable-plugins --with-sysroot=/ SHELL=/bin/dash CC=gcc-4.9 CXX=g++-4.9 --disable-werror --disable-build-with-cxx 2>&1 | tee log_build
+    $ ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --enable-plugins --with-sysroot=/ SHELL=/bin/dash CC=gcc-6 CXX=g++-6 --disable-werror --disable-build-with-cxx 2>&1 | tee log_build
     [...]
     $ make 2>&1 | tee log_build_
     [...]
@@ -717,13 +717,13 @@ MIG-generated stub files; thus no `-Werror` until that is resolved.
 below.  This needs to be addressed soon, as GDB will soon *require a C++
 compiler*, [[!message-id "ab08f2c8-3b52-3a7a-2236-89833bd09129@redhat.com"]].
 
-This takes up around 1.5 GiB, and runs for [[16 min|performance#measure]] on
-kepler.SCHWINGE and [[21 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 1.7 GiB, and runs for [[19 min|performance#measure]] on
+kepler.SCHWINGE and [[24 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
-    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && make -k check 2>&1 | tee log_test
-    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && LD_PRELOAD=$HOME/fopen,unlink-NULL-wrapper.so make -k check 2>&1 | tee log_test
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && sed -e 's%^\([A-Z]\+ = g..-6\)%override \1 -fno-pie -fno-PIE -no-pie%g' -i gold/testsuite/Makefile && make -k check RUNTESTFLAGS=CC_FOR_TARGET='gcc-6\ -fno-pie\ -fno-PIE\ -no-pie'\ CXX_FOR_TARGET='g++-6\ -fno-pie\ -fno-PIE\ -no-pie' CC_FOR_TARGET='gcc-6 -fno-pie -fno-PIE -no-pie' CXX_FOR_TARGET='g++-6 -fno-pie -fno-PIE -no-pie' 2>&1 | tee log_test
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && sed -e 's%^\([A-Z]\+ = g..-6\)%override \1 -fno-pie -fno-PIE -no-pie%g' -i gold/testsuite/Makefile && LD_PRELOAD=$HOME/fopen,unlink-NULL-wrapper.so make -k check RUNTESTFLAGS=CC_FOR_TARGET='gcc-6\ -fno-pie\ -fno-PIE\ -no-pie'\ CXX_FOR_TARGET='g++-6\ -fno-pie\ -fno-PIE\ -no-pie' CC_FOR_TARGET='gcc-6 -fno-pie -fno-PIE -no-pie' CXX_FOR_TARGET='g++-6 -fno-pie -fno-PIE -no-pie' 2>&1 | tee log_test
 
 -->
 
@@ -830,8 +830,8 @@ formats, and more emulation vectors.
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 220 MiB, and runs for [[0 min|performance#measure]] on
-kepler.SCHWINGE and [[2 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 250 MiB, and runs for [[0 min|performance#measure]] on
+kepler.SCHWINGE and [[3 min|performance#measure]] on laplace.SCHWINGE.
 
 
 ## Analysis
@@ -843,10 +843,21 @@ kepler.SCHWINGE and [[2 min|performance#measure]] on laplace.SCHWINGE.
 
 # Testsuite
 
-    $ make -k check 2>&1 | tee log_test
+At least for GNU/Linux, Debian's GCC 6 is configured with
+`--enable-default-pie` -- which the *gdb*, *gold*, and *ld* testsuites don't
+like, so we have to cancel that for testing.
+`CC_FOR_TARGET` and `CXX_FOR_TARGET` in `RUNTESTFLAGS` is considered by the *gdb* testsuite,
+`CC_FOR_TARGET` and `CXX_FOR_TARGET` on the `make` command line by the *ld* testsuite,
+`CC` and `CXX` on the `make` command line by the *gold* testsuite
+but only when invoked (from the top level) as `make check-gold` and not when run as part of `make check`...
+I couldn't figure out a command-line variant for *gold* testsuite,
+so instead we apply an ugly hack to `gold/testsuite/Makefile`.
+
+    $ sed -e 's%^\([A-Z]\+ = g..-6\)%override \1 -fno-pie -fno-PIE -no-pie%g' -i gold/testsuite/Makefile
+    $ make -k check RUNTESTFLAGS=CC_FOR_TARGET='gcc-6\ -fno-pie\ -fno-PIE\ -no-pie'\ CXX_FOR_TARGET='g++-6\ -fno-pie\ -fno-PIE\ -no-pie' CC_FOR_TARGET='gcc-6 -fno-pie -fno-PIE -no-pie' CXX_FOR_TARGET='g++-6 -fno-pie -fno-PIE -no-pie' 2>&1 | tee log_test
     [...]
 
-This runs for [[23 min|performance#measure]] on kepler.SCHWINGE and [[73
+This runs for [[24 min|performance#measure]] on kepler.SCHWINGE and [[86
 min|performance#measure]] on laplace.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
