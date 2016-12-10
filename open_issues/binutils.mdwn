@@ -47,8 +47,8 @@ git diff --patience --stat=$COLUMNS,$COLUMNS --patch --src-prefix=./ --dst-prefi
 
 -->
 
-Last reviewed up to Git commit 9ef9e6a6a0dd8f948708cb67c9afcfd0be40cb0a
-(2016-02-10).
+Last reviewed up to Git commit 03b62bbbce3dc5f15131d9e78f77d035cd1cffb3
+(2016-11-23).
 
   * Globally
 
@@ -118,35 +118,6 @@ Last reviewed up to Git commit 9ef9e6a6a0dd8f948708cb67c9afcfd0be40cb0a
 
       * In `gdb/gnu-nat.c:gnu_wait`, we don't implement
         `gdb/target/wait.h:TARGET_WNOHANG`.  What is this needed for?
-
-      * *complete errno.h*
-
-            diff --git toolchain/logs/binutils-gdb/kepler.SCHWINGE/log_build_ toolchain/logs/binutils-gdb/laplace.SCHWINGE/log_build_
-            [...]
-            -checking for complete errno.h... yes
-            +checking for complete errno.h... no
-            +checking for EMULTIHOP value... yes
-            +checking for ENOLINK value... yes
-            +checking for EOVERFLOW value... yes
-            [...]
-            +rm -f errno.h-t errno.h && \
-            +{ echo '/* DO NOT EDIT! GENERATED AUTOMATICALLY! */' && \
-            +  sed -e 's|@''GUARD_PREFIX''@|GL|g' \
-            +      -e 's|@''INCLUDE_NEXT''@|include_next|g' \
-            +      -e 's|@''PRAGMA_SYSTEM_HEADER''@|#pragma GCC system_header|g' \
-            +      -e 's|@''PRAGMA_COLUMNS''@||g' \
-            +      -e 's|@''NEXT_ERRNO_H''@|<errno.h>|g' \
-            +      -e 's|@''EMULTIHOP_HIDDEN''@|0|g' \
-            +      -e 's|@''EMULTIHOP_VALUE''@||g' \
-            +      -e 's|@''ENOLINK_HIDDEN''@|0|g' \
-            +      -e 's|@''ENOLINK_VALUE''@||g' \
-            +      -e 's|@''EOVERFLOW_HIDDEN''@|0|g' \
-            +      -e 's|@''EOVERFLOW_VALUE''@||g' \
-            +      < ../../../../W._C._Handy/gdb/gnulib/import/errno.in.h; \
-            +} > errno.h-t && \
-            +mv errno.h-t errno.h
-
-        [[!taglink open_issue_glibc]]?
 
       * Watchpoints
 
@@ -332,20 +303,117 @@ Last reviewed up to Git commit 9ef9e6a6a0dd8f948708cb67c9afcfd0be40cb0a
                ^
         ../../W._C._Handy/gdb/gnu-nat.c:2973:7: error: invalid initializer
 
-    Commit 5d5658a1d3c3eb2a09c03f2f0662a1c01963c869 renamed `thread_id_to_pid`
-    to `global_thread_id_to_ptid`.
+    Commit 5d5658a1d3c3eb2a09c03f2f0662a1c01963c869
+    `Per-inferior/Inferior-qualified thread IDs` renamed `thread_id_to_pid` to
+    `global_thread_id_to_ptid`.
+
+  * 9ef9e6a6a0dd8f948708cb67c9afcfd0be40cb0a..a932d108b10518994c873b38a363af9f21bc2e87
+
+        diff --git ./ld/testsuite/lib/ld-lib.exp ./ld/testsuite/lib/ld-lib.exp
+        @@ -1796,6 +1797,13 @@ proc check_lto_available { } {
+                {+# This test will hide LTO bugs in ld.  Since GCC 4.9 adds+}
+        {+      # -ffat-lto-objects, we always run LTO tests on Linux with+}
+        {+      # GCC 4.9 or newer.+}
+        {+      if { [istarget "*-*-linux*"] && [at_least_gcc_version 4 9] } {+}
+        {+          set lto_available_saved 1+}
+        {+          return 1+}
+        {+      }+}
+        
+        diff --git ./ld/testsuite/lib/ld-lib.exp ./ld/testsuite/lib/ld-lib.exp
+        @@ -1830,6 +1840,13 @@ proc check_lto_fat_available { } {
+                {+# This test will hide LTO bugs in ld.  Since GCC 4.9 adds+}
+        {+      # -ffat-lto-objects, we always run LTO tests on Linux with+}
+        {+      # GCC 4.9 or newer.+}
+        {+      if { [istarget "*-*-linux*"] && [at_least_gcc_version 4 9] } {+}
+        {+          set lto_fat_available_saved 1+}
+        {+          return 1+}
+        {+      }+}
+        
+         diff --git ./ld/testsuite/lib/ld-lib.exp ./ld/testsuite/lib/ld-lib.exp
+        @@ -1864,6 +1883,13 @@ proc check_lto_shared_available { } {
+                {+# This test will hide LTO bugs in ld.  Since GCC 4.9 adds+}
+        {+      # -ffat-lto-objects, we always run LTO tests on Linux with+}
+        {+      # GCC 4.9 or newer.+}
+        {+      if { [istarget "*-*-linux*"] && [at_least_gcc_version 4 9] } {+}
+        {+          set lto_shared_available_saved 1+}
+        {+          return 1+}
+        {+      }+}
+
+
+  * a932d108b10518994c873b38a363af9f21bc2e87..f245535cf583ae4ca13b10d47b3c7d3334593ece
+
+    `gas/NEWS`: `Default to --enable-compressed-debug-sections=gas for
+    Linux/x86 targets.`
+
+    `gas/configure.tgt`:
+
+        +case ${cpu_type}-${fmt}-${os} in
+        +i386-elf-linux*)
+        +  # Default to compress DWARF debug sections for Linux/x86.
+        +  if test ${ac_default_compressed_debug_sections} = unset; then
+        +    ac_default_compressed_debug_sections=yes
+        +  fi
+        +  ;;
+        +esac
+
+
+    `ld/NEWS`: `Add a configure option --enable-relro to decide whether -z
+    relro should be enabled in ELF linker by default.  Default to yes for all
+    Linux targets except FRV, HPPA, IA64 and MIPS.`
+
+    `ld/configure.tgt`:
+
+        +case "${target}" in
+        +frv-*-* | hppa*-*-* | ia64-*-* | mips*-*-*)
+        +  # Don't enable -z relro by default since many relro tests fail on these
+        +  # targets:
+        +  # FAIL: strip -z relro (relro1)
+        +  # FAIL: strip -z relro -shared (relro1)
+        +  # FAIL: objcopy -z relro (relro1)
+        +  # FAIL: objcopy -z relro -shared (relro1)
+        +  # FAIL: objcopy -z relro (tdata1)
+        +  # FAIL: objcopy -shared -z relro (tdata1)
+        +  # FAIL: objcopy -z relro (tdata2)
+        +  # FAIL: objcopy -shared -z relro (tdata2)
+        +  # FAIL: objcopy -z relro (tdata3)
+        +  # FAIL: objcopy -shared -z relro (tdata3)
+        +  # FAIL: objcopy -shared -z relro (tbss1)
+        +  # FAIL: objcopy -shared -z relro (tbss2)
+        +  # FAIL: objcopy -shared -z relro (tbss3)
+        +  ;;
+        +*-*-linux*)
+        +  if test ${ac_default_ld_z_relro} = unset; then
+        +    ac_default_ld_z_relro=1
+        +  fi
+        +  ;;
+        +esac
+
+
+        --- /dev/null
+        +++ ./ld/testsuite/ld-i386/tls.exp
+        +# Only on Linux for now.
+        +if ![istarget "i?86-*-linux*"] {
+        +    return
+        +}
+
+        --- /dev/null
+        +++ ./ld/testsuite/ld-i386/tlsgd3.dd
+        +++ ./ld/testsuite/ld-i386/tlsld2.dd
+        +#target: i?86-*-linux*
 
 
 # Build
 
 Here's a log of a binutils-gdb build run; this is from Git commit
-9ef9e6a6a0dd8f948708cb67c9afcfd0be40cb0a (2016-02-10), plus `PATH_MAX`
-hard-coded in `gdb/remote.c`, and `global_thread_id_to_ptid` used instead of
-`thread_id_to_pid` in `gdb/gnu-nat.c`, run on kepler.SCHWINGE
+03b62bbbce3dc5f15131d9e78f77d035cd1cffb3 (2016-11-23),
+plus `PATH_MAX` hard-coded in `gdb/inferior.c` and `gdb/remote.c`,
+and `global_thread_id_to_ptid` used instead of
+`thread_id_to_pid` in `gdb/gnu-nat.c`,
+and C++ compatibility changes for the x86 GNU/Hurd port, run on kepler.SCHWINGE
 and laplace.SCHWINGE.
 
     $ export LC_ALL=C
-    $ ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --enable-plugins --with-sysroot=/ SHELL=/bin/dash CC=gcc-4.9 CXX=g++-4.9 --disable-werror 2>&1 | tee log_build
+    $ ../W._C._Handy/configure --prefix="$PWD".install --enable-gold --enable-plugins --with-sysroot=/ SHELL=/bin/dash CC=gcc-6 CXX=g++-6 --disable-werror 2>&1 | tee log_build
     [...]
     $ make 2>&1 | tee log_build_
     [...]
@@ -357,13 +425,13 @@ so we need to configure with support for plugins and
 sysroots.  In the GDB build, there are compiler diagnostics reported in the
 MIG-generated stub files; thus no `-Werror` until that is resolved.
 
-This takes up around 1.5 GiB, and runs for [[17 min|performance#measure]] on
-kepler.SCHWINGE and [[19 min|performance#measure]] on laplace.SCHWINGE.
+This takes up around 1.8 GiB, and runs for [[25 min|performance#measure]] on
+kepler.SCHWINGE and [[25 min|performance#measure]] on laplace.SCHWINGE.
 
 <!--
 
-    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && make -k check 2>&1 | tee log_test
-    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && LD_PRELOAD=$HOME/fopen,unlink-NULL-wrapper.so make -k check 2>&1 | tee log_test
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && sed -e 's%^\([A-Z]\+ = g..-6\)%override \1 -fno-pie -fno-PIE -no-pie%g' -i gold/testsuite/Makefile && make -k check RUNTESTFLAGS=CC_FOR_TARGET='gcc-6\ -fno-pie\ -fno-PIE\ -no-pie'\ CXX_FOR_TARGET='g++-6\ -fno-pie\ -fno-PIE\ -no-pie' CC_FOR_TARGET='gcc-6 -fno-pie -fno-PIE -no-pie' CXX_FOR_TARGET='g++-6 -fno-pie -fno-PIE -no-pie' 2>&1 | tee log_test
+    $ (make && touch .go-install) 2>&1 | tee log_build_ && test -f .go-install && (make install && touch .go-test) 2>&1 | tee log_install && test -f .go-test && sed -e 's%^\([A-Z]\+ = g..-6\)%override \1 -fno-pie -fno-PIE -no-pie%g' -i gold/testsuite/Makefile && LD_PRELOAD=$HOME/fopen,unlink-NULL-wrapper.so make -k check RUNTESTFLAGS=CC_FOR_TARGET='gcc-6\ -fno-pie\ -fno-PIE\ -no-pie'\ CXX_FOR_TARGET='g++-6\ -fno-pie\ -fno-PIE\ -no-pie' CC_FOR_TARGET='gcc-6 -fno-pie -fno-PIE -no-pie' CXX_FOR_TARGET='g++-6 -fno-pie -fno-PIE -no-pie' 2>&1 | tee log_test
 
 -->
 
@@ -395,6 +463,8 @@ formats, and more emulation vectors.
              THREAD_STATE_CLEAR_TRACED (state);
              ^
 
+    This is no longer seen after the switch to build with C++ instead of C.
+
   * fe19822761b4635f392875a186e48af446b40f41..7a63e9515491f21eaf07301df87d389def20e317:
 
     `-Wmissing-prototypes`
@@ -412,6 +482,9 @@ formats, and more emulation vectors.
         process_reply_S.c:343:24: warning: no previous prototype for 'process_reply_server' [-Wmissing-prototypes]
         msg_reply_S.c:165:24: warning: no previous prototype for 'msg_reply_server' [-Wmissing-prototypes]
         exc_request_S.c:157:24: warning: no previous prototype for 'exc_server' [-Wmissing-prototypes]
+
+    These are no longer seen after the switch to build with C++ instead of C
+    (but these files are built with `-x c`?).
 
   * `O_NOFOLLOW`
 
@@ -470,7 +543,7 @@ formats, and more emulation vectors.
     $ make install 2>&1 | tee log_install
     [...]
 
-This takes up around 220 MiB, and runs for [[0 min|performance#measure]] on
+This takes up around 270 MiB, and runs for [[0 min|performance#measure]] on
 kepler.SCHWINGE and [[1 min|performance#measure]] on laplace.SCHWINGE.
 
 
@@ -483,10 +556,21 @@ kepler.SCHWINGE and [[1 min|performance#measure]] on laplace.SCHWINGE.
 
 # Testsuite
 
-    $ make -k check 2>&1 | tee log_test
+At least for GNU/Linux, Debian's GCC 6 is configured with
+`--enable-default-pie` -- which the *gdb*, *gold*, and *ld* testsuites don't
+like, so we have to cancel that for testing.
+`CC_FOR_TARGET` and `CXX_FOR_TARGET` in `RUNTESTFLAGS` is considered by the *gdb* testsuite,
+`CC_FOR_TARGET` and `CXX_FOR_TARGET` on the `make` command line by the *ld* testsuite,
+`CC` and `CXX` on the `make` command line by the *gold* testsuite
+but only when invoked (from the top level) as `make check-gold` and not when run as part of `make check`...
+I couldn't figure out a command-line variant for *gold* testsuite,
+so instead we apply an ugly hack to `gold/testsuite/Makefile`.
+
+    $ sed -e 's%^\([A-Z]\+ = g..-6\)%override \1 -fno-pie -fno-PIE -no-pie%g' -i gold/testsuite/Makefile
+    $ make -k check RUNTESTFLAGS=CC_FOR_TARGET='gcc-6\ -fno-pie\ -fno-PIE\ -no-pie'\ CXX_FOR_TARGET='g++-6\ -fno-pie\ -fno-PIE\ -no-pie' CC_FOR_TARGET='gcc-6 -fno-pie -fno-PIE -no-pie' CXX_FOR_TARGET='g++-6 -fno-pie -fno-PIE -no-pie' 2>&1 | tee log_test
     [...]
 
-This runs for [[26 min|performance#measure]] on kepler.SCHWINGE and [[89
+This runs for [[25 min|performance#measure]] on kepler.SCHWINGE and [[71
 min|performance#measure]] on laplace.SCHWINGE.
 
 When running `make -k check 2>&1 | tee log_test`, at the end of the testsuite
@@ -575,6 +659,8 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
     can be used.
 
     Same issue for `FAIL: Common symbol override ifunc *` ones?
+
+    Same issue for `FAIL: Run pr19579`?
 
   * <a name="64ksec">`FAIL: ld-elf/64ksec`</a>
 
@@ -1171,7 +1257,8 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
     backtraces, for example.  Earlier on, these just FAILed on
     laplace.SCHWINGE; since
     9939e1314f970c6ba568956148a518ac710a280a..c2853f3d99797a321c37948297441ca6021f719a
-    on kepler.SCHWINGE, too.  TODO.
+    on kepler.SCHWINGE, too.  Later, FAILs again disappeared on
+    kepler.SCHWINGE.
 
   * [[libgc|boehm_gc]] `GC_find_limit_with_bound` SIGSEGVs
 
@@ -1228,6 +1315,12 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
         #8  0x081d70e9 in catch_errors (func=func@entry=0x81da110 <captured_main>, func_args=func_args@entry=0x1bff164, errstring=errstring@entry=0x837a0e5 "", mask=mask@entry=RETURN_MASK_ALL) at ../../W._C._Handy/gdb/exceptions.c:524
         #9  0x081db277 in gdb_main (args=0x1bff164) at ../../W._C._Handy/gdb/main.c:1062
         #10 0x0809714b in main (argc=5, argv=0x1bff1f4) at ../../W._C._Handy/gdb/gdb.c:33
+
+    2016-05-25, commit 9ef9e6a6a0dd8f948708cb67c9afcfd0be40cb0a (2016-02-10):
+    problem confirmed, when manually running GDB to debug another GDB instance.
+    Worked around by `#if 0`ing the bodies of
+    `gdb/guile/guile.c:_initialize_guile`, and
+    `gdb/guile/guile.c:gdbscm_finish_initialization`.
 
     TODO.
 
@@ -1297,6 +1390,169 @@ like `gdb/testsuite/boards/cc-with-tweaks.exp` would help, or setting
           [-5    Thread 6719.8     0x0105d4fc in mach_msg_trap () at /build/glibc-2.22/build-tree/hurd-i386-libc/mach/mach_msg_trap.S:2-]
         [-* 4    Thread 6719.7     main (ac=1, av=0x102cda4) at ../../../W._C._Handy/bfd/doc/chew.c:1494-]
         [-  3-]{+1+}    bogus thread id 6 Can't fetch registers from thread bogus thread id 6: No such thread
+
+    Commit f303dbd60d9c7984832446eeb9d4e4d89703c615 `Fix PR threads/19422 -
+    show which thread caused stop` needs additional changes for Hurd.
+    Reverting that one, the `Thread 4 hit` prefix goes away, but `info threads`
+    still doesn't work.
+
+    Bisected the `info threads` problem to commit
+    7e0aa6aa9983c745aedc203db0cc360a0ad47cac `List inferiors/threads/pspaces in
+    ascending order`.  Does that one sort the `bogus thread id 6` first, and
+    GDB stops after running into any such bogus thread ID?
+
+    $ gdb/gdb -q --args gdb/gdb -q bfd/doc/chew --batch -ex 'break main' -ex r -ex 'info threads'
+
+    new_thread calls:
+
+        #0  new_thread (ptid=...) at ../../W._C._Handy/gdb/thread.c:234
+        #1  0x081dc973 in add_thread_silent (ptid=...) at ../../W._C._Handy/gdb/thread.c:304
+        #2  0x080bcc9b in fork_inferior (exec_file_arg=0x877b868 "/media/erich/home/thomas/tmp/binutils-gdb/tschwinge/W._C._Handy.build/bfd/doc/chew", allargs=0x8787d28 "", env=0x87312f0, traceme_fun=0x2804864, init_trace_fun=0x0, pre_trace_fun=0x0, shell_file_arg=0x0, exec_fun=0x0) at ../../W._C._Handy/gdb/fork-child.c:397
+        #3  0x080ba574 in gnu_create_inferior (ops=0x868c148, exec_file=0x877b868 "/media/erich/home/thomas/tmp/binutils-gdb/tschwinge/W._C._Handy.build/bfd/doc/chew", allargs=0x8787d28 "", env=0x87312f0, from_tty=0) at ../../W._C._Handy/gdb/gnu-nat.c:2136
+        #4  0x081c4687 in run_command_1 (args=<optimized out>, from_tty=0, tbreak_at_main=<optimized out>) at ../../W._C._Handy/gdb/infcmd.c:604
+        #5  0x082aa39d in execute_command (p=<optimized out>, from_tty=0) at ../../W._C._Handy/gdb/top.c:475
+        #6  0x081e18c8 in catch_command_errors (command=0x82aa160 <execute_command>, arg=0x102d079 "r", from_tty=0) at ../../W._C._Handy/gdb/main.c:368
+
+        #0  new_thread (ptid=...) at ../../W._C._Handy/gdb/thread.c:234
+        #1  0x081dc973 in add_thread_silent (ptid=...) at ../../W._C._Handy/gdb/thread.c:304
+        #2  0x080b8359 in inf_validate_procs (inf=0x87a31e0) at ../../W._C._Handy/gdb/gnu-nat.c:1104
+        #3  0x080b85f1 in inf_update_procs (inf=0x87a31e0) at ../../W._C._Handy/gdb/gnu-nat.c:1123
+        #4  0x080b871e in inf_suspend (inf=0x87a31e0) at ../../W._C._Handy/gdb/gnu-nat.c:1179
+        #5  0x080b97a7 in gnu_wait (ops=0x868c148, ptid=..., status=0x2804810, options=0) at ../../W._C._Handy/gdb/gnu-nat.c:1530
+        #6  0x08204a17 in delegate_wait (self=<optimized out>, arg1=..., arg2=0x2804810, arg3=0) at ../../W._C._Handy/gdb/target-delegates.c:116
+        #7  0x08213c18 in target_wait (ptid=..., status=0x2804810, options=0) at ../../W._C._Handy/gdb/target.c:2256
+        #8  0x080bce8d in startup_inferior (ntraps=1) at ../../W._C._Handy/gdb/fork-child.c:445
+        #9  0x080ba612 in gnu_create_inferior (ops=0x868c148, exec_file=0x877b868 "/media/erich/home/thomas/tmp/binutils-gdb/tschwinge/W._C._Handy.build/bfd/doc/chew", allargs=0x8787d28 "", env=0x87312f0, from_tty=0) at ../../W._C._Handy/gdb/gnu-nat.c:2158
+        #10 0x081c4687 in run_command_1 (args=<optimized out>, from_tty=0, tbreak_at_main=<optimized out>) at ../../W._C._Handy/gdb/infcmd.c:604
+        #11 0x082aa39d in execute_command (p=<optimized out>, from_tty=0) at ../../W._C._Handy/gdb/top.c:475
+        #12 0x081e18c8 in catch_command_errors (command=0x82aa160 <execute_command>, arg=0x102d079 "r", from_tty=0) at ../../W._C._Handy/gdb/main.c:368
+
+        #0  new_thread (ptid=...) at ../../W._C._Handy/gdb/thread.c:234
+        #1  0x081dc973 in add_thread_silent (ptid=...) at ../../W._C._Handy/gdb/thread.c:304
+        #2  0x081dca36 in add_thread_with_info (ptid=..., priv=0x0) at ../../W._C._Handy/gdb/thread.c:313
+        #3  0x081dcaa6 in add_thread (ptid=...) at ../../W._C._Handy/gdb/thread.c:327
+        #4  0x080b84b7 in inf_validate_procs (inf=0x87a31e0) at ../../W._C._Handy/gdb/gnu-nat.c:1106
+        #5  0x080b85f1 in inf_update_procs (inf=0x87a31e0) at ../../W._C._Handy/gdb/gnu-nat.c:1123
+        #6  0x080b871e in inf_suspend (inf=0x87a31e0) at ../../W._C._Handy/gdb/gnu-nat.c:1179
+        #7  0x080b97a7 in gnu_wait (ops=0x868c148, ptid=..., status=0x2804828, options=0) at ../../W._C._Handy/gdb/gnu-nat.c:1530
+        #8  0x08204a17 in delegate_wait (self=<optimized out>, arg1=..., arg2=0x2804828, arg3=0) at ../../W._C._Handy/gdb/target-delegates.c:116
+        #9  0x08213c18 in target_wait (ptid=..., status=0x2804828, options=0) at ../../W._C._Handy/gdb/target.c:2256
+        #10 0x081c80fe in do_target_wait (ptid=..., status=0x2804828, options=0) at ../../W._C._Handy/gdb/infrun.c:3642
+        #11 0x081d30f5 in fetch_inferior_event (client_data=0x0) at ../../W._C._Handy/gdb/infrun.c:3900
+        #12 0x081e8c54 in inferior_event_handler (event_type=INF_REG_EVENT, client_data=0x0) at ../../W._C._Handy/gdb/inf-loop.c:44
+        #13 0x081c782c in infrun_async_inferior_event_handler (data=0x0) at ../../W._C._Handy/gdb/infrun.c:9082
+        #14 0x081e72ec in check_async_event_handlers () at ../../W._C._Handy/gdb/event-loop.c:1038
+        #15 gdb_do_one_event () at ../../W._C._Handy/gdb/event-loop.c:302
+        #16 0x082aa126 in wait_sync_command_done () at ../../W._C._Handy/gdb/top.c:373
+        #17 0x082aa323 in maybe_wait_sync_command_done (was_sync=0) at ../../W._C._Handy/gdb/top.c:388
+        #18 execute_command (p=<optimized out>, from_tty=0) at ../../W._C._Handy/gdb/top.c:477
+        #19 0x081e18c8 in catch_command_errors (command=0x82aa160 <execute_command>, arg=0x102d079 "r", from_tty=0) at ../../W._C._Handy/gdb/main.c:368
+
+    ---
+    
+    Changes `renumber_threads|prune_threads`
+    
+    +/* Implement the "to_update_thread_list" target_ops method.  */
+    +
+    +static void
+    +fbsd_update_thread_list (struct target_ops *ops)
+    +{
+    +#ifdef PT_LWP_EVENTS
+    +  /* With support for thread events, threads are added/deleted from the
+    +     list as events are reported, so just try deleting exited threads.  */
+    +  delete_exited_threads ();
+    +#else
+    +  prune_threads ();
+    +
+    +  fbsd_add_threads (ptid_get_pid (inferior_ptid));
+    +#endif
+    +}
+    
+     static void
+     linux_nat_update_thread_list (struct target_ops *ops)
+     {
+    -  if (linux_supports_traceclone ())
+    -    {
+    -      /* With support for clone events, we add/delete threads from the
+    -        list as clone/exit events are processed, so just try deleting
+    -        exited threads still in the thread list.  */
+    -      delete_exited_threads ();
+    -    }
+    -  else
+    -    prune_threads ();
+    +  /* We add/delete threads from the list as clone/exit events are
+    +     processed, so just try deleting exited threads still in the
+    +     thread list.  */
+    +  delete_exited_threads ();
+     }
+    
+    commit 8a06aea71e0aa9099d0ca593dbb58f6e056af4ff
+    Author: Pedro Alves <palves@redhat.com>
+    Date:   Tue Apr 7 15:47:22 2015 +0100
+    
+        update thread list, delete exited threads
+        [...]
+    
+    ... looks very relevant
+    
+    commit 44ee4a526db6160b302417127e736b73fc00ee87
+    Author: Pedro Alves <palves@redhat.com>
+    Date:   Wed Oct 15 22:48:35 2014 +0100
+    
+        DEC threads: Simplify updating the thread list
+        [...]
+    
+    commit ab970af19746364a4f236bebc238ebb036adc898
+    Author: Pedro Alves <palves@redhat.com>
+    Date:   Wed Oct 15 22:44:00 2014 +0100
+    
+        remote: get rid of all the T packets when syncing the thread list
+        [...]
+    
+    commit e8032dde10b743253125d7defb5f5503b21c1d26
+    Author: Pedro Alves <palves@redhat.com>
+    Date:   Wed Oct 15 22:44:00 2014 +0100
+    
+        Push pruning old threads down to the target
+        [...]
+    
+    commit c82f56d9d760a9b4034eeaac44f2f0fa5779ff69
+    Author: Thomas Schwinge <thomas@codesourcery.com>
+    Date:   Wed Jan 8 21:42:07 2014 +0100
+    
+        Hurd: Adjust to startup-with-shell changes.
+        [...]
+    
+    
+        If this is not done, GDB will get confused in the following.  For example,
+        "info threads" will stop early with "bogus thread id 6 Can't fetch
+        registers from thread bogus thread id 6: No such thread".
+    
+        Calling delete_exited_threads instead of prune_threads does not work.
+    
+        It's not clear if this really should be called here, or if we fail to
+        properly track/report our own threads.  For example, we're not calling
+        delete_thread anywhere.
+    
+        Alternatively, should/could we provide a update_thread_list function, and
+        do the pruning there?
+    
+    TODO.
+
+  * a932d108b10518994c873b38a363af9f21bc2e87..f245535cf583ae4ca13b10d47b3c7d3334593ece
+
+         Running [...]/tschwinge/W._C._Handy/ld/testsuite/ld-i386/i386.exp ...
+        +FAIL: Run ifunc-1b
+        +Running [...]/tschwinge/W._C._Handy/ld/testsuite/ld-i386/no-plt.exp ...
+        +FAIL: No PLT (static 1d)
+        +FAIL: No PLT (static 1j)
+        +FAIL: Run pr20244-3b
+        +FAIL: Run pr20253-1b
+        +FAIL: Run pr20253-1g
+        +FAIL: Run pr20253-2b
+        +FAIL: Run pr20253-2d
+
+    TODO.
 
 TODO.
 
