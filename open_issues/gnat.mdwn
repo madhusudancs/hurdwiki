@@ -125,6 +125,82 @@ GCC trunk r234252.
 Still incomplete?  (Changes to generic files?)
 
 
+### 2016-12-14
+
+Based on commit 17f0f5acdcfb9181203ca9b6d8f8cbc64e5ce843, [[tschwinge]] tried
+to build with `--enable-languages=all,ada`, but both with `--disable-bootstrap`
+and `--enable-bootstrap` we run into:
+
+    [...]
+    make[3]: Entering directory '/media/erich/home/thomas/tmp/gcc/hurd/master.build/gcc/ada/tools'
+    ../../gnatbind -I- -I../rts -I. -I/home/thomas/tmp/gcc/hurd/master/gcc/ada -o b_gnatm.adb gnatmake.ali
+    error: "system.ads" has restriction No_Implicit_Dynamic_Code
+    error: but the following files violate this restriction:
+    error:   "make.adb"
+    error:   "makeutl.adb"
+    error:   "prj.adb"
+    error:   "prj-env.adb"
+    error:   "prj-conf.adb"
+    error:   "prj-nmsc.adb"
+    ../gcc-interface/Makefile:2987: recipe for target 'b_gnatm.adb' failed
+    make[3]: *** [b_gnatm.adb] Error 5
+    make[3]: Leaving directory '/media/erich/home/thomas/tmp/gcc/hurd/master.build/gcc/ada/tools'
+    Makefile:194: recipe for target 'gnattools-native' failed
+    make[2]: *** [gnattools-native] Error 2
+    make[2]: Leaving directory '/media/erich/home/thomas/tmp/gcc/hurd/master.build/gnattools'
+    Makefile:9650: recipe for target 'all-gnattools' failed
+    make[1]: *** [all-gnattools] Error 2
+    make[1]: Leaving directory '/media/erich/home/thomas/tmp/gcc/hurd/master.build'
+    Makefile:895: recipe for target 'all' failed
+    make: *** [all] Error 2
+
+(Partial) review of differences:
+
+`gcc/ada/gcc-interface/Makefile.in`, Linux vs. Hurd
+
+    LIBGNAT_TARGET_PAIRS = \
+      a-intnam.ads<a-intnam-linux.ads vs. a-intnam.ads<a-intnam-freebsd.ads
+      a-synbar.adb<a-synbar-posix.adb vs. nil
+      a-synbar.ads<a-synbar-posix.ads vs. nil
+      s-inmaop.adb<s-inmaop-posix.adb
+      s-intman.adb<s-intman-posix.adb
+      s-tpopsp.adb<s-tpopsp-tls.adb vs. s-tpopsp.adb<s-tpopsp-posix-foreign.adb
+      g-sercom.adb<g-sercom-linux.adb vs. nil
+      a-exetim.adb<a-exetim-posix.adb vs. nil
+      a-exetim.ads<a-exetim-default.ads vs. nil
+      s-linux.ads<s-linux.ads vs. nil
+      s-osinte.adb<s-osinte-posix.adb vs. s-osinte.adb<s-osinte-gnu.adb
+      $(ATOMICS_TARGET_PAIRS)
+      system.ads<system-linux-x86.ads vs. system.ads<system-freebsd-x86.ads
+      $(X86_TARGET_PAIRS)
+      s-mudido.adb<s-mudido-affinity.adb vs. nil
+      s-osinte.ads<s-osinte-linux.ads vs. s-osinte.ads<s-osinte-gnu.ads
+      s-osprim.adb<s-osprim-posix.adb
+      s-taprop.adb<s-taprop-linux.adb vs. s-taprop.adb<s-taprop-posix.adb
+      s-tasinf.ads<s-tasinf-linux.ads vs. nil
+      s-tasinf.adb<s-tasinf-linux.adb vs. nil
+      s-taspri.ads<s-taspri-posix.ads
+    
+    EH_MECHANISM=-gcc
+    THREADSLIB = -lpthread -lrt vs. THREADSLIB = -lpthread
+    EXTRA_GNATRTL_NONTASKING_OBJS += g-sse.o g-ssvety.o
+    EXTRA_GNATRTL_TASKING_OBJS=s-linux.o a-exetim.o vs. nil
+    
+    TOOLS_TARGET_PAIRS = \
+      mlib-tgt-specific.adb<mlib-tgt-specific-linux.adb
+      indepsw.adb<indepsw-gnu.adb
+    
+    GNATLIB_SHARED = gnatlib-shared-dual
+    MISCLIB = -ldl vs. nil
+    GMEM_LIB = gmemlib
+    LIBRARY_VERSION := $(LIB_VERSION)
+    
+    TOOLS1_LIBS=-ldl vs. nil
+
+Eventually [[tschwinge]] found <http://gcc.gnu.org/PR57188>, and similarly
+fixed the issue.
+
+
 ## `getcontext`/`makecontext`/`setcontext`/`swapcontext` usage analysis
 
 In context of [[glibc/t/tls-threadvar]].  Looking at GCC trunk commit
