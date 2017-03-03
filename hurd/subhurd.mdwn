@@ -27,12 +27,47 @@ requires a privileged subhurd.
 
 # Howto
 
-## Preparing
+## Quick hack: Use an existing image
 
-To run a subhurd, you need an additional partition with an installed Hurd
-system.  In principle, you can also use your main partition in read-only mode;
-but this obviously will create severe limitations.  Usually, you will want a
-complete independent system.
+You can download a Debian/Hurd image
+[[here|https://people.debian.org/~sthibault/hurd-i386/]] and directly
+boot it:
+
+    $ wget --no-check-certificate https://people.debian.org/~sthibault/hurd-i386/debian-hurd.img.gz
+    $ gunzip debian-hurd.img.gz
+    $ boot --kernel-command-line="fastboot root=pseudo-root" -T typed part:1:file:debian-hurd.img
+
+The 'fastboot' is necessary to skip the filesystem check which fails
+because the image assumes the root filesystem to be /etc/hd0s1.  Once
+booted, you can correct this:
+
+    root@debian:~# settrans -c /dev/pseudo-root /hurd/storeio pseudo-root
+    root@debian:~# echo /dev/pseudo-root / ext2 defaults 0 1 >/etc/fstab
+    root@debian:~# halt
+
+From now on, `boot -T typed part:1:file:debian-hurd.img` should suffice.
+
+## Preparing your own image
+
+To run a subhurd, you need an additional partition (or a file) with an
+installed Hurd system.  In principle, you can also use your main
+partition in read-only mode; but this obviously will create severe
+limitations.  Usually, you will want a complete independent system.
+
+The following instructions assume that the system is installed on
+`/dev/hd0s1`.  You can use any partition instead, or in fact just a
+simple file created e.g. using dd.
+
+### Creating a file used as root filesystem for the Subhurd
+
+To create a file `my.image` of size 2 gigabytes, do
+
+    $ dd if=/dev/zero of=my.image bs=1M count=1 seek=2000
+
+(Note that it is currently problematic to create files larger than 2
+gigabytes this way.)
+
+### Using debootstrap
 
 The system for the subhurd is a normal Hurd installation, which could just as
 well run standalone.  You can use any of the various possible installation
@@ -44,22 +79,6 @@ debootstrap as root:
     settrans -ca mnt /hurd/ext2fs /dev/hd0s6
     debootstrap sid mnt/ http://httpredir.debian.org/debian
     settrans -fga mnt
-
-### IRC, freenode, #hurd, 2013-09-15
-
-    <gnu_srs> Never dared to try a subhurd, any link to the howto? 
-    <teythoon> gnu_srs: I followed
-      http://www.gnu.org/software/hurd/hurd/subhurd.html though using crosshurd
-      didn't work for me, I just used debootstrap
-    <teythoon> gnu_srs: and you need a separate filesystem translator (i.e. not
-      /) for that
-    <teythoon> the easiest way is to add another virtual disk to you qemu setup
-    <braunr> use the qemu image directly
-    <braunr> simplest way to set up a subhurd
-    <braunr> just change fstab from the host before the first boot to avoid
-      making the subhurd use the same hd0 drive as the host
-    <teythoon> braunr: nice idea :)
-
 
 ## Booting
 
