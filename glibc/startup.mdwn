@@ -35,7 +35,13 @@ is quite hairy on GNU Hurd systems.
   * `init1` checks the new stack, calls `_hurd_init` (hurd/hurdinit.c)
   * `_hurd_init` initializes initial ports, runs the `_hurd_subinit` hooks (`init_dtable` hurd/dtable.c notably initializes the FD table and the `_hurd_fd_subinit` hooks, which notably checks `std*`).
   * We are back to `_start`, which jumps to `_start1` which is the normal libc startup which calls `__libc_start_main`
-  * `__libc_start_main` (actually called `LIBC_START_MAIN` in csu/libc-start.c) initializes libc, tls, libpthread, atexit, an initialization function given as parameter, then calls application's `main`, then `exit`.
+  * `__libc_start_main` (actually called `LIBC_START_MAIN` in csu/libc-start.c) initializes libc, tls, libpthread, atexit
+  * `__libc_start_main` calls initialization function given as parameter `__libc_csu_init`,
+  * `__libc_csu_init` (csu/elf-init.c) calls `preinit_array_start` functions
+  * `__libc_csu_init` calls `_init`
+  * `_init` (sysdeps/i386/crti.S) calls `PREINIT_FUNCTION`, (actually libpthread on Linux, `__gmon_start__` on hurd)
+  * back to `__libc_csu_init` (csu/elf-init.c) calls `init_array_start` functions
+  * back to `__libc_start_main`, it calls calls application's `main`, then `exit`.
 
 ## dynamically-linked program
 
@@ -57,7 +63,12 @@ is quite hairy on GNU Hurd systems.
   * we are back to `_dl_start_user`, which calls `_dl_init` (elf/dl-init.c) which calls application initializers.
   * `_dl_start_user` jumps to the application's entry point, `_start`
   * `_start` (sysdeps/i386/start.S) calls `__libc_start_main`
-  * `__libc_start_main` (actually called `LIBC_START_MAIN` in csu/libc-start.c) initializes libc, tls, libpthread, atexit, an initialization function given as parameter, then calls application's `main`, then `exit`.
+  * `__libc_start_main` (actually called `LIBC_START_MAIN` in csu/libc-start.c) initializes libc, atexit,
+  * `__libc_start_main` calls initialization function given as parameter `__libc_csu_init`,
+  * `__libc_csu_init` calls `_init`
+  * `_init` (sysdeps/i386/crti.S) calls `PREINIT_FUNCTION`, (actually libpthread on Linux, `__gmon_start__` on hurd)
+  * back to `__libc_csu_init` (csu/elf-init.c) calls `init_array_start` functions
+  * back to `__libc_start_main`, it calls application's `main`, then `exit`.
 
 # IRC, freenode, #hurd, 2013-12-31
 
