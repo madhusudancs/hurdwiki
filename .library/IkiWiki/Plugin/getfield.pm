@@ -65,13 +65,13 @@ sub do_filter (@) {
     my $page_type=pagetype($page_file);
     if (defined $page_type)
     {
-	while ($params{content} =~ /{{\$([-\w\/]+#)?[-\w]+}}/)
+	while ($params{content} =~ /\{\{\$([-\w\/]+#)?[-\w]+\}\}/)
 	{
 	    # substitute {{$var}} variables (source-page)
-	    $params{content} =~ s/{{\$([-\w]+)}}/get_field_value($1,$page)/eg;
+	    $params{content} =~ s/\{\{\$([-\w]+)\}\}/get_field_value($1,$page)/eg;
 
 	    # substitute {{$page#var}} variables (source-page)
-	    $params{content} =~ s/{{\$([-\w\/]+)#([-\w]+)}}/get_other_page_field_value($2,$page,$1)/eg;
+	    $params{content} =~ s/\{\{\$([-\w\/]+)#([-\w]+)\}\}/get_other_page_field_value($2,$page,$1)/eg;
 	}
     }
 
@@ -79,12 +79,12 @@ sub do_filter (@) {
     $page_type=pagetype($page_file);
     if (defined $page_type)
     {
-	while ($params{content} =~ /{{\+\$([-\w\/]+#)?[-\w]+\+}}/)
+	while ($params{content} =~ /\{\{\+\$([-\w\/]+#)?[-\w]+\+\}\}/)
 	{
 	    # substitute {{+$var+}} variables (dest-page)
-	    $params{content} =~ s/{{\+\$([-\w]+)\+}}/get_field_value($1,$destpage)/eg;
+	    $params{content} =~ s/\{\{\+\$([-\w]+)\+\}\}/get_field_value($1,$destpage)/eg;
 	    # substitute {{+$page#var+}} variables (source-page)
-	    $params{content} =~ s/{{\+\$([-\w\/]+)#([-\w]+)\+}}/get_other_page_field_value($2,$destpage,$1)/eg;
+	    $params{content} =~ s/\{\{\+\$([-\w\/]+)#([-\w]+)\+\}\}/get_other_page_field_value($2,$destpage,$1)/eg;
 	}
     }
 

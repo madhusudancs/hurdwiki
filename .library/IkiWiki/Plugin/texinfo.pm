@@ -107,7 +107,7 @@ sub filter (@)
     # ``Render'' by hand some stuff that is commonly found in this section.
     if (defined $copyright{$page})
     {
-	$copyright{$page} =~ s/\@copyright{}/©/g;
+	$copyright{$page} =~ s/\@copyright\{\}/©/g;
     }
     if (defined $license{$page})
     {
